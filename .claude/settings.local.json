@@ -19,7 +19,8 @@
       "Read(//Applications/**)",
       "Bash(open /Users/simran/Documents/GitHub/Bill-Split/ios/App/App.xcworkspace)",
       "WebSearch",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)"
     ],
     "deny": [],
     "ask": []

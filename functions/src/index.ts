@@ -54,7 +54,11 @@ interface AnalyzeBillRequest {
  * The Gemini API key is stored securely in Firebase secrets and never exposed to clients.
  */
 export const analyzeBill = onCall<AnalyzeBillRequest>(
-  { secrets: [geminiApiKey] },
+  {
+    secrets: [geminiApiKey],
+    timeoutSeconds: 60,
+    memory: '512MiB',
+  },
   async (request) => {
     // Validate request
     if (!request.auth) {
@@ -74,35 +78,22 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
     try {
       // Initialize Gemini AI with secret API key
       const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
 
-      const prompt = `You are an expert in extracting information from restaurant bills. Given an image of a bill, extract the line items (with individual prices), tax, and tip.
+      const prompt = `Extract restaurant bill data from this image. Return ONLY valid JSON (no markdown):
 
-IMPORTANT RULES:
-1. If an item has a quantity greater than 1 (e.g., "2 Burritos" or "Burrito x2"), create SEPARATE entries for each item.
-   For example: "2 Burritos @ $10 each" should become two separate burrito entries with $10 each.
-2. Extract individual item prices, not the total for multiple items.
-3. If the receipt shows "2 Burritos $20", divide by quantity to get individual price ($10 each).
-4. The line items should be a list of individual items with their names and prices.
-5. Tax, tip, subtotal, and total should be numerical values.
-
-Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
 {
-  "items": [
-    {"name": "Item Name", "price": 10.99},
-    {"name": "Item Name", "price": 10.99}
-  ],
+  "items": [{"name": "Item", "price": 10.99}],
   "subtotal": 50.00,
   "tax": 4.50,
   "tip": 10.00,
   "total": 64.50
 }
 
-Make sure:
-- Each item in a quantity appears as a separate entry in the items array
-- Each item has both "name" (string) and "price" (number)
-- All monetary values are positive numbers (not strings)
-- The items array contains individual items with individual prices`;
+Rules:
+- Split quantities into separate items (e.g., "2x Burger" = two entries)
+- Use individual item prices, not totals
+- All values must be numbers`;
 
       // Detect MIME type from base64 string
       const mimeMatch = base64Image.match(/^data:([^;]+);base64,/);
@@ -127,7 +118,16 @@ Make sure:
       cleanedText = cleanedText.replace(/```\s*$/g, '');
       cleanedText = cleanedText.trim();
 
-      const billData: BillData = JSON.parse(cleanedText);
+      let billData: BillData;
+      try {
+        billData = JSON.parse(cleanedText);
+      } catch (parseError) {
+        console.error('JSON parsing failed. Raw response:', cleanedText);
+        throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+      }
+
+      // Log the parsed data for debugging
+      console.log('Parsed bill data:', JSON.stringify(billData, null, 2));
 
       // Add unique IDs to each item
       billData.items = billData.items.map((item, index) => ({
@@ -137,6 +137,7 @@ Make sure:
 
       // Validate the data structure
       if (!billData.items || !Array.isArray(billData.items)) {
+        console.error('Invalid items array. Full response:', billData);
         throw new Error('Invalid response: items array is missing');
       }
 
@@ -147,17 +148,25 @@ Make sure:
       // Validate each item has required fields
       for (const item of billData.items) {
         if (!item.name || typeof item.price !== 'number') {
+          console.error('Invalid item:', item);
           throw new Error('Invalid item structure: missing name or price');
         }
       }
 
+      // Validate numeric fields with detailed error
       if (
         typeof billData.subtotal !== 'number' ||
         typeof billData.tax !== 'number' ||
         typeof billData.tip !== 'number' ||
         typeof billData.total !== 'number'
       ) {
-        throw new Error('Invalid response: missing required numeric fields');
+        console.error('Missing numeric fields. Received:', {
+          subtotal: billData.subtotal,
+          tax: billData.tax,
+          tip: billData.tip,
+          total: billData.total,
+        });
+        throw new Error(`Invalid response: missing required numeric fields. Received types: subtotal=${typeof billData.subtotal}, tax=${typeof billData.tax}, tip=${typeof billData.tip}, total=${typeof billData.total}`);
       }
 
       return billData;

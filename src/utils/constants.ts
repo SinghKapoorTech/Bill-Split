@@ -1,7 +1,7 @@
 import { BillData } from '@/types';
 
 export const VALID_FILE_TYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif'];
-export const MAX_FILE_SIZE = 20 * 1024 * 1024;
+export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB (images are compressed before upload)
 
 export const MOCK_BILL_DATA: BillData = {
   items: [
