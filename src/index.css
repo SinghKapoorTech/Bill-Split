@@ -19,7 +19,7 @@ All colors MUST be HSL.
     --popover-foreground: 220 15% 18%;
 
     /* Primary - Vibrant teal/cyan */
-    --primary: 202, 80%, 62%;
+    --primary: 202 80% 62%;
     --primary-foreground: 0 0% 100%;
     --primary-glow: 175 65% 58%;
 
@@ -32,11 +32,11 @@ All colors MUST be HSL.
     --muted-foreground: 220 10% 48%;
 
     /* Accent - Vibrant coral/salmon */
-    --accent: 12, 100%, 50%;
+    --accent: 12 100% 50%;
     --accent-foreground: 0 0% 100%;
 
     /* Success - Fresh green for positive actions */
-    --success: 142, 71%, 35%;
+    --success: 142 71% 35%;
     --success-foreground: 0 0% 100%;
 
     /* Info - Vibrant blue for sharing/info */
