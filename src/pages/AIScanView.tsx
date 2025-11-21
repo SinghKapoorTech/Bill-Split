@@ -309,6 +309,22 @@ export default function AIScanView() {
     }
   };
 
+  // Determine which steps can be navigated to
+  const canNavigateToStep = (stepIndex: number): boolean => {
+    // Always allow navigating to current step or previous steps
+    if (stepIndex <= currentStep) {
+      return true;
+    }
+    
+    // For future steps, check if all previous steps are completed
+    for (let i = 0; i < stepIndex; i++) {
+      if (!canProceedFromStep(i)) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   if (isLoadingSessions) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -334,6 +350,7 @@ export default function AIScanView() {
           currentStep={currentStep}
           orientation={isMobile ? 'horizontal' : 'horizontal'}
           onStepClick={setCurrentStep}
+          canNavigateToStep={canNavigateToStep}
         />
       </div>
 

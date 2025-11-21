@@ -15,6 +15,7 @@ interface StepperProps {
   orientation?: 'horizontal' | 'vertical';
   className?: string;
   onStepClick?: (stepIndex: number) => void;
+  canNavigateToStep?: (stepIndex: number) => boolean;
 }
 
 export function Stepper({
@@ -23,6 +24,7 @@ export function Stepper({
   orientation = 'horizontal',
   className,
   onStepClick,
+  canNavigateToStep,
 }: StepperProps) {
   const isHorizontal = orientation === 'horizontal';
 
@@ -40,9 +42,15 @@ export function Stepper({
         const isCompleted = index < currentStep;
         const isCurrent = index === currentStep;
         const isLast = index === steps.length - 1;
-        const isClickable = !!onStepClick;
+        const canNavigate = canNavigateToStep ? canNavigateToStep(index) : true;
+        const isClickable = !!onStepClick && canNavigate;
 
-        const handleClick = () => {
+        const handleClick = (e: React.MouseEvent) => {
+          if (!canNavigate) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
           if (onStepClick) {
             onStepClick(index);
           }
@@ -68,16 +76,18 @@ export function Stepper({
                     !isCompleted &&
                       !isCurrent &&
                       'border-muted-foreground/30 bg-muted text-muted-foreground',
-                    isClickable && 'cursor-pointer hover:scale-105 active:scale-95'
+                    isClickable && 'cursor-pointer hover:scale-105 active:scale-95',
+                    !canNavigate && 'opacity-50 cursor-not-allowed'
                   )}
                   aria-current={isCurrent ? 'step' : undefined}
+                  aria-disabled={!canNavigate}
                   onClick={handleClick}
                   role={isClickable ? 'button' : undefined}
                   tabIndex={isClickable ? 0 : undefined}
                   onKeyDown={isClickable ? (e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      handleClick();
+                      handleClick(e as any);
                     }
                   } : undefined}
                 >
@@ -93,7 +103,8 @@ export function Stepper({
                   <div 
                     className={cn(
                       "hidden md:flex flex-col items-center mt-2 min-w-[100px]",
-                      isClickable && 'cursor-pointer'
+                      isClickable && 'cursor-pointer',
+                      !canNavigate && 'opacity-50 cursor-not-allowed'
                     )}
                     onClick={handleClick}
                   >
@@ -119,7 +130,8 @@ export function Stepper({
                   <div 
                     className={cn(
                       "ml-4 flex flex-col",
-                      isClickable && 'cursor-pointer'
+                      isClickable && 'cursor-pointer',
+                      !canNavigate && 'opacity-50 cursor-not-allowed'
                     )}
                     onClick={handleClick}
                   >
