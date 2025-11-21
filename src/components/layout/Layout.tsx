@@ -26,7 +26,7 @@ export function Layout() {
       {!isMobile && <Header />}
 
       <main className={`container mx-auto px-4 py-4 md:py-12 flex-grow ${mainPaddingBottom}`}>
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <Outlet />
         </div>
       </main>

@@ -11,7 +11,7 @@ export function Header() {
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center">
               <Receipt className="w-5 h-5 md:w-6 md:h-6 text-primary-foreground" />
             </div>
-            <h1 className="text-xl md:text-2xl font-bold">SplitBill</h1>
+            <h1 className="text-xl md:text-2xl font-bold">ChipMates</h1>
           </div>
           <div className="flex items-center gap-6">
             <NavigationBar />

@@ -8,6 +8,9 @@ import { SplitSummary } from '@/components/people/SplitSummary';
 import { AssignmentModeToggle } from '@/components/bill/AssignmentModeToggle';
 import { FeatureCards } from '@/components/shared/FeatureCards';
 import { ShareSessionModal } from '@/components/share/ShareSessionModal';
+import { TwoColumnLayout, ReceiptPreview } from '@/components/shared/TwoColumnLayout';
+import { Stepper, Step, StepContent } from '@/components/ui/stepper';
+import { StepFooter } from '@/components/shared/StepFooter';
 import { useBillSplitter } from '@/hooks/useBillSplitter';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
 import { useFileUpload } from '@/hooks/useFileUpload';
@@ -16,20 +19,29 @@ import { useItemEditor } from '@/hooks/useItemEditor';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useShareSession } from '@/hooks/useShareSession';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Receipt, Users, Upload, Edit, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Receipt, Users, Loader2, Sparkles } from 'lucide-react';
 import { useBillSession } from '@/contexts/BillSessionContext';
 import { UI_TEXT } from '@/utils/uiConstants';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { Person, BillData, ItemAssignment, AssignmentMode } from '@/types';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+const STEPS: Step[] = [
+  { id: 1, label: 'Upload', description: 'Scan receipt' },
+  { id: 2, label: 'People', description: 'Add friends' },
+  { id: 3, label: 'Assign', description: 'Split items' },
+  { id: 4, label: 'Review', description: 'Finalize' },
+];
+
 export default function AIScanView() {
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState('ai-scan');
   const isInitializing = useRef(true);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Step management
+  const [currentStep, setCurrentStep] = useState(0);
 
   // Centralized state management
   const {
@@ -105,6 +117,15 @@ export default function AIScanView() {
       } else {
         upload.handleRemoveImage();
       }
+
+      // Determine which step to show based on session state
+      if (activeSession.billData && activeSession.people.length > 0) {
+        setCurrentStep(2); // Go to Assign Items step
+      } else if (activeSession.billData) {
+        setCurrentStep(1); // Go to Add People step
+      } else if (activeSession.receiptImageUrl) {
+        setCurrentStep(0); // Stay on Upload step (image uploaded but not analyzed)
+      }
     } else {
       // If no session, reset to initial state
       setBillData(null);
@@ -115,6 +136,7 @@ export default function AIScanView() {
       setAssignmentMode('checkboxes');
       setSplitEvenly(false);
       upload.handleRemoveImage();
+      setCurrentStep(0);
     }
     // Allow saves after a short delay to let state updates settle
     const timer = setTimeout(() => (isInitializing.current = false), 200);
@@ -176,6 +198,7 @@ export default function AIScanView() {
 
   const handleStartOver = async () => {
     await clearSession();
+    setCurrentStep(0);
   };
 
   const handleSave = async () => {
@@ -222,6 +245,11 @@ export default function AIScanView() {
       receiptImageUrl: uploadResult?.downloadURL,
       receiptFileName: uploadResult?.fileName,
     });
+
+    // Move to next step after analysis
+    if (analyzedBillData) {
+      setCurrentStep(1);
+    }
   };
 
   const handleImageSelected = async (fileOrBase64: File | string) => {
@@ -236,6 +264,47 @@ export default function AIScanView() {
     } else {
       // From web file input (File object)
       upload.handleFileSelect(fileOrBase64);
+    }
+  };
+
+  const handleManualEntry = () => {
+    // Initialize empty bill data for manual entry
+    setBillData({
+      items: [],
+      subtotal: 0,
+      tax: 0,
+      tip: 0,
+      total: 0,
+    });
+    setCurrentStep(1); // Go to Add People step
+  };
+
+  // Step navigation
+  const handleNextStep = () => {
+    if (currentStep < STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  // Validation for step progression
+  const canProceedFromStep = (step: number): boolean => {
+    switch (step) {
+      case 0: // Upload step
+        return !!billData; // Need bill data to proceed
+      case 1: // People step
+        return people.length > 0; // Need at least one person
+      case 2: // Assign step
+        return true; // Can always proceed to review
+      case 3: // Review step
+        return true; // Final step
+      default:
+        return false;
     }
   };
 
@@ -257,128 +326,100 @@ export default function AIScanView() {
         onShare={handleShare}
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="ai-scan" className="gap-2">
-            <Upload className="w-4 h-4" />
-            AI Scan
-          </TabsTrigger>
-          <TabsTrigger value="manual" className="gap-2">
-            <Edit className="w-4 h-4" />
-            Manual Entry
-          </TabsTrigger>
-        </TabsList>
+      {/* Stepper */}
+      <div className="mb-6 md:mb-8">
+        <Stepper
+          steps={STEPS}
+          currentStep={currentStep}
+          orientation={isMobile ? 'horizontal' : 'horizontal'}
+        />
+      </div>
 
-        <TabsContent value="ai-scan" className="space-y-6">
-          <ReceiptUploader
-            selectedFile={upload.selectedFile}
-            imagePreview={upload.imagePreview}
-            isDragging={upload.isDragging}
-            isUploading={isUploading}
-            isAnalyzing={analyzer.isAnalyzing}
-            isMobile={isMobile}
-            onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
-            onDragOver={upload.handleDragOver}
-            onDragLeave={upload.handleDragLeave}
-            onDrop={(e) => {
-              upload.handleDrop(e);
-              const file = e.dataTransfer.files?.[0];
-              if (file) handleImageSelected(file);
-            }}
-            onRemove={handleRemoveImage}
-            onAnalyze={handleAnalyzeReceipt}
-            onImageSelected={handleImageSelected}
-            fileInputRef={upload.fileInputRef}
-          />
-
-          {billData && (
-            <div className="space-y-6">
-              <PeopleManager
-                people={people}
-                newPersonName={peopleManager.newPersonName}
-                newPersonVenmoId={peopleManager.newPersonVenmoId}
-                useNameAsVenmoId={peopleManager.useNameAsVenmoId}
-                onNameChange={peopleManager.setNewPersonName}
-                onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
-                onAdd={peopleManager.addPerson}
-                onAddFromFriend={peopleManager.addFromFriend}
-                onRemove={handleRemovePerson}
-                onSaveAsFriend={peopleManager.savePersonAsFriend}
-                setPeople={setPeople}
+      {/* Step Content */}
+      <StepContent stepKey={currentStep}>
+        {/* Step 1: Upload & Scan */}
+        {currentStep === 0 && (
+          <div className="space-y-6">
+            <Card className="p-6">
+              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                AI-Powered Receipt Scan
+              </h3>
+              <ReceiptUploader
+                selectedFile={upload.selectedFile}
+                imagePreview={upload.imagePreview}
+                isDragging={upload.isDragging}
+                isUploading={isUploading}
+                isAnalyzing={analyzer.isAnalyzing}
+                isMobile={isMobile}
+                onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
+                onDragOver={upload.handleDragOver}
+                onDragLeave={upload.handleDragLeave}
+                onDrop={(e) => {
+                  upload.handleDrop(e);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) handleImageSelected(file);
+                }}
+                onRemove={handleRemoveImage}
+                onAnalyze={handleAnalyzeReceipt}
+                onImageSelected={handleImageSelected}
+                fileInputRef={upload.fileInputRef}
               />
+            </Card>
 
-              <Card className="p-4 md:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Receipt className="w-5 h-5 text-primary" />
-                    <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
-                  </div>
-
-                  {people.length > 0 && !isMobile && (
-                    <AssignmentModeToggle
-                      mode={assignmentMode}
-                      onModeChange={setAssignmentMode}
-                    />
-                  )}
+            <div className="text-center">
+              <div className="relative py-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border"></div>
                 </div>
-
-                <BillItems
-                  billData={billData}
-                  people={people}
-                  itemAssignments={itemAssignments}
-                  assignmentMode={assignmentMode}
-                  editingItemId={editor.editingItemId}
-                  editingItemName={editor.editingItemName}
-                  editingItemPrice={editor.editingItemPrice}
-                  onAssign={bill.handleItemAssignment}
-                  onEdit={editor.editItem}
-                  onSave={editor.saveEdit}
-                  onCancel={editor.cancelEdit}
-                  onDelete={editor.deleteItem}
-                  setEditingName={editor.setEditingItemName}
-                  setEditingPrice={editor.setEditingItemPrice}
-                  isAdding={editor.isAdding}
-                  newItemName={editor.newItemName}
-                  newItemPrice={editor.newItemPrice}
-                  setNewItemName={editor.setNewItemName}
-                  setNewItemPrice={editor.setNewItemPrice}
-                  onStartAdding={editor.startAdding}
-                  onAddItem={editor.addItem}
-                  onCancelAdding={editor.cancelAdding}
-                  splitEvenly={splitEvenly}
-                  onToggleSplitEvenly={bill.toggleSplitEvenly}
-                />
-
-                {people.length === 0 && !isMobile && billData && (
-                  <p className="text-sm text-muted-foreground text-center py-4 mt-4">
-                    {UI_TEXT.ADD_PEOPLE_TO_ASSIGN}
-                  </p>
-                )}
-
-                <BillSummary
-                  billData={billData}
-                  customTip={customTip}
-                  effectiveTip={bill.effectiveTip}
-                  customTax={customTax}
-                  effectiveTax={bill.effectiveTax}
-                  onTipChange={setCustomTip}
-                  onTaxChange={setCustomTax}
-                />
-              </Card>
-
-              <SplitSummary
-                personTotals={bill.personTotals}
-                allItemsAssigned={bill.allItemsAssigned}
-                people={people}
-                billData={billData}
-                itemAssignments={itemAssignments}
-              />
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or</span>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleManualEntry}
+                className="gap-2"
+              >
+                <Receipt className="w-4 h-4" />
+                Enter Bill Manually
+              </Button>
             </div>
-          )}
-        </TabsContent>
 
-        <TabsContent value="manual" className="space-y-6">
+            {!billData && <FeatureCards />}
+
+            <StepFooter
+              currentStep={currentStep}
+              totalSteps={STEPS.length}
+              onNext={handleNextStep}
+              nextDisabled={!canProceedFromStep(0)}
+              customAction={
+                upload.imagePreview && !billData ? (
+                  <Button
+                    onClick={handleAnalyzeReceipt}
+                    disabled={analyzer.isAnalyzing || isUploading}
+                    className="gap-2"
+                  >
+                    {analyzer.isAnalyzing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Analyze Receipt
+                      </>
+                    )}
+                  </Button>
+                ) : null
+              }
+            />
+          </div>
+        )}
+
+        {/* Step 2: Add People */}
+        {currentStep === 1 && (
           <div className="space-y-6">
             <PeopleManager
               people={people}
@@ -395,81 +436,115 @@ export default function AIScanView() {
               setPeople={setPeople}
             />
 
-            <Card className="p-4 md:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-primary" />
-                  <h3 className="text-xl font-semibold">Bill Items</h3>
-                </div>
-
-                {people.length > 0 && !isMobile && (
-                  <AssignmentModeToggle
-                    mode={assignmentMode}
-                    onModeChange={setAssignmentMode}
-                  />
-                )}
-              </div>
-
-              <BillItems
-                billData={billData}
-                people={people}
-                itemAssignments={itemAssignments}
-                assignmentMode={assignmentMode}
-                editingItemId={editor.editingItemId}
-                editingItemName={editor.editingItemName}
-                editingItemPrice={editor.editingItemPrice}
-                onAssign={bill.handleItemAssignment}
-                onEdit={editor.editItem}
-                onSave={editor.saveEdit}
-                onCancel={editor.cancelEdit}
-                onDelete={editor.deleteItem}
-                setEditingName={editor.setEditingItemName}
-                setEditingPrice={editor.setEditingItemPrice}
-                isAdding={editor.isAdding}
-                newItemName={editor.newItemName}
-                newItemPrice={editor.newItemPrice}
-                setNewItemName={editor.setNewItemName}
-                setNewItemPrice={editor.setNewItemPrice}
-                onStartAdding={editor.startAdding}
-                onAddItem={editor.addItem}
-                onCancelAdding={editor.cancelAdding}
-                splitEvenly={splitEvenly}
-                onToggleSplitEvenly={bill.toggleSplitEvenly}
-              />
-
-              {people.length === 0 && !isMobile && billData && (
-                <p className="text-sm text-muted-foreground text-center py-4 mt-4">
-                  Add people above to assign items
-                </p>
-              )}
-
-              {billData && (
-                <BillSummary
-                  billData={billData}
-                  customTip={customTip}
-                  effectiveTip={bill.effectiveTip}
-                  customTax={customTax}
-                  effectiveTax={bill.effectiveTax}
-                  onTipChange={setCustomTip}
-                  onTaxChange={setCustomTax}
-                />
-              )}
-            </Card>
-
-            {billData && (
-              <SplitSummary
-                personTotals={bill.personTotals}
-                allItemsAssigned={bill.allItemsAssigned}
-                people={people}
-                billData={billData}
-                itemAssignments={itemAssignments}
-              />
-            )}
+            <StepFooter
+              currentStep={currentStep}
+              totalSteps={STEPS.length}
+              onBack={handlePrevStep}
+              onNext={handleNextStep}
+              nextDisabled={!canProceedFromStep(1)}
+            />
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
 
-      {!billData && <FeatureCards />}
+        {/* Step 3: Assign Items */}
+        {currentStep === 2 && billData && (
+          <div className="space-y-6">
+            <TwoColumnLayout
+              leftColumn={
+                <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
+              }
+              rightColumn={
+                <Card className="p-4 md:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-2">
+                      <Receipt className="w-5 h-5 text-primary" />
+                      <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
+                    </div>
+
+                    {people.length > 0 && !isMobile && (
+                      <AssignmentModeToggle
+                        mode={assignmentMode}
+                        onModeChange={setAssignmentMode}
+                      />
+                    )}
+                  </div>
+
+                  <BillItems
+                    billData={billData}
+                    people={people}
+                    itemAssignments={itemAssignments}
+                    assignmentMode={assignmentMode}
+                    editingItemId={editor.editingItemId}
+                    editingItemName={editor.editingItemName}
+                    editingItemPrice={editor.editingItemPrice}
+                    onAssign={bill.handleItemAssignment}
+                    onEdit={editor.editItem}
+                    onSave={editor.saveEdit}
+                    onCancel={editor.cancelEdit}
+                    onDelete={editor.deleteItem}
+                    setEditingName={editor.setEditingItemName}
+                    setEditingPrice={editor.setEditingItemPrice}
+                    isAdding={editor.isAdding}
+                    newItemName={editor.newItemName}
+                    newItemPrice={editor.newItemPrice}
+                    setNewItemName={editor.setNewItemName}
+                    setNewItemPrice={editor.setNewItemPrice}
+                    onStartAdding={editor.startAdding}
+                    onAddItem={editor.addItem}
+                    onCancelAdding={editor.cancelAdding}
+                    splitEvenly={splitEvenly}
+                    onToggleSplitEvenly={bill.toggleSplitEvenly}
+                  />
+
+                  {people.length === 0 && !isMobile && billData && (
+                    <p className="text-sm text-muted-foreground text-center py-4 mt-4">
+                      {UI_TEXT.ADD_PEOPLE_TO_ASSIGN}
+                    </p>
+                  )}
+
+                  <BillSummary
+                    billData={billData}
+                    customTip={customTip}
+                    effectiveTip={bill.effectiveTip}
+                    customTax={customTax}
+                    effectiveTax={bill.effectiveTax}
+                    onTipChange={setCustomTip}
+                    onTaxChange={setCustomTax}
+                  />
+                </Card>
+              }
+            />
+
+            <StepFooter
+              currentStep={currentStep}
+              totalSteps={STEPS.length}
+              onBack={handlePrevStep}
+              onNext={handleNextStep}
+              nextDisabled={!canProceedFromStep(2)}
+            />
+          </div>
+        )}
+
+        {/* Step 4: Review & Share */}
+        {currentStep === 3 && billData && (
+          <div className="space-y-6">
+            <SplitSummary
+              personTotals={bill.personTotals}
+              allItemsAssigned={bill.allItemsAssigned}
+              people={people}
+              billData={billData}
+              itemAssignments={itemAssignments}
+            />
+
+            <StepFooter
+              currentStep={currentStep}
+              totalSteps={STEPS.length}
+              onBack={handlePrevStep}
+              completeLabel="Done"
+            />
+          </div>
+        )}
+      </StepContent>
 
       {/* Share Modal */}
       {sharedSessionId && shareCode && (
