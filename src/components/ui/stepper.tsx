@@ -14,6 +14,7 @@ interface StepperProps {
   currentStep: number;
   orientation?: 'horizontal' | 'vertical';
   className?: string;
+  onStepClick?: (stepIndex: number) => void;
 }
 
 export function Stepper({
@@ -21,6 +22,7 @@ export function Stepper({
   currentStep,
   orientation = 'horizontal',
   className,
+  onStepClick,
 }: StepperProps) {
   const isHorizontal = orientation === 'horizontal';
 
@@ -38,6 +40,13 @@ export function Stepper({
         const isCompleted = index < currentStep;
         const isCurrent = index === currentStep;
         const isLast = index === steps.length - 1;
+        const isClickable = !!onStepClick;
+
+        const handleClick = () => {
+          if (onStepClick) {
+            onStepClick(index);
+          }
+        };
 
         return (
           <React.Fragment key={step.id}>
@@ -58,9 +67,19 @@ export function Stepper({
                       'border-primary bg-background text-primary scale-110',
                     !isCompleted &&
                       !isCurrent &&
-                      'border-muted-foreground/30 bg-muted text-muted-foreground'
+                      'border-muted-foreground/30 bg-muted text-muted-foreground',
+                    isClickable && 'cursor-pointer hover:scale-105 active:scale-95'
                   )}
                   aria-current={isCurrent ? 'step' : undefined}
+                  onClick={handleClick}
+                  role={isClickable ? 'button' : undefined}
+                  tabIndex={isClickable ? 0 : undefined}
+                  onKeyDown={isClickable ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleClick();
+                    }
+                  } : undefined}
                 >
                   {isCompleted ? (
                     <Check className="h-5 w-5" />
@@ -71,7 +90,13 @@ export function Stepper({
 
                 {/* Step Label - Desktop */}
                 {isHorizontal && (
-                  <div className="hidden md:flex flex-col items-center mt-2 min-w-[100px]">
+                  <div 
+                    className={cn(
+                      "hidden md:flex flex-col items-center mt-2 min-w-[100px]",
+                      isClickable && 'cursor-pointer'
+                    )}
+                    onClick={handleClick}
+                  >
                     <span
                       className={cn(
                         'text-sm font-medium text-center',
@@ -91,7 +116,13 @@ export function Stepper({
 
                 {/* Step Label - Mobile (Vertical) */}
                 {!isHorizontal && (
-                  <div className="ml-4 flex flex-col">
+                  <div 
+                    className={cn(
+                      "ml-4 flex flex-col",
+                      isClickable && 'cursor-pointer'
+                    )}
+                    onClick={handleClick}
+                  >
                     <span
                       className={cn(
                         'text-sm font-medium',

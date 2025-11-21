@@ -26,6 +26,7 @@ import { UI_TEXT } from '@/utils/uiConstants';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { Person, BillData, ItemAssignment, AssignmentMode } from '@/types';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { areAllItemsAssigned } from '@/utils/calculations';
 
 const STEPS: Step[] = [
   { id: 1, label: 'Upload', description: 'Scan receipt' },
@@ -300,7 +301,7 @@ export default function AIScanView() {
       case 1: // People step
         return people.length > 0; // Need at least one person
       case 2: // Assign step
-        return true; // Can always proceed to review
+        return areAllItemsAssigned(billData, itemAssignments); // All items must be assigned
       case 3: // Review step
         return true; // Final step
       default:
@@ -332,6 +333,7 @@ export default function AIScanView() {
           steps={STEPS}
           currentStep={currentStep}
           orientation={isMobile ? 'horizontal' : 'horizontal'}
+          onStepClick={setCurrentStep}
         />
       </div>
 
