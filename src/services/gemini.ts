@@ -46,27 +46,35 @@ const functions = getFunctions(app);
  */
 export async function analyzeBillImage(base64Image: string): Promise<BillData> {
   try {
-    // Call the Cloud Function
-    const analyzeBill = httpsCallable<{ base64Image: string }, BillData>(functions, 'analyzeBill');
+    // Call the Cloud Function with a 2-minute timeout
+    const analyzeBill = httpsCallable<{ base64Image: string }, BillData>(functions, 'analyzeBill', { timeout: 120000 });
     const result = await analyzeBill({ base64Image });
 
     return result.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error analyzing bill:', error);
 
     // Handle Firebase Functions errors
-    if (error && typeof error === 'object' && 'code' in error) {
-      const functionsError = error as { code: string; message: string };
+    if (error && typeof error === 'object') {
+      // Check for specific error codes
+      const code = error.code;
+      const message = error.message;
 
-      if (functionsError.code === 'unauthenticated') {
+      if (code === 'unauthenticated') {
         throw new Error('Please sign in to analyze receipts');
       }
 
-      if (functionsError.code === 'invalid-argument') {
+      if (code === 'invalid-argument') {
         throw new Error('Invalid image format. Please upload a valid receipt image');
       }
 
-      throw new Error(`Failed to analyze receipt: ${functionsError.message}`);
+      if (code === 'deadline-exceeded') {
+        throw new Error('Analysis timed out. The receipt might be too complex or the service is busy. Please try again.');
+      }
+
+      if (message) {
+        throw new Error(`Failed to analyze receipt: ${message}`);
+      }
     }
 
     if (error instanceof Error) {

@@ -58,6 +58,29 @@ export function ReceiptUploader({
       fileInputRef.current?.click();
     }
   };
+
+  const handleUseDemoImage = async () => {
+    try {
+      // Fetch the demo receipt image from public folder
+      const response = await fetch('/demo-receipt.png');
+      const blob = await response.blob();
+      
+      // Convert to File object
+      const file = new File([blob], 'demo-receipt.png', { type: 'image/png' });
+      
+      // Convert to base64 for preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Image = reader.result as string;
+        if (onImageSelected) {
+          onImageSelected(base64Image);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error loading demo image:', error);
+    }
+  };
   return (
     <Card
       className={`shadow-medium border-2 border-dashed transition-all duration-300 ${
@@ -106,6 +129,18 @@ export function ReceiptUploader({
             <Upload className="mr-2 h-5 w-5" />
             {isNative ? 'Take Photo' : 'Choose File'}
           </Button>
+
+          {!isNative && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-primary/40 hover:bg-primary/10"
+              onClick={handleUseDemoImage}
+            >
+              <Receipt className="mr-2 h-4 w-4" />
+              Use Demo Image
+            </Button>
+          )}
 
           <p className="text-sm text-muted-foreground">
             Supports JPG, PNG, HEIC • Max 20MB

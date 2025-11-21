@@ -48,6 +48,7 @@ export function useReceiptAnalyzer(
       }
       return finalData;
     } catch (error) {
+      console.error('useReceiptAnalyzer error:', error);
       toast({
         title: 'Analysis Failed',
         description:

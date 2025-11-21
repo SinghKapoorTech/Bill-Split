@@ -56,7 +56,7 @@ interface AnalyzeBillRequest {
 export const analyzeBill = onCall<AnalyzeBillRequest>(
   {
     secrets: [geminiApiKey],
-    timeoutSeconds: 60,
+    timeoutSeconds: 120,
     memory: '512MiB',
   },
   async (request) => {
@@ -151,6 +151,12 @@ Rules:
           console.error('Invalid item:', item);
           throw new Error('Invalid item structure: missing name or price');
         }
+      }
+
+      // Normalize tip field - handle null, undefined, or non-numeric values
+      if (billData.tip === null || billData.tip === undefined || typeof billData.tip !== 'number') {
+        console.log(`Normalizing tip from ${billData.tip} to 0`);
+        billData.tip = 0;
       }
 
       // Validate numeric fields with detailed error

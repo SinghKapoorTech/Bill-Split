@@ -119,9 +119,21 @@ export default function GroupDetailView() {
     }
   };
 
+  const handleImageSelected = async (base64Image: string) => {
+    try {
+      upload.setImagePreview(base64Image);
+      const response = await fetch(base64Image);
+      const blob = await response.blob();
+      const file = new File([blob], 'receipt.jpg', { type: blob.type });
+      upload.setSelectedFile(file);
+    } catch (error) {
+      console.error('Error processing selected image:', error);
+    }
+  };
+
   const handleAnalyzeReceipt = async () => {
-    if (!upload.imagePreview) return;
-    await analyzer.analyzeReceipt(upload.imagePreview);
+    if (!upload.imagePreview || !upload.selectedFile) return;
+    await analyzer.analyzeReceipt(upload.selectedFile, upload.imagePreview);
   };
 
   if (loading) {
@@ -206,6 +218,7 @@ export default function GroupDetailView() {
             onDrop={upload.handleDrop}
             onRemove={upload.handleRemoveImage}
             onAnalyze={handleAnalyzeReceipt}
+            onImageSelected={handleImageSelected}
             fileInputRef={upload.fileInputRef}
           />
 
