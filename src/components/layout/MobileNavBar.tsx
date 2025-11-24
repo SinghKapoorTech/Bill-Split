@@ -8,7 +8,7 @@ export function MobileNavBar() {
   const location = useLocation();
 
   const navItems = [
-    { name: 'AI Scan', path: '/', icon: FiAperture  }, // Camera icon
+    { name: 'AI Scan', path: '/scan', icon: FiAperture  }, // Camera icon
     { name: 'Groups', path: '/groups', icon: MdGroups },       // Bolder group icon
     { name: 'Profile', path: '/settings', icon: MdAccountCircle }, // User circle icon
   ];

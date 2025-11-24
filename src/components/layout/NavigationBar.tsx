@@ -5,7 +5,7 @@ export function NavigationBar() {
   const location = useLocation();
 
   const tabs = [
-    { path: '/', label: 'AI Scan', icon: ScanLine },
+    { path: '/scan', label: 'AI Scan', icon: ScanLine },
     { path: '/groups', label: 'Groups', icon: Users },
   ];
 

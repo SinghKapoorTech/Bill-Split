@@ -8,6 +8,7 @@ import { App as CapApp } from "@capacitor/app";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BillSessionProvider } from "@/contexts/BillSessionContext";
 import { Layout } from "@/components/layout/Layout";
+import LandingPage from "./pages/LandingPage";
 import AIScanView from "./pages/AIScanView";
 import GroupEventView from "./pages/GroupEventView";
 import GroupDetailView from "./pages/GroupDetailView";
@@ -57,15 +58,22 @@ const App = () => (
         <BrowserRouter>
           <DeepLinkHandler />
           <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<AIScanView />} />
+            {/* Landing page - no layout */}
+            <Route path="/" element={<LandingPage />} />
+            
+            {/* App routes - with layout */}
+            <Route element={<Layout />}>
+              <Route path="scan" element={<AIScanView />} />
               <Route path="groups" element={<GroupEventView />} />
               <Route path="groups/:groupId" element={<GroupDetailView />} />
               <Route path="settings" element={<SettingsView />} />
               <Route path="session/:sessionId" element={<CollaborativeSessionView />} />
             </Route>
+            
+            {/* Standalone routes */}
             <Route path="/auth" element={<Auth />} />
             <Route path="/join/:sessionId" element={<JoinSession />} />
+            
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

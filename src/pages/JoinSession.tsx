@@ -118,7 +118,7 @@ export default function JoinSession() {
             <p className="text-muted-foreground">{error}</p>
           </div>
           <Button onClick={() => navigate('/')} className="w-full">
-            Go Home
+            Go to Landing Page
           </Button>
         </Card>
       </div>
@@ -197,7 +197,7 @@ export default function JoinSession() {
           </Button>
 
           <Button onClick={() => navigate('/')} variant="outline" className="w-full">
-            Cancel
+            Back to Home
           </Button>
         </div>
 

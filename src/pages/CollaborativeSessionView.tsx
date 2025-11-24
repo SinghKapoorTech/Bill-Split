@@ -142,7 +142,7 @@ export default function CollaborativeSessionView() {
 
   const handleEndSession = async () => {
     await endSession();
-    navigate('/');
+    navigate('/scan');
   };
 
   // Loading state
@@ -162,7 +162,7 @@ export default function CollaborativeSessionView() {
           <AlertCircle className="w-16 h-16 text-destructive mx-auto" />
           <h2 className="text-2xl font-bold">Session Error</h2>
           <p className="text-muted-foreground">{error || 'Session not found'}</p>
-          <Button onClick={() => navigate('/')}>Go Home</Button>
+          <Button onClick={() => navigate('/scan')}>Go to App</Button>
         </Card>
       </div>
     );
@@ -176,7 +176,7 @@ export default function CollaborativeSessionView() {
           <AlertCircle className="w-16 h-16 text-muted-foreground mx-auto" />
           <h2 className="text-2xl font-bold">Session Ended</h2>
           <p className="text-muted-foreground">This collaborative session has ended.</p>
-          <Button onClick={() => navigate('/')}>Go Home</Button>
+          <Button onClick={() => navigate('/scan')}>Go to App</Button>
         </Card>
       </div>
     );

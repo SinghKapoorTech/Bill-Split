@@ -13,6 +13,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { convertSquadMembersToPeople } from '@/utils/squadUtils';
 import { SquadMember } from '@/types/squad.types';
+import { UserVenmoIdEditor } from './UserVenmoIdEditor';
+import { generateUserId } from '@/utils/billCalculations';
 
 interface Friend {
   name: string;
@@ -309,41 +311,62 @@ export function PeopleManager({
       {people.length > 0 && (
         <>
           <div className="space-y-2 mb-4">
-            {people.map((person) => (
-              <div
-                key={person.id}
-                className="flex items-center justify-between p-2 md:p-3 bg-secondary/50 rounded-lg"
-              >
-                <div className="flex-1">
-                  <span className="text-sm md:text-base font-medium">{person.name}</span>
-                  {person.venmoId && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      (@{person.venmoId})
-                    </span>
-                  )}
+            {people.map((person) => {
+              const isCurrentUser = user && person.id === generateUserId(user.uid);
+              
+              return (
+                <div
+                  key={person.id}
+                  className={`flex items-center justify-between p-2 md:p-3 rounded-lg ${
+                    isCurrentUser ? 'bg-primary/10 border border-primary/20' : 'bg-secondary/50'
+                  }`}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm md:text-base font-medium">{person.name}</span>
+                      {isCurrentUser && (
+                        <span className="px-2 py-0.5 text-xs font-semibold bg-primary text-primary-foreground rounded-full">
+                          You
+                        </span>
+                      )}
+                    </div>
+                    {isCurrentUser ? (
+                      <UserVenmoIdEditor currentVenmoId={person.venmoId} />
+                    ) : (
+                      person.venmoId && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          (@{person.venmoId})
+                        </span>
+                      )
+                    )}
+                  </div>
+                  <div className="flex gap-1">
+                    {!isCurrentUser && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => !isPersonInFriends(person.name) && handleSaveAsFriend(person)}
+                        title={isPersonInFriends(person.name) ? "Already a friend" : "Save as friend"}
+                        className="hover:bg-transparent"
+                        disabled={isPersonInFriends(person.name)}
+                      >
+                        <Heart className={`w-4 h-4 text-red-500 ${isPersonInFriends(person.name) ? 'fill-red-500' : ''}`} />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onRemove(person.id)}
+                      title={isCurrentUser ? "Cannot remove yourself" : "Remove person"}
+                      disabled={isCurrentUser}
+                      className={isCurrentUser ? 'opacity-50 cursor-not-allowed' : ''}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => !isPersonInFriends(person.name) && handleSaveAsFriend(person)}
-                    title={isPersonInFriends(person.name) ? "Already a friend" : "Save as friend"}
-                    className="hover:bg-transparent"
-                    disabled={isPersonInFriends(person.name)}
-                  >
-                    <Heart className={`w-4 h-4 text-red-500 ${isPersonInFriends(person.name) ? 'fill-red-500' : ''}`} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onRemove(person.id)}
-                    title="Remove person"
-                  >
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="flex justify-end">
             <SaveAsSquadButton people={people} />

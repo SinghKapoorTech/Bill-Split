@@ -6,7 +6,6 @@ import { useToast } from './use-toast';
 import { generatePersonId, generateUserId } from '@/utils/billCalculations';
 import { validatePersonInput } from '@/utils/validation';
 import { saveFriendToFirestore, createPersonObject } from '@/utils/firestore';
-import { useSessionStorage } from './useSessionStorage';
 
 /**
  * Hook for managing people on a bill
@@ -69,6 +68,19 @@ export function usePeopleManager(
   };
 
   const removePerson = (personId: string) => {
+    // Prevent removing the logged-in user
+    if (user) {
+      const userId = generateUserId(user.uid);
+      if (personId === userId) {
+        toast({
+          title: 'Cannot remove yourself',
+          description: 'You are automatically included in every bill.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+    
     setPeople(people.filter(p => p.id !== personId));
   };
 

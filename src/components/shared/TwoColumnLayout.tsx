@@ -4,11 +4,12 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
 interface TwoColumnLayoutProps {
-  leftColumn: ReactNode;
+  leftColumn?: ReactNode;
   rightColumn: ReactNode;
   leftColumnClassName?: string;
   rightColumnClassName?: string;
   className?: string;
+  imageUrl?: string | null; // Pass image URL to determine if we should center
 }
 
 export function TwoColumnLayout({
@@ -17,15 +18,30 @@ export function TwoColumnLayout({
   leftColumnClassName,
   rightColumnClassName,
   className,
+  imageUrl,
 }: TwoColumnLayoutProps) {
   const isMobile = useIsMobile();
+
+  // Determine if we should center based on imageUrl
+  const shouldCenter = !imageUrl;
 
   if (isMobile) {
     // On mobile, stack vertically
     return (
       <div className={cn('space-y-6', className)}>
-        {leftColumn}
+        {imageUrl && leftColumn}
         {rightColumn}
+      </div>
+    );
+  }
+
+  // On desktop, center if no image, otherwise show side by side
+  if (shouldCenter) {
+    return (
+      <div className={cn('flex justify-center', className)}>
+        <div className="w-full max-w-3xl">
+          {rightColumn}
+        </div>
       </div>
     );
   }

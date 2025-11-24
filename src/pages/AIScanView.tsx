@@ -30,9 +30,10 @@ import { areAllItemsAssigned } from '@/utils/calculations';
 
 const STEPS: Step[] = [
   { id: 1, label: 'Upload', description: 'Scan receipt' },
-  { id: 2, label: 'People', description: 'Add friends' },
-  { id: 3, label: 'Assign', description: 'Split items' },
-  { id: 4, label: 'Review', description: 'Finalize' },
+  { id: 2, label: 'Items', description: 'Edit bill' },
+  { id: 3, label: 'People', description: 'Add friends' },
+  { id: 4, label: 'Assign', description: 'Split items' },
+  { id: 5, label: 'Review', description: 'Finalize' },
 ];
 
 export default function AIScanView() {
@@ -121,9 +122,9 @@ export default function AIScanView() {
 
       // Determine which step to show based on session state
       if (activeSession.billData && activeSession.people.length > 0) {
-        setCurrentStep(2); // Go to Assign Items step
+        setCurrentStep(3); // Go to Assign Items step
       } else if (activeSession.billData) {
-        setCurrentStep(1); // Go to Add People step
+        setCurrentStep(1); // Go to Items step
       } else if (activeSession.receiptImageUrl) {
         setCurrentStep(0); // Stay on Upload step (image uploaded but not analyzed)
       }
@@ -192,6 +193,12 @@ export default function AIScanView() {
   const handleRemoveImage = async () => {
     // Clear local UI state immediately
     upload.handleRemoveImage();
+    
+    // Clear bill data since we're removing the source
+    setBillData(null);
+    
+    // Reset to step 0 (Upload)
+    setCurrentStep(0);
 
     // Remove image from Firebase Storage and update session in Firestore
     await removeReceiptImage();
@@ -277,7 +284,7 @@ export default function AIScanView() {
       tip: 0,
       total: 0,
     });
-    setCurrentStep(1); // Go to Add People step
+    setCurrentStep(1); // Go to Items step
   };
 
   // Step navigation
@@ -298,11 +305,13 @@ export default function AIScanView() {
     switch (step) {
       case 0: // Upload step
         return !!billData; // Need bill data to proceed
-      case 1: // People step
+      case 1: // Items step
+        return billData && billData.items.length > 0; // Need at least one item
+      case 2: // People step
         return people.length > 0; // Need at least one person
-      case 2: // Assign step
+      case 3: // Assign step
         return areAllItemsAssigned(billData, itemAssignments); // All items must be assigned
-      case 3: // Review step
+      case 4: // Review step
         return true; // Final step
       default:
         return false;
@@ -359,65 +368,42 @@ export default function AIScanView() {
         {/* Step 1: Upload & Scan */}
         {currentStep === 0 && (
           <div className="space-y-6">
-            <Card className="p-6">
-              <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-primary" />
-                AI-Powered Receipt Scan
-              </h3>
-              <ReceiptUploader
-                selectedFile={upload.selectedFile}
-                imagePreview={upload.imagePreview}
-                isDragging={upload.isDragging}
-                isUploading={isUploading}
-                isAnalyzing={analyzer.isAnalyzing}
-                isMobile={isMobile}
-                onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
-                onDragOver={upload.handleDragOver}
-                onDragLeave={upload.handleDragLeave}
-                onDrop={(e) => {
-                  upload.handleDrop(e);
-                  const file = e.dataTransfer.files?.[0];
-                  if (file) handleImageSelected(file);
-                }}
-                onRemove={handleRemoveImage}
-                onAnalyze={handleAnalyzeReceipt}
-                onImageSelected={handleImageSelected}
-                fileInputRef={upload.fileInputRef}
-              />
-            </Card>
-
-            <div className="text-center">
-              <div className="relative py-4">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border"></div>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">Or</span>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                onClick={handleManualEntry}
-                className="gap-2"
-              >
-                <Receipt className="w-4 h-4" />
-                Enter Bill Manually
-              </Button>
-            </div>
-
-            {!billData && <FeatureCards />}
-
-            <StepFooter
-              currentStep={currentStep}
-              totalSteps={STEPS.length}
-              onNext={handleNextStep}
-              nextDisabled={!canProceedFromStep(0)}
-              customAction={
-                upload.imagePreview && !billData ? (
+            {/* Two-column layout on desktop */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left: AI-Powered Receipt Scan */}
+              <Card className="p-6">
+                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  AI-Powered Receipt Scan
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Upload a photo of your receipt and let AI extract all the items automatically
+                </p>
+                <ReceiptUploader
+                  selectedFile={upload.selectedFile}
+                  imagePreview={upload.imagePreview}
+                  isDragging={upload.isDragging}
+                  isUploading={isUploading}
+                  isAnalyzing={analyzer.isAnalyzing}
+                  isMobile={isMobile}
+                  onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
+                  onDragOver={upload.handleDragOver}
+                  onDragLeave={upload.handleDragLeave}
+                  onDrop={(e) => {
+                    upload.handleDrop(e);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleImageSelected(file);
+                  }}
+                  onRemove={handleRemoveImage}
+                  onAnalyze={handleAnalyzeReceipt}
+                  onImageSelected={handleImageSelected}
+                  fileInputRef={upload.fileInputRef}
+                />
+                {upload.imagePreview && !billData && (
                   <Button
                     onClick={handleAnalyzeReceipt}
                     disabled={analyzer.isAnalyzing || isUploading}
-                    className="gap-2"
+                    className="gap-2 w-full mt-4"
                   >
                     {analyzer.isAnalyzing ? (
                       <>
@@ -431,28 +417,106 @@ export default function AIScanView() {
                       </>
                     )}
                   </Button>
-                ) : null
-              }
+                )}
+              </Card>
+
+              {/* Right: Manual Entry */}
+              <Card className="p-6 flex flex-col">
+                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-primary" />
+                  Manual Entry
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Don't have a receipt photo? Enter your bill items manually
+                </p>
+                <div className="flex-1 flex items-center justify-center py-8">
+                  <div className="text-center space-y-4">
+                    <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+                      <Receipt className="w-8 h-8 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium mb-2">Enter bill details yourself</p>
+                      <p className="text-sm text-muted-foreground">
+                        Add items, prices, tax, and tip manually
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleManualEntry}
+                      className="gap-2"
+                      size="lg"
+                    >
+                      <Receipt className="w-4 h-4" />
+                      Start Manual Entry
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {!billData && <FeatureCards />}
+
+            <StepFooter
+              currentStep={currentStep}
+              totalSteps={STEPS.length}
+              onNext={handleNextStep}
+              nextDisabled={!canProceedFromStep(0)}
             />
           </div>
         )}
 
-        {/* Step 2: Add People */}
-        {currentStep === 1 && (
+        {/* Step 2: Bill Items */}
+        {currentStep === 1 && billData && (
           <div className="space-y-6">
-            <PeopleManager
-              people={people}
-              newPersonName={peopleManager.newPersonName}
-              newPersonVenmoId={peopleManager.newPersonVenmoId}
-              useNameAsVenmoId={peopleManager.useNameAsVenmoId}
-              onNameChange={peopleManager.setNewPersonName}
-              onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-              onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
-              onAdd={peopleManager.addPerson}
-              onAddFromFriend={peopleManager.addFromFriend}
-              onRemove={handleRemovePerson}
-              onSaveAsFriend={peopleManager.savePersonAsFriend}
-              setPeople={setPeople}
+            <TwoColumnLayout
+              imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
+              leftColumn={
+                <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
+              }
+              rightColumn={
+                <Card className="p-4 md:p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Receipt className="w-5 h-5 text-primary" />
+                    <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
+                  </div>
+
+                  <BillItems
+                    billData={billData}
+                    people={[]}
+                    itemAssignments={{}}
+                    assignmentMode="checkboxes"
+                    editingItemId={editor.editingItemId}
+                    editingItemName={editor.editingItemName}
+                    editingItemPrice={editor.editingItemPrice}
+                    onAssign={() => {}}
+                    onEdit={editor.editItem}
+                    onSave={editor.saveEdit}
+                    onCancel={editor.cancelEdit}
+                    onDelete={editor.deleteItem}
+                    setEditingName={editor.setEditingItemName}
+                    setEditingPrice={editor.setEditingItemPrice}
+                    isAdding={editor.isAdding}
+                    newItemName={editor.newItemName}
+                    newItemPrice={editor.newItemPrice}
+                    setNewItemName={editor.setNewItemName}
+                    setNewItemPrice={editor.setNewItemPrice}
+                    onStartAdding={editor.startAdding}
+                    onAddItem={editor.addItem}
+                    onCancelAdding={editor.cancelAdding}
+                    splitEvenly={false}
+                    onToggleSplitEvenly={() => {}}
+                  />
+
+                  <BillSummary
+                    billData={billData}
+                    customTip={customTip}
+                    effectiveTip={bill.effectiveTip}
+                    customTax={customTax}
+                    effectiveTax={bill.effectiveTax}
+                    onTipChange={setCustomTip}
+                    onTaxChange={setCustomTax}
+                  />
+                </Card>
+              }
             />
 
             <StepFooter
@@ -465,10 +529,43 @@ export default function AIScanView() {
           </div>
         )}
 
-        {/* Step 3: Assign Items */}
-        {currentStep === 2 && billData && (
+        {/* Step 3: Add People */}
+        {currentStep === 2 && (
+          <div className="space-y-6">
+            <div className="flex justify-center">
+              <div className="w-full max-w-3xl">
+                <PeopleManager
+                  people={people}
+                  newPersonName={peopleManager.newPersonName}
+                  newPersonVenmoId={peopleManager.newPersonVenmoId}
+                  useNameAsVenmoId={peopleManager.useNameAsVenmoId}
+                  onNameChange={peopleManager.setNewPersonName}
+                  onVenmoIdChange={peopleManager.setNewPersonVenmoId}
+                  onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
+                  onAdd={peopleManager.addPerson}
+                  onAddFromFriend={peopleManager.addFromFriend}
+                  onRemove={handleRemovePerson}
+                  onSaveAsFriend={peopleManager.savePersonAsFriend}
+                  setPeople={setPeople}
+                />
+              </div>
+            </div>
+
+            <StepFooter
+              currentStep={currentStep}
+              totalSteps={STEPS.length}
+              onBack={handlePrevStep}
+              onNext={handleNextStep}
+              nextDisabled={!canProceedFromStep(2)}
+            />
+          </div>
+        )}
+
+        {/* Step 4: Assign Items */}
+        {currentStep === 3 && billData && (
           <div className="space-y-6">
             <TwoColumnLayout
+              imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
               leftColumn={
                 <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
               }
@@ -539,13 +636,13 @@ export default function AIScanView() {
               totalSteps={STEPS.length}
               onBack={handlePrevStep}
               onNext={handleNextStep}
-              nextDisabled={!canProceedFromStep(2)}
+              nextDisabled={!canProceedFromStep(3)}
             />
           </div>
         )}
 
-        {/* Step 4: Review & Share */}
-        {currentStep === 3 && billData && (
+        {/* Step 5: Review & Share */}
+        {currentStep === 4 && billData && (
           <div className="space-y-6">
             <SplitSummary
               personTotals={bill.personTotals}
