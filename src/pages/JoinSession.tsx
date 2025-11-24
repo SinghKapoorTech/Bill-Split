@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCollaborativeSession } from '@/hooks/useCollaborativeSession';
 import { Card } from '@/components/ui/card';
@@ -10,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Users, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CollaborativeSession } from '@/types/session.types';
+import { Bill } from '@/types/bill.types';
+import { billService } from '@/services/billService';
 
 export default function JoinSession() {
   const navigate = useNavigate();
@@ -22,7 +21,7 @@ export default function JoinSession() {
   const [isValidating, setIsValidating] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sessionData, setSessionData] = useState<CollaborativeSession | null>(null);
+  const [sessionData, setSessionData] = useState<Bill | null>(null);
 
   const shareCodeFromUrl = searchParams.get('code');
   const { joinSession } = useCollaborativeSession(sessionId || null);
@@ -37,32 +36,29 @@ export default function JoinSession() {
       }
 
       try {
-        const sessionRef = doc(db, 'collaborativeSessions', sessionId);
-        const sessionSnap = await getDoc(sessionRef);
+        const bill = await billService.getBill(sessionId);
 
-        if (!sessionSnap.exists()) {
+        if (!bill) {
           setError('Session not found');
           setIsValidating(false);
           return;
         }
 
-        const session = { id: sessionSnap.id, ...sessionSnap.data() } as CollaborativeSession;
-
         // Validate share code
-        if (shareCodeFromUrl && session.shareCode !== shareCodeFromUrl) {
+        if (shareCodeFromUrl && bill.shareCode !== shareCodeFromUrl) {
           setError('Invalid share code');
           setIsValidating(false);
           return;
         }
 
-        // Check if session is ended
-        if (session.status === 'ended') {
+        // Check if session is ended (archived)
+        if (bill.status === 'archived') {
           setError('This session has ended');
           setIsValidating(false);
           return;
         }
 
-        setSessionData(session);
+        setSessionData(bill);
         setError(null);
         setIsValidating(false);
       } catch (err) {

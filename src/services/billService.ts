@@ -139,14 +139,32 @@ export const billService = {
    * Generates a unique share code for a bill
    */
   async generateShareCode(billId: string, userId: string): Promise<string> {
+    const billRef = doc(db, BILLS_COLLECTION, billId);
+    const billSnap = await getDoc(billRef);
+    
+    if (!billSnap.exists()) {
+      throw new Error('Bill not found');
+    }
+    
+    const billData = billSnap.data() as Bill;
+    const now = Timestamp.now();
+    
+    // Check if existing code is valid (not expired)
+    if (
+      billData.shareCode && 
+      billData.shareCodeExpiresAt && 
+      billData.shareCodeExpiresAt.toMillis() > now.toMillis()
+    ) {
+      return billData.shareCode;
+    }
+
+    // Generate new code
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
     for (let i = 0; i < 6; i++) {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     
-    const billRef = doc(db, BILLS_COLLECTION, billId);
-    const now = Timestamp.now();
     // Expires in 7 days
     const expiresAt = new Timestamp(now.seconds + 7 * 24 * 60 * 60, now.nanoseconds);
     

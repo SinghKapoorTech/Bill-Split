@@ -2,44 +2,41 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   doc,
   onSnapshot,
-  updateDoc,
   serverTimestamp,
-  Timestamp,
-  arrayUnion,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { CollaborativeSession, SessionMember } from '@/types/session.types';
+import { Bill } from '@/types/bill.types';
+import { billService } from '@/services/billService';
 import { useToast } from './use-toast';
-import { removeUndefinedFields } from '@/utils/firestore';
 
 /**
- * Hook for managing a collaborative session with real-time updates
- * @param sessionId - The collaborative session ID
+ * Hook for managing a collaborative session (Bill) with real-time updates
+ * @param billId - The bill ID
  * @returns Session state and update functions
  */
-export function useCollaborativeSession(sessionId: string | null) {
+export function useCollaborativeSession(billId: string | null) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [session, setSession] = useState<CollaborativeSession | null>(null);
+  const [session, setSession] = useState<Bill | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Real-time listener for the collaborative session
+  // Real-time listener for the bill
   useEffect(() => {
-    if (!sessionId) {
+    if (!billId) {
       setIsLoading(false);
       setSession(null);
       return;
     }
 
-    const sessionRef = doc(db, 'collaborativeSessions', sessionId);
+    const billRef = doc(db, 'bills', billId);
 
     const unsubscribe = onSnapshot(
-      sessionRef,
+      billRef,
       (snapshot) => {
         if (snapshot.exists()) {
-          setSession({ id: snapshot.id, ...snapshot.data() } as CollaborativeSession);
+          setSession({ id: snapshot.id, ...snapshot.data() } as Bill);
           setError(null);
         } else {
           setSession(null);
@@ -60,24 +57,18 @@ export function useCollaborativeSession(sessionId: string | null) {
     );
 
     return () => unsubscribe();
-  }, [sessionId, toast]);
+  }, [billId, toast]);
 
   /**
-   * Updates the collaborative session
-   * @param updates - Partial session data to update
+   * Updates the bill
+   * @param updates - Partial bill data to update
    */
   const updateSession = useCallback(
-    async (updates: Partial<CollaborativeSession>) => {
-      if (!sessionId) return;
+    async (updates: Partial<Bill>) => {
+      if (!billId) return;
 
       try {
-        const sessionRef = doc(db, 'collaborativeSessions', sessionId);
-        const cleanedUpdates = removeUndefinedFields(updates);
-
-        await updateDoc(sessionRef, {
-          ...cleanedUpdates,
-          lastActivity: serverTimestamp(),
-        });
+        await billService.updateBill(billId, updates);
       } catch (error) {
         console.error('Error updating session:', error);
         toast({
@@ -87,7 +78,7 @@ export function useCollaborativeSession(sessionId: string | null) {
         });
       }
     },
-    [sessionId, toast]
+    [billId, toast]
   );
 
   /**
@@ -96,24 +87,14 @@ export function useCollaborativeSession(sessionId: string | null) {
    */
   const joinSession = useCallback(
     async (anonymousName?: string) => {
-      if (!sessionId) return;
+      if (!billId) return;
 
       try {
-        const sessionRef = doc(db, 'collaborativeSessions', sessionId);
+        const userId = user?.uid || 'anonymous';
+        const userName = user?.displayName || anonymousName || 'Anonymous';
+        const email = user?.email || undefined;
 
-        const newMember: SessionMember = {
-          userId: user?.uid || null,
-          name: user?.displayName || anonymousName || 'Anonymous',
-          email: user?.email || null,
-          photoURL: user?.photoURL || null,
-          joinedAt: Timestamp.now(),
-          isAnonymous: !user,
-        };
-
-        await updateDoc(sessionRef, {
-          members: arrayUnion(newMember),
-          lastActivity: serverTimestamp(),
-        });
+        await billService.joinBill(billId, userId, userName, email);
 
         toast({
           title: 'Joined Session',
@@ -128,20 +109,18 @@ export function useCollaborativeSession(sessionId: string | null) {
         });
       }
     },
-    [sessionId, user, toast]
+    [billId, user, toast]
   );
 
   /**
-   * Ends the collaborative session
+   * Ends the collaborative session (Archives it)
    */
   const endSession = useCallback(async () => {
-    if (!sessionId) return;
+    if (!billId) return;
 
     try {
-      const sessionRef = doc(db, 'collaborativeSessions', sessionId);
-      await updateDoc(sessionRef, {
-        status: 'ended',
-        endedAt: serverTimestamp(),
+      await billService.updateBill(billId, {
+        status: 'archived'
       });
 
       toast({
@@ -156,7 +135,7 @@ export function useCollaborativeSession(sessionId: string | null) {
         variant: 'destructive',
       });
     }
-  }, [sessionId, toast]);
+  }, [billId, toast]);
 
   return {
     session,
