@@ -15,7 +15,7 @@ import { useFileUpload } from '@/hooks/useFileUpload';
 import { useReceiptAnalyzer } from '@/hooks/useReceiptAnalyzer';
 import { useItemEditor } from '@/hooks/useItemEditor';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useCollaborativeSession } from '@/hooks/useCollaborativeSession';
+import { useBillSession } from '@/hooks/useBillSession';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Receipt, Upload, Edit, Loader2, AlertCircle } from 'lucide-react';
@@ -38,7 +38,7 @@ export default function CollaborativeSessionView() {
   const { profile } = useUserProfile();
 
   // Collaborative session hook with real-time updates
-  const { session, isLoading, error, updateSession, endSession } = useCollaborativeSession(sessionId || null);
+  const { session, isLoading, error, updateSession, endSession } = useBillSession(sessionId || null);
 
   // Local state synced with collaborative session
   const [people, setPeople] = useState<Person[]>([]);
@@ -175,7 +175,7 @@ export default function CollaborativeSessionView() {
   }
 
   // Session ended
-  if (session.status === 'ended') {
+  if (session.status === 'archived') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="max-w-md p-8 space-y-4 text-center">

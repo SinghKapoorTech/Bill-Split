@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
-import { BillSession } from '@/types/session.types';
+import { Bill } from '@/types/bill.types';
 import { useToast } from './use-toast';
 import { billService } from '@/services/billService';
 
@@ -71,7 +71,7 @@ export function useShareSession() {
    */
   const sharePrivateSession = useCallback(
     async (
-      privateSession: BillSession
+      privateSession: Bill
     ): Promise<{ sessionId: string; shareCode: string } | null> => {
       setIsSharing(true);
       try {
@@ -98,10 +98,10 @@ export function useShareSession() {
           itemAssignments: privateSession.itemAssignments || {},
           customTip: privateSession.customTip || '0',
           customTax: privateSession.customTax || '0',
-          assignmentMode: (privateSession.assignmentMode as any) || 'checkboxes',
+          assignmentMode: privateSession.assignmentMode || 'checkboxes',
           splitEvenly: privateSession.splitEvenly || false,
-          receiptImageUrl: privateSession.receiptImageUrl || null,
-          receiptFileName: privateSession.receiptFileName || null,
+          receiptImageUrl: privateSession.receiptImageUrl || undefined,
+          receiptFileName: privateSession.receiptFileName || undefined,
         });
 
         // Generate share code

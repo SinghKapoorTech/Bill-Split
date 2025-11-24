@@ -2,12 +2,12 @@ import { Outlet } from 'react-router-dom';
 import { Header } from './Header';
 import { MobileNavBar } from '@/components/layout/MobileNavBar';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useBillSession } from '@/contexts/BillSessionContext';
+import { useBillContext } from '@/contexts/BillSessionContext';
 import { Loader2 } from 'lucide-react';
 
 export function Layout() {
   const isMobile = useIsMobile();
-  const { isResuming } = useBillSession();
+  const { isResuming } = useBillContext();
 
   const mainPaddingBottom = isMobile ? 'pb-24' : 'pb-12';
 

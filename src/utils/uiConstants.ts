@@ -20,6 +20,8 @@ export const UI_TEXT = {
   PROFILE_SETTINGS: 'Profile & Settings',
   SPLIT_YOUR_BILL: 'Split Your Bill Instantly',
   CREATE_BILL_MANUALLY: 'Create Bill Manually',
+  HERO_TITLE: 'Split Bills with Friends',
+  HERO_SUBTITLE: 'Upload a receipt or add items manually. We handle the math, tax, and tip.',
 
   // Sections
   BILL_ITEMS: 'Bill Items',

@@ -19,10 +19,10 @@ export function BillSessionProvider({ children }: { children: ReactNode }) {
 }
 
 // Create a custom hook for easy consumption
-export function useBillSession() {
+export function useBillContext() {
   const context = useContext(BillSessionContext);
   if (context === undefined) {
-    throw new Error('useBillSession must be used within a BillSessionProvider');
+    throw new Error('useBillContext must be used within a BillSessionProvider');
   }
   return context;
 }

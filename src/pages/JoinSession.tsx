@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCollaborativeSession } from '@/hooks/useCollaborativeSession';
+import { useBillSession } from '@/hooks/useBillSession';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,7 @@ export default function JoinSession() {
   const [sessionData, setSessionData] = useState<Bill | null>(null);
 
   const shareCodeFromUrl = searchParams.get('code');
-  const { joinSession } = useCollaborativeSession(sessionId || null);
+  const { joinSession } = useBillSession(sessionId || null);
 
   // Validate session and share code
   useEffect(() => {

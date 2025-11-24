@@ -21,7 +21,7 @@ import { useShareSession } from '@/hooks/useShareSession';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Receipt, Users, Loader2, Sparkles } from 'lucide-react';
-import { useBillSession } from '@/contexts/BillSessionContext';
+import { useBillContext } from '@/contexts/BillSessionContext';
 import { UI_TEXT } from '@/utils/uiConstants';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { Person, BillData, ItemAssignment, AssignmentMode } from '@/types';
@@ -61,7 +61,7 @@ export default function AIScanView() {
     resumeSession,
     saveSession,
     removeReceiptImage,
-  } = useBillSession();
+  } = useBillContext();
 
   const [people, setPeople] = useState<Person[]>([]);
   const [billData, setBillData] = useState<BillData | null>(null);

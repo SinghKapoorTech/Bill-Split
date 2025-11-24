@@ -15,7 +15,7 @@ import { useToast } from './use-toast';
  * @param billId - The bill ID
  * @returns Session state and update functions
  */
-export function useCollaborativeSession(billId: string | null) {
+export function useBillSession(billId: string | null) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [session, setSession] = useState<Bill | null>(null);

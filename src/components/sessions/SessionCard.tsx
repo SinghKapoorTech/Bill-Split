@@ -1,11 +1,11 @@
-import { BillSession } from '@/types';
+import { Bill } from '@/types/bill.types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { Trash, Play, Users, FileText, Loader2 } from 'lucide-react';
 
 interface SessionCardProps {
-  session: BillSession;
+  session: Bill;
   isProcessing: boolean;
   onResume: () => void;
   onDelete: () => void;

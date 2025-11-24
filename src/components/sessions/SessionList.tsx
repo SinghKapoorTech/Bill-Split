@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BillSession } from '@/types';
-import { useBillSession } from '@/contexts/BillSessionContext';
+import { Bill } from '@/types/bill.types';
+import { useBillContext } from '@/contexts/BillSessionContext';
 import { SessionCard } from './SessionCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { History, Loader2 } from 'lucide-react';
 
 export function SessionList() {
-  const { savedSessions, resumeSession, deleteSession, loadSavedSessions } = useBillSession();
+  const { savedSessions, resumeSession, deleteSession, loadSavedSessions } = useBillContext();
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [isFetching, setIsFetching] = useState(true);
   const navigate = useNavigate();

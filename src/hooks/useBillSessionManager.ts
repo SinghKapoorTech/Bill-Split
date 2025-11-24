@@ -16,7 +16,7 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { BillSession } from '@/types/session.types';
+import { Bill, BillData } from '@/types/bill.types';
 import { useToast } from './use-toast';
 import { removeUndefinedFields } from '@/utils/firestore';
 
@@ -26,8 +26,8 @@ import { removeUndefinedFields } from '@/utils/firestore';
 export function useBillSessionManager() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [activeSession, setActiveSession] = useState<BillSession | null>(null);
-  const [savedSessions, setSavedSessions] = useState<BillSession[]>([]);
+  const [activeSession, setActiveSession] = useState<Bill | null>(null);
+  const [savedSessions, setSavedSessions] = useState<Bill[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -57,7 +57,7 @@ export function useBillSessionManager() {
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const doc = querySnapshot.docs[0];
-        setActiveSession({ ...doc.data(), id: doc.id } as BillSession);
+        setActiveSession({ ...doc.data(), id: doc.id } as Bill);
       } else {
         setActiveSession(null);
       }
@@ -76,7 +76,7 @@ export function useBillSessionManager() {
     try {
       const q = query(collRef, where('status', '==', 'saved'), orderBy('savedAt', 'desc'));
       const querySnapshot = await getDocs(q);
-      const saved = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as BillSession));
+      const saved = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Bill));
       setSavedSessions(saved);
     } catch (error) {
       console.error("Error loading saved sessions:", error);
@@ -84,14 +84,14 @@ export function useBillSessionManager() {
     }
   }, [getSessionsCollectionRef, toast]);
 
-  const saveSession = useCallback(async (sessionData: Partial<BillSession>) => {
+  const saveSession = useCallback(async (sessionData: Partial<Bill>) => {
     const collRef = getSessionsCollectionRef();
     if (!collRef) return;
 
     const cleanedData = removeUndefinedFields(sessionData);
 
     try {
-      let sessionToSave: BillSession | null = null;
+      let sessionToSave: Bill | null = null;
       if (activeSession?.id) {
         const docRef = doc(collRef, activeSession.id);
         await runTransaction(db, async (transaction) => {
@@ -100,7 +100,7 @@ export function useBillSessionManager() {
             throw new Error("Session document does not exist!");
           }
 
-          const currentData = sessionDoc.data() as BillSession;
+          const currentData = sessionDoc.data() as Bill;
 
           if (currentData.receiptFileName && !cleanedData.receiptImageUrl && cleanedData.receiptImageUrl !== undefined) {
             const oldStorageRef = getStorageRef(currentData.receiptFileName);
@@ -114,7 +114,7 @@ export function useBillSessionManager() {
             }
           }
 
-          const updatedData = { ...currentData, ...cleanedData };
+          const updatedData = { ...currentData, ...cleanedData, updatedAt: Timestamp.now() };
           transaction.update(docRef, updatedData);
           sessionToSave = updatedData;
         });
@@ -127,18 +127,32 @@ export function useBillSessionManager() {
         isCreatingSession.current = true;
 
         const newDocRef = doc(collRef);
+        const defaultBillData: BillData = {
+          items: [],
+          subtotal: 0,
+          tax: 0,
+          tip: 0,
+          total: 0
+        };
+
         sessionToSave = {
           id: newDocRef.id,
+          billType: 'private',
+          ownerId: user?.uid || '',
           status: 'active',
-          billData: null,
+          billData: defaultBillData,
           itemAssignments: {},
           people: [],
           customTip: '',
           customTax: '',
           assignmentMode: 'checkboxes',
           splitEvenly: false,
+          members: [],
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          lastActivity: Timestamp.now(),
           ...cleanedData,
-        };
+        } as Bill;
         await setDoc(newDocRef, sessionToSave);
       }
 

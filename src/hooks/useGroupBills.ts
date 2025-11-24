@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Bill } from '@/types/bill.types';
 import { billService } from '@/services/billService';
 
-export function useGroupTransactions(groupId: string) {
+export function useGroupBills(groupId: string) {
   const { user } = useAuth();
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
