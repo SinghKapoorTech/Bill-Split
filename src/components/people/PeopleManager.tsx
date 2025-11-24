@@ -130,8 +130,11 @@ export function PeopleManager({
   const handleAddSquad = (members: SquadMember[]) => {
     const newPeople = convertSquadMembersToPeople(members);
 
-    // Always append to existing people list
-    setPeople([...people, ...newPeople]);
+    // Filter out duplicates before appending (preserves logged-in user)
+    const existingIds = new Set(people.map(p => p.id));
+    const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p.id));
+    
+    setPeople([...people, ...uniqueNewPeople]);
   };
 
   const isPersonInFriends = (personName: string): boolean => {

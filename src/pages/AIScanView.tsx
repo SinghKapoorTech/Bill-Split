@@ -27,6 +27,9 @@ import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { Person, BillData, ItemAssignment, AssignmentMode } from '@/types';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { areAllItemsAssigned } from '@/utils/calculations';
+import { ensureUserInPeople } from '@/utils/billCalculations';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 const STEPS: Step[] = [
   { id: 1, label: 'Upload', description: 'Scan receipt' },
@@ -41,6 +44,8 @@ export default function AIScanView() {
   const isInitializing = useRef(true);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { profile } = useUserProfile();
 
   // Step management
   const [currentStep, setCurrentStep] = useState(0);
@@ -108,7 +113,8 @@ export default function AIScanView() {
     if (activeSession) {
       setBillData(activeSession.billData || null);
       setItemAssignments(activeSession.itemAssignments || {});
-      setPeople(activeSession.people || []);
+      // Ensure logged-in user is always in the people list
+      setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
       setCustomTip(activeSession.customTip || '');
       setCustomTax(activeSession.customTax || '');
       setAssignmentMode(activeSession.assignmentMode || 'checkboxes');
@@ -132,7 +138,8 @@ export default function AIScanView() {
       // If no session, reset to initial state
       setBillData(null);
       setItemAssignments({});
-      setPeople([]);
+      // Ensure logged-in user is added even when clearing
+      setPeople(ensureUserInPeople([], user, profile));
       setCustomTip('');
       setCustomTax('');
       setAssignmentMode('checkboxes');

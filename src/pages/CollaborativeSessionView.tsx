@@ -23,6 +23,9 @@ import { UI_TEXT } from '@/utils/uiConstants';
 import { Person, BillData, ItemAssignment, AssignmentMode } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ensureUserInPeople } from '@/utils/billCalculations';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 export default function CollaborativeSessionView() {
   const isMobile = useIsMobile();
@@ -31,6 +34,8 @@ export default function CollaborativeSessionView() {
   const [activeTab, setActiveTab] = useState('ai-scan');
   const [showShareModal, setShowShareModal] = useState(false);
   const isInitializing = useRef(true);
+  const { user } = useAuth();
+  const { profile } = useUserProfile();
 
   // Collaborative session hook with real-time updates
   const { session, isLoading, error, updateSession, endSession } = useCollaborativeSession(sessionId || null);
@@ -71,7 +76,8 @@ export default function CollaborativeSessionView() {
     if (session) {
       setBillData(session.billData || null);
       setItemAssignments(session.itemAssignments || {});
-      setPeople(session.people || []);
+      // Ensure logged-in user is always in the people list
+      setPeople(ensureUserInPeople(session.people || [], user, profile));
       setCustomTip(session.customTip || '');
       setCustomTax(session.customTax || '');
       setAssignmentMode(session.assignmentMode || 'checkboxes');

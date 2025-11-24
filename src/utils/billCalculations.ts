@@ -1,4 +1,5 @@
-import { BillData, BillItem } from '@/types';
+import { BillData, BillItem, Person } from '@/types';
+import { User } from 'firebase/auth';
 
 /**
  * Calculates the total and subtotal for a bill based on items, tax, and tip
@@ -76,4 +77,44 @@ export function generatePersonId(): string {
  */
 export function generateUserId(uid: string): string {
   return `user-${uid}`;
+}
+
+/**
+ * Ensures the logged-in user exists in the people list
+ * If the user is logged in and not in the list, adds them at the beginning
+ * If the user exists, updates their venmoId if it changed
+ * @param people - Current people array
+ * @param user - Current authenticated user (or null)
+ * @param profile - User profile with venmoId
+ * @returns Updated people array with user guaranteed to be present
+ */
+export function ensureUserInPeople(
+  people: Person[],
+  user: User | null,
+  profile: { venmoId?: string } | null
+): Person[] {
+  if (!user || !user.displayName) {
+    return people;
+  }
+
+  const userId = generateUserId(user.uid);
+  const userExists = people.some(person => person.id === userId);
+  
+  if (userExists) {
+    // Update venmoId if it changed
+    return people.map(person =>
+      person.id === userId
+        ? { ...person, venmoId: profile?.venmoId }
+        : person
+    );
+  }
+
+  // Add user at the beginning
+  const currentUser: Person = {
+    id: userId,
+    name: user.displayName,
+    venmoId: profile?.venmoId,
+  };
+  
+  return [currentUser, ...people];
 }

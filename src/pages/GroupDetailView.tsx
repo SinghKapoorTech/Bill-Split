@@ -22,6 +22,9 @@ import { db } from '@/config/firebase';
 import { Group } from '@/types/group.types';
 import { Person, BillData, ItemAssignment, AssignmentMode } from '@/types';
 import { UI_TEXT, NAVIGATION, LOADING } from '@/utils/uiConstants';
+import { ensureUserInPeople } from '@/utils/billCalculations';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 export default function GroupDetailView() {
   const { groupId } = useParams<{ groupId: string }>();
@@ -31,6 +34,8 @@ export default function GroupDetailView() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ai-scan');
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const { user } = useAuth();
+  const { profile } = useUserProfile();
 
   // Bill splitting state
   const [people, setPeople] = useState<Person[]>([]);
@@ -110,7 +115,8 @@ export default function GroupDetailView() {
   const handleStartOver = () => {
     setBillData(null);
     setItemAssignments({});
-    setPeople([]);
+    // Ensure logged-in user is added even when clearing
+    setPeople(ensureUserInPeople([], user, profile));
     setCustomTip('');
     setCustomTax('');
     setSplitEvenly(false);

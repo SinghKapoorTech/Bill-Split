@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from './useUserProfile';
 import { Person } from '@/types';
 import { useToast } from './use-toast';
-import { generatePersonId, generateUserId } from '@/utils/billCalculations';
+import { generatePersonId, generateUserId, ensureUserInPeople } from '@/utils/billCalculations';
 import { validatePersonInput } from '@/utils/validation';
 import { saveFriendToFirestore, createPersonObject } from '@/utils/firestore';
 
@@ -24,20 +24,13 @@ export function usePeopleManager(
   const { profile } = useUserProfile();
   const { toast } = useToast();
 
+  // Ensure the logged-in user is always in the people list
   useEffect(() => {
-    if (user && user.displayName) {
-      const userId = generateUserId(user.uid);
-      const userExists = people.some(person => person.id === userId);
-      if (!userExists) {
-        const currentUser: Person = {
-          id: userId,
-          name: user.displayName,
-          venmoId: profile?.venmoId,
-        };
-        setPeople(prevPeople => [currentUser, ...prevPeople]);
-      }
+    const updatedPeople = ensureUserInPeople(people, user, profile);
+    if (updatedPeople !== people) {
+      setPeople(updatedPeople);
     }
-  }, [user, profile?.venmoId]);
+  }, [user, profile?.venmoId, people.length]);
 
   const addPerson = async () => {
     // Validate input
