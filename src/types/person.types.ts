@@ -1,3 +1,5 @@
+import { Timestamp } from 'firebase/firestore';
+
 export interface Person {
   id: string;
   name: string;
@@ -13,11 +15,29 @@ export interface PersonTotal {
   total: number;
 }
 
+export interface Friend {
+  name: string;
+  venmoId?: string;
+}
+
+export interface Squad {
+  name: string;
+  members: Friend[];
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  photoURL?: string;
   venmoId?: string;
+  
+  // Quick access for adding to bills
+  friends: Friend[];
+  squads: Squad[];
+  
+  createdAt: Timestamp;
+  lastLoginAt: Timestamp;
 }
 
 export interface VenmoCharge {
