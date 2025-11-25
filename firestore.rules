@@ -3,25 +3,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Collaborative sessions: anyone can read/write
-    // This allows anonymous users to participate
-    match /collaborativeSessions/{sessionId} {
-      allow read, write: if true;
-    }
-
     // User's private data: only owner can access
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
-
-      // User's private sessions
-      match /sessions/{sessionId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
-
-      // User's session history
-      match /sessionHistory/{sessionId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
     }
 
     // Groups collection - users can read groups they own or are members of
@@ -53,33 +37,6 @@ service cloud.firestore {
 
     // ========== Bills Collection Helper Functions ==========
     
-    // Check if share code is valid (exists and not expired)
-    function isShareCodeValid(billData) {
-      return billData.shareCode != null && 
-             billData.shareCodeExpiresAt != null &&
-             billData.shareCodeExpiresAt > request.time;
-    }
-    
-    // Check if provided share code matches and is not expired
-    function hasValidShareCode(billData, code) {
-      return billData.shareCode == code &&
-             billData.shareCodeExpiresAt != null &&
-             billData.shareCodeExpiresAt > request.time;
-    }
-    
-    // Check if current user is the bill owner
-    function isBillOwner(billData) {
-      return request.auth != null && request.auth.uid == billData.ownerId;
-    }
-    
-    // Check if current user is a member of the bill's group (for group bills)
-    function isGroupMember(billData) {
-      return request.auth != null &&
-             billData.billType == 'group' &&
-             billData.groupId != null &&
-             request.auth.uid in get(/databases/$(database)/documents/groups/$(billData.groupId)).data.memberIds;
-    }
-    
     // Check if current user is in the bill's members array
     function isBillMember(billData) {
       return request.auth != null &&
@@ -87,7 +44,7 @@ service cloud.firestore {
              billData.members.hasAny([{userId: request.auth.uid}]);
     }
     
-    // Validate that only allowed fields are being updated
+    // Validate that only allowed fields are being updated (for guests)
     function isGuestUpdate() {
       let allowedFields = ['itemAssignments', 'people', 'lastActivity', 'updatedAt', 'members'];
       return onlyUpdating(allowedFields);
@@ -135,22 +92,6 @@ service cloud.firestore {
       // DELETE: Only owner can delete
       allow delete: if request.auth != null &&
                        request.auth.uid == resource.data.ownerId;
-    }
-
-
-
-
-    // Group transactions - users can read/write transactions in groups they're members of
-    match /groupTransactions/{transactionId} {
-      allow read: if request.auth != null &&
-                     request.auth.uid in get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.memberIds;
-      allow create: if request.auth != null &&
-                       request.auth.uid in get(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.memberIds &&
-                       request.auth.uid == request.resource.data.createdBy;
-      allow update: if request.auth != null &&
-                       request.auth.uid == resource.data.createdBy;
-      allow delete: if request.auth != null &&
-                       request.auth.uid == resource.data.createdBy;
     }
 
     // Receipt analysis cache (if you re-add the cache feature later)
