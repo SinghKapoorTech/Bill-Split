@@ -295,9 +295,9 @@ bills/{billId}
 ├── people: Array               # Participants
 │   └── { id, name, venmoId }
 │
-├── customTip: string           # User-entered tip
-├── customTax: string           # User-entered tax
-├── assignmentMode: enum        # 'checkboxes' | 'percentage'
+├── customTip: string           # User-entered tip Check if it's needed or not. Dont need it twice.
+├── customTax: string           # User-entered tax Check if it's needed or not. Dont need it twice.
+├── assignmentMode: enum        # 'checkboxes' | 'percentage' why do we need percentage?
 ├── splitEvenly: boolean        # Equal split toggle
 │
 ├── receiptImageUrl: string     # Firebase Storage URL

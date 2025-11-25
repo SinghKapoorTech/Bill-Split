@@ -1,15 +1,15 @@
 import { createContext, useContext, ReactNode } from 'react';
-import { useBillSessionManager } from '@/hooks/useBillSessionManager';
+import { useBills } from '@/hooks/useBills';
 
 // Define the shape of the context data
-type BillSessionContextType = ReturnType<typeof useBillSessionManager>;
+type BillSessionContextType = ReturnType<typeof useBills>;
 
 // Create the context
 const BillSessionContext = createContext<BillSessionContextType | undefined>(undefined);
 
 // Create the provider component
 export function BillSessionProvider({ children }: { children: ReactNode }) {
-  const billSessionManager = useBillSessionManager();
+  const billSessionManager = useBills();
 
   return (
     <BillSessionContext.Provider value={billSessionManager}>
