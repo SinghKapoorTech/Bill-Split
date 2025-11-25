@@ -118,8 +118,16 @@ export function useBills() {
 
     try {
       if (activeSession?.id) {
-        // Update existing bill
-        await billService.updateBill(activeSession.id, sessionData);
+        // Update existing bill - filter out undefined fields
+        const updates: Record<string, any> = {};
+        Object.keys(sessionData).forEach((key) => {
+          const value = sessionData[key as keyof Bill];
+          if (value !== undefined) {
+            updates[key] = value;
+          }
+        });
+        
+        await billService.updateBill(activeSession.id, updates as Partial<Bill>);
       } else {
         // Create new bill
         const defaultBillData: BillData = {
@@ -138,17 +146,18 @@ export function useBills() {
           sessionData.people || []
         );
 
-        // Update with additional fields if provided
-        if (sessionData.itemAssignments || sessionData.customTip || sessionData.receiptImageUrl) {
-          await billService.updateBill(billId, {
-            itemAssignments: sessionData.itemAssignments,
-            customTip: sessionData.customTip,
-            customTax: sessionData.customTax,
-            assignmentMode: sessionData.assignmentMode,
-            splitEvenly: sessionData.splitEvenly,
-            receiptImageUrl: sessionData.receiptImageUrl,
-            receiptFileName: sessionData.receiptFileName
-          });
+        // Update with additional fields if provided - filter undefined
+        const additionalUpdates: Partial<Bill> = {};
+        if (sessionData.itemAssignments !== undefined) additionalUpdates.itemAssignments = sessionData.itemAssignments;
+        if (sessionData.customTip !== undefined) additionalUpdates.customTip = sessionData.customTip;
+        if (sessionData.customTax !== undefined) additionalUpdates.customTax = sessionData.customTax;
+        if (sessionData.assignmentMode !== undefined) additionalUpdates.assignmentMode = sessionData.assignmentMode;
+        if (sessionData.splitEvenly !== undefined) additionalUpdates.splitEvenly = sessionData.splitEvenly;
+        if (sessionData.receiptImageUrl !== undefined) additionalUpdates.receiptImageUrl = sessionData.receiptImageUrl;
+        if (sessionData.receiptFileName !== undefined) additionalUpdates.receiptFileName = sessionData.receiptFileName;
+        
+        if (Object.keys(additionalUpdates).length > 0) {
+          await billService.updateBill(billId, additionalUpdates);
         }
       }
     } catch (error) {

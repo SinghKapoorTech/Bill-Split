@@ -64,6 +64,7 @@ const App = () => (
             {/* App routes - with layout */}
             <Route element={<Layout />}>
               <Route path="scan" element={<AIScanView />} />
+              <Route path="bill/:billId" element={<AIScanView />} />
               <Route path="groups" element={<GroupEventView />} />
               <Route path="groups/:groupId" element={<GroupDetailView />} />
               <Route path="settings" element={<SettingsView />} />

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { HeroSection } from '@/components/layout/HeroSection';
 import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
 import { PeopleManager } from '@/components/people/PeopleManager';
@@ -8,6 +9,7 @@ import { SplitSummary } from '@/components/people/SplitSummary';
 import { AssignmentModeToggle } from '@/components/bill/AssignmentModeToggle';
 import { FeatureCards } from '@/components/shared/FeatureCards';
 import { ShareSessionModal } from '@/components/share/ShareSessionModal';
+import { ShareLinkDialog } from '@/components/share/ShareLinkDialog';
 import { TwoColumnLayout, ReceiptPreview } from '@/components/shared/TwoColumnLayout';
 import { Stepper, Step, StepContent } from '@/components/ui/stepper';
 import { StepFooter } from '@/components/shared/StepFooter';
@@ -25,11 +27,11 @@ import { useBillContext } from '@/contexts/BillSessionContext';
 import { UI_TEXT } from '@/utils/uiConstants';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { Person, BillData, ItemAssignment, AssignmentMode } from '@/types';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { areAllItemsAssigned } from '@/utils/calculations';
 import { ensureUserInPeople } from '@/utils/billCalculations';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { billService } from '@/services/billService';
 
 const STEPS: Step[] = [
   { id: 1, label: 'Upload', description: 'Scan receipt' },
@@ -106,6 +108,18 @@ export default function AIScanView() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [sharedSessionId, setSharedSessionId] = useState<string | null>(null);
   const [shareCode, setShareCode] = useState<string | null>(null);
+  
+  // Share link state
+  const [showShareLinkDialog, setShowShareLinkDialog] = useState(false);
+  const [isGeneratingShareCode, setIsGeneratingShareCode] = useState(false);
+
+  // Update URL when bill is created (only from /scan route)
+  useEffect(() => {
+    if (activeSession?.id && location.pathname === '/scan') {
+      // Update URL to include bill ID for bookmarking/sharing
+      navigate(`/bill/${activeSession.id}`, { replace: true });
+    }
+  }, [activeSession?.id, location.pathname, navigate]);
 
   // Load session data from Firebase into local state
   useEffect(() => {
@@ -236,6 +250,41 @@ export default function AIScanView() {
     }
   };
 
+  const handleGenerateShareLink = async () => {
+    if (!activeSession?.id || !user) return;
+
+    setIsGeneratingShareCode(true);
+    try {
+      await billService.generateShareCode(activeSession.id, user.uid);
+      setShowShareLinkDialog(true);
+    } catch (error) {
+      console.error('Error generating share code:', error);
+    } finally {
+      setIsGeneratingShareCode(false);
+    }
+  };
+
+  const handleRegenerateShareLink = async () => {
+    if (!activeSession?.id || !user) return;
+
+    setIsGeneratingShareCode(true);
+    try {
+      // Force regenerate by clearing the existing code first
+      await billService.updateBill(activeSession.id, {
+        shareCode: undefined,
+        shareCodeCreatedAt: undefined,
+        shareCodeExpiresAt: undefined,
+        shareCodeCreatedBy: undefined,
+      });
+      // Generate new code
+      await billService.generateShareCode(activeSession.id, user.uid);
+    } catch (error) {
+      console.error('Error regenerating share code:', error);
+    } finally {
+      setIsGeneratingShareCode(false);
+    }
+  };
+
   const handleAnalyzeReceipt = async () => {
     if (!upload.imagePreview || !upload.selectedFile) {
       console.error("Cannot analyze: image preview or file is missing.");
@@ -356,7 +405,7 @@ export default function AIScanView() {
         onLoadMock={analyzer.loadMockData}
         onStartOver={handleStartOver}
         onSave={handleSave}
-        onShare={handleShare}
+        onShare={handleGenerateShareLink}
       />
 
       {/* Stepper */}
@@ -676,6 +725,19 @@ export default function AIScanView() {
           onClose={() => setShowShareModal(false)}
           sessionId={sharedSessionId}
           shareCode={shareCode}
+        />
+      )}
+
+      {/* Share Link Dialog */}
+      {showShareLinkDialog && activeSession?.id && (
+        <ShareLinkDialog
+          isOpen={showShareLinkDialog}
+          onClose={() => setShowShareLinkDialog(false)}
+          billId={activeSession.id}
+          shareCode={activeSession.shareCode || ''}
+          expiresAt={activeSession.shareCodeExpiresAt}
+          onRegenerate={handleRegenerateShareLink}
+          isRegenerating={isGeneratingShareCode}
         />
       )}
     </>

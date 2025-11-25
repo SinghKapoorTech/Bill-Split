@@ -43,7 +43,7 @@ export const billService = {
       id: newBillRef.id,
       billType,
       ownerId,
-      groupId,
+      ...(groupId && { groupId }), // Only include groupId if it's defined
       billData,
       itemAssignments: {},
       people,
