@@ -51,6 +51,95 @@ service cloud.firestore {
       return affectedKeys.hasOnly(allowedFields);
     }
 
+    // ========== Bills Collection Helper Functions ==========
+    
+    // Check if share code is valid (exists and not expired)
+    function isShareCodeValid(billData) {
+      return billData.shareCode != null && 
+             billData.shareCodeExpiresAt != null &&
+             billData.shareCodeExpiresAt > request.time;
+    }
+    
+    // Check if provided share code matches and is not expired
+    function hasValidShareCode(billData, code) {
+      return billData.shareCode == code &&
+             billData.shareCodeExpiresAt != null &&
+             billData.shareCodeExpiresAt > request.time;
+    }
+    
+    // Check if current user is the bill owner
+    function isBillOwner(billData) {
+      return request.auth != null && request.auth.uid == billData.ownerId;
+    }
+    
+    // Check if current user is a member of the bill's group (for group bills)
+    function isGroupMember(billData) {
+      return request.auth != null &&
+             billData.billType == 'group' &&
+             billData.groupId != null &&
+             request.auth.uid in get(/databases/$(database)/documents/groups/$(billData.groupId)).data.memberIds;
+    }
+    
+    // Check if current user is in the bill's members array
+    function isBillMember(billData) {
+      return request.auth != null &&
+             billData.members != null &&
+             billData.members.hasAny([{userId: request.auth.uid}]);
+    }
+    
+    // Validate that only allowed fields are being updated
+    function isGuestUpdate() {
+      let allowedFields = ['itemAssignments', 'people', 'lastActivity', 'updatedAt', 'members'];
+      return onlyUpdating(allowedFields);
+    }
+
+    // ========== Bills Collection Security Rules ==========
+    
+    match /bills/{billId} {
+      // READ: Owner, group members, or authenticated members
+      // Note: Share code validation happens in app layer (JoinSession.tsx)
+      // Guests are added to members array after validation
+      allow read: if request.auth != null && (
+                       // Owner can always read
+                       request.auth.uid == resource.data.ownerId ||
+                       // Group members can read group bills
+                       (resource.data.billType == 'group' && 
+                        resource.data.groupId != null &&
+                        request.auth.uid in get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.memberIds) ||
+                       // Authenticated members can read (includes guests who joined via share link)
+                       isBillMember(resource.data)
+                     );
+      
+      // CREATE: Authenticated users only, must set themselves as owner
+      allow create: if request.auth != null &&
+                       request.resource.data.ownerId == request.auth.uid &&
+                       // For group bills, user must be a member of the group
+                       (request.resource.data.billType == 'private' ||
+                        (request.resource.data.billType == 'group' &&
+                         request.resource.data.groupId != null &&
+                         request.auth.uid in get(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.memberIds));
+      
+      // UPDATE: Owner and group members have full access
+      // All authenticated members can update limited fields (assignments, people)
+      allow update: if request.auth != null && (
+                         // Owner has full access
+                         request.auth.uid == resource.data.ownerId ||
+                         // Group members have full access to group bills
+                         (resource.data.billType == 'group' &&
+                          resource.data.groupId != null &&
+                          request.auth.uid in get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.memberIds) ||
+                         // All authenticated members can update specific fields (assignments, people)
+                         (isBillMember(resource.data) && isGuestUpdate())
+                       );
+      
+      // DELETE: Only owner can delete
+      allow delete: if request.auth != null &&
+                       request.auth.uid == resource.data.ownerId;
+    }
+
+
+
+
     // Group transactions - users can read/write transactions in groups they're members of
     match /groupTransactions/{transactionId} {
       allow read: if request.auth != null &&
