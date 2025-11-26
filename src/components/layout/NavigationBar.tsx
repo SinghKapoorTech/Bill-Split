@@ -6,7 +6,6 @@ export function NavigationBar() {
 
   const tabs = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/scan', label: 'AI Scan', icon: ScanLine },
     { path: '/groups', label: 'Groups', icon: Users },
   ];
 

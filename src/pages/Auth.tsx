@@ -20,7 +20,7 @@ const Auth = () => {
   // Redirect to home if already logged in
   useEffect(() => {
     if (user) {
-      navigate('/scan');
+      navigate('/dashboard');
     }
   }, [user, navigate]);
 

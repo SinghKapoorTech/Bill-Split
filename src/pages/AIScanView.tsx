@@ -105,14 +105,6 @@ export default function AIScanView() {
   const [showShareLinkDialog, setShowShareLinkDialog] = useState(false);
   const [isGeneratingShareCode, setIsGeneratingShareCode] = useState(false);
 
-  // Update URL when bill is created (only from /scan route)
-  useEffect(() => {
-    if (activeSession?.id && location.pathname === '/scan') {
-      // Update URL to include bill ID for bookmarking/sharing
-      navigate(`/bill/${activeSession.id}`, { replace: true });
-    }
-  }, [activeSession?.id, location.pathname, navigate]);
-
   // Load session data from Firebase into local state
   useEffect(() => {
     isInitializing.current = true;

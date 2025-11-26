@@ -22,7 +22,7 @@ const NotFound = () => {
             Return to Home
           </a>
           <a 
-            href="/scan" 
+            href="/dashboard" 
             className="px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-lg font-semibold hover:border-cyan-500 hover:bg-slate-50 transition-all duration-300"
           >
             Go to App

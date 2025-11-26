@@ -103,7 +103,13 @@ export const AuthButton = () => {
           <UsersRound className="mr-2 h-4 w-4" />
           <span>Manage Squads</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive focus:text-destructive">
+        <DropdownMenuItem 
+          onClick={async () => {
+            await signOut();
+            navigate('/');
+          }} 
+          className="cursor-pointer text-destructive focus:text-destructive"
+        >
           <LogOut className="mr-2 h-4 w-4" />
           <span>Sign out</span>
         </DropdownMenuItem>

@@ -9,7 +9,6 @@ export function MobileNavBar() {
 
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: MdDashboard }, // Dashboard icon
-    { name: 'AI Scan', path: '/scan', icon: FiAperture  }, // Camera icon
     { name: 'Groups', path: '/groups', icon: MdGroups },       // Bolder group icon
     { name: 'Profile', path: '/settings', icon: MdAccountCircle }, // User circle icon
   ];

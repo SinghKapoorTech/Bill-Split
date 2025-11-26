@@ -5,6 +5,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Plus,
   Receipt,
   Calendar,
@@ -25,6 +35,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isCreatingBill, setIsCreatingBill] = useState(false);
+  const [billToDelete, setBillToDelete] = useState<{ id: string; receiptFileName?: string; title: string } | null>(null);
   const {
     activeSession,
     savedSessions,
@@ -103,10 +114,19 @@ export default function Dashboard() {
     navigate(`/bill/${billId}`);
   };
 
-  const handleDeleteBill = async (billId: string, receiptFileName?: string) => {
-    if (confirm('Are you sure you want to delete this bill? This action cannot be undone.')) {
-      await deleteSession(billId, receiptFileName);
-    }
+  const handleDeleteBill = (bill: Bill) => {
+    setBillToDelete({
+      id: bill.id,
+      receiptFileName: bill.receiptFileName,
+      title: getBillTitle(bill)
+    });
+  };
+
+  const confirmDelete = async () => {
+    if (!billToDelete) return;
+
+    await deleteSession(billToDelete.id, billToDelete.receiptFileName);
+    setBillToDelete(null);
   };
 
   const handleViewBill = (billId: string) => {
@@ -298,7 +318,7 @@ export default function Dashboard() {
                       </Button>
                     )}
                     <Button
-                      onClick={() => handleDeleteBill(bill.id, bill.receiptFileName)}
+                      onClick={() => handleDeleteBill(bill)}
                       disabled={isDeleting}
                       variant="destructive"
                       size="sm"
@@ -318,6 +338,28 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!billToDelete} onOpenChange={(open) => !open && setBillToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{billToDelete?.title}" and all associated data. 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDelete}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
