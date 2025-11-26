@@ -17,9 +17,6 @@ export function getSessionDefaults(): Partial<Bill> {
     billData: defaultBillData,
     itemAssignments: {},
     people: [],
-    customTip: '',
-    customTax: '',
-    assignmentMode: 'checkboxes',
     splitEvenly: false,
   };
 }
@@ -43,7 +40,6 @@ export function createBillFromSession(
     ...sessionData,
     billType: 'private',
     ownerId: userId,
-    status: 'active',
   };
 }
 

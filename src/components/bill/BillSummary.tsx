@@ -3,15 +3,24 @@ import { Input } from '@/components/ui/input';
 
 interface Props {
   billData: BillData;
-  customTip: string;
-  effectiveTip: number;
-  customTax: string;
-  effectiveTax: number;
-  onTipChange: (tip: string) => void;
-  onTaxChange: (tax: string) => void;
+  onUpdate: (updates: Partial<BillData>) => void;
 }
 
-export function BillSummary({ billData, customTip, effectiveTip, customTax, effectiveTax, onTipChange, onTaxChange }: Props) {
+export function BillSummary({ billData, onUpdate }: Props) {
+  const handleTaxChange = (value: string) => {
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue >= 0) {
+      onUpdate({ tax: numValue });
+    }
+  };
+
+  const handleTipChange = (value: string) => {
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue >= 0) {
+      onUpdate({ tip: numValue });
+    }
+  };
+
   return (
     <div className="mt-4 md:mt-6 space-y-2 border-t pt-3 md:pt-4">
       <div className="flex justify-between text-sm">
@@ -26,12 +35,12 @@ export function BillSummary({ billData, customTip, effectiveTip, customTax, effe
             <Input
               type="number"
               inputMode="decimal"
-              placeholder={billData.tax.toFixed(2)}
-              value={customTax}
-              onChange={(e) => onTaxChange(e.target.value)}
+              value={billData.tax || ''}
+              onChange={(e) => handleTaxChange(e.target.value)}
               className="w-28 md:w-32 h-9 md:h-10 text-right text-base md:text-sm pl-6"
               step="0.01"
               min="0"
+              placeholder="0.00"
             />
           </div>
         </div>
@@ -44,19 +53,19 @@ export function BillSummary({ billData, customTip, effectiveTip, customTax, effe
             <Input
               type="number"
               inputMode="decimal"
-              placeholder={billData.tip.toFixed(2)}
-              value={customTip}
-              onChange={(e) => onTipChange(e.target.value)}
+              value={billData.tip || ''}
+              onChange={(e) => handleTipChange(e.target.value)}
               className="w-28 md:w-32 h-9 md:h-10 text-right text-base md:text-sm pl-6"
               step="0.01"
               min="0"
+              placeholder="0.00"
             />
           </div>
         </div>
       </div>
       <div className="flex justify-between text-base md:text-lg font-bold border-t pt-2">
         <span>Total:</span>
-        <span>${(billData.subtotal + effectiveTax + effectiveTip).toFixed(2)}</span>
+        <span>${(billData.subtotal + billData.tax + billData.tip).toFixed(2)}</span>
       </div>
     </div>
   );

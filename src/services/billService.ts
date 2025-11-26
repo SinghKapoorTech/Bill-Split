@@ -12,7 +12,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { Bill, BillData, BillType, BillStatus, AssignmentMode, BillMember } from '@/types/bill.types';
+import { Bill, BillData, BillType, BillMember } from '@/types/bill.types';
 import { Person } from '@/types/person.types';
 
 const BILLS_COLLECTION = 'bills';
@@ -47,15 +47,11 @@ export const billService = {
       billData,
       itemAssignments: {},
       people,
-      customTip: '0',
-      customTax: '0',
-      assignmentMode: 'checkboxes',
       splitEvenly: false,
       members: [ownerMember],
       createdAt: now,
       updatedAt: now,
-      lastActivity: now,
-      status: 'active'
+      lastActivity: now
     };
 
     await setDoc(newBillRef, newBill);
@@ -94,8 +90,7 @@ export const billService = {
   async getBillByShareCode(shareCode: string): Promise<Bill | null> {
     const q = query(
       collection(db, BILLS_COLLECTION),
-      where('shareCode', '==', shareCode),
-      where('status', '==', 'active')
+      where('shareCode', '==', shareCode)
     );
 
     const querySnapshot = await getDocs(q);

@@ -96,9 +96,6 @@ export function useShareSession() {
         // Update additional fields that createBill doesn't handle directly
         await billService.updateBill(billId, {
           itemAssignments: privateSession.itemAssignments || {},
-          customTip: privateSession.customTip || '0',
-          customTax: privateSession.customTax || '0',
-          assignmentMode: privateSession.assignmentMode || 'checkboxes',
           splitEvenly: privateSession.splitEvenly || false,
           receiptImageUrl: privateSession.receiptImageUrl || undefined,
           receiptFileName: privateSession.receiptFileName || undefined,

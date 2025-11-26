@@ -6,7 +6,7 @@ import { PeopleManager } from '@/components/people/PeopleManager';
 import { BillItems } from '@/components/bill/BillItems';
 import { BillSummary } from '@/components/bill/BillSummary';
 import { SplitSummary } from '@/components/people/SplitSummary';
-import { AssignmentModeToggle } from '@/components/bill/AssignmentModeToggle';
+
 import { FeatureCards } from '@/components/shared/FeatureCards';
 import { ShareSessionModal } from '@/components/share/ShareSessionModal';
 import { ShareLinkDialog } from '@/components/share/ShareLinkDialog';
@@ -26,7 +26,7 @@ import { Receipt, Users, Loader2, Sparkles } from 'lucide-react';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { UI_TEXT } from '@/utils/uiConstants';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
-import { Person, BillData, ItemAssignment, AssignmentMode } from '@/types';
+import { Person, BillData, ItemAssignment } from '@/types';
 import { areAllItemsAssigned } from '@/utils/calculations';
 import { ensureUserInPeople } from '@/utils/billCalculations';
 import { useAuth } from '@/contexts/AuthContext';
@@ -68,9 +68,7 @@ export default function AIScanView() {
   const [people, setPeople] = useState<Person[]>([]);
   const [billData, setBillData] = useState<BillData | null>(null);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
-  const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>('checkboxes');
-  const [customTip, setCustomTip] = useState<string>('');
-  const [customTax, setCustomTax] = useState<string>('');
+
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
 
   const peopleManager = usePeopleManager(people, setPeople);
@@ -80,12 +78,7 @@ export default function AIScanView() {
     setBillData,
     itemAssignments,
     setItemAssignments,
-    assignmentMode,
-    setAssignmentMode,
-    customTip,
-    setCustomTip,
-    customTax,
-    setCustomTax,
+
     splitEvenly,
     setSplitEvenly,
   });
@@ -100,7 +93,6 @@ export default function AIScanView() {
   const editor = useItemEditor(
     billData,
     setBillData,
-    customTip,
     bill.removeItemAssignments
   );
 
@@ -129,9 +121,6 @@ export default function AIScanView() {
       setItemAssignments(activeSession.itemAssignments || {});
       // Ensure logged-in user is always in the people list
       setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
-      setCustomTip(activeSession.customTip || '');
-      setCustomTax(activeSession.customTax || '');
-      setAssignmentMode(activeSession.assignmentMode || 'checkboxes');
       setSplitEvenly(activeSession.splitEvenly || false);
       if (activeSession.receiptImageUrl) {
         upload.setImagePreview(activeSession.receiptImageUrl);
@@ -154,9 +143,6 @@ export default function AIScanView() {
       setItemAssignments({});
       // Ensure logged-in user is added even when clearing
       setPeople(ensureUserInPeople([], user, profile));
-      setCustomTip('');
-      setCustomTax('');
-      setAssignmentMode('checkboxes');
       setSplitEvenly(false);
       upload.handleRemoveImage();
       setCurrentStep(0);
@@ -194,9 +180,6 @@ export default function AIScanView() {
         billData,
         people,
         itemAssignments,
-        customTip,
-        customTax,
-        assignmentMode,
         splitEvenly,
         receiptImageUrl: activeSession?.receiptImageUrl || null,
         receiptFileName: activeSession?.receiptFileName || null,
@@ -204,7 +187,7 @@ export default function AIScanView() {
     }, 1500); // Debounce by 1.5 seconds
 
     return () => clearTimeout(timeoutId);
-  }, [billData, people, itemAssignments, customTip, customTax, assignmentMode, splitEvenly, activeSession?.receiptImageUrl, activeSession?.receiptFileName, saveSession]);
+  }, [billData, people, itemAssignments, splitEvenly, activeSession?.receiptImageUrl, activeSession?.receiptFileName, saveSession]);
 
   const handleRemovePerson = (personId: string) => {
     peopleManager.removePerson(personId);
@@ -298,9 +281,6 @@ export default function AIScanView() {
       billData: analyzedBillData,
       people,
       itemAssignments,
-      customTip,
-      customTax,
-      assignmentMode,
       splitEvenly,
       receiptImageUrl: uploadResult?.downloadURL,
       receiptFileName: uploadResult?.fileName,
@@ -533,7 +513,6 @@ export default function AIScanView() {
                     billData={billData}
                     people={[]}
                     itemAssignments={{}}
-                    assignmentMode="checkboxes"
                     editingItemId={editor.editingItemId}
                     editingItemName={editor.editingItemName}
                     editingItemPrice={editor.editingItemPrice}
@@ -558,12 +537,7 @@ export default function AIScanView() {
 
                   <BillSummary
                     billData={billData}
-                    customTip={customTip}
-                    effectiveTip={bill.effectiveTip}
-                    customTax={customTax}
-                    effectiveTax={bill.effectiveTax}
-                    onTipChange={setCustomTip}
-                    onTaxChange={setCustomTax}
+                    onUpdate={(updates) => setBillData({ ...billData, ...updates })}
                   />
                 </Card>
               }
@@ -627,19 +601,13 @@ export default function AIScanView() {
                       <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
                     </div>
 
-                    {people.length > 0 && !isMobile && (
-                      <AssignmentModeToggle
-                        mode={assignmentMode}
-                        onModeChange={setAssignmentMode}
-                      />
-                    )}
+
                   </div>
 
                   <BillItems
                     billData={billData}
                     people={people}
                     itemAssignments={itemAssignments}
-                    assignmentMode={assignmentMode}
                     editingItemId={editor.editingItemId}
                     editingItemName={editor.editingItemName}
                     editingItemPrice={editor.editingItemPrice}
@@ -670,12 +638,7 @@ export default function AIScanView() {
 
                   <BillSummary
                     billData={billData}
-                    customTip={customTip}
-                    effectiveTip={bill.effectiveTip}
-                    customTax={customTax}
-                    effectiveTax={bill.effectiveTax}
-                    onTipChange={setCustomTip}
-                    onTaxChange={setCustomTax}
+                    onUpdate={(updates) => setBillData({ ...billData, ...updates })}
                   />
                 </Card>
               }

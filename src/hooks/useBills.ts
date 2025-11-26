@@ -48,76 +48,50 @@ export function useBills() {
     setIsLoading(true);
     const billsRef = collection(db, 'bills');
     
-    // Query for active private bill
-    const activeQuery = query(
+    // Query for all private bills, ordered by updatedAt
+    const q = query(
       billsRef,
       where('ownerId', '==', user.uid),
       where('billType', '==', 'private'),
-      where('status', '==', 'active'),
-      limit(1)
+      orderBy('updatedAt', 'desc')
     );
 
-    const unsubscribeActive = onSnapshot(
-      activeQuery,
+    const unsubscribe = onSnapshot(
+      q,
       (snapshot) => {
-        if (!snapshot.empty) {
-          const billDoc = snapshot.docs[0];
-          setActiveSession({ id: billDoc.id, ...billDoc.data() } as Bill);
+        const bills = snapshot.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data() 
+        } as Bill));
+        
+        if (bills.length > 0) {
+          setActiveSession(bills[0]);
+          setSavedSessions(bills.slice(1));
         } else {
           setActiveSession(null);
+          setSavedSessions([]);
         }
         setIsLoading(false);
       },
       (error) => {
-        console.error('Error loading active session:', error);
+        console.error('Error loading sessions:', error);
         toast({ 
           title: 'Error', 
-          description: 'Could not load your session.', 
+          description: 'Could not load your sessions.', 
           variant: 'destructive' 
         });
         setIsLoading(false);
       }
     );
 
-    // Query for saved private bills
-    const savedQuery = query(
-      billsRef,
-      where('ownerId', '==', user.uid),
-      where('billType', '==', 'private'),
-      where('status', '==', 'saved'),
-      orderBy('savedAt', 'desc')
-    );
-
-    const unsubscribeSaved = onSnapshot(
-      savedQuery,
-      (snapshot) => {
-        const saved = snapshot.docs.map(doc => ({ 
-          id: doc.id, 
-          ...doc.data() 
-        } as Bill));
-        setSavedSessions(saved);
-      },
-      (error) => {
-        console.error('Error loading saved sessions:', error);
-        toast({ 
-          title: 'Error', 
-          description: 'Could not load saved sessions.', 
-          variant: 'destructive' 
-        });
-      }
-    );
-
-    return () => {
-      unsubscribeActive();
-      unsubscribeSaved();
-    };
+    return () => unsubscribe();
   }, [user, toast]);
 
-  const saveSession = useCallback(async (sessionData: Partial<Bill>) => {
+  const saveSession = useCallback(async (sessionData: Partial<Bill>, billId?: string) => {
     if (!user) return;
 
     try {
-      if (activeSession?.id) {
+      if (billId) {
         // Update existing bill - filter out undefined fields
         const updates: Record<string, any> = {};
         Object.keys(sessionData).forEach((key) => {
@@ -127,7 +101,7 @@ export function useBills() {
           }
         });
         
-        await billService.updateBill(activeSession.id, updates as Partial<Bill>);
+        await billService.updateBill(billId, updates as Partial<Bill>);
       } else {
         // Create new bill
         const defaultBillData: BillData = {
@@ -138,7 +112,7 @@ export function useBills() {
           total: 0
         };
 
-        const billId = await billService.createBill(
+        const newBillId = await billService.createBill(
           user.uid,
           user.displayName || 'Anonymous',
           'private',
@@ -149,15 +123,12 @@ export function useBills() {
         // Update with additional fields if provided - filter undefined
         const additionalUpdates: Partial<Bill> = {};
         if (sessionData.itemAssignments !== undefined) additionalUpdates.itemAssignments = sessionData.itemAssignments;
-        if (sessionData.customTip !== undefined) additionalUpdates.customTip = sessionData.customTip;
-        if (sessionData.customTax !== undefined) additionalUpdates.customTax = sessionData.customTax;
-        if (sessionData.assignmentMode !== undefined) additionalUpdates.assignmentMode = sessionData.assignmentMode;
         if (sessionData.splitEvenly !== undefined) additionalUpdates.splitEvenly = sessionData.splitEvenly;
         if (sessionData.receiptImageUrl !== undefined) additionalUpdates.receiptImageUrl = sessionData.receiptImageUrl;
         if (sessionData.receiptFileName !== undefined) additionalUpdates.receiptFileName = sessionData.receiptFileName;
         
         if (Object.keys(additionalUpdates).length > 0) {
-          await billService.updateBill(billId, additionalUpdates);
+          await billService.updateBill(newBillId, additionalUpdates);
         }
       }
     } catch (error) {
@@ -168,7 +139,7 @@ export function useBills() {
         variant: 'destructive' 
       });
     }
-  }, [activeSession, user, toast]);
+  }, [user, toast]);
 
   const uploadReceiptImage = async (file: File) => {
     if (!user) return null;
@@ -243,22 +214,11 @@ export function useBills() {
   }, [activeSession, getStorageRef, toast]);
 
   const archiveAndStartNewSession = useCallback(async () => {
-    if (activeSession?.id) {
-      try {
-        await billService.updateBill(activeSession.id, { 
-          status: 'saved', 
-          savedAt: Timestamp.now() 
-        });
-      } catch (error) {
-        console.error('Error archiving session:', error);
-        toast({ 
-          title: 'Error', 
-          description: 'Could not archive session.', 
-          variant: 'destructive' 
-        });
-      }
-    }
-  }, [activeSession, toast]);
+    // Just clear the active session locally if needed, or let the UI handle it.
+    // Since we auto-save, we don't need to do anything special to "archive".
+    // The UI will call saveSession without an ID to create a new one.
+    setActiveSession(null);
+  }, []);
 
   const clearSession = useCallback(async () => {
     if (!activeSession?.id) {
@@ -328,18 +288,9 @@ export function useBills() {
   const resumeSession = useCallback(async (sessionId: string) => {
     setIsResuming(true);
     try {
-      // Archive current active session if it exists
-      if (activeSession?.id) {
-        await billService.updateBill(activeSession.id, { 
-          status: 'saved', 
-          savedAt: Timestamp.now() 
-        });
-      }
-
-      // Set the chosen session to active
+      // Touch the bill to update its updatedAt timestamp, moving it to the top
       await billService.updateBill(sessionId, { 
-        status: 'active', 
-        savedAt: undefined 
+        updatedAt: Timestamp.now()
       });
 
       toast({ title: 'Success', description: 'Session resumed.' });
@@ -353,7 +304,7 @@ export function useBills() {
     } finally {
       setIsResuming(false);
     }
-  }, [activeSession, toast]);
+  }, [toast]);
 
   return {
     activeSession,

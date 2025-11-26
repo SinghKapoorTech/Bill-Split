@@ -9,7 +9,7 @@ import { PeopleManager } from '@/components/people/PeopleManager';
 import { BillItems } from '@/components/bill/BillItems';
 import { BillSummary } from '@/components/bill/BillSummary';
 import { SplitSummary } from '@/components/people/SplitSummary';
-import { AssignmentModeToggle } from '@/components/bill/AssignmentModeToggle';
+
 import { InviteMembersDialog } from '@/components/groups/InviteMembersDialog';
 import { useBillSplitter } from '@/hooks/useBillSplitter';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
@@ -20,7 +20,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Group } from '@/types/group.types';
-import { Person, BillData, ItemAssignment, AssignmentMode } from '@/types';
+import { Person, BillData, ItemAssignment } from '@/types';
 import { UI_TEXT, NAVIGATION, LOADING } from '@/utils/uiConstants';
 import { ensureUserInPeople } from '@/utils/billCalculations';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,9 +41,6 @@ export default function GroupDetailView() {
   const [people, setPeople] = useState<Person[]>([]);
   const [billData, setBillData] = useState<BillData | null>(null);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
-  const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>('checkboxes');
-  const [customTip, setCustomTip] = useState<string>('');
-  const [customTax, setCustomTax] = useState<string>('');
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
 
   const peopleManager = usePeopleManager(people, setPeople);
@@ -53,12 +50,6 @@ export default function GroupDetailView() {
     setBillData,
     itemAssignments,
     setItemAssignments,
-    assignmentMode,
-    setAssignmentMode,
-    customTip,
-    setCustomTip,
-    customTax,
-    setCustomTax,
     splitEvenly,
     setSplitEvenly,
   });
@@ -67,7 +58,6 @@ export default function GroupDetailView() {
   const editor = useItemEditor(
     billData,
     setBillData,
-    customTip,
     bill.removeItemAssignments
   );
 
@@ -117,8 +107,6 @@ export default function GroupDetailView() {
     setItemAssignments({});
     // Ensure logged-in user is added even when clearing
     setPeople(ensureUserInPeople([], user, profile));
-    setCustomTip('');
-    setCustomTax('');
     setSplitEvenly(false);
     if (activeTab === 'ai-scan') {
       upload.handleRemoveImage();
@@ -252,19 +240,13 @@ export default function GroupDetailView() {
                     <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
                   </div>
 
-                  {people.length > 0 && !isMobile && (
-                    <AssignmentModeToggle
-                      mode={assignmentMode}
-                      onModeChange={setAssignmentMode}
-                    />
-                  )}
+
                 </div>
 
                 <BillItems
                   billData={billData}
                   people={people}
                   itemAssignments={itemAssignments}
-                  assignmentMode={assignmentMode}
                   editingItemId={editor.editingItemId}
                   editingItemName={editor.editingItemName}
                   editingItemPrice={editor.editingItemPrice}
@@ -295,12 +277,7 @@ export default function GroupDetailView() {
 
                 <BillSummary
                   billData={billData}
-                  customTip={customTip}
-                  effectiveTip={bill.effectiveTip}
-                  customTax={customTax}
-                  effectiveTax={bill.effectiveTax}
-                  onTipChange={setCustomTip}
-                  onTaxChange={setCustomTax}
+                  onUpdate={(updates) => setBillData({ ...billData, ...updates })}
                 />
               </Card>
 
@@ -350,19 +327,13 @@ export default function GroupDetailView() {
                   <h3 className="text-xl font-semibold">Bill Items</h3>
                 </div>
 
-                {people.length > 0 && !isMobile && (
-                  <AssignmentModeToggle
-                    mode={assignmentMode}
-                    onModeChange={setAssignmentMode}
-                  />
-                )}
+
               </div>
 
               <BillItems
                 billData={billData}
                 people={people}
                 itemAssignments={itemAssignments}
-                assignmentMode={assignmentMode}
                 editingItemId={editor.editingItemId}
                 editingItemName={editor.editingItemName}
                 editingItemPrice={editor.editingItemPrice}
@@ -394,12 +365,7 @@ export default function GroupDetailView() {
               {billData && (
                 <BillSummary
                   billData={billData}
-                  customTip={customTip}
-                  effectiveTip={bill.effectiveTip}
-                  customTax={customTax}
-                  effectiveTax={bill.effectiveTax}
-                  onTipChange={setCustomTip}
-                  onTaxChange={setCustomTax}
+                  onUpdate={(updates) => setBillData({ ...billData, ...updates })}
                 />
               )}
             </Card>

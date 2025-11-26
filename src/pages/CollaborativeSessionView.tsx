@@ -5,7 +5,7 @@ import { PeopleManager } from '@/components/people/PeopleManager';
 import { BillItems } from '@/components/bill/BillItems';
 import { BillSummary } from '@/components/bill/BillSummary';
 import { SplitSummary } from '@/components/people/SplitSummary';
-import { AssignmentModeToggle } from '@/components/bill/AssignmentModeToggle';
+
 import { ShareButton } from '@/components/share/ShareButton';
 import { ShareSessionModal } from '@/components/share/ShareSessionModal';
 import { CollaborativeBadge } from '@/components/share/CollaborativeBadge';
@@ -20,7 +20,7 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Receipt, Upload, Edit, Loader2, AlertCircle } from 'lucide-react';
 import { UI_TEXT } from '@/utils/uiConstants';
-import { Person, BillData, ItemAssignment, AssignmentMode } from '@/types';
+import { Person, BillData, ItemAssignment } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ensureUserInPeople } from '@/utils/billCalculations';
@@ -44,9 +44,7 @@ export default function CollaborativeSessionView() {
   const [people, setPeople] = useState<Person[]>([]);
   const [billData, setBillData] = useState<BillData | null>(null);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
-  const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>('checkboxes');
-  const [customTip, setCustomTip] = useState<string>('');
-  const [customTax, setCustomTax] = useState<string>('');
+
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
 
   const peopleManager = usePeopleManager(people, setPeople);
@@ -56,19 +54,14 @@ export default function CollaborativeSessionView() {
     setBillData,
     itemAssignments,
     setItemAssignments,
-    assignmentMode,
-    setAssignmentMode,
-    customTip,
-    setCustomTip,
-    customTax,
-    setCustomTax,
+
     splitEvenly,
     setSplitEvenly,
   });
 
   const upload = useFileUpload();
   const analyzer = useReceiptAnalyzer(setBillData, setPeople, billData);
-  const editor = useItemEditor(billData, setBillData, customTip, bill.removeItemAssignments);
+  const editor = useItemEditor(billData, setBillData, bill.removeItemAssignments);
 
   // Sync local state with collaborative session
   useEffect(() => {
@@ -78,9 +71,7 @@ export default function CollaborativeSessionView() {
       setItemAssignments(session.itemAssignments || {});
       // Ensure logged-in user is always in the people list
       setPeople(ensureUserInPeople(session.people || [], user, profile));
-      setCustomTip(session.customTip || '');
-      setCustomTax(session.customTax || '');
-      setAssignmentMode(session.assignmentMode || 'checkboxes');
+      setPeople(ensureUserInPeople(session.people || [], user, profile));
       setSplitEvenly(session.splitEvenly || false);
       if (session.receiptImageUrl) {
         upload.setImagePreview(session.receiptImageUrl);
@@ -100,15 +91,12 @@ export default function CollaborativeSessionView() {
         billData,
         people,
         itemAssignments,
-        customTip,
-        customTax,
-        assignmentMode,
         splitEvenly,
       });
     }, 1500);
 
     return () => clearTimeout(timeoutId);
-  }, [billData, people, itemAssignments, customTip, customTax, assignmentMode, splitEvenly, session, updateSession]);
+  }, [billData, people, itemAssignments, splitEvenly, session, updateSession]);
 
   const handleRemovePerson = (personId: string) => {
     peopleManager.removePerson(personId);
@@ -272,16 +260,13 @@ export default function CollaborativeSessionView() {
                     <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
                   </div>
 
-                  {people.length > 0 && !isMobile && (
-                    <AssignmentModeToggle mode={assignmentMode} onModeChange={setAssignmentMode} />
-                  )}
+
                 </div>
 
                 <BillItems
                   billData={billData}
                   people={people}
                   itemAssignments={itemAssignments}
-                  assignmentMode={assignmentMode}
                   editingItemId={editor.editingItemId}
                   editingItemName={editor.editingItemName}
                   editingItemPrice={editor.editingItemPrice}
@@ -312,12 +297,7 @@ export default function CollaborativeSessionView() {
 
                 <BillSummary
                   billData={billData}
-                  customTip={customTip}
-                  effectiveTip={bill.effectiveTip}
-                  customTax={customTax}
-                  effectiveTax={bill.effectiveTax}
-                  onTipChange={setCustomTip}
-                  onTaxChange={setCustomTax}
+                  onUpdate={(updates) => setBillData({ ...billData, ...updates })}
                 />
               </Card>
 
@@ -356,16 +336,13 @@ export default function CollaborativeSessionView() {
                 <h3 className="text-xl font-semibold">Bill Items</h3>
               </div>
 
-              {people.length > 0 && !isMobile && (
-                <AssignmentModeToggle mode={assignmentMode} onModeChange={setAssignmentMode} />
-              )}
+
             </div>
 
             <BillItems
               billData={billData}
               people={people}
               itemAssignments={itemAssignments}
-              assignmentMode={assignmentMode}
               editingItemId={editor.editingItemId}
               editingItemName={editor.editingItemName}
               editingItemPrice={editor.editingItemPrice}
@@ -391,12 +368,7 @@ export default function CollaborativeSessionView() {
             {billData && (
               <BillSummary
                 billData={billData}
-                customTip={customTip}
-                effectiveTip={bill.effectiveTip}
-                customTax={customTax}
-                effectiveTax={bill.effectiveTax}
-                onTipChange={setCustomTip}
-                onTaxChange={setCustomTax}
+                onUpdate={(updates) => setBillData({ ...billData, ...updates })}
               />
             )}
           </Card>

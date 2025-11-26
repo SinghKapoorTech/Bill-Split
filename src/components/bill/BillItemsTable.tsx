@@ -1,7 +1,7 @@
 import { Pencil, Trash2, Plus, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { BillData, Person, ItemAssignment, AssignmentMode } from '@/types';
+import { BillData, Person, ItemAssignment } from '@/types';
 import { ItemAssignmentBadges } from '../shared/ItemAssignmentBadges';
 import { ItemAssignmentDropdown } from '../shared/ItemAssignmentDropdown';
 import { ItemFormFields } from './ItemFormFields';
@@ -11,7 +11,6 @@ interface Props {
   billData: BillData | null;
   people: Person[];
   itemAssignments: ItemAssignment;
-  assignmentMode: AssignmentMode;
   editingItemId: string | null;
   editingItemName: string;
   editingItemPrice: string;
@@ -38,7 +37,6 @@ export function BillItemsTable({
   billData,
   people,
   itemAssignments,
-  assignmentMode,
   editingItemId,
   editingItemName,
   editingItemPrice,
@@ -144,27 +142,15 @@ export function BillItemsTable({
                     <>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell className="text-right">${item.price.toFixed(2)}</TableCell>
-                      {people.length > 0 && (
                         <TableCell>
-                          {assignmentMode === 'checkboxes' ? (
-                            <ItemAssignmentBadges
-                              item={item}
-                              people={people}
-                              itemAssignments={itemAssignments}
-                              onAssign={onAssign}
-                              showSplit={true}
-                            />
-                          ) : (
-                            <ItemAssignmentDropdown
-                              item={item}
-                              people={people}
-                              itemAssignments={itemAssignments}
-                              onAssign={onAssign}
-                              showSplit={true}
-                            />
-                          )}
+                          <ItemAssignmentBadges
+                            item={item}
+                            people={people}
+                            itemAssignments={itemAssignments}
+                            onAssign={onAssign}
+                            showSplit={true}
+                          />
                         </TableCell>
-                      )}
                       <TableCell>
                         <div className="flex gap-1">
                           <Button size="sm" variant="ghost" onClick={() => onEdit(item.id, item.name, item.price)}>

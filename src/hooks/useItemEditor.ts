@@ -15,7 +15,6 @@ import { validateItemInput, parsePrice } from '@/utils/validation';
 export function useItemEditor(
   billData: BillData | null,
   setBillData: (data: BillData) => void,
-  customTip: string,
   removeItemAssignments: (itemId: string) => void
 ) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -53,8 +52,7 @@ export function useItemEditor(
         : item
     );
 
-    const tip = parsePrice(customTip) || billData.tip;
-    const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, tip);
+    const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip);
 
     setBillData({
       ...billData,
@@ -76,8 +74,7 @@ export function useItemEditor(
     if (!billData) return;
 
     const updatedItems = billData.items.filter(item => item.id !== itemId);
-    const tip = parsePrice(customTip) || billData.tip;
-    const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, tip);
+    const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip);
 
     setBillData({
       ...billData,
@@ -132,8 +129,7 @@ export function useItemEditor(
     } else {
       // Add to existing bill
       const updatedItems = [...billData.items, newItem];
-      const tip = parsePrice(customTip) || billData.tip;
-      const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, tip);
+      const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip);
 
       setBillData({
         ...billData,

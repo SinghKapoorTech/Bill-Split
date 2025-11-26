@@ -1,4 +1,4 @@
-import { BillData, Person, ItemAssignment, AssignmentMode } from '@/types';
+import { BillData, Person, ItemAssignment } from '@/types';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { BillItemCard } from './BillItemCard';
 import { BillItemsTable } from './BillItemsTable';
@@ -7,7 +7,6 @@ interface Props {
   billData: BillData | null;
   people: Person[];
   itemAssignments: ItemAssignment;
-  assignmentMode: AssignmentMode;
   editingItemId: string | null;
   editingItemName: string;
   editingItemPrice: string;

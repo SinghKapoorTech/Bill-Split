@@ -116,26 +116,14 @@ export function useBillSession(billId: string | null) {
    * Ends the collaborative session (Archives it)
    */
   const endSession = useCallback(async () => {
-    if (!billId) return;
-
-    try {
-      await billService.updateBill(billId, {
-        status: 'archived'
-      });
-
-      toast({
-        title: 'Session Ended',
-        description: 'The collaborative session has been ended.',
-      });
-    } catch (error) {
-      console.error('Error ending session:', error);
-      toast({
-        title: 'Error',
-        description: 'Could not end session.',
-        variant: 'destructive',
-      });
-    }
-  }, [billId, toast]);
+    // Just clear local state or navigate away.
+    // The session data remains in Firestore.
+    setSession(null);
+    toast({
+      title: 'Session Ended',
+      description: 'You have left the collaborative session.',
+    });
+  }, [toast]);
 
   return {
     session,

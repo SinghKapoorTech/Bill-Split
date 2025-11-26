@@ -2,8 +2,6 @@ import { Timestamp } from 'firebase/firestore';
 import { Person } from './person.types';
 
 export type BillType = 'private' | 'group';
-export type BillStatus = 'active' | 'archived' | 'saved';
-export type AssignmentMode = 'checkboxes' | 'percentage';
 
 export interface BillItem {
   id: string;
@@ -43,9 +41,6 @@ export interface Bill {
   people: Person[];
   
   // User inputs
-  customTip: string;
-  customTax: string;
-  assignmentMode: AssignmentMode;
   splitEvenly: boolean;
   
   // Receipt Image
@@ -65,6 +60,5 @@ export interface Bill {
   createdAt: Timestamp;
   updatedAt: Timestamp;
   lastActivity: Timestamp;
-  status: BillStatus;
   savedAt?: Timestamp; // For draft sessions
 }

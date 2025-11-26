@@ -5,6 +5,8 @@ import {
   where,
   onSnapshot,
   orderBy,
+  doc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -29,7 +31,6 @@ export function useGroupBills(groupId: string) {
     const q = query(
       billsRef, 
       where('groupId', '==', groupId), 
-      where('status', '==', 'active'),
       orderBy('createdAt', 'desc')
     );
 
@@ -66,12 +67,9 @@ export function useGroupBills(groupId: string) {
     );
     
     // Update other fields if provided
-    if (data.itemAssignments || data.customTip) {
+    if (data.itemAssignments || data.splitEvenly) {
         await billService.updateBill(billId, {
             itemAssignments: data.itemAssignments,
-            customTip: data.customTip,
-            customTax: data.customTax,
-            assignmentMode: data.assignmentMode,
             splitEvenly: data.splitEvenly,
             receiptImageUrl: data.receiptImageUrl,
             receiptFileName: data.receiptFileName
@@ -86,13 +84,9 @@ export function useGroupBills(groupId: string) {
   }, []);
 
   const deleteTransaction = useCallback(async (billId: string) => {
-    // We archive instead of delete, or use delete if that's the requirement.
-    // Architecture doc says "Owner can delete group (which archives all bills)".
-    // For individual bills, "Owner has full control (create, edit, delete, assign)".
-    // Let's assume delete means archive for now, or hard delete?
-    // billService doesn't have delete, only update.
-    // Let's assume status='archived' is the way.
-    await billService.updateBill(billId, { status: 'archived' });
+    // Hard delete the bill
+    const billRef = doc(db, 'bills', billId);
+    await deleteDoc(billRef);
   }, []);
 
   return {
