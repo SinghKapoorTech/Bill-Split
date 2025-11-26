@@ -123,29 +123,4 @@ export function createPersonObject(
   return personData;
 }
 
-/**
- * Recursively removes all fields with `undefined` values from an object.
- * Firestore does not support `undefined` values.
- * @param obj The object to sanitize.
- * @returns A new object with `undefined` fields removed.
- */
-export function removeUndefinedFields(obj: any): any {
-  if (obj === null || typeof obj !== 'object') {
-    return obj;
-  }
 
-  if (Array.isArray(obj)) {
-    return obj.map(item => removeUndefinedFields(item));
-  }
-
-  const newObj: { [key: string]: any } = {};
-  for (const key in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      const value = obj[key];
-      if (value !== undefined) {
-        newObj[key] = removeUndefinedFields(value);
-      }
-    }
-  }
-  return newObj;
-}
