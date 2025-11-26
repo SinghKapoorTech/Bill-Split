@@ -230,10 +230,6 @@ export default function AIScanView() {
     setCurrentStep(0);
   };
 
-  const handleSave = async () => {
-    await archiveAndStartNewSession();
-  };
-
   const handleShare = async () => {
     if (!activeSession) return;
 
@@ -402,9 +398,7 @@ export default function AIScanView() {
     <>
       <HeroSection
         hasBillData={!!billData}
-        onLoadMock={analyzer.loadMockData}
         onStartOver={handleStartOver}
-        onSave={handleSave}
         onShare={handleGenerateShareLink}
       />
 

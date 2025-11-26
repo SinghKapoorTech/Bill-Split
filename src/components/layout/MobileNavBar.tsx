@@ -1,13 +1,14 @@
 // src/components/MobileNavBar.tsx (with Material Design Icons)
 
 import { Link, useLocation } from 'react-router-dom';
-import { MdGroups, MdAccountCircle } from 'react-icons/md';
+import { MdGroups, MdAccountCircle, MdDashboard } from 'react-icons/md';
 import { FiAperture} from 'react-icons/fi';
 
 export function MobileNavBar() {
   const location = useLocation();
 
   const navItems = [
+    { name: 'Dashboard', path: '/dashboard', icon: MdDashboard }, // Dashboard icon
     { name: 'AI Scan', path: '/scan', icon: FiAperture  }, // Camera icon
     { name: 'Groups', path: '/groups', icon: MdGroups },       // Bolder group icon
     { name: 'Profile', path: '/settings', icon: MdAccountCircle }, // User circle icon

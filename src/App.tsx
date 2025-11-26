@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { BillSessionProvider } from "@/contexts/BillSessionContext";
 import { Layout } from "@/components/layout/Layout";
 import LandingPage from "./pages/LandingPage";
+import Dashboard from "./pages/Dashboard";
 import AIScanView from "./pages/AIScanView";
 import GroupEventView from "./pages/GroupEventView";
 import GroupDetailView from "./pages/GroupDetailView";
@@ -63,6 +64,7 @@ const App = () => (
             
             {/* App routes - with layout */}
             <Route element={<Layout />}>
+              <Route path="dashboard" element={<Dashboard />} />
               <Route path="scan" element={<AIScanView />} />
               <Route path="bill/:billId" element={<AIScanView />} />
               <Route path="groups" element={<GroupEventView />} />

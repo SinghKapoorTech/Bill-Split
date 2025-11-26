@@ -1,10 +1,11 @@
-import { ScanLine, Edit, Users } from 'lucide-react';
+import { ScanLine, Edit, Users, LayoutDashboard } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 export function NavigationBar() {
   const location = useLocation();
 
   const tabs = [
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/scan', label: 'AI Scan', icon: ScanLine },
     { path: '/groups', label: 'Groups', icon: Users },
   ];
