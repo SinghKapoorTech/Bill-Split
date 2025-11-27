@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, LogOut, User, Settings, Users, UsersRound } from 'lucide-react';
+import { LogIn, LogOut, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -12,16 +12,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
-import { ProfileSettings } from '@/components/profile/ProfileSettings';
-import { ManageFriends } from '@/components/profile/ManageFriends';
-import { ManageSquadsDialog } from '@/components/squads/ManageSquadsDialog';
 
 export const AuthButton = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [friendsOpen, setFriendsOpen] = useState(false);
-  const [squadsOpen, setSquadsOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   if (loading) {
@@ -54,17 +48,7 @@ export const AuthButton = () => {
 
   const handleOpenSettings = () => {
     setDropdownOpen(false);
-    setSettingsOpen(true);
-  };
-
-  const handleOpenFriends = () => {
-    setDropdownOpen(false);
-    setFriendsOpen(true);
-  };
-
-  const handleOpenSquads = () => {
-    setDropdownOpen(false);
-    setSquadsOpen(true);
+    navigate('/settings');
   };
 
   return (
@@ -93,21 +77,13 @@ export const AuthButton = () => {
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleOpenSettings} className="cursor-pointer">
           <Settings className="mr-2 h-4 w-4" />
-          <span>Profile Settings</span>
+          <span>Settings</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleOpenFriends} className="cursor-pointer">
-          <Users className="mr-2 h-4 w-4" />
-          <span>Manage Friends</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleOpenSquads} className="cursor-pointer">
-          <UsersRound className="mr-2 h-4 w-4" />
-          <span>Manage Squads</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem 
+        <DropdownMenuItem
           onClick={async () => {
             await signOut();
             navigate('/');
-          }} 
+          }}
           className="cursor-pointer text-destructive focus:text-destructive"
         >
           <LogOut className="mr-2 h-4 w-4" />
@@ -115,10 +91,6 @@ export const AuthButton = () => {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-
-    <ProfileSettings open={settingsOpen} onOpenChange={setSettingsOpen} />
-    <ManageFriends open={friendsOpen} onOpenChange={setFriendsOpen} />
-    <ManageSquadsDialog open={squadsOpen} onOpenChange={setSquadsOpen} />
     </>
   );
 };

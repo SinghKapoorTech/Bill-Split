@@ -17,7 +17,7 @@ export const FEATURES = {
 // Common UI text and labels
 export const UI_TEXT = {
   // Page titles
-  PROFILE_SETTINGS: 'Profile & Settings',
+  PROFILE_SETTINGS: 'Profile',
   SPLIT_YOUR_BILL: 'Split Your Bill Instantly',
   CREATE_BILL_MANUALLY: 'Create Bill Manually',
   HERO_TITLE: 'Split Bills with Friends',

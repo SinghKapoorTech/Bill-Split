@@ -290,14 +290,6 @@ function SquadMemberSelector({
         </Button>
       </div>
 
-      <Badge
-        variant={showVenmoField ? 'default' : 'outline'}
-        className="cursor-pointer px-3 py-1 text-xs hover:opacity-80 transition-opacity"
-        onClick={() => onShowVenmoFieldChange(!showVenmoField)}
-      >
-        Add Venmo ID
-      </Badge>
-
       {showVenmoField && (
         <Input
           placeholder="Venmo username (without @)"
@@ -307,6 +299,16 @@ function SquadMemberSelector({
           className="text-sm"
         />
       )}
+
+      <Badge
+        variant={showVenmoField ? 'default' : 'outline'}
+        className="cursor-pointer px-3 py-1 text-xs hover:opacity-80 transition-opacity"
+        onClick={() => onShowVenmoFieldChange(!showVenmoField)}
+      >
+        Add Venmo ID
+      </Badge>
+
+
 
       {members.length > 0 && (
         <div className="space-y-1 max-h-[200px] overflow-y-auto border border-border rounded-md p-2">

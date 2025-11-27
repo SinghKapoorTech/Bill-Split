@@ -44,7 +44,7 @@ export function FeaturesSection() {
     {
       icon: CreditCard,
       title: 'Payment Integration',
-      description: 'Seamless Venmo and Cash App integration. Send payment requests with itemized breakdowns instantly.',
+      description: 'Seamless Venmo integration. Send payment requests with itemized breakdowns instantly.',
       gradient: 'from-pink-500 to-rose-500',
     },
   ];
