@@ -1,9 +1,16 @@
 import { Receipt } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export function LandingFooter() {
   return (
-    <footer className="bg-slate-900 text-white py-8 px-8">
-      <div className="container mx-auto max-w-6xl">
+    <motion.footer
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.6 }}
+      className="bg-slate-900 text-white py-8 px-8 relative overflow-hidden"
+    >
+      <div className="container mx-auto max-w-7xl px-4 md:px-8 relative z-10">
         <div className="flex flex-col md:flex-row justify-between items-center gap-8">
           {/* Logo and tagline */}
           <div className="flex flex-col items-center md:items-start gap-2">
@@ -29,6 +36,6 @@ export function LandingFooter() {
           © 2024 ChipMates. All rights reserved.
         </div>
       </div>
-    </footer>
+    </motion.footer>
   );
 }

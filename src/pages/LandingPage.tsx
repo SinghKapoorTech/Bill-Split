@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { ParallaxGradientBackground } from '@/components/landing/ParallaxGradientBackground';
 import { LandingHeader } from '@/components/landing/LandingHeader';
 import { HeroSection } from '@/components/landing/HeroSection';
-import { FeaturesGrid } from '@/components/landing/FeaturesGrid';
-import { SocialProof } from '@/components/landing/SocialProof';
+import { FeaturesSection } from '@/components/landing/FeaturesSection';
+import { UseCasesSection } from '@/components/landing/UseCasesSection';
+import { HowItWorks } from '@/components/landing/HowItWorks';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 
 export default function LandingPage() {
@@ -19,12 +21,14 @@ export default function LandingPage() {
   }, [user, navigate]);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="relative min-h-screen">
+      <ParallaxGradientBackground />
       <LandingHeader />
       <main>
         <HeroSection />
-        <FeaturesGrid />
-        <SocialProof />
+        <FeaturesSection />
+        <UseCasesSection />
+        <HowItWorks />
       </main>
       <LandingFooter />
     </div>
