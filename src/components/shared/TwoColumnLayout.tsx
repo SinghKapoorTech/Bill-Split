@@ -46,9 +46,9 @@ export function TwoColumnLayout({
     );
   }
 
-  // On desktop, show side by side
+  // On desktop, show side by side with smaller left column for receipt
   return (
-    <div className={cn('grid grid-cols-2 gap-6', className)}>
+    <div className={cn('grid grid-cols-[35%_1fr] gap-6', className)}>
       <div className={leftColumnClassName}>{leftColumn}</div>
       <div className={rightColumnClassName}>{rightColumn}</div>
     </div>
@@ -70,7 +70,7 @@ export function ReceiptPreview({ imageUrl, className }: ReceiptPreviewProps) {
         <img
           src={imageUrl}
           alt="Receipt"
-          className="w-full h-auto object-contain max-h-[600px]"
+          className="w-full h-auto object-contain max-h-[400px]"
         />
       </div>
     </Card>

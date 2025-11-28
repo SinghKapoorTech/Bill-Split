@@ -34,11 +34,10 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { billService } from '@/services/billService';
 
 const STEPS: Step[] = [
-  { id: 1, label: 'Upload', description: 'Scan receipt' },
-  { id: 2, label: 'Items', description: 'Edit bill' },
-  { id: 3, label: 'People', description: 'Add friends' },
-  { id: 4, label: 'Assign', description: 'Split items' },
-  { id: 5, label: 'Review', description: 'Finalize' },
+  { id: 1, label: 'Bill Entry', description: 'Add items' },
+  { id: 2, label: 'People', description: 'Add friends' },
+  { id: 3, label: 'Assign', description: 'Split items' },
+  { id: 4, label: 'Review', description: 'Finalize' },
 ];
 
 export default function AIScanView() {
@@ -121,14 +120,8 @@ export default function AIScanView() {
         upload.handleRemoveImage();
       }
 
-      // Determine which step to show based on session state
-      if (activeSession.billData && activeSession.people.length > 0) {
-        setCurrentStep(3); // Go to Assign Items step
-      } else if (activeSession.billData) {
-        setCurrentStep(1); // Go to Items step
-      } else if (activeSession.receiptImageUrl) {
-        setCurrentStep(0); // Stay on Upload step (image uploaded but not analyzed)
-      }
+      // Don't automatically change steps - let user navigate manually
+      // Keep current step as is when loading session
     } else {
       // If no session, reset to initial state
       setBillData(null);
@@ -202,6 +195,7 @@ export default function AIScanView() {
 
   const handleStartOver = async () => {
     await clearSession();
+    setBillData(null); // Explicitly set billData to null
     setCurrentStep(0);
   };
 
@@ -278,10 +272,7 @@ export default function AIScanView() {
       receiptFileName: uploadResult?.fileName,
     });
 
-    // Move to next step after analysis
-    if (analyzedBillData) {
-      setCurrentStep(1);
-    }
+    // Don't automatically move to next step - let user review and proceed manually
   };
 
   const handleImageSelected = async (fileOrBase64: File | string) => {
@@ -299,17 +290,7 @@ export default function AIScanView() {
     }
   };
 
-  const handleManualEntry = () => {
-    // Initialize empty bill data for manual entry
-    setBillData({
-      items: [],
-      subtotal: 0,
-      tax: 0,
-      tip: 0,
-      total: 0,
-    });
-    setCurrentStep(1); // Go to Items step
-  };
+
 
   // Step navigation
   const handleNextStep = () => {
@@ -327,15 +308,13 @@ export default function AIScanView() {
   // Validation for step progression
   const canProceedFromStep = (step: number): boolean => {
     switch (step) {
-      case 0: // Upload step
-        return !!billData; // Need bill data to proceed
-      case 1: // Items step
+      case 0: // Bill Entry step (merged Upload + Items)
         return billData && billData.items.length > 0; // Need at least one item
-      case 2: // People step
+      case 1: // People step
         return people.length > 0; // Need at least one person
-      case 3: // Assign step
+      case 2: // Assign step
         return areAllItemsAssigned(billData, itemAssignments); // All items must be assigned
-      case 4: // Review step
+      case 3: // Review step
         return true; // Final step
       default:
         return false;
@@ -387,112 +366,60 @@ export default function AIScanView() {
 
       {/* Step Content */}
       <StepContent stepKey={currentStep}>
-        {/* Step 1: Upload & Scan */}
+        {/* Step 1: Bill Entry (Upload + Items) */}
         {currentStep === 0 && (
-          <div className="space-y-6">
-            {/* Two-column layout on desktop */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left: AI-Powered Receipt Scan */}
-              <Card className="p-6">
-                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-primary" />
-                  AI-Powered Receipt Scan
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Upload a photo of your receipt and let AI extract all the items automatically
-                </p>
-                <ReceiptUploader
-                  selectedFile={upload.selectedFile}
-                  imagePreview={upload.imagePreview}
-                  isDragging={upload.isDragging}
-                  isUploading={isUploading}
-                  isAnalyzing={analyzer.isAnalyzing}
-                  isMobile={isMobile}
-                  onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
-                  onDragOver={upload.handleDragOver}
-                  onDragLeave={upload.handleDragLeave}
-                  onDrop={(e) => {
-                    upload.handleDrop(e);
-                    const file = e.dataTransfer.files?.[0];
-                    if (file) handleImageSelected(file);
-                  }}
-                  onRemove={handleRemoveImage}
-                  onAnalyze={handleAnalyzeReceipt}
-                  onImageSelected={handleImageSelected}
-                  fileInputRef={upload.fileInputRef}
-                />
-                {upload.imagePreview && !billData && (
-                  <Button
-                    onClick={handleAnalyzeReceipt}
-                    disabled={analyzer.isAnalyzing || isUploading}
-                    className="gap-2 w-full mt-4"
-                  >
-                    {analyzer.isAnalyzing ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Analyzing...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        Analyze Receipt
-                      </>
-                    )}
-                  </Button>
-                )}
-              </Card>
-
-              {/* Right: Manual Entry */}
-              <Card className="p-6 flex flex-col">
-                <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-primary" />
-                  Manual Entry
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Don't have a receipt photo? Enter your bill items manually
-                </p>
-                <div className="flex-1 flex items-center justify-center py-8">
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-                      <Receipt className="w-8 h-8 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium mb-2">Enter bill details yourself</p>
-                      <p className="text-sm text-muted-foreground">
-                        Add items, prices, tax, and tip manually
-                      </p>
-                    </div>
-                    <Button
-                      onClick={handleManualEntry}
-                      className="gap-2"
-                      size="lg"
-                    >
-                      <Receipt className="w-4 h-4" />
-                      Start Manual Entry
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            </div>
-
-            {!billData && <FeatureCards />}
-
-            <StepFooter
-              currentStep={currentStep}
-              totalSteps={STEPS.length}
-              onNext={handleNextStep}
-              nextDisabled={!canProceedFromStep(0)}
-            />
-          </div>
-        )}
-
-        {/* Step 2: Bill Items */}
-        {currentStep === 1 && billData && (
           <div className="space-y-6">
             <TwoColumnLayout
               imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
               leftColumn={
-                <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
+                <Card className="p-4 md:p-6 sticky top-4">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                    Receipt Upload
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Upload a photo of your receipt and let AI extract items automatically
+                  </p>
+                  <ReceiptUploader
+                    selectedFile={upload.selectedFile}
+                    imagePreview={upload.imagePreview}
+                    isDragging={upload.isDragging}
+                    isUploading={isUploading}
+                    isAnalyzing={analyzer.isAnalyzing}
+                    isMobile={isMobile}
+                    onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
+                    onDragOver={upload.handleDragOver}
+                    onDragLeave={upload.handleDragLeave}
+                    onDrop={(e) => {
+                      upload.handleDrop(e);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleImageSelected(file);
+                    }}
+                    onRemove={handleRemoveImage}
+                    onAnalyze={handleAnalyzeReceipt}
+                    onImageSelected={handleImageSelected}
+                    fileInputRef={upload.fileInputRef}
+                  />
+                  {upload.imagePreview && (
+                    <Button
+                      onClick={handleAnalyzeReceipt}
+                      disabled={analyzer.isAnalyzing || isUploading}
+                      className="gap-2 w-full mt-4"
+                    >
+                      {analyzer.isAnalyzing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          Analyze Receipt
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </Card>
               }
               rightColumn={
                 <Card className="p-4 md:p-6">
@@ -500,9 +427,12 @@ export default function AIScanView() {
                     <Receipt className="w-5 h-5 text-primary" />
                     <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
                   </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Add items manually or upload a receipt to extract them automatically
+                  </p>
 
                   <BillItems
-                    billData={billData}
+                    billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
                     people={[]}
                     itemAssignments={{}}
                     editingItemId={editor.editingItemId}
@@ -528,7 +458,7 @@ export default function AIScanView() {
                   />
 
                   <BillSummary
-                    billData={billData}
+                    billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
                     onUpdate={(updates) => setBillData({ ...billData, ...updates })}
                   />
                 </Card>
@@ -538,18 +468,24 @@ export default function AIScanView() {
             <StepFooter
               currentStep={currentStep}
               totalSteps={STEPS.length}
-              onBack={handlePrevStep}
               onNext={handleNextStep}
-              nextDisabled={!canProceedFromStep(1)}
+              nextDisabled={!canProceedFromStep(0)}
             />
           </div>
         )}
 
-        {/* Step 3: Add People */}
-        {currentStep === 2 && (
+
+        {/* Step 2: Add People */}
+        {currentStep === 1 && (
           <div className="space-y-6">
-            <div className="flex justify-center">
-              <div className="w-full max-w-3xl">
+            <TwoColumnLayout
+              imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
+              leftColumn={
+                activeSession?.receiptImageUrl || upload.imagePreview ? (
+                  <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
+                ) : null
+              }
+              rightColumn={
                 <PeopleManager
                   people={people}
                   newPersonName={peopleManager.newPersonName}
@@ -564,21 +500,21 @@ export default function AIScanView() {
                   onSaveAsFriend={peopleManager.savePersonAsFriend}
                   setPeople={setPeople}
                 />
-              </div>
-            </div>
+              }
+            />
 
             <StepFooter
               currentStep={currentStep}
               totalSteps={STEPS.length}
               onBack={handlePrevStep}
               onNext={handleNextStep}
-              nextDisabled={!canProceedFromStep(2)}
+              nextDisabled={!canProceedFromStep(1)}
             />
           </div>
         )}
 
-        {/* Step 4: Assign Items */}
-        {currentStep === 3 && billData && (
+        {/* Step 3: Assign Items */}
+        {currentStep === 2 && billData && (
           <div className="space-y-6">
             <TwoColumnLayout
               imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
@@ -641,13 +577,13 @@ export default function AIScanView() {
               totalSteps={STEPS.length}
               onBack={handlePrevStep}
               onNext={handleNextStep}
-              nextDisabled={!canProceedFromStep(3)}
+              nextDisabled={!canProceedFromStep(2)}
             />
           </div>
         )}
 
-        {/* Step 5: Review & Share */}
-        {currentStep === 4 && billData && (
+        {/* Step 4: Review & Share */}
+        {currentStep === 3 && billData && (
           <div className="space-y-6">
             <SplitSummary
               personTotals={bill.personTotals}
