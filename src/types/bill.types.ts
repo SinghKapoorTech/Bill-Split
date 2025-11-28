@@ -46,6 +46,9 @@ export interface Bill {
   // Step/Tab Persistence
   currentStep?: number;
 
+  // Bill Title
+  title?: string; // Custom bill title (defaults to date display)
+
   // Receipt Image
   receiptImageUrl?: string;
   receiptFileName?: string;

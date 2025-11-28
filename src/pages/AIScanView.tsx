@@ -22,7 +22,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useShareSession } from '@/hooks/useShareSession';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Receipt, Users, Loader2, Sparkles } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Receipt, Users, Loader2, Sparkles, Pencil } from 'lucide-react';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { UI_TEXT } from '@/utils/uiConstants';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
@@ -68,6 +69,7 @@ export default function AIScanView() {
   const [people, setPeople] = useState<Person[]>([]);
   const [billData, setBillData] = useState<BillData | null>(null);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
+  const [title, setTitle] = useState<string>('');
 
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
 
@@ -114,6 +116,7 @@ export default function AIScanView() {
       // Ensure logged-in user is always in the people list
       setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
       setSplitEvenly(activeSession.splitEvenly || false);
+      setTitle(activeSession.title || '');
 
       // RESTORE STEP POSITION
       if (activeSession.currentStep !== undefined) {
@@ -175,6 +178,7 @@ export default function AIScanView() {
         itemAssignments,
         splitEvenly,
         currentStep,
+        title,
         receiptImageUrl: activeSession?.receiptImageUrl || null,
         receiptFileName: activeSession?.receiptFileName || null,
       });
@@ -189,6 +193,7 @@ export default function AIScanView() {
           receiptImageUrl: activeSession?.receiptImageUrl || null,
           receiptFileName: activeSession?.receiptFileName || null,
           currentStep,
+          title: title || undefined, // Only save if not empty
         }, billId || activeSession?.id);
 
         // Update last saved snapshot
@@ -197,7 +202,7 @@ export default function AIScanView() {
     }, 3000); // Debounce by 3 seconds for better scalability
 
     return () => clearTimeout(timeoutId);
-  }, [billData, people, itemAssignments, splitEvenly, currentStep]);
+  }, [billData, people, itemAssignments, splitEvenly, currentStep, title]);
 
   const handleRemovePerson = (personId: string) => {
     peopleManager.removePerson(personId);
@@ -285,6 +290,11 @@ export default function AIScanView() {
 
     const [analyzedBillData, uploadResult] = await Promise.all([analysisPromise, uploadPromise]);
 
+    // Set restaurant name as title if available and user hasn't set a custom title
+    if (analyzedBillData?.restaurantName && !title) {
+      setTitle(analyzedBillData.restaurantName);
+    }
+
     // Save all state including new upload info
     await saveSession({
       billData: analyzedBillData,
@@ -293,6 +303,7 @@ export default function AIScanView() {
       splitEvenly,
       receiptImageUrl: uploadResult?.downloadURL,
       receiptFileName: uploadResult?.fileName,
+      title: analyzedBillData?.restaurantName && !title ? analyzedBillData.restaurantName : (title || undefined),
     }, billId || activeSession?.id);
 
     // Don't automatically move to next step - let user review and proceed manually
@@ -368,6 +379,13 @@ export default function AIScanView() {
     );
   }
 
+  // Format date for display
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   return (
     <>
       <HeroSection
@@ -386,11 +404,26 @@ export default function AIScanView() {
         />
       </div>
 
+      {/* Persistent Title - Top of unified card */}
+      <Card className="max-w-3xl mx-auto rounded-b-none border-b-0 mb-0">
+        <div className="flex items-center gap-2 p-4 pb-3">
+          <Input
+            id="bill-title"
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={formatDate(activeSession?.createdAt)}
+            className="text-lg font-semibold border-0 focus-visible:ring-0 px-0 h-auto flex-1"
+          />
+          <Pencil className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        </div>
+      </Card>
+
       {/* Step Content */}
       <StepContent stepKey={currentStep}>
         {/* Step 1: Bill Entry (Upload + Items) */}
         {currentStep === 0 && (
-          <div className="space-y-6">
+          <div>
             <TwoColumnLayout
               imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
               leftColumn={
@@ -444,7 +477,7 @@ export default function AIScanView() {
                 </Card>
               }
               rightColumn={
-                <Card className="p-4 md:p-6">
+                <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
                   <div className="flex items-center gap-2 mb-4">
                     <Receipt className="w-5 h-5 text-primary" />
                     <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
@@ -499,7 +532,7 @@ export default function AIScanView() {
 
         {/* Step 2: Add People */}
         {currentStep === 1 && (
-          <div className="space-y-6">
+          <div>
             <TwoColumnLayout
               imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
               leftColumn={
@@ -537,14 +570,14 @@ export default function AIScanView() {
 
         {/* Step 3: Assign Items */}
         {currentStep === 2 && billData && (
-          <div className="space-y-6">
+          <div>
             <TwoColumnLayout
               imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
               leftColumn={
                 <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
               }
               rightColumn={
-                <Card className="p-4 md:p-6">
+                <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                     <div className="flex items-center gap-2">
                       <Receipt className="w-5 h-5 text-primary" />
@@ -606,14 +639,16 @@ export default function AIScanView() {
 
         {/* Step 4: Review & Share */}
         {currentStep === 3 && billData && (
-          <div className="space-y-6">
-            <SplitSummary
-              personTotals={bill.personTotals}
-              allItemsAssigned={bill.allItemsAssigned}
-              people={people}
-              billData={billData}
-              itemAssignments={itemAssignments}
-            />
+          <div>
+            <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
+              <SplitSummary
+                personTotals={bill.personTotals}
+                allItemsAssigned={bill.allItemsAssigned}
+                people={people}
+                billData={billData}
+                itemAssignments={itemAssignments}
+              />
+            </Card>
 
             <StepFooter
               currentStep={currentStep}

@@ -190,7 +190,7 @@ export function StepContent({ children, className, stepKey }: StepContentProps) 
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.3, ease: 'easeInOut' }}
-        className={cn('mt-6 md:mt-8', className)}
+        className={cn(className)}
         role="region"
       >
         {children}

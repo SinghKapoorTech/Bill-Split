@@ -140,7 +140,8 @@ export default function Dashboard() {
   };
 
   const getBillTitle = (bill: Bill) => {
-    return bill.billData?.restaurantName || 'Untitled Bill';
+    // Priority: custom title > restaurant name > date
+    return bill.title || bill.billData?.restaurantName || formatDate(bill.createdAt);
   };
 
   // Combine active session and saved sessions into one list
