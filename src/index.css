@@ -68,6 +68,26 @@ All colors MUST be HSL.
     --shadow-strong: 0 8px 32px -8px hsl(220 15% 20% / 0.15);
 
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Parallax Gradient Colors */
+    --gradient-cyan-primary: 202 80% 62%;
+    --gradient-cyan-bright: 180 100% 70%;
+    --gradient-teal: 175 65% 58%;
+    --gradient-blue: 210 85% 55%;
+    --gradient-coral: 12 100% 50%;
+    --gradient-pink: 330 80% 65%;
+    --gradient-purple: 270 70% 65%;
+    --gradient-amber: 38 92% 50%;
+
+    /* Parallax Layer Opacities */
+    --parallax-bg-opacity: 0.12;
+    --parallax-mid-opacity: 0.18;
+    --parallax-fg-opacity: 0.10;
+
+    /* Parallax Blur Amounts */
+    --parallax-blur-bg: 100px;
+    --parallax-blur-mid: 60px;
+    --parallax-blur-fg: 35px;
   }
 
   .dark {
@@ -148,5 +168,16 @@ All colors MUST be HSL.
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold tracking-tight;
+  }
+}
+
+/* Responsive parallax adjustments */
+@media (max-width: 768px) {
+  :root {
+    --parallax-bg-opacity: 0.10;
+    --parallax-mid-opacity: 0.14;
+    --parallax-blur-bg: 50px;
+    --parallax-blur-mid: 40px;
+    --parallax-blur-fg: 25px;
   }
 }
