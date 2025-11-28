@@ -94,6 +94,15 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
     return null;
   }
 
+  // Helper function to check if a person is the current user
+  const isCurrentUser = (pt: PersonTotal): boolean => {
+    const person = people.find(p => p.id === pt.personId);
+    if (!user) return false;
+    if (person?.name === user.displayName) return true;
+    if (person?.venmoId && profile?.venmoId && person.venmoId === profile.venmoId) return true;
+    return false;
+  };
+
   return (
     <>
       <Card className="p-3 md:p-6">
@@ -128,7 +137,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                 </div>
               </div>
 
-              {user && (() => {
+              {user && !isCurrentUser(pt) && (() => {
                 const person = people.find(p => p.id === pt.personId);
                 return (
                   <Button
