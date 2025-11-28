@@ -45,6 +45,7 @@ export default function AIScanView() {
   const isInitializing = useRef(true);
   const location = useLocation();
   const navigate = useNavigate();
+  const { billId } = useParams<{ billId: string }>();
   const { user } = useAuth();
   const { profile } = useUserProfile();
 
@@ -57,7 +58,6 @@ export default function AIScanView() {
     isLoadingSessions,
     isUploading,
     archiveAndStartNewSession,
-    clearSession,
     uploadReceiptImage,
     resumeSession,
     saveSession,
@@ -149,8 +149,8 @@ export default function AIScanView() {
 
   useSessionTimeout({
     onTimeout: () => {
-      // Clear session on timeout without saving
-      clearSession();
+      // Navigate to dashboard on timeout
+      navigate('/dashboard');
     },
     timeoutMinutes: 20,
   });
@@ -168,11 +168,11 @@ export default function AIScanView() {
         splitEvenly,
         receiptImageUrl: activeSession?.receiptImageUrl || null,
         receiptFileName: activeSession?.receiptFileName || null,
-      });
+      }, billId || activeSession?.id);
     }, 1500); // Debounce by 1.5 seconds
 
     return () => clearTimeout(timeoutId);
-  }, [billData, people, itemAssignments, splitEvenly, activeSession?.receiptImageUrl, activeSession?.receiptFileName, saveSession]);
+  }, [billData, people, itemAssignments, splitEvenly, activeSession?.receiptImageUrl, activeSession?.receiptFileName, saveSession, billId, activeSession?.id]);
 
   const handleRemovePerson = (personId: string) => {
     peopleManager.removePerson(personId);
@@ -193,10 +193,8 @@ export default function AIScanView() {
     await removeReceiptImage();
   };
 
-  const handleStartOver = async () => {
-    await clearSession();
-    setBillData(null); // Explicitly set billData to null
-    setCurrentStep(0);
+  const handleDone = () => {
+    navigate('/dashboard');
   };
 
   const handleShare = async () => {
@@ -270,7 +268,7 @@ export default function AIScanView() {
       splitEvenly,
       receiptImageUrl: uploadResult?.downloadURL,
       receiptFileName: uploadResult?.fileName,
-    });
+    }, billId || activeSession?.id);
 
     // Don't automatically move to next step - let user review and proceed manually
   };
@@ -349,7 +347,6 @@ export default function AIScanView() {
     <>
       <HeroSection
         hasBillData={!!billData}
-        onStartOver={handleStartOver}
         onShare={handleGenerateShareLink}
       />
 
@@ -597,6 +594,7 @@ export default function AIScanView() {
               currentStep={currentStep}
               totalSteps={STEPS.length}
               onBack={handlePrevStep}
+              onComplete={handleDone}
               completeLabel="Done"
             />
           </div>

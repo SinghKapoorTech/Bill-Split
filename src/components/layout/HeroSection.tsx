@@ -1,14 +1,13 @@
-import { RotateCcw, Share2 } from 'lucide-react';
+import { Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UI_TEXT } from '@/utils/uiConstants';
 
 interface Props {
   hasBillData: boolean;
-  onStartOver: () => void;
   onShare?: () => void;
 }
 
-export function HeroSection({ hasBillData, onStartOver, onShare }: Props) {
+export function HeroSection({ hasBillData, onShare }: Props) {
   return (
     <div className="text-center mb-4 md:mb-12 space-y-3 md:space-y-4">
       <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight text-foreground drop-shadow-sm">
@@ -18,19 +17,11 @@ export function HeroSection({ hasBillData, onStartOver, onShare }: Props) {
         {UI_TEXT.UPLOAD_RECEIPT_INSTRUCTION}
       </p>
       <div className="flex gap-2 justify-center mt-2 flex-wrap">
-        {hasBillData && (
-          <>
-            {onShare && (
-              <Button variant="info" size="sm" onClick={onShare}>
-                <Share2 className="w-4 h-4 mr-2" />
-                Share
-              </Button>
-            )}
-            <Button variant="warning" size="sm" onClick={onStartOver}>
-              <RotateCcw className="w-4 h-4 mr-2" />
-              {UI_TEXT.START_OVER}
-            </Button>
-          </>
+        {hasBillData && onShare && (
+          <Button variant="info" size="sm" onClick={onShare}>
+            <Share2 className="w-4 h-4 mr-2" />
+            Share
+          </Button>
         )}
       </div>
     </div>
