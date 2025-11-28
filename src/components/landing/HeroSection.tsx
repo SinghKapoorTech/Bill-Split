@@ -1,10 +1,12 @@
-import { Sparkles, ArrowRight, CheckCircle2, Receipt, Share2, ScanLine } from 'lucide-react';
+import { Sparkles, ArrowRight, CheckCircle2, Receipt, Share2, ScanLine, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
 
 export function HeroSection() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   return (
     <section className="relative py-20 px-4 md:px-8 overflow-hidden">
@@ -43,14 +45,25 @@ export function HeroSection() {
 
             {/* CTA */}
             <div className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start">
-              <Button
-                onClick={() => navigate('/auth')}
-                size="lg"
-                className="w-full sm:w-auto px-8 py-6 text-lg font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
-              >
-                Scan a Receipt Now
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
+              {user ? (
+                <Button
+                  onClick={() => navigate('/dashboard')}
+                  size="lg"
+                  className="w-full sm:w-auto px-8 py-6 text-lg font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
+                >
+                  <LayoutDashboard className="mr-2 w-5 h-5" />
+                  Go to Dashboard
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => navigate('/auth')}
+                  size="lg"
+                  className="w-full sm:w-auto px-8 py-6 text-lg font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
+                >
+                  Scan a Receipt Now
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </Button>
+              )}
               <p className="text-sm text-slate-500 font-medium">
                 No download required for friends
               </p>

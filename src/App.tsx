@@ -8,6 +8,7 @@ import { App as CapApp } from "@capacitor/app";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BillSessionProvider } from "@/contexts/BillSessionContext";
 import { Layout } from "@/components/layout/Layout";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import AIScanView from "./pages/AIScanView";
@@ -59,11 +60,11 @@ const App = () => (
         <BrowserRouter>
           <DeepLinkHandler />
           <Routes>
-            {/* Landing page - no layout */}
+            {/* Public: Landing page */}
             <Route path="/" element={<LandingPage />} />
-            
-            {/* App routes - with layout */}
-            <Route element={<Layout />}>
+
+            {/* Protected routes with layout */}
+            <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="bill/:billId" element={<AIScanView />} />
               <Route path="groups" element={<GroupEventView />} />
@@ -71,12 +72,12 @@ const App = () => (
               <Route path="settings" element={<SettingsView />} />
               <Route path="session/:sessionId" element={<CollaborativeSessionView />} />
             </Route>
-            
-            {/* Standalone routes */}
+
+            {/* Public: Auth and join pages */}
             <Route path="/auth" element={<Auth />} />
             <Route path="/join/:sessionId" element={<JoinSession />} />
-            
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+
+            {/* Public: 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

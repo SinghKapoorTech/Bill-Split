@@ -1,9 +1,11 @@
-import { Receipt } from 'lucide-react';
+import { Receipt, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function LandingHeader() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200/20 bg-transparent backdrop-blur-md">
@@ -19,13 +21,23 @@ export function LandingHeader() {
             </h1>
           </div>
 
-          {/* Sign In Button */}
-          <Button
-            onClick={() => navigate('/auth')}
-            className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold px-6 py-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 border-0"
-          >
-            Sign In
-          </Button>
+          {/* Conditional Button */}
+          {user ? (
+            <Button
+              onClick={() => navigate('/dashboard')}
+              className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold px-6 py-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 border-0 gap-2"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
+            </Button>
+          ) : (
+            <Button
+              onClick={() => navigate('/auth')}
+              className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold px-6 py-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 border-0"
+            >
+              Sign In
+            </Button>
+          )}
         </div>
       </div>
     </header>
