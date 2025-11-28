@@ -42,7 +42,10 @@ export interface Bill {
   
   // User inputs
   splitEvenly: boolean;
-  
+
+  // Step/Tab Persistence
+  currentStep?: number;
+
   // Receipt Image
   receiptImageUrl?: string;
   receiptFileName?: string;

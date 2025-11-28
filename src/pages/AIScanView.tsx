@@ -43,6 +43,7 @@ const STEPS: Step[] = [
 export default function AIScanView() {
   const isMobile = useIsMobile();
   const isInitializing = useRef(true);
+  const lastSavedData = useRef<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { billId } = useParams<{ billId: string }>();
@@ -113,15 +114,21 @@ export default function AIScanView() {
       // Ensure logged-in user is always in the people list
       setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
       setSplitEvenly(activeSession.splitEvenly || false);
+
+      // RESTORE STEP POSITION
+      if (activeSession.currentStep !== undefined) {
+        setCurrentStep(activeSession.currentStep);
+      } else {
+        // No saved step (old bill), default to 0
+        setCurrentStep(0);
+      }
+
       if (activeSession.receiptImageUrl) {
         upload.setImagePreview(activeSession.receiptImageUrl);
         upload.setSelectedFile(new File([], activeSession.receiptFileName || 'receipt.jpg'));
       } else {
         upload.handleRemoveImage();
       }
-
-      // Don't automatically change steps - let user navigate manually
-      // Keep current step as is when loading session
     } else {
       // If no session, reset to initial state
       setBillData(null);
@@ -155,24 +162,42 @@ export default function AIScanView() {
     timeoutMinutes: 20,
   });
 
-  // Debounced auto-save for user edits
+  // Debounced auto-save for user edits with dirty checking
   useEffect(() => {
     // Don't auto-save during initialization
     if (isInitializing.current) return;
 
     const timeoutId = setTimeout(() => {
-      saveSession({
+      // Create a snapshot of current data for dirty checking
+      const currentData = JSON.stringify({
         billData,
         people,
         itemAssignments,
         splitEvenly,
+        currentStep,
         receiptImageUrl: activeSession?.receiptImageUrl || null,
         receiptFileName: activeSession?.receiptFileName || null,
-      }, billId || activeSession?.id);
-    }, 1500); // Debounce by 1.5 seconds
+      });
+
+      // Only save if data has actually changed
+      if (currentData !== lastSavedData.current) {
+        saveSession({
+          billData,
+          people,
+          itemAssignments,
+          splitEvenly,
+          receiptImageUrl: activeSession?.receiptImageUrl || null,
+          receiptFileName: activeSession?.receiptFileName || null,
+          currentStep,
+        }, billId || activeSession?.id);
+
+        // Update last saved snapshot
+        lastSavedData.current = currentData;
+      }
+    }, 3000); // Debounce by 3 seconds for better scalability
 
     return () => clearTimeout(timeoutId);
-  }, [billData, people, itemAssignments, splitEvenly, activeSession?.receiptImageUrl, activeSession?.receiptFileName, saveSession, billId, activeSession?.id]);
+  }, [billData, people, itemAssignments, splitEvenly, currentStep]);
 
   const handleRemovePerson = (personId: string) => {
     peopleManager.removePerson(personId);
