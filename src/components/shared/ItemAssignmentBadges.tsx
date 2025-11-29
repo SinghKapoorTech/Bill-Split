@@ -1,6 +1,8 @@
-import { Check } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Person, BillItem, ItemAssignment } from '@/types';
+import { useState } from 'react';
 
 interface Props {
   item: BillItem;
@@ -11,6 +13,9 @@ interface Props {
 }
 
 export function ItemAssignmentBadges({ item, people, itemAssignments, onAssign, showSplit = false }: Props) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const hasAssignments = (itemAssignments[item.id] || []).length > 0;
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5 md:gap-2">
@@ -33,17 +38,30 @@ export function ItemAssignmentBadges({ item, people, itemAssignments, onAssign, 
           );
         })}
       </div>
-      {showSplit && (itemAssignments[item.id] || []).length > 0 && (
-        <div className="text-xs text-muted-foreground space-y-0.5">
-          {people.filter(p => (itemAssignments[item.id] || []).includes(p.id)).map((person) => {
-            const splitAmount = item.price / (itemAssignments[item.id] || []).length;
-            return (
-              <p key={person.id}>
-                {person.name}: ${splitAmount.toFixed(2)}
-              </p>
-            );
-          })}
-        </div>
+      {showSplit && hasAssignments && (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="h-auto p-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ChevronDown className={`w-3 h-3 mr-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            {isExpanded ? 'Hide Details' : 'View Details'}
+          </Button>
+          {isExpanded && (
+            <div className="text-xs text-muted-foreground space-y-0.5 pl-2 border-l-2 border-primary/20">
+              {people.filter(p => (itemAssignments[item.id] || []).includes(p.id)).map((person) => {
+                const splitAmount = item.price / (itemAssignments[item.id] || []).length;
+                return (
+                  <p key={person.id}>
+                    {person.name}: ${splitAmount.toFixed(2)}
+                  </p>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
