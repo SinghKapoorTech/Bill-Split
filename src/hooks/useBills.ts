@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Bill, BillData } from '@/types/bill.types';
 import { useToast } from './use-toast';
 import { billService } from '@/services/billService';
+import { removeUndefinedFields } from '@/utils/firestoreHelpers';
 
 /**
  * Hook for managing user's private bills in the unified bills collection.
@@ -91,17 +92,12 @@ export function useBills() {
     if (!user) return;
 
     try {
+      // Clean all data to remove undefined values (Firestore doesn't accept them)
+      const cleanedData = removeUndefinedFields(sessionData);
+
       if (billId) {
-        // Update existing bill - filter out undefined fields
-        const updates: Record<string, any> = {};
-        Object.keys(sessionData).forEach((key) => {
-          const value = sessionData[key as keyof Bill];
-          if (value !== undefined) {
-            updates[key] = value;
-          }
-        });
-        
-        await billService.updateBill(billId, updates as Partial<Bill>);
+        // Update existing bill with cleaned data
+        await billService.updateBill(billId, cleanedData as Partial<Bill>);
       } else {
         // Create new bill
         const defaultBillData: BillData = {
@@ -112,20 +108,25 @@ export function useBills() {
           total: 0
         };
 
+        const billDataToUse = cleanedData.billData || defaultBillData;
+        const peopleToUse = cleanedData.people || [];
+
         const newBillId = await billService.createBill(
           user.uid,
           user.displayName || 'Anonymous',
           'private',
-          sessionData.billData || defaultBillData,
-          sessionData.people || []
+          billDataToUse,
+          peopleToUse
         );
 
-        // Update with additional fields if provided - filter undefined
+        // Update with additional fields if provided
         const additionalUpdates: Partial<Bill> = {};
-        if (sessionData.itemAssignments !== undefined) additionalUpdates.itemAssignments = sessionData.itemAssignments;
-        if (sessionData.splitEvenly !== undefined) additionalUpdates.splitEvenly = sessionData.splitEvenly;
-        if (sessionData.receiptImageUrl !== undefined) additionalUpdates.receiptImageUrl = sessionData.receiptImageUrl;
-        if (sessionData.receiptFileName !== undefined) additionalUpdates.receiptFileName = sessionData.receiptFileName;
+        if (cleanedData.itemAssignments !== undefined) additionalUpdates.itemAssignments = cleanedData.itemAssignments;
+        if (cleanedData.splitEvenly !== undefined) additionalUpdates.splitEvenly = cleanedData.splitEvenly;
+        if (cleanedData.receiptImageUrl !== undefined) additionalUpdates.receiptImageUrl = cleanedData.receiptImageUrl;
+        if (cleanedData.receiptFileName !== undefined) additionalUpdates.receiptFileName = cleanedData.receiptFileName;
+        if (cleanedData.currentStep !== undefined) additionalUpdates.currentStep = cleanedData.currentStep;
+        if (cleanedData.title !== undefined) additionalUpdates.title = cleanedData.title;
         
         if (Object.keys(additionalUpdates).length > 0) {
           await billService.updateBill(newBillId, additionalUpdates);

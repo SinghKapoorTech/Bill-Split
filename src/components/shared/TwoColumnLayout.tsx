@@ -22,20 +22,20 @@ export function TwoColumnLayout({
 }: TwoColumnLayoutProps) {
   const isMobile = useIsMobile();
 
-  // Determine if we should center based on imageUrl
-  const shouldCenter = !imageUrl;
+  // Determine if we should center based on whether leftColumn is provided
+  const shouldCenter = !leftColumn;
 
   if (isMobile) {
     // On mobile, stack vertically
     return (
       <div className={cn('space-y-6', className)}>
-        {imageUrl && leftColumn}
+        {leftColumn}
         {rightColumn}
       </div>
     );
   }
 
-  // On desktop, center if no image, otherwise show side by side
+  // On desktop, center if no left column, otherwise show side by side
   if (shouldCenter) {
     return (
       <div className={cn('flex justify-center', className)}>

@@ -147,6 +147,14 @@ export default function AIScanView() {
     return () => clearTimeout(timer);
   }, [activeSession]);
 
+  // Effect to load bill when billId URL parameter changes
+  useEffect(() => {
+    if (billId && billId !== activeSession?.id) {
+      console.log('Loading bill from URL param:', billId);
+      resumeSession(billId);
+    }
+  }, [billId]);
+
   // Effect to handle resuming a session from navigation state
   useEffect(() => {
     const { resumeSessionId } = location.state || {};
@@ -574,7 +582,9 @@ export default function AIScanView() {
             <TwoColumnLayout
               imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
               leftColumn={
-                <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
+                activeSession?.receiptImageUrl || upload.imagePreview ? (
+                  <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
+                ) : null
               }
               rightColumn={
                 <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">

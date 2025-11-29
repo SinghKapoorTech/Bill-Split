@@ -14,6 +14,7 @@ import {
 import { db } from '@/config/firebase';
 import { Bill, BillData, BillType, BillMember } from '@/types/bill.types';
 import { Person } from '@/types/person.types';
+import { removeUndefinedFields } from '@/utils/firestoreHelpers';
 
 const BILLS_COLLECTION = 'bills';
 
@@ -77,11 +78,15 @@ export const billService = {
    */
   async updateBill(billId: string, updates: Partial<Bill>): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
-    await updateDoc(billRef, {
+    
+    // Remove undefined fields to prevent Firestore errors
+    const cleanedUpdates = removeUndefinedFields({
       ...updates,
       updatedAt: serverTimestamp(),
       lastActivity: serverTimestamp()
     });
+    
+    await updateDoc(billRef, cleanedUpdates);
   },
 
   /**
