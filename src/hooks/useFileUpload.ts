@@ -44,7 +44,7 @@ export function useFileUpload() {
       const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
 
       if (file.size > compressedFile.size * 1.1) {
-        toast({
+        console.log({
           title: 'Image optimized',
           description: `Compressed from ${originalSizeMB}MB to ${compressedSizeMB}MB for faster processing`,
         });
@@ -59,11 +59,6 @@ export function useFileUpload() {
       reader.readAsDataURL(compressedFile);
     } catch (err) {
       console.error('Compression failed:', err);
-      toast({
-        title: 'Compression failed',
-        description: 'Using original image',
-        variant: 'destructive',
-      });
 
       // Fallback to original file
       setSelectedFile(file);

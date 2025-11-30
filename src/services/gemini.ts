@@ -11,26 +11,7 @@
 
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/config/firebase';
-
-/**
- * Represents a single line item on the bill
- */
-export interface BillItem {
-  id: string;
-  name: string;
-  price: number;
-}
-
-/**
- * Complete bill data structure returned from extraction
- */
-export interface BillData {
-  items: BillItem[];
-  subtotal: number;
-  tax: number;
-  tip: number;
-  total: number;
-}
+import type { BillData } from '@/types/bill.types';
 
 // Initialize Firebase Functions
 const functions = getFunctions(app);

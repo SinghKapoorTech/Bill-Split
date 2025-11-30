@@ -7,8 +7,6 @@ import { BillItems } from '@/components/bill/BillItems';
 import { BillSummary } from '@/components/bill/BillSummary';
 import { SplitSummary } from '@/components/people/SplitSummary';
 
-import { FeatureCards } from '@/components/shared/FeatureCards';
-import { ShareSessionModal } from '@/components/share/ShareSessionModal';
 import { ShareLinkDialog } from '@/components/share/ShareLinkDialog';
 import { TwoColumnLayout, ReceiptPreview } from '@/components/shared/TwoColumnLayout';
 import { Stepper, Step, StepContent } from '@/components/ui/stepper';
@@ -19,11 +17,10 @@ import { useFileUpload } from '@/hooks/useFileUpload';
 import { useReceiptAnalyzer } from '@/hooks/useReceiptAnalyzer';
 import { useItemEditor } from '@/hooks/useItemEditor';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useShareSession } from '@/hooks/useShareSession';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Receipt, Users, Loader2, Sparkles, Pencil } from 'lucide-react';
+import { Receipt, Loader2, Sparkles, Pencil } from 'lucide-react';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { UI_TEXT } from '@/utils/uiConstants';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
@@ -59,7 +56,6 @@ export default function AIScanView() {
     activeSession,
     isLoadingSessions,
     isUploading,
-    archiveAndStartNewSession,
     uploadReceiptImage,
     resumeSession,
     saveSession,
@@ -98,11 +94,6 @@ export default function AIScanView() {
     bill.removeItemAssignments
   );
 
-  const { sharePrivateSession, isSharing } = useShareSession();
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [sharedSessionId, setSharedSessionId] = useState<string | null>(null);
-  const [shareCode, setShareCode] = useState<string | null>(null);
-  
   // Share link state
   const [showShareLinkDialog, setShowShareLinkDialog] = useState(false);
   const [isGeneratingShareCode, setIsGeneratingShareCode] = useState(false);
@@ -235,22 +226,6 @@ export default function AIScanView() {
     navigate('/dashboard');
   };
 
-  const handleShare = async () => {
-    if (!activeSession) return;
-
-    // Share the session (receipt URL will be reused from private session)
-    const result = await sharePrivateSession(activeSession);
-
-    if (result) {
-      setSharedSessionId(result.sessionId);
-      setShareCode(result.shareCode);
-      setShowShareModal(true);
-
-      // Navigate to the collaborative session
-      navigate(`/session/${result.sessionId}`);
-    }
-  };
-
   const handleGenerateShareLink = async () => {
     if (!activeSession?.id || !user) return;
 
@@ -297,10 +272,13 @@ export default function AIScanView() {
     const uploadPromise = uploadReceiptImage(upload.selectedFile);
 
     const [analyzedBillData, uploadResult] = await Promise.all([analysisPromise, uploadPromise]);
+    console.log({analyzedBillData})
 
     // Set restaurant name as title if available and user hasn't set a custom title
-    if (analyzedBillData?.restaurantName && !title) {
-      setTitle(analyzedBillData.restaurantName);
+    let newTitle: string = title || '';
+    if (!title && analyzedBillData?.restaurantName) {
+      newTitle = analyzedBillData.restaurantName;
+      setTitle(newTitle);
     }
 
     // Save all state including new upload info
@@ -311,7 +289,7 @@ export default function AIScanView() {
       splitEvenly,
       receiptImageUrl: uploadResult?.downloadURL,
       receiptFileName: uploadResult?.fileName,
-      title: analyzedBillData?.restaurantName && !title ? analyzedBillData.restaurantName : (title || undefined),
+      title: newTitle || undefined,
     }, billId || activeSession?.id);
 
     // Don't automatically move to next step - let user review and proceed manually
@@ -670,16 +648,6 @@ export default function AIScanView() {
           </div>
         )}
       </StepContent>
-
-      {/* Share Modal */}
-      {sharedSessionId && shareCode && (
-        <ShareSessionModal
-          isOpen={showShareModal}
-          onClose={() => setShowShareModal(false)}
-          sessionId={sharedSessionId}
-          shareCode={shareCode}
-        />
-      )}
 
       {/* Share Link Dialog */}
       {showShareLinkDialog && activeSession?.id && (
