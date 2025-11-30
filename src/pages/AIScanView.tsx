@@ -18,7 +18,6 @@ import { useReceiptAnalyzer } from '@/hooks/useReceiptAnalyzer';
 import { useItemEditor } from '@/hooks/useItemEditor';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Receipt, Loader2, Sparkles, Pencil } from 'lucide-react';
 import { useBillContext } from '@/contexts/BillSessionContext';
@@ -441,25 +440,6 @@ export default function AIScanView() {
                     onImageSelected={handleImageSelected}
                     fileInputRef={upload.fileInputRef}
                   />
-                  {upload.imagePreview && (
-                    <Button
-                      onClick={handleAnalyzeReceipt}
-                      disabled={analyzer.isAnalyzing || isUploading}
-                      className="gap-2 w-full mt-4"
-                    >
-                      {analyzer.isAnalyzing ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Analyzing...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4" />
-                          Analyze Receipt
-                        </>
-                      )}
-                    </Button>
-                  )}
                 </Card>
               }
               rightColumn={

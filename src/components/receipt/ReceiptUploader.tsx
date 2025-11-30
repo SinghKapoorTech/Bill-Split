@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, X, ImageIcon, Loader2, Receipt } from 'lucide-react';
+import { Upload, X, ImageIcon, Loader2, Receipt, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { usePlatform } from '@/hooks/usePlatform';
@@ -192,7 +192,7 @@ export function ReceiptUploader({
               </>
             ) : (
               <>
-                <Receipt className="mr-2 h-5 w-5" />
+                <Sparkles className="mr-2 h-5 w-5" />
                 Analyze Receipt
               </>
             )}
