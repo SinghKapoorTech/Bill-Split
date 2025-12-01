@@ -20,6 +20,16 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Receipt, Loader2, Sparkles, Pencil } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { UI_TEXT } from '@/utils/uiConstants';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
@@ -65,6 +75,7 @@ export default function AIScanView() {
   const [billData, setBillData] = useState<BillData | null>(null);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
   const [title, setTitle] = useState<string>('');
+  const [showClearItemsDialog, setShowClearItemsDialog] = useState(false);
 
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
 
@@ -177,8 +188,7 @@ export default function AIScanView() {
         splitEvenly,
         currentStep,
         title,
-        receiptImageUrl: activeSession?.receiptImageUrl || null,
-        receiptFileName: activeSession?.receiptFileName || null,
+        // Receipt URLs removed - handled by uploadReceiptImage/removeReceiptImage
       });
 
       // Only save if data has actually changed
@@ -188,8 +198,7 @@ export default function AIScanView() {
           people,
           itemAssignments,
           splitEvenly,
-          receiptImageUrl: activeSession?.receiptImageUrl || null,
-          receiptFileName: activeSession?.receiptFileName || null,
+          // Receipt URLs removed - handled by uploadReceiptImage/removeReceiptImage
           currentStep,
           title: title || undefined, // Only save if not empty
         }, billId || activeSession?.id);
@@ -208,17 +217,49 @@ export default function AIScanView() {
   };
 
   const handleRemoveImage = async () => {
+    // If there are items, ask if user wants to clear them
+    if (billData?.items && billData.items.length > 0) {
+      setShowClearItemsDialog(true);
+      return;
+    }
+
+    // No items, proceed with removal
+    await performImageRemoval(true);
+  };
+
+  const performImageRemoval = async (clearItems: boolean) => {
     // Clear local UI state immediately
     upload.handleRemoveImage();
-    
-    // Clear bill data since we're removing the source
-    setBillData(null);
-    
+
+    // Remove image from Firebase Storage and clear receipt fields in Firestore
+    await removeReceiptImage();
+
+    // Update Firestore with the user's choice about items
+    if (clearItems) {
+      // Clear items both locally and in Firestore
+      setBillData(null);
+      await saveSession({
+        billData: null,
+        people,
+        itemAssignments: {},
+        splitEvenly,
+        currentStep: 0,
+        title: title || undefined,
+      }, billId || activeSession?.id);
+    } else {
+      // Keep items - just update currentStep in Firestore
+      await saveSession({
+        billData,
+        people,
+        itemAssignments,
+        splitEvenly,
+        currentStep: 0,
+        title: title || undefined,
+      }, billId || activeSession?.id);
+    }
+
     // Reset to step 0 (Upload)
     setCurrentStep(0);
-
-    // Remove image from Firebase Storage and update session in Firestore
-    await removeReceiptImage();
   };
 
   const handleDone = () => {
@@ -328,7 +369,7 @@ export default function AIScanView() {
   const canProceedFromStep = (step: number): boolean => {
     switch (step) {
       case 0: // Bill Entry step (merged Upload + Items)
-        return billData && billData.items.length > 0; // Need at least one item
+        return billData?.items?.length > 0; // Need at least one item
       case 1: // People step
         return people.length > 0; // Need at least one person
       case 2: // Assign step
@@ -641,6 +682,33 @@ export default function AIScanView() {
           isRegenerating={isGeneratingShareCode}
         />
       )}
+
+      {/* Clear Items Confirmation Dialog */}
+      <AlertDialog open={showClearItemsDialog} onOpenChange={setShowClearItemsDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear Bill Items?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have {billData?.items?.length || 0} item{billData?.items?.length === 1 ? '' : 's'} in your bill.
+              Do you want to clear them when removing the receipt image?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowClearItemsDialog(false);
+              performImageRemoval(false);
+            }}>
+              Keep Items
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              setShowClearItemsDialog(false);
+              performImageRemoval(true);
+            }}>
+              Clear Items
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

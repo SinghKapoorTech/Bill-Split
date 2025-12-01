@@ -25,7 +25,7 @@ export function BillSummary({ billData, onUpdate }: Props) {
     <div className="mt-4 md:mt-6 space-y-2 border-t pt-3 md:pt-4">
       <div className="flex justify-between text-sm">
         <span className="text-muted-foreground">Subtotal:</span>
-        <span className="font-medium">${billData.subtotal.toFixed(2)}</span>
+        <span className="font-medium">${(billData.subtotal || 0).toFixed(2)}</span>
       </div>
       <div className="flex justify-between items-center text-sm md:text-base">
         <span className="text-muted-foreground font-semibold">Tax:</span>
@@ -65,7 +65,7 @@ export function BillSummary({ billData, onUpdate }: Props) {
       </div>
       <div className="flex justify-between text-base md:text-lg font-bold border-t pt-2">
         <span>Total:</span>
-        <span>${(billData.subtotal + billData.tax + billData.tip).toFixed(2)}</span>
+        <span>${((billData.subtotal || 0) + (billData.tax || 0) + (billData.tip || 0)).toFixed(2)}</span>
       </div>
     </div>
   );

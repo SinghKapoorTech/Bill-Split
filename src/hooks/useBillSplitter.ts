@@ -90,7 +90,7 @@ export function useBillSplitter({
     if (splitEvenly && billData && people.length > 0) {
       assignEveryoneToAllItems();
     }
-  }, [splitEvenly, billData?.items.length, people.length]);
+  }, [splitEvenly, billData?.items?.length, people.length]);
 
   
 
