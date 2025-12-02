@@ -8,8 +8,6 @@ import { BillItems } from '@/components/bill/BillItems';
 import { BillSummary } from '@/components/bill/BillSummary';
 import { SplitSummary } from '@/components/people/SplitSummary';
 
-import { FeatureCards } from '@/components/shared/FeatureCards';
-import { ShareSessionModal } from '@/components/share/ShareSessionModal';
 import { ShareLinkDialog } from '@/components/share/ShareLinkDialog';
 import { TwoColumnLayout, ReceiptPreview } from '@/components/shared/TwoColumnLayout';
 import { Stepper, Step, StepContent } from '@/components/ui/stepper';
@@ -20,11 +18,19 @@ import { useFileUpload } from '@/hooks/useFileUpload';
 import { useReceiptAnalyzer } from '@/hooks/useReceiptAnalyzer';
 import { useItemEditor } from '@/hooks/useItemEditor';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useShareSession } from '@/hooks/useShareSession';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Receipt, Users, Loader2, Sparkles, Pencil } from 'lucide-react';
+import { Receipt, Loader2, Sparkles, Pencil } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { UI_TEXT } from '@/utils/uiConstants';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
@@ -60,7 +66,6 @@ export default function AIScanView() {
     activeSession,
     isLoadingSessions,
     isUploading,
-    archiveAndStartNewSession,
     uploadReceiptImage,
     resumeSession,
     saveSession,
@@ -71,6 +76,7 @@ export default function AIScanView() {
   const [billData, setBillData] = useState<BillData | null>(null);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
   const [title, setTitle] = useState<string>('');
+  const [showClearItemsDialog, setShowClearItemsDialog] = useState(false);
 
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
 
@@ -99,11 +105,6 @@ export default function AIScanView() {
     bill.removeItemAssignments
   );
 
-  const { sharePrivateSession, isSharing } = useShareSession();
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [sharedSessionId, setSharedSessionId] = useState<string | null>(null);
-  const [shareCode, setShareCode] = useState<string | null>(null);
-  
   // Share link state
   const [showShareLinkDialog, setShowShareLinkDialog] = useState(false);
   const [isGeneratingShareCode, setIsGeneratingShareCode] = useState(false);
@@ -229,8 +230,7 @@ export default function AIScanView() {
         splitEvenly,
         currentStep,
         title,
-        receiptImageUrl: activeSession?.receiptImageUrl || null,
-        receiptFileName: activeSession?.receiptFileName || null,
+        // Receipt URLs removed - handled by uploadReceiptImage/removeReceiptImage
       });
 
       // Only save if data has actually changed
@@ -272,37 +272,53 @@ export default function AIScanView() {
   };
 
   const handleRemoveImage = async () => {
+    // If there are items, ask if user wants to clear them
+    if (billData?.items && billData.items.length > 0) {
+      setShowClearItemsDialog(true);
+      return;
+    }
+
+    // No items, proceed with removal
+    await performImageRemoval(true);
+  };
+
+  const performImageRemoval = async (clearItems: boolean) => {
     // Clear local UI state immediately
     upload.handleRemoveImage();
-    
-    // Clear bill data since we're removing the source
-    setBillData(null);
-    
+
+    // Remove image from Firebase Storage and clear receipt fields in Firestore
+    await removeReceiptImage();
+
+    // Update Firestore with the user's choice about items
+    if (clearItems) {
+      // Clear items both locally and in Firestore
+      setBillData(null);
+      await saveSession({
+        billData: null,
+        people,
+        itemAssignments: {},
+        splitEvenly,
+        currentStep: 0,
+        title: title || undefined,
+      }, billId || activeSession?.id);
+    } else {
+      // Keep items - just update currentStep in Firestore
+      await saveSession({
+        billData,
+        people,
+        itemAssignments,
+        splitEvenly,
+        currentStep: 0,
+        title: title || undefined,
+      }, billId || activeSession?.id);
+    }
+
     // Reset to step 0 (Upload)
     setCurrentStep(0);
-
-    // Remove image from Firebase Storage and update session in Firestore
-    await removeReceiptImage();
   };
 
   const handleDone = () => {
     navigate('/dashboard');
-  };
-
-  const handleShare = async () => {
-    if (!activeSession) return;
-
-    // Share the session (receipt URL will be reused from private session)
-    const result = await sharePrivateSession(activeSession);
-
-    if (result) {
-      setSharedSessionId(result.sessionId);
-      setShareCode(result.shareCode);
-      setShowShareModal(true);
-
-      // Navigate to the collaborative session
-      navigate(`/session/${result.sessionId}`);
-    }
   };
 
   const handleGenerateShareLink = async () => {
@@ -351,6 +367,7 @@ export default function AIScanView() {
     const uploadPromise = uploadReceiptImage(upload.selectedFile);
 
     const [analyzedBillData, uploadResult] = await Promise.all([analysisPromise, uploadPromise]);
+    console.log({analyzedBillData})
 
     // Only save if analysis was successful
     if (!analyzedBillData) {
@@ -359,8 +376,10 @@ export default function AIScanView() {
     }
 
     // Set restaurant name as title if available and user hasn't set a custom title
-    if (analyzedBillData?.restaurantName && !title) {
-      setTitle(analyzedBillData.restaurantName);
+    let newTitle: string = title || '';
+    if (!title && analyzedBillData?.restaurantName) {
+      newTitle = analyzedBillData.restaurantName;
+      setTitle(newTitle);
     }
 
     // Build save payload - only include defined values
@@ -425,7 +444,7 @@ export default function AIScanView() {
   const canProceedFromStep = (step: number): boolean => {
     switch (step) {
       case 0: // Bill Entry step (merged Upload + Items)
-        return billData && billData.items.length > 0; // Need at least one item
+        return billData?.items?.length > 0; // Need at least one item
       case 1: // People step
         return people.length > 0; // Need at least one person
       case 2: // Assign step
@@ -537,25 +556,6 @@ export default function AIScanView() {
                     onImageSelected={handleImageSelected}
                     fileInputRef={upload.fileInputRef}
                   />
-                  {upload.imagePreview && (
-                    <Button
-                      onClick={handleAnalyzeReceipt}
-                      disabled={analyzer.isAnalyzing || isUploading}
-                      className="gap-2 w-full mt-4"
-                    >
-                      {analyzer.isAnalyzing ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Analyzing...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4" />
-                          Analyze Receipt
-                        </>
-                      )}
-                    </Button>
-                  )}
                 </Card>
               }
               rightColumn={
@@ -745,16 +745,6 @@ export default function AIScanView() {
         )}
       </StepContent>
 
-      {/* Share Modal */}
-      {sharedSessionId && shareCode && (
-        <ShareSessionModal
-          isOpen={showShareModal}
-          onClose={() => setShowShareModal(false)}
-          sessionId={sharedSessionId}
-          shareCode={shareCode}
-        />
-      )}
-
       {/* Share Link Dialog */}
       {showShareLinkDialog && activeSession?.id && (
         <ShareLinkDialog
@@ -767,6 +757,33 @@ export default function AIScanView() {
           isRegenerating={isGeneratingShareCode}
         />
       )}
+
+      {/* Clear Items Confirmation Dialog */}
+      <AlertDialog open={showClearItemsDialog} onOpenChange={setShowClearItemsDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear Bill Items?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have {billData?.items?.length || 0} item{billData?.items?.length === 1 ? '' : 's'} in your bill.
+              Do you want to clear them when removing the receipt image?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowClearItemsDialog(false);
+              performImageRemoval(false);
+            }}>
+              Keep Items
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              setShowClearItemsDialog(false);
+              performImageRemoval(true);
+            }}>
+              Clear Items
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

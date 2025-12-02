@@ -36,6 +36,7 @@ interface BillData {
   tax: number;
   tip: number;
   total: number;
+  restaurantName?: string;
 }
 
 /**
@@ -83,6 +84,7 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
       const prompt = `Extract restaurant bill data from this image. Return ONLY valid JSON (no markdown):
 
 {
+  "restaurantName": "Restaurant Name",
   "items": [{"name": "Item", "price": 10.99}],
   "subtotal": 50.00,
   "tax": 4.50,
@@ -91,6 +93,8 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
 }
 
 Rules:
+- Extract the restaurant name if visible on the receipt
+- If restaurant name is not found, omit the field or set to null
 - Split quantities into separate items (e.g., "2x Burger" = two entries)
 - Use individual item prices, not totals
 - All values must be numbers`;

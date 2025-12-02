@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { analyzeBillImage, BillData } from '@/services/gemini';
+import { analyzeBillImage } from '@/services/gemini';
+import type { BillData } from '@/types/bill.types';
 import { MOCK_BILL_DATA, MOCK_PEOPLE } from '@/utils/constants';
 import { Person } from '@/types';
 import { useToast } from './use-toast';

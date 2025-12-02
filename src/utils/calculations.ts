@@ -49,7 +49,7 @@ export function calculatePersonTotals(
 }
 
 export function areAllItemsAssigned(billData: BillData | null, itemAssignments: ItemAssignment): boolean {
-  if (!billData) return false;
+  if (!billData || !billData.items) return false;
   return billData.items.every(item => {
     const assignments = itemAssignments[item.id] || [];
     return assignments.length > 0;

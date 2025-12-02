@@ -21,17 +21,7 @@ export interface BillItem {
   price: number;
 }
 
-/**
- * Complete bill data structure returned from extraction
- */
-export interface BillData {
-  items: BillItem[];
-  subtotal: number;
-  tax: number;
-  tip: number;
-  total: number;
-  restaurantName?: string;
-}
+import type { BillData } from '@/types/bill.types';
 
 // Initialize Firebase Functions
 const functions = getFunctions(app);

@@ -10,6 +10,8 @@ import {
   orderBy,
   limit,
   deleteField,
+  updateDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/config/firebase';
@@ -200,10 +202,14 @@ export function useBills() {
         }
       }
 
-      // Update the bill to remove image references using deleteField()
-      await billService.updateBill(activeSession.id, {
-        receiptImageUrl: deleteField() as any,
-        receiptFileName: deleteField() as any,
+      // Update the bill to remove image references using updateDoc directly
+      // (deleteField() requires updateDoc, not the typed billService.updateBill)
+      const billRef = doc(db, 'bills', activeSession.id);
+      await updateDoc(billRef, {
+        receiptImageUrl: deleteField(),
+        receiptFileName: deleteField(),
+        updatedAt: serverTimestamp(),
+        lastActivity: serverTimestamp(),
       });
     } catch (error) {
       console.error('Error removing receipt image:', error);

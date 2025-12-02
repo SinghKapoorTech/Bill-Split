@@ -82,15 +82,6 @@ export function useBillSplitter({
 
     if (newSplitEvenly) {
       assignEveryoneToAllItems();
-      toast({
-        title: 'Split evenly enabled',
-        description: 'All items will be split equally among all people.',
-      });
-    } else {
-      toast({
-        title: 'Split evenly disabled',
-        description: 'You can now manually assign items to people.',
-      });
     }
   };
 
@@ -99,7 +90,7 @@ export function useBillSplitter({
     if (splitEvenly && billData && people.length > 0) {
       assignEveryoneToAllItems();
     }
-  }, [splitEvenly, billData?.items.length, people.length]);
+  }, [splitEvenly, billData?.items?.length, people.length]);
 
   
 
