@@ -64,14 +64,6 @@ export default function Dashboard() {
     setIsCreatingBill(true);
     try {
       console.log('Creating new bill...');
-      console.log('Active session:', activeSession);
-
-      // If there's already an active session, archive it first
-      if (activeSession?.id) {
-        console.log('Archiving active session:', activeSession.id);
-        await archiveAndStartNewSession();
-        console.log('Active session archived');
-      }
 
       // Create a new bill with default empty data
       const defaultBillData = {

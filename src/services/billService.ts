@@ -86,7 +86,15 @@ export const billService = {
       lastActivity: serverTimestamp()
     });
     
-    await updateDoc(billRef, cleanedUpdates);
+    try {
+      await updateDoc(billRef, cleanedUpdates);
+    } catch (error) {
+      console.error('FAILED TO SAVE BILL:', error);
+      console.error('Bill ID:', billId);
+      console.error('Update Payload Keys:', Object.keys(cleanedUpdates));
+      // console.error('Full Payload:', cleanedUpdates); // Uncomment for deep debugging
+      throw error;
+    }
   },
 
   /**

@@ -1,3 +1,5 @@
+import { FieldValue } from 'firebase/firestore';
+
 /**
  * Recursively removes undefined values from an object.
  * Firestore doesn't accept undefined values - they must be omitted or set to null.
@@ -17,8 +19,33 @@ export function removeUndefinedFields<T extends Record<string, any>>(obj: T): Pa
         continue;
       }
 
+      // Handle arrays - recursively clean each element and remove undefined items
+      if (Array.isArray(value)) {
+        cleaned[key] = value
+          .filter(item => item !== undefined)
+          .map(item => {
+            if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+              // Check for special types
+              if (item instanceof FieldValue) {
+                return item;
+              }
+              const isDate = Object.prototype.toString.call(item) === '[object Date]';
+              if (isDate || item.toDate || item.seconds !== undefined) {
+                return item; // Keep special types as-is
+              }
+              return removeUndefinedFields(item); // Recurse for objects in arrays
+            }
+            return item; // Keep primitives as-is
+          });
+      }
       // Recursively clean nested objects (but not arrays or special types)
-      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      else if (value !== null && typeof value === 'object') {
+        // Check for FieldValue (serverTimestamp, deleteField, etc.)
+        if ((value as any) instanceof FieldValue) {
+          cleaned[key] = value;
+          continue;
+        }
+
         // Check if it's a Date object
         const isDate = Object.prototype.toString.call(value) === '[object Date]';
         
@@ -31,7 +58,7 @@ export function removeUndefinedFields<T extends Record<string, any>>(obj: T): Pa
           cleaned[key] = removeUndefinedFields(value);
         }
       } else {
-        // Primitive, array, or special type - keep as-is
+        // Primitive - keep as-is
         cleaned[key] = value;
       }
     }

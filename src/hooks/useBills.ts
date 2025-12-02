@@ -9,6 +9,7 @@ import {
   Timestamp,
   orderBy,
   limit,
+  deleteField,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/config/firebase';
@@ -199,10 +200,10 @@ export function useBills() {
         }
       }
 
-      // Update the bill to remove image references
+      // Update the bill to remove image references using deleteField()
       await billService.updateBill(activeSession.id, {
-        receiptImageUrl: undefined,
-        receiptFileName: undefined,
+        receiptImageUrl: deleteField() as any,
+        receiptFileName: deleteField() as any,
       });
     } catch (error) {
       console.error('Error removing receipt image:', error);
@@ -289,12 +290,20 @@ export function useBills() {
   const resumeSession = useCallback(async (sessionId: string) => {
     setIsResuming(true);
     try {
+      // Fetch the bill from Firestore
+      const bill = await billService.getBill(sessionId);
+      
+      if (!bill) {
+        throw new Error('Bill not found');
+      }
+      
       // Touch the bill to update its updatedAt timestamp, moving it to the top
       await billService.updateBill(sessionId, { 
         updatedAt: Timestamp.now()
       });
 
       toast({ title: 'Success', description: 'Session resumed.' });
+      return bill;
     } catch (error) {
       console.error('Error resuming session:', error);
       toast({ 
@@ -302,6 +311,7 @@ export function useBills() {
         description: 'Could not resume session.', 
         variant: 'destructive' 
       });
+      return null;
     } finally {
       setIsResuming(false);
     }

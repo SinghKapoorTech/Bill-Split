@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { deleteField } from 'firebase/firestore';
 import { HeroSection } from '@/components/layout/HeroSection';
 import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
 import { PeopleManager } from '@/components/people/PeopleManager';
@@ -110,7 +111,10 @@ export default function AIScanView() {
   // Load session data from Firebase into local state
   useEffect(() => {
     isInitializing.current = true;
-    if (activeSession) {
+    
+    // Only load data if activeSession matches the billId from URL (or if no billId specified)
+    // This prevents loading stale activeSession data when navigating to a newly created bill
+    if (activeSession && (!billId || activeSession.id === billId)) {
       setBillData(activeSession.billData || null);
       setItemAssignments(activeSession.itemAssignments || {});
       // Ensure logged-in user is always in the people list
@@ -132,26 +136,54 @@ export default function AIScanView() {
       } else {
         upload.handleRemoveImage();
       }
-    } else {
-      // If no session, reset to initial state
+      
+      // Allow saves after a short delay to let state updates settle
+      const timer = setTimeout(() => (isInitializing.current = false), 200);
+      return () => clearTimeout(timer);
+    } else if (!activeSession && !billId) {
+      // Only reset to empty state if there's no activeSession AND no billId
+      // This handles the case of a completely fresh start
       setBillData(null);
       setItemAssignments({});
-      // Ensure logged-in user is added even when clearing
       setPeople(ensureUserInPeople([], user, profile));
       setSplitEvenly(false);
       upload.handleRemoveImage();
       setCurrentStep(0);
+      
+      const timer = setTimeout(() => (isInitializing.current = false), 200);
+      return () => clearTimeout(timer);
+    } else {
+      // billId doesn't match activeSession - we're waiting for the correct bill to load
+      // Keep isInitializing true to prevent auto-save during transition
+      // Don't reset state - keep whatever is currently displayed
+      // The resumeSession effect will trigger and eventually activeSession will update
     }
-    // Allow saves after a short delay to let state updates settle
-    const timer = setTimeout(() => (isInitializing.current = false), 200);
-    return () => clearTimeout(timer);
-  }, [activeSession]);
+  }, [activeSession, billId]);
 
   // Effect to load bill when billId URL parameter changes
   useEffect(() => {
     if (billId && billId !== activeSession?.id) {
       console.log('Loading bill from URL param:', billId);
-      resumeSession(billId);
+      // Directly fetch and load the bill data
+      resumeSession(billId).then((fetchedBill) => {
+        if (fetchedBill) {
+          // Directly load the fetched bill data into state
+          // This bypasses waiting for the real-time listener
+          setBillData(fetchedBill.billData || null);
+          setItemAssignments(fetchedBill.itemAssignments || {});
+          setPeople(ensureUserInPeople(fetchedBill.people || [], user, profile));
+          setSplitEvenly(fetchedBill.splitEvenly || false);
+          setTitle(fetchedBill.title || '');
+          setCurrentStep(fetchedBill.currentStep || 0);
+          
+          if (fetchedBill.receiptImageUrl) {
+            upload.setImagePreview(fetchedBill.receiptImageUrl);
+            upload.setSelectedFile(new File([], fetchedBill.receiptFileName || 'receipt.jpg'));
+          } else {
+            upload.handleRemoveImage();
+          }
+        }
+      });
     }
   }, [billId]);
 
@@ -179,6 +211,16 @@ export default function AIScanView() {
     if (isInitializing.current) return;
 
     const timeoutId = setTimeout(() => {
+      // Double-check we're not in a transition state
+      if (isInitializing.current) return;
+      
+      // CRITICAL: Ensure we're saving to the correct bill
+      // If billId is specified but doesn't match activeSession, we're in a transition - don't save
+      if (billId && activeSession?.id && billId !== activeSession.id) {
+        console.warn('Auto-save blocked: billId mismatch during transition', { billId, activeSessionId: activeSession?.id });
+        return;
+      }
+      
       // Create a snapshot of current data for dirty checking
       const currentData = JSON.stringify({
         billData,
@@ -193,16 +235,28 @@ export default function AIScanView() {
 
       // Only save if data has actually changed
       if (currentData !== lastSavedData.current) {
-        saveSession({
+        const savePayload: any = {
           billData,
           people,
           itemAssignments,
           splitEvenly,
-          receiptImageUrl: activeSession?.receiptImageUrl || null,
-          receiptFileName: activeSession?.receiptFileName || null,
           currentStep,
-          title: title || undefined, // Only save if not empty
-        }, billId || activeSession?.id);
+        };
+        
+        // Only include receipt fields if they exist
+        if (activeSession?.receiptImageUrl) {
+          savePayload.receiptImageUrl = activeSession.receiptImageUrl;
+        }
+        if (activeSession?.receiptFileName) {
+          savePayload.receiptFileName = activeSession.receiptFileName;
+        }
+        
+        // Only include title if it's not empty
+        if (title) {
+          savePayload.title = title;
+        }
+        
+        saveSession(savePayload, billId || activeSession?.id);
 
         // Update last saved snapshot
         lastSavedData.current = currentData;
@@ -270,12 +324,12 @@ export default function AIScanView() {
 
     setIsGeneratingShareCode(true);
     try {
-      // Force regenerate by clearing the existing code first
+      // Force regenerate by clearing the existing code first using deleteField()
       await billService.updateBill(activeSession.id, {
-        shareCode: undefined,
-        shareCodeCreatedAt: undefined,
-        shareCodeExpiresAt: undefined,
-        shareCodeCreatedBy: undefined,
+        shareCode: deleteField() as any,
+        shareCodeCreatedAt: deleteField() as any,
+        shareCodeExpiresAt: deleteField() as any,
+        shareCodeCreatedBy: deleteField() as any,
       });
       // Generate new code
       await billService.generateShareCode(activeSession.id, user.uid);
@@ -298,21 +352,41 @@ export default function AIScanView() {
 
     const [analyzedBillData, uploadResult] = await Promise.all([analysisPromise, uploadPromise]);
 
+    // Only save if analysis was successful
+    if (!analyzedBillData) {
+      console.error('Receipt analysis failed, not saving');
+      return;
+    }
+
     // Set restaurant name as title if available and user hasn't set a custom title
     if (analyzedBillData?.restaurantName && !title) {
       setTitle(analyzedBillData.restaurantName);
     }
 
-    // Save all state including new upload info
-    await saveSession({
+    // Build save payload - only include defined values
+    const savePayload: any = {
       billData: analyzedBillData,
       people,
       itemAssignments,
       splitEvenly,
-      receiptImageUrl: uploadResult?.downloadURL,
-      receiptFileName: uploadResult?.fileName,
-      title: analyzedBillData?.restaurantName && !title ? analyzedBillData.restaurantName : (title || undefined),
-    }, billId || activeSession?.id);
+    };
+    
+    // Only include receipt fields if upload was successful
+    if (uploadResult?.downloadURL) {
+      savePayload.receiptImageUrl = uploadResult.downloadURL;
+    }
+    if (uploadResult?.fileName) {
+      savePayload.receiptFileName = uploadResult.fileName;
+    }
+    
+    // Only include title if we have one
+    const titleToSave = analyzedBillData?.restaurantName && !title ? analyzedBillData.restaurantName : title;
+    if (titleToSave) {
+      savePayload.title = titleToSave;
+    }
+    
+    // Save all state including new upload info
+    await saveSession(savePayload, billId || activeSession?.id);
 
     // Don't automatically move to next step - let user review and proceed manually
   };

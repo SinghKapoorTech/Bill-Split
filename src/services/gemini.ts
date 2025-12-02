@@ -30,6 +30,7 @@ export interface BillData {
   tax: number;
   tip: number;
   total: number;
+  restaurantName?: string;
 }
 
 // Initialize Firebase Functions

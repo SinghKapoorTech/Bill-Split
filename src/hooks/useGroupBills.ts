@@ -67,13 +67,14 @@ export function useGroupBills(groupId: string) {
     );
     
     // Update other fields if provided
-    if (data.itemAssignments || data.splitEvenly) {
-        await billService.updateBill(billId, {
-            itemAssignments: data.itemAssignments,
-            splitEvenly: data.splitEvenly,
-            receiptImageUrl: data.receiptImageUrl,
-            receiptFileName: data.receiptFileName
-        });
+    if (data.itemAssignments || data.splitEvenly || data.receiptImageUrl || data.receiptFileName) {
+        const updates: any = {};
+        if (data.itemAssignments) updates.itemAssignments = data.itemAssignments;
+        if (data.splitEvenly !== undefined) updates.splitEvenly = data.splitEvenly;
+        if (data.receiptImageUrl) updates.receiptImageUrl = data.receiptImageUrl;
+        if (data.receiptFileName) updates.receiptFileName = data.receiptFileName;
+        
+        await billService.updateBill(billId, updates);
     }
 
     return billId;

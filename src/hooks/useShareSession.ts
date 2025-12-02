@@ -94,12 +94,20 @@ export function useShareSession() {
         );
 
         // Update additional fields that createBill doesn't handle directly
-        await billService.updateBill(billId, {
+        const updates: any = {
           itemAssignments: privateSession.itemAssignments || {},
           splitEvenly: privateSession.splitEvenly || false,
-          receiptImageUrl: privateSession.receiptImageUrl || undefined,
-          receiptFileName: privateSession.receiptFileName || undefined,
-        });
+        };
+        
+        // Only include receipt fields if they exist
+        if (privateSession.receiptImageUrl) {
+          updates.receiptImageUrl = privateSession.receiptImageUrl;
+        }
+        if (privateSession.receiptFileName) {
+          updates.receiptFileName = privateSession.receiptFileName;
+        }
+        
+        await billService.updateBill(billId, updates);
 
         // Generate share code
         const shareCode = await billService.generateShareCode(billId, ownerId);
