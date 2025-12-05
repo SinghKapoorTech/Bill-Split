@@ -217,3 +217,10 @@ All colors MUST be HSL.
     /* 14px */
   }
 }
+
+/* Desktop Dashboard Bill Card Styles */
+@media (min-width: 768px) {
+  .desktop-bill-card {
+    /* Future desktop-specific styles */
+  }
+}
