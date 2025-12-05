@@ -166,7 +166,12 @@ All colors MUST be HSL.
     padding-right: env(safe-area-inset-right);
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-semibold tracking-tight;
   }
 }
@@ -179,5 +184,36 @@ All colors MUST be HSL.
     --parallax-blur-bg: 50px;
     --parallax-blur-mid: 40px;
     --parallax-blur-fg: 25px;
+  }
+}
+
+/* Mobile Dashboard Bill List Styles */
+@media (max-width: 767px) {
+  .mobile-bill-item {
+    padding: 0.5rem 1rem;
+    /* 14px 16px - comfortable touch target */
+  }
+
+  .mobile-bill-meta {
+    font-size: 0.8125rem;
+    /* 13px */
+    line-height: 1.4;
+  }
+
+  .mobile-bill-items-preview {
+    font-size: 0.75rem;
+    /* 12px */
+    line-height: 1.3;
+  }
+
+  /* Reduce header sizes on mobile dashboard */
+  .dashboard-header h1 {
+    font-size: 1.5rem;
+    /* 24px instead of 36px */
+  }
+
+  .dashboard-header p {
+    font-size: 0.875rem;
+    /* 14px */
   }
 }
