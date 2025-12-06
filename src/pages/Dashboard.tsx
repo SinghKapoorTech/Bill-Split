@@ -163,7 +163,7 @@ export default function Dashboard() {
           onClick={handleNewBill}
           disabled={isCreatingBill}
           size="lg"
-          className="gap-2 w-full sm:w-auto"
+          className="gap-2 w-full md:w-auto"
         >
           {isCreatingBill ? (
             <>
