@@ -30,21 +30,27 @@ export function useReceiptAnalyzer(
     setIsAnalyzing(true);
     try {
       const data = await analyzeBillImage(imagePreview);
+      
+      // Filter out $0 items (add-ons, optional items, etc.)
+      const filteredData: BillData = {
+        ...data,
+        items: data.items.filter(item => item.price > 0),
+      };
 
       let finalData: BillData;
       if (currentBillData) {
-        finalData = mergeBillData(currentBillData, data);
+        finalData = mergeBillData(currentBillData, filteredData);
         setBillData(finalData);
         toast({
           title: 'Success!',
-          description: `Added ${data.items.length} new items to your bill.`,
+          description: `Added ${filteredData.items.length} new items to your bill.`,
         });
       } else {
-        finalData = data;
-        setBillData(data);
+        finalData = filteredData;
+        setBillData(filteredData);
         toast({
           title: 'Success!',
-          description: `Extracted ${data.items.length} items from your receipt.`,
+          description: `Extracted ${filteredData.items.length} items from your receipt.`,
         });
       }
       return finalData;
