@@ -20,7 +20,8 @@ import { useItemEditor } from '@/hooks/useItemEditor';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Receipt, Loader2, Sparkles, Pencil } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Receipt, Loader2, Sparkles, Pencil, Users, UserPlus } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -112,7 +113,7 @@ export default function AIScanView() {
   // Load session data from Firebase into local state
   useEffect(() => {
     isInitializing.current = true;
-    
+
     // Only load data if activeSession matches the billId from URL (or if no billId specified)
     // This prevents loading stale activeSession data when navigating to a newly created bill
     if (activeSession && (!billId || activeSession.id === billId)) {
@@ -137,7 +138,7 @@ export default function AIScanView() {
       } else {
         upload.handleRemoveImage();
       }
-      
+
       // Allow saves after a short delay to let state updates settle
       const timer = setTimeout(() => (isInitializing.current = false), 200);
       return () => clearTimeout(timer);
@@ -150,7 +151,7 @@ export default function AIScanView() {
       setSplitEvenly(false);
       upload.handleRemoveImage();
       setCurrentStep(0);
-      
+
       const timer = setTimeout(() => (isInitializing.current = false), 200);
       return () => clearTimeout(timer);
     } else {
@@ -176,7 +177,7 @@ export default function AIScanView() {
           setSplitEvenly(fetchedBill.splitEvenly || false);
           setTitle(fetchedBill.title || '');
           setCurrentStep(fetchedBill.currentStep || 0);
-          
+
           if (fetchedBill.receiptImageUrl) {
             upload.setImagePreview(fetchedBill.receiptImageUrl);
             upload.setSelectedFile(new File([], fetchedBill.receiptFileName || 'receipt.jpg'));
@@ -214,14 +215,14 @@ export default function AIScanView() {
     const timeoutId = setTimeout(() => {
       // Double-check we're not in a transition state
       if (isInitializing.current) return;
-      
+
       // CRITICAL: Ensure we're saving to the correct bill
       // If billId is specified but doesn't match activeSession, we're in a transition - don't save
       if (billId && activeSession?.id && billId !== activeSession.id) {
         console.warn('Auto-save blocked: billId mismatch during transition', { billId, activeSessionId: activeSession?.id });
         return;
       }
-      
+
       // Create a snapshot of current data for dirty checking
       const currentData = JSON.stringify({
         billData,
@@ -242,7 +243,7 @@ export default function AIScanView() {
           splitEvenly,
           currentStep,
         };
-        
+
         // Only include receipt fields if they exist
         if (activeSession?.receiptImageUrl) {
           savePayload.receiptImageUrl = activeSession.receiptImageUrl;
@@ -250,12 +251,12 @@ export default function AIScanView() {
         if (activeSession?.receiptFileName) {
           savePayload.receiptFileName = activeSession.receiptFileName;
         }
-        
+
         // Only include title if it's not empty
         if (title) {
           savePayload.title = title;
         }
-        
+
         saveSession(savePayload, billId || activeSession?.id);
 
         // Update last saved snapshot
@@ -367,7 +368,7 @@ export default function AIScanView() {
     const uploadPromise = uploadReceiptImage(upload.selectedFile);
 
     const [analyzedBillData, uploadResult] = await Promise.all([analysisPromise, uploadPromise]);
-    console.log({analyzedBillData})
+    console.log({ analyzedBillData })
 
     // Only save if analysis was successful
     if (!analyzedBillData) {
@@ -389,7 +390,7 @@ export default function AIScanView() {
       itemAssignments,
       splitEvenly,
     };
-    
+
     // Only include receipt fields if upload was successful
     if (uploadResult?.downloadURL) {
       savePayload.receiptImageUrl = uploadResult.downloadURL;
@@ -397,13 +398,13 @@ export default function AIScanView() {
     if (uploadResult?.fileName) {
       savePayload.receiptFileName = uploadResult.fileName;
     }
-    
+
     // Only include title if we have one
     const titleToSave = analyzedBillData?.restaurantName && !title ? analyzedBillData.restaurantName : title;
     if (titleToSave) {
       savePayload.title = titleToSave;
     }
-    
+
     // Save all state including new upload info
     await saveSession(savePayload, billId || activeSession?.id);
 
@@ -462,7 +463,7 @@ export default function AIScanView() {
     if (stepIndex <= currentStep) {
       return true;
     }
-    
+
     // For future steps, check if all previous steps are completed
     for (let i = 0; i < stepIndex; i++) {
       if (!canProceedFromStep(i)) {
@@ -525,17 +526,12 @@ export default function AIScanView() {
         {/* Step 1: Bill Entry (Upload + Items) */}
         {currentStep === 0 && (
           <div>
-            <TwoColumnLayout
-              imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
-              leftColumn={
-                <Card className="p-4 md:p-6 sticky top-4">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    Receipt Upload
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Upload a photo of your receipt and let AI extract items automatically
-                  </p>
+            {/* Mobile with analyzed receipt: Show compact receipt thumbnail inside the Bill Items card */}
+            {isMobile && (upload.imagePreview || activeSession?.receiptImageUrl) && billData?.items && billData.items.length > 0 ? (
+              <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
+                <div className="flex items-center gap-2 mb-4">
+                  <Receipt className="w-5 h-5 text-primary" />
+                  <h3 className="text-xl font-semibold flex-1">{UI_TEXT.BILL_ITEMS}</h3>
                   <ReceiptUploader
                     selectedFile={upload.selectedFile}
                     imagePreview={upload.imagePreview}
@@ -543,6 +539,7 @@ export default function AIScanView() {
                     isUploading={isUploading}
                     isAnalyzing={analyzer.isAnalyzing}
                     isMobile={isMobile}
+                    compactMode={true}
                     onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
                     onDragOver={upload.handleDragOver}
                     onDragLeave={upload.handleDragLeave}
@@ -556,9 +553,66 @@ export default function AIScanView() {
                     onImageSelected={handleImageSelected}
                     fileInputRef={upload.fileInputRef}
                   />
-                </Card>
-              }
-              rightColumn={
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Add items manually or upload a receipt to extract them automatically
+                </p>
+
+                <BillItems
+                  billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
+                  people={[]}
+                  itemAssignments={{}}
+                  editingItemId={editor.editingItemId}
+                  editingItemName={editor.editingItemName}
+                  editingItemPrice={editor.editingItemPrice}
+                  onAssign={() => { }}
+                  onEdit={editor.editItem}
+                  onSave={editor.saveEdit}
+                  onCancel={editor.cancelEdit}
+                  onDelete={editor.deleteItem}
+                  setEditingName={editor.setEditingItemName}
+                  setEditingPrice={editor.setEditingItemPrice}
+                  isAdding={editor.isAdding}
+                  newItemName={editor.newItemName}
+                  newItemPrice={editor.newItemPrice}
+                  setNewItemName={editor.setNewItemName}
+                  setNewItemPrice={editor.setNewItemPrice}
+                  onStartAdding={editor.startAdding}
+                  onAddItem={editor.addItem}
+                  onCancelAdding={editor.cancelAdding}
+                  splitEvenly={false}
+                  onToggleSplitEvenly={() => { }}
+                />
+
+                <BillSummary
+                  billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
+                  onUpdate={(updates) => setBillData({ ...billData, ...updates })}
+                />
+              </Card>
+            ) : isMobile ? (
+              /* Mobile without analyzed receipt: Show uploader then Bill Items vertically */
+              <div className="space-y-6">
+                <ReceiptUploader
+                  selectedFile={upload.selectedFile}
+                  imagePreview={upload.imagePreview}
+                  isDragging={upload.isDragging}
+                  isUploading={isUploading}
+                  isAnalyzing={analyzer.isAnalyzing}
+                  isMobile={isMobile}
+                  onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
+                  onDragOver={upload.handleDragOver}
+                  onDragLeave={upload.handleDragLeave}
+                  onDrop={(e) => {
+                    upload.handleDrop(e);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleImageSelected(file);
+                  }}
+                  onRemove={handleRemoveImage}
+                  onAnalyze={handleAnalyzeReceipt}
+                  onImageSelected={handleImageSelected}
+                  fileInputRef={upload.fileInputRef}
+                />
+
                 <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
                   <div className="flex items-center gap-2 mb-4">
                     <Receipt className="w-5 h-5 text-primary" />
@@ -575,7 +629,7 @@ export default function AIScanView() {
                     editingItemId={editor.editingItemId}
                     editingItemName={editor.editingItemName}
                     editingItemPrice={editor.editingItemPrice}
-                    onAssign={() => {}}
+                    onAssign={() => { }}
                     onEdit={editor.editItem}
                     onSave={editor.saveEdit}
                     onCancel={editor.cancelEdit}
@@ -591,7 +645,7 @@ export default function AIScanView() {
                     onAddItem={editor.addItem}
                     onCancelAdding={editor.cancelAdding}
                     splitEvenly={false}
-                    onToggleSplitEvenly={() => {}}
+                    onToggleSplitEvenly={() => { }}
                   />
 
                   <BillSummary
@@ -599,8 +653,86 @@ export default function AIScanView() {
                     onUpdate={(updates) => setBillData({ ...billData, ...updates })}
                   />
                 </Card>
-              }
-            />
+              </div>
+            ) : (
+              /* Desktop: Show two-column layout */
+              <TwoColumnLayout
+                imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
+                leftColumn={
+                  <Card className="p-4 md:p-6 sticky top-4">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-primary" />
+                      Receipt Upload
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Upload a photo of your receipt and let AI extract items automatically
+                    </p>
+                    <ReceiptUploader
+                      selectedFile={upload.selectedFile}
+                      imagePreview={upload.imagePreview}
+                      isDragging={upload.isDragging}
+                      isUploading={isUploading}
+                      isAnalyzing={analyzer.isAnalyzing}
+                      isMobile={isMobile}
+                      onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
+                      onDragOver={upload.handleDragOver}
+                      onDragLeave={upload.handleDragLeave}
+                      onDrop={(e) => {
+                        upload.handleDrop(e);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) handleImageSelected(file);
+                      }}
+                      onRemove={handleRemoveImage}
+                      onAnalyze={handleAnalyzeReceipt}
+                      onImageSelected={handleImageSelected}
+                      fileInputRef={upload.fileInputRef}
+                    />
+                  </Card>
+                }
+                rightColumn={
+                  <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Receipt className="w-5 h-5 text-primary" />
+                      <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Add items manually or upload a receipt to extract them automatically
+                    </p>
+
+                    <BillItems
+                      billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
+                      people={[]}
+                      itemAssignments={{}}
+                      editingItemId={editor.editingItemId}
+                      editingItemName={editor.editingItemName}
+                      editingItemPrice={editor.editingItemPrice}
+                      onAssign={() => { }}
+                      onEdit={editor.editItem}
+                      onSave={editor.saveEdit}
+                      onCancel={editor.cancelEdit}
+                      onDelete={editor.deleteItem}
+                      setEditingName={editor.setEditingItemName}
+                      setEditingPrice={editor.setEditingItemPrice}
+                      isAdding={editor.isAdding}
+                      newItemName={editor.newItemName}
+                      newItemPrice={editor.newItemPrice}
+                      setNewItemName={editor.setNewItemName}
+                      setNewItemPrice={editor.setNewItemPrice}
+                      onStartAdding={editor.startAdding}
+                      onAddItem={editor.addItem}
+                      onCancelAdding={editor.cancelAdding}
+                      splitEvenly={false}
+                      onToggleSplitEvenly={() => { }}
+                    />
+
+                    <BillSummary
+                      billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
+                      onUpdate={(updates) => setBillData({ ...billData, ...updates })}
+                    />
+                  </Card>
+                }
+              />
+            )}
 
             <StepFooter
               currentStep={currentStep}
@@ -615,30 +747,96 @@ export default function AIScanView() {
         {/* Step 2: Add People */}
         {currentStep === 1 && (
           <div>
-            <TwoColumnLayout
-              imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
-              leftColumn={
-                activeSession?.receiptImageUrl || upload.imagePreview ? (
-                  <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
-                ) : null
-              }
-              rightColumn={
-                <PeopleManager
-                  people={people}
-                  newPersonName={peopleManager.newPersonName}
-                  newPersonVenmoId={peopleManager.newPersonVenmoId}
-                  useNameAsVenmoId={peopleManager.useNameAsVenmoId}
-                  onNameChange={peopleManager.setNewPersonName}
-                  onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                  onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
-                  onAdd={peopleManager.addPerson}
-                  onAddFromFriend={peopleManager.addFromFriend}
-                  onRemove={handleRemovePerson}
-                  onSaveAsFriend={peopleManager.savePersonAsFriend}
-                  setPeople={setPeople}
-                />
-              }
-            />
+            {isMobile && (upload.imagePreview || activeSession?.receiptImageUrl) && billData?.items && billData.items.length > 0 ? (
+              <Card className="p-3 md:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Users className="w-4 h-4 md:w-5 md:h-5 text-primary" />
+                  <h3 className="text-lg md:text-xl font-semibold flex-1">People</h3>
+                  <ReceiptUploader
+                    selectedFile={upload.selectedFile}
+                    imagePreview={upload.imagePreview}
+                    isDragging={upload.isDragging}
+                    isUploading={isUploading}
+                    isAnalyzing={analyzer.isAnalyzing}
+                    isMobile={isMobile}
+                    compactMode={true}
+                    onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
+                    onDragOver={upload.handleDragOver}
+                    onDragLeave={upload.handleDragLeave}
+                    onDrop={(e) => {
+                      upload.handleDrop(e);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleImageSelected(file);
+                    }}
+                    onRemove={handleRemoveImage}
+                    onAnalyze={handleAnalyzeReceipt}
+                    onImageSelected={handleImageSelected}
+                    fileInputRef={upload.fileInputRef}
+                  />
+                </div>
+
+                {/* PeopleManager content without outer Card and title */}
+                <div className="space-y-3 mb-4">
+                  {/* Row 1: Name Input + Venmo Options + Add Button */}
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <Input
+                        placeholder="Person's name"
+                        value={peopleManager.newPersonName}
+                        onChange={(e) => peopleManager.setNewPersonName(e.target.value)}
+                        className="w-full text-xs placeholder:text-xs"
+                      />
+                    </div>
+                    <Button onClick={peopleManager.addPerson} variant="success" className="shrink-0">
+                      <UserPlus className="w-4 h-4 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+                </div>
+                {/* Use full PeopleManager for functionality - render inside but hide duplicate header */}
+                <div className="[&>div]:!p-0 [&>div>div:first-child]:hidden">
+                  <PeopleManager
+                    people={people}
+                    newPersonName={peopleManager.newPersonName}
+                    newPersonVenmoId={peopleManager.newPersonVenmoId}
+                    useNameAsVenmoId={peopleManager.useNameAsVenmoId}
+                    onNameChange={peopleManager.setNewPersonName}
+                    onVenmoIdChange={peopleManager.setNewPersonVenmoId}
+                    onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
+                    onAdd={peopleManager.addPerson}
+                    onAddFromFriend={peopleManager.addFromFriend}
+                    onRemove={handleRemovePerson}
+                    onSaveAsFriend={peopleManager.savePersonAsFriend}
+                    setPeople={setPeople}
+                  />
+                </div>
+              </Card>
+            ) : (
+              <TwoColumnLayout
+                imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
+                leftColumn={
+                  !isMobile && (activeSession?.receiptImageUrl || upload.imagePreview) ? (
+                    <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
+                  ) : null
+                }
+                rightColumn={
+                  <PeopleManager
+                    people={people}
+                    newPersonName={peopleManager.newPersonName}
+                    newPersonVenmoId={peopleManager.newPersonVenmoId}
+                    useNameAsVenmoId={peopleManager.useNameAsVenmoId}
+                    onNameChange={peopleManager.setNewPersonName}
+                    onVenmoIdChange={peopleManager.setNewPersonVenmoId}
+                    onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
+                    onAdd={peopleManager.addPerson}
+                    onAddFromFriend={peopleManager.addFromFriend}
+                    onRemove={handleRemovePerson}
+                    onSaveAsFriend={peopleManager.savePersonAsFriend}
+                    setPeople={setPeople}
+                  />
+                }
+              />
+            )}
 
             <StepFooter
               currentStep={currentStep}
@@ -653,63 +851,128 @@ export default function AIScanView() {
         {/* Step 3: Assign Items */}
         {currentStep === 2 && billData && (
           <div>
-            <TwoColumnLayout
-              imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
-              leftColumn={
-                activeSession?.receiptImageUrl || upload.imagePreview ? (
-                  <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
-                ) : null
-              }
-              rightColumn={
-                <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-2">
-                      <Receipt className="w-5 h-5 text-primary" />
-                      <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
+            {isMobile && (upload.imagePreview || activeSession?.receiptImageUrl) && billData?.items && billData.items.length > 0 ? (
+              <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
+                <div className="flex items-center gap-2 mb-4">
+                  <Receipt className="w-5 h-5 text-primary" />
+                  <h3 className="text-xl font-semibold flex-1">{UI_TEXT.BILL_ITEMS}</h3>
+                  <ReceiptUploader
+                    selectedFile={upload.selectedFile}
+                    imagePreview={upload.imagePreview}
+                    isDragging={upload.isDragging}
+                    isUploading={isUploading}
+                    isAnalyzing={analyzer.isAnalyzing}
+                    isMobile={isMobile}
+                    compactMode={true}
+                    onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
+                    onDragOver={upload.handleDragOver}
+                    onDragLeave={upload.handleDragLeave}
+                    onDrop={(e) => {
+                      upload.handleDrop(e);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleImageSelected(file);
+                    }}
+                    onRemove={handleRemoveImage}
+                    onAnalyze={handleAnalyzeReceipt}
+                    onImageSelected={handleImageSelected}
+                    fileInputRef={upload.fileInputRef}
+                  />
+                </div>
+
+                <BillItems
+                  billData={billData}
+                  people={people}
+                  itemAssignments={itemAssignments}
+                  editingItemId={editor.editingItemId}
+                  editingItemName={editor.editingItemName}
+                  editingItemPrice={editor.editingItemPrice}
+                  onAssign={bill.handleItemAssignment}
+                  onEdit={editor.editItem}
+                  onSave={editor.saveEdit}
+                  onCancel={editor.cancelEdit}
+                  onDelete={editor.deleteItem}
+                  setEditingName={editor.setEditingItemName}
+                  setEditingPrice={editor.setEditingItemPrice}
+                  isAdding={editor.isAdding}
+                  newItemName={editor.newItemName}
+                  newItemPrice={editor.newItemPrice}
+                  setNewItemName={editor.setNewItemName}
+                  setNewItemPrice={editor.setNewItemPrice}
+                  onStartAdding={editor.startAdding}
+                  onAddItem={editor.addItem}
+                  onCancelAdding={editor.cancelAdding}
+                  splitEvenly={splitEvenly}
+                  onToggleSplitEvenly={bill.toggleSplitEvenly}
+                />
+
+                {people.length === 0 && !isMobile && billData && (
+                  <p className="text-sm text-muted-foreground text-center py-4 mt-4">
+                    {UI_TEXT.ADD_PEOPLE_TO_ASSIGN}
+                  </p>
+                )}
+
+                <BillSummary
+                  billData={billData}
+                  onUpdate={(updates) => setBillData({ ...billData, ...updates })}
+                />
+              </Card>
+            ) : (
+              <TwoColumnLayout
+                imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
+                leftColumn={
+                  !isMobile && (activeSession?.receiptImageUrl || upload.imagePreview) ? (
+                    <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
+                  ) : null
+                }
+                rightColumn={
+                  <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                      <div className="flex items-center gap-2 flex-1">
+                        <Receipt className="w-5 h-5 text-primary" />
+                        <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
+                      </div>
                     </div>
 
+                    <BillItems
+                      billData={billData}
+                      people={people}
+                      itemAssignments={itemAssignments}
+                      editingItemId={editor.editingItemId}
+                      editingItemName={editor.editingItemName}
+                      editingItemPrice={editor.editingItemPrice}
+                      onAssign={bill.handleItemAssignment}
+                      onEdit={editor.editItem}
+                      onSave={editor.saveEdit}
+                      onCancel={editor.cancelEdit}
+                      onDelete={editor.deleteItem}
+                      setEditingName={editor.setEditingItemName}
+                      setEditingPrice={editor.setEditingItemPrice}
+                      isAdding={editor.isAdding}
+                      newItemName={editor.newItemName}
+                      newItemPrice={editor.newItemPrice}
+                      setNewItemName={editor.setNewItemName}
+                      setNewItemPrice={editor.setNewItemPrice}
+                      onStartAdding={editor.startAdding}
+                      onAddItem={editor.addItem}
+                      onCancelAdding={editor.cancelAdding}
+                      splitEvenly={splitEvenly}
+                      onToggleSplitEvenly={bill.toggleSplitEvenly}
+                    />
 
-                  </div>
+                    {people.length === 0 && !isMobile && billData && (
+                      <p className="text-sm text-muted-foreground text-center py-4 mt-4">
+                        {UI_TEXT.ADD_PEOPLE_TO_ASSIGN}
+                      </p>
+                    )}
 
-                  <BillItems
-                    billData={billData}
-                    people={people}
-                    itemAssignments={itemAssignments}
-                    editingItemId={editor.editingItemId}
-                    editingItemName={editor.editingItemName}
-                    editingItemPrice={editor.editingItemPrice}
-                    onAssign={bill.handleItemAssignment}
-                    onEdit={editor.editItem}
-                    onSave={editor.saveEdit}
-                    onCancel={editor.cancelEdit}
-                    onDelete={editor.deleteItem}
-                    setEditingName={editor.setEditingItemName}
-                    setEditingPrice={editor.setEditingItemPrice}
-                    isAdding={editor.isAdding}
-                    newItemName={editor.newItemName}
-                    newItemPrice={editor.newItemPrice}
-                    setNewItemName={editor.setNewItemName}
-                    setNewItemPrice={editor.setNewItemPrice}
-                    onStartAdding={editor.startAdding}
-                    onAddItem={editor.addItem}
-                    onCancelAdding={editor.cancelAdding}
-                    splitEvenly={splitEvenly}
-                    onToggleSplitEvenly={bill.toggleSplitEvenly}
-                  />
-
-                  {people.length === 0 && !isMobile && billData && (
-                    <p className="text-sm text-muted-foreground text-center py-4 mt-4">
-                      {UI_TEXT.ADD_PEOPLE_TO_ASSIGN}
-                    </p>
-                  )}
-
-                  <BillSummary
-                    billData={billData}
-                    onUpdate={(updates) => setBillData({ ...billData, ...updates })}
-                  />
-                </Card>
-              }
-            />
+                    <BillSummary
+                      billData={billData}
+                      onUpdate={(updates) => setBillData({ ...billData, ...updates })}
+                    />
+                  </Card>
+                }
+              />
+            )}
 
             <StepFooter
               currentStep={currentStep}
@@ -725,6 +988,32 @@ export default function AIScanView() {
         {currentStep === 3 && billData && (
           <div>
             <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
+              {isMobile && (upload.imagePreview || activeSession?.receiptImageUrl) && billData?.items && billData.items.length > 0 && (
+                <div className="flex items-center gap-2 mb-4">
+                  <h3 className="text-xl font-semibold flex-1">Split Summary</h3>
+                  <ReceiptUploader
+                    selectedFile={upload.selectedFile}
+                    imagePreview={upload.imagePreview}
+                    isDragging={upload.isDragging}
+                    isUploading={isUploading}
+                    isAnalyzing={analyzer.isAnalyzing}
+                    isMobile={isMobile}
+                    compactMode={true}
+                    onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
+                    onDragOver={upload.handleDragOver}
+                    onDragLeave={upload.handleDragLeave}
+                    onDrop={(e) => {
+                      upload.handleDrop(e);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleImageSelected(file);
+                    }}
+                    onRemove={handleRemoveImage}
+                    onAnalyze={handleAnalyzeReceipt}
+                    onImageSelected={handleImageSelected}
+                    fileInputRef={upload.fileInputRef}
+                  />
+                </div>
+              )}
               <SplitSummary
                 personTotals={bill.personTotals}
                 allItemsAssigned={bill.allItemsAssigned}

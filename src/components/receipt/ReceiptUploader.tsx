@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { usePlatform } from '@/hooks/usePlatform';
 import { useImagePicker } from '@/hooks/useImagePicker';
+import { ReceiptPreviewModal } from './ReceiptPreviewModal';
 
 interface Props {
   selectedFile: File | null;
@@ -12,6 +13,7 @@ interface Props {
   isUploading: boolean;
   isAnalyzing: boolean;
   isMobile?: boolean;
+  compactMode?: boolean;
   onFileInput: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDragLeave: (e: React.DragEvent) => void;
@@ -29,6 +31,7 @@ export function ReceiptUploader({
   isUploading,
   isAnalyzing,
   isMobile = false,
+  compactMode = false,
   onFileInput,
   onDragOver,
   onDragLeave,
@@ -41,6 +44,7 @@ export function ReceiptUploader({
   const { isNative } = usePlatform();
   const { pickImage } = useImagePicker();
   const [imageError, setImageError] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     setImageError(false);
@@ -64,10 +68,10 @@ export function ReceiptUploader({
       // Fetch the demo receipt image from public folder
       const response = await fetch('/demo-receipt.png');
       const blob = await response.blob();
-      
+
       // Convert to File object
       const file = new File([blob], 'demo-receipt.png', { type: 'image/png' });
-      
+
       // Convert to base64 for preview
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -81,19 +85,41 @@ export function ReceiptUploader({
       console.error('Error loading demo image:', error);
     }
   };
+  // Compact mode: Show only a small receipt thumbnail (for mobile after upload)
+  if (compactMode && imagePreview) {
+    return (
+      <>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="flex-shrink-0 rounded-md overflow-hidden border-2 border-primary/40 hover:border-primary transition-all shadow-sm hover:shadow-md"
+        >
+          <img
+            src={imagePreview}
+            alt="Receipt thumbnail"
+            className="w-10 h-10 object-cover"
+          />
+        </button>
+
+        <ReceiptPreviewModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          imageUrl={imagePreview}
+          fileName={selectedFile?.name || 'Receipt'}
+        />
+      </>
+    );
+  }
+
   return (
     <Card
-      className={`shadow-medium border-2 border-dashed transition-all duration-300 ${
-        imagePreview ? 'p-3 md:p-4' : 'p-4 md:p-8'
-      } ${
-        isDragging
+      className={`shadow-medium border-2 border-dashed transition-all duration-300 ${imagePreview ? 'p-3 md:p-4' : 'p-4 md:p-8'
+        } ${isDragging
           ? 'border-primary bg-primary/10 scale-[1.02]'
           : imagePreview
-          ? 'border-primary/40'
-          : 'border-primary/20 hover:border-primary/40'
-      } ${
-        isMobile && !imagePreview ? 'min-h-[60vh] flex items-center justify-center' : ''
-      }`}
+            ? 'border-primary/40'
+            : 'border-primary/20 hover:border-primary/40'
+        } ${isMobile && !imagePreview ? 'min-h-[60vh] flex items-center justify-center' : ''
+        }`}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
