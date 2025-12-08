@@ -1,7 +1,12 @@
 import { Camera, UserPlus, CreditCard, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useInView } from '@/hooks/useInView';
+import { useRef } from 'react';
 
 export function HowItWorks() {
+    const sectionRef = useRef<HTMLDivElement>(null);
+    const isInView = useInView(sectionRef, { threshold: 0.1, rootMargin: '100px' });
+
     const steps = [
         {
             icon: Camera,
@@ -27,22 +32,21 @@ export function HowItWorks() {
     ];
 
     return (
-        <section className="py-24 px-4 md:px-8 relative overflow-hidden">
+        <section ref={sectionRef} className="py-24 px-4 md:px-8 relative overflow-hidden">
             <div className="container mx-auto max-w-7xl relative z-10">
                 <div className="text-center mb-16 space-y-4">
                     <motion.h2
                         initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
+                        animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+                        transition={{ duration: 0.6 }}
                         className="text-4xl md:text-5xl font-bold text-slate-900"
                     >
                         How it works
                     </motion.h2>
                     <motion.p
                         initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 0.1 }}
+                        animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+                        transition={{ duration: 0.6, delay: 0.1 }}
                         className="text-xl text-slate-600 max-w-2xl mx-auto"
                     >
                         Three simple steps to end money awkwardness forever.
@@ -59,8 +63,7 @@ export function HowItWorks() {
                             <motion.div
                                 key={index}
                                 initial={{ opacity: 0, scale: 0.5 }}
-                                whileInView={{ opacity: 1, scale: 1 }}
-                                viewport={{ once: true, amount: 0.3 }}
+                                animate={isInView ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.5 }}
                                 transition={{
                                     type: 'spring',
                                     stiffness: 100,

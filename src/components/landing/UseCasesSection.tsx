@@ -1,7 +1,12 @@
 import { Utensils, ShoppingCart, Plane } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useInView } from '@/hooks/useInView';
+import { useRef } from 'react';
 
 export function UseCasesSection() {
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const isInView = useInView(sectionRef, { threshold: 0.1, rootMargin: '100px' });
+
   const useCases = [
     {
       icon: Utensils,
@@ -33,13 +38,12 @@ export function UseCasesSection() {
   ];
 
   return (
-    <section className="py-24 px-4 md:px-8 relative overflow-hidden">
+    <section ref={sectionRef} className="py-24 px-4 md:px-8 relative overflow-hidden">
       <div className="container mx-auto max-w-7xl relative z-10">
         {/* Section header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
@@ -61,12 +65,10 @@ export function UseCasesSection() {
               <motion.div
                 key={index}
                 initial={{ opacity: 0, x: isEven ? -100 : 100 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, amount: 0.4 }}
-                transition={{ duration: 0.7, ease: 'easeOut' }}
-                className={`flex flex-col ${
-                  isEven ? 'lg:flex-row' : 'lg:flex-row-reverse'
-                } gap-12 items-center`}
+                animate={isInView ? { opacity: 1, x: 0 } : { opacity: 0, x: isEven ? -100 : 100 }}
+                transition={{ duration: 0.7, ease: 'easeOut', delay: index * 0.2 }}
+                className={`flex flex-col ${isEven ? 'lg:flex-row' : 'lg:flex-row-reverse'
+                  } gap-12 items-center`}
               >
                 {/* Icon/Visual side */}
                 <div className="flex-1 flex items-center justify-center">

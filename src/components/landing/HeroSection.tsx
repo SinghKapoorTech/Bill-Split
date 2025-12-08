@@ -3,25 +3,35 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 
 export function HeroSection() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile for performance optimization
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   return (
     <section className="relative py-20 px-4 md:px-8 overflow-hidden">
-      
+
       <div className="container mx-auto max-w-7xl relative z-10">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Left side - Main content */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
             className="space-y-8 text-center lg:text-left"
           >
             <div className="space-y-4">
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.2 }}
@@ -30,14 +40,14 @@ export function HeroSection() {
                 <Sparkles className="w-4 h-4 text-cyan-500" />
                 <span>New: AI Receipt Scanning</span>
               </motion.div>
-              
+
               <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1]">
                 <span className="block text-slate-900">Split bills fairly</span>
                 <span className="bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 bg-clip-text text-transparent">
                   in seconds
                 </span>
               </h1>
-              
+
               <p className="text-xl md:text-2xl text-slate-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
                 The AI-powered receipt scanner that itemizes costs instantly. No math, no awkwardness.
               </p>
@@ -113,19 +123,21 @@ export function HeroSection() {
                   <div key={i} className="flex justify-between relative">
                     <span>{item.name}</span>
                     <span>{item.price}</span>
-                    {/* Detection Box Animation */}
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: [0, 1, 0], scale: [0.9, 1.1, 1] }}
-                      transition={{ 
-                        duration: 2,
-                        repeat: Infinity,
-                        repeatDelay: 3,
-                        delay: i * 0.3,
-                        times: [0, 0.2, 0.8]
-                      }}
-                      className="absolute -inset-1 border-2 border-cyan-400/50 rounded bg-cyan-400/10"
-                    />
+                    {/* Detection Box Animation - Only on desktop */}
+                    {!isMobile && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: [0, 1, 0], scale: [0.9, 1.1, 1] }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          repeatDelay: 3,
+                          delay: i * 0.3,
+                          times: [0, 0.2, 0.8]
+                        }}
+                        className="absolute -inset-1 border-2 border-cyan-400/50 rounded bg-cyan-400/10"
+                      />
+                    )}
                   </div>
                 ))}
               </div>
@@ -157,7 +169,7 @@ export function HeroSection() {
                     <Share2 className="w-4 h-4" />
                   </Button>
                 </div>
-                
+
                 {/* Tabs */}
                 <div className="flex p-1 bg-slate-100 rounded-lg mb-2">
                   <div className="flex-1 py-1.5 text-center text-xs font-medium bg-white rounded-md shadow-sm text-slate-900">
@@ -179,7 +191,7 @@ export function HeroSection() {
                     { name: 'Salad', price: '$12.00', assigned: ['Sarah'], color: 'bg-blue-100 text-blue-700' },
                     { name: 'Pasta', price: '$18.00', assigned: ['Mike'], color: 'bg-pink-100 text-pink-700' },
                   ].map((item, i) => (
-                    <motion.div 
+                    <motion.div
                       key={i}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}

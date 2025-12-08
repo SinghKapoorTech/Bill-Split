@@ -1,11 +1,12 @@
 import { useMotionValue } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { GradientLayer } from "./GradientLayer";
 import { desktopConfig, tabletConfig, mobileConfig } from "@/config/gradientBlobs";
 import { ParallaxConfig } from "@/types/gradient.types";
 
 export function ParallaxGradientBackground() {
   const [config, setConfig] = useState<ParallaxConfig>(desktopConfig);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Static position (no scroll movement)
   const staticY = useMotionValue(0);
@@ -15,26 +16,43 @@ export function ParallaxGradientBackground() {
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // Responsive configuration based on screen size
-  useEffect(() => {
-    const updateConfig = () => {
-      const width = window.innerWidth;
-      if (width < 768) {
-        setConfig(mobileConfig);
-      } else if (width < 1024) {
-        setConfig(tabletConfig);
-      } else {
-        setConfig(desktopConfig);
-      }
+  // Debounced resize handler for better performance
+  const debounce = <T extends (...args: any[]) => void>(
+    func: T,
+    wait: number
+  ): ((...args: Parameters<T>) => void) => {
+    let timeout: NodeJS.Timeout;
+    return (...args: Parameters<T>) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func(...args), wait);
     };
+  };
 
-    updateConfig();
-    window.addEventListener("resize", updateConfig);
-    return () => window.removeEventListener("resize", updateConfig);
+  // Update config and mobile state
+  const updateConfig = useCallback(() => {
+    const width = window.innerWidth;
+    const mobile = width < 768;
+    setIsMobile(mobile);
+
+    if (mobile) {
+      setConfig(mobileConfig);
+    } else if (width < 1024) {
+      setConfig(tabletConfig);
+    } else {
+      setConfig(desktopConfig);
+    }
   }, []);
 
-  // Static fallback for reduced motion
-  if (prefersReducedMotion) {
+  // Responsive configuration based on screen size with debouncing
+  useEffect(() => {
+    updateConfig();
+    const debouncedUpdate = debounce(updateConfig, 150);
+    window.addEventListener("resize", debouncedUpdate);
+    return () => window.removeEventListener("resize", debouncedUpdate);
+  }, [updateConfig]);
+
+  // Static fallback for reduced motion or mobile
+  if (prefersReducedMotion || isMobile) {
     return (
       <div className="fixed inset-0 w-full h-full -z-10 overflow-hidden">
         <div

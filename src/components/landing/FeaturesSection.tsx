@@ -1,9 +1,13 @@
 import { Camera, Calculator, Share2, Calendar, Users, CreditCard } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useInView } from '@/hooks/useInView';
+import { useRef } from 'react';
 
 export function FeaturesSection() {
   const isMobile = useIsMobile();
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const isInView = useInView(sectionRef, { threshold: 0.1, rootMargin: '100px' });
 
   // Adjust card size for mobile
   const cardWidth = isMobile ? 300 : 352; // Smaller cards on mobile
@@ -53,13 +57,12 @@ export function FeaturesSection() {
   const duplicatedFeatures = [...features, ...features];
 
   return (
-    <section className="py-24 px-4 md:px-8 relative overflow-hidden">
+    <section ref={sectionRef} className="py-24 px-4 md:px-8 relative overflow-hidden">
       <div className="container mx-auto max-w-screen-2xl relative z-10">
         {/* Section header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
@@ -71,54 +74,56 @@ export function FeaturesSection() {
           </p>
         </motion.div>
 
-        {/* Flowing slider */}
-        <div className="relative">
-          {/* Gradient overlays for fade effect */}
-          <div className="absolute left-0 top-0 bottom-0 w-20 md:w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-          <div className="absolute right-0 top-0 bottom-0 w-20 md:w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+        {/* Flowing slider - only animate when in view */}
+        {isInView && (
+          <div className="relative">
+            {/* Gradient overlays for fade effect */}
+            <div className="absolute left-0 top-0 bottom-0 w-20 md:w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-20 md:w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
-          <div className="overflow-hidden">
-            <motion.div
-              className="flex gap-6 md:gap-8"
-              animate={{
-                x: [0, -1 * (features.length * totalCardWidth)],
-              }}
-              transition={{
-                x: {
-                  duration: isMobile ? 25 : 30,
-                  repeat: Infinity,
-                  ease: "linear",
-                },
-              }}
-              whileHover={{ animationPlayState: "paused" }}
-            >
-              {duplicatedFeatures.map((feature, index) => {
-                const Icon = feature.icon;
-                return (
-                  <div
-                    key={index}
-                    className="flex-shrink-0 w-[300px] md:w-[352px] bg-white/90 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-slate-200 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 group"
-                  >
-                    {/* Icon */}
+            <div className="overflow-hidden">
+              <motion.div
+                className="flex gap-6 md:gap-8"
+                animate={{
+                  x: [0, -1 * (features.length * totalCardWidth)],
+                }}
+                transition={{
+                  x: {
+                    duration: isMobile ? 25 : 30,
+                    repeat: Infinity,
+                    ease: "linear",
+                  },
+                }}
+                whileHover={{ animationPlayState: "paused" }}
+              >
+                {duplicatedFeatures.map((feature, index) => {
+                  const Icon = feature.icon;
+                  return (
                     <div
-                      className={`w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-4 md:mb-6 shadow-lg group-hover:scale-110 transition-transform duration-300`}
+                      key={index}
+                      className="flex-shrink-0 w-[300px] md:w-[352px] bg-white/90 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-slate-200 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 group"
                     >
-                      <Icon className="w-6 h-6 md:w-8 md:h-8 text-white" />
-                    </div>
+                      {/* Icon */}
+                      <div
+                        className={`w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-4 md:mb-6 shadow-lg group-hover:scale-110 transition-transform duration-300`}
+                      >
+                        <Icon className="w-6 h-6 md:w-8 md:h-8 text-white" />
+                      </div>
 
-                    {/* Content */}
-                    <h3 className="text-lg md:text-2xl font-bold text-slate-900 mb-2 md:mb-3">
-                      {feature.title}
-                    </h3>
-                    <p className="text-sm md:text-base text-slate-600 leading-relaxed">
-                      {feature.description}
-                    </p>
-                  </div>
-                );
-              })}
-            </motion.div>
+                      {/* Content */}
+                      <h3 className="text-lg md:text-2xl font-bold text-slate-900 mb-2 md:mb-3">
+                        {feature.title}
+                      </h3>
+                      <p className="text-sm md:text-base text-slate-600 leading-relaxed">
+                        {feature.description}
+                      </p>
+                    </div>
+                  );
+                })}
+              </motion.div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </section>
   );

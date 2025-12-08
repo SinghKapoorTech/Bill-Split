@@ -13,19 +13,13 @@ export function GradientLayer({ config, scrollY }: GradientLayerProps) {
       style={{
         y: scrollY,
         zIndex: config.zIndex,
-        willChange: "transform",
-        transform: "translateZ(0)",
-        backfaceVisibility: "hidden",
+        // Optimize rendering performance
+        contain: "layout style paint",
+        willChange: "auto", // Only enable during actual animations
       }}
-      animate={{
-        x: [0, 30, -20, 0],
-        y: [0, -20, 10, 0],
-      }}
-      transition={{
-        duration: 25,
-        repeat: Infinity,
-        ease: "easeInOut",
-      }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 1, ease: "easeOut" }}
     >
       {config.blobs.map((blob, index) => (
         <div
@@ -39,7 +33,8 @@ export function GradientLayer({ config, scrollY }: GradientLayerProps) {
             background: `radial-gradient(circle, ${blob.color} 0%, transparent 70%)`,
             opacity: blob.opacity,
             filter: `blur(${blob.blur})`,
-            transform: "translate(-50%, -50%)",
+            transform: "translate(-50%, -50%) translateZ(0)",
+            backfaceVisibility: "hidden",
             pointerEvents: "none",
           }}
         />
