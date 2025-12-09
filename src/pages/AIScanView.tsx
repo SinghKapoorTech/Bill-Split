@@ -493,6 +493,9 @@ export default function AIScanView() {
       <HeroSection
         hasBillData={!!billData}
         onShare={handleGenerateShareLink}
+        title={title}
+        onTitleChange={setTitle}
+        titlePlaceholder={formatDate(activeSession?.createdAt)}
       />
 
       {/* Stepper */}
@@ -505,21 +508,6 @@ export default function AIScanView() {
           canNavigateToStep={canNavigateToStep}
         />
       </div>
-
-      {/* Persistent Title - Top of unified card */}
-      <Card className="max-w-3xl mx-auto rounded-b-none border-b-0 mb-0">
-        <div className="flex items-center gap-2 p-4 pb-3">
-          <Input
-            id="bill-title"
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={formatDate(activeSession?.createdAt)}
-            className="text-lg font-semibold border-0 focus-visible:ring-0 px-0 h-auto flex-1"
-          />
-          <Pencil className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-        </div>
-      </Card>
 
       {/* Step Content */}
       <StepContent stepKey={currentStep}>

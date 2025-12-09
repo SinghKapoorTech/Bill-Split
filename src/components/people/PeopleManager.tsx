@@ -164,7 +164,7 @@ export function PeopleManager({
               value={newPersonName}
               onChange={(e) => onNameChange(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !showVenmoField && handleAdd()}
-              className="w-full text-xs placeholder:text-xs"
+              className="w-full"
             />
             {showSuggestions && filteredFriends.length > 0 && (
               <div
@@ -283,7 +283,7 @@ export function PeopleManager({
             value={newPersonVenmoId}
             onChange={(e) => onVenmoIdChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            className='text-xs placeholder:text-xs'
+            className='text-base placeholder:text-xs'
           />
         )}
         <div className="flex gap-2">
