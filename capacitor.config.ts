@@ -5,7 +5,6 @@ const config: CapacitorConfig = {
   appName: 'Bill Split',
   webDir: 'dist',
   server: {
-    hostname: 'bill-split-lemon.vercel.app',
     androidScheme: 'https',
     iosScheme: 'https'
   },

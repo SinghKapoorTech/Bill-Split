@@ -3,7 +3,8 @@
 	"appName": "Bill Split",
 	"webDir": "dist",
 	"server": {
-		"androidScheme": "https"
+		"androidScheme": "https",
+		"iosScheme": "https"
 	},
 	"plugins": {
 		"FirebaseAuthentication": {
