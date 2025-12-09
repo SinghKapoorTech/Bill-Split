@@ -58,7 +58,6 @@ export default function AIScanView() {
     if (activeSession && (!billId || activeSession.id === billId)) {
       // Only update if this is a different session than what we've loaded
       if (loadedSessionId.current !== activeSession.id) {
-        console.log('✅ Loading session:', activeSession.id, 'billData:', activeSession.billData, 'people:', activeSession.people?.length);
         setBillData(activeSession.billData || null);
         setItemAssignments(activeSession.itemAssignments || {});
         setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
@@ -69,7 +68,6 @@ export default function AIScanView() {
       }
     } else if (!activeSession && !billId && loadedSessionId.current === null) {
       // Fresh start - only initialize once
-      console.log('Fresh start - initializing empty state');
       setBillData(null);
       setItemAssignments({});
       setPeople(ensureUserInPeople([], user, profile));
@@ -86,11 +84,9 @@ export default function AIScanView() {
   useEffect(() => {
     // Only load if billId changed and we haven't already loaded it
     if (billId && billId !== hasLoadedBillId.current) {
-      console.log('Loading bill from URL param:', billId);
       hasLoadedBillId.current = billId;
       // Pass silentLoad=true to prevent toast when loading from URL
       resumeSession(billId, true).then((fetchedBill) => {
-        console.log('✅ Fetched bill:', billId, 'billData:', fetchedBill?.billData, 'people:', fetchedBill?.people?.length);
         if (fetchedBill) {
           setBillData(fetchedBill.billData || null);
           setItemAssignments(fetchedBill.itemAssignments || {});

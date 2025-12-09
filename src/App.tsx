@@ -29,7 +29,6 @@ function DeepLinkHandler() {
     // Listen for deep links
     const listener = CapApp.addListener('appUrlOpen', (event) => {
       const url = event.url;
-      console.log('Deep link opened:', url);
 
       // Parse the URL to extract the path
       // Expected format: https://bill-split-lemon.vercel.app/join/sessionId?code=ABC123
@@ -55,34 +54,34 @@ const App = () => (
     <AuthProvider>
       <BillSessionProvider>
         <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <DeepLinkHandler />
-          <Routes>
-            {/* Public: Landing page */}
-            <Route path="/" element={<LandingPage />} />
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <DeepLinkHandler />
+            <Routes>
+              {/* Public: Landing page */}
+              <Route path="/" element={<LandingPage />} />
 
-            {/* Protected routes with layout */}
-            <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="bill/:billId" element={<AIScanView />} />
-              <Route path="groups" element={<GroupEventView />} />
-              <Route path="groups/:groupId" element={<GroupDetailView />} />
-              <Route path="settings" element={<SettingsView />} />
-              <Route path="session/:sessionId" element={<CollaborativeSessionView />} />
-            </Route>
+              {/* Protected routes with layout */}
+              <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="bill/:billId" element={<AIScanView />} />
+                <Route path="groups" element={<GroupEventView />} />
+                <Route path="groups/:groupId" element={<GroupDetailView />} />
+                <Route path="settings" element={<SettingsView />} />
+                <Route path="session/:sessionId" element={<CollaborativeSessionView />} />
+              </Route>
 
-            {/* Public: Auth and join pages */}
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/join/:sessionId" element={<JoinSession />} />
+              {/* Public: Auth and join pages */}
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/join/:sessionId" element={<JoinSession />} />
 
-            {/* Public: 404 */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </BillSessionProvider>
+              {/* Public: 404 */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </BillSessionProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

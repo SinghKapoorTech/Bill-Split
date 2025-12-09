@@ -43,9 +43,6 @@ export default function Dashboard() {
   } = useBillContext();
 
   const handleNewBill = async () => {
-    console.log('handleNewBill called');
-    console.log('User:', user);
-    console.log('User UID:', user?.uid);
 
     if (!user) {
       toast({
@@ -58,8 +55,6 @@ export default function Dashboard() {
 
     setIsCreatingBill(true);
     try {
-      console.log('Creating new bill...');
-
       // Create a new bill with default empty data
       const defaultBillData = {
         items: [],
@@ -69,7 +64,6 @@ export default function Dashboard() {
         total: 0
       };
 
-      console.log('Calling billService.createBill...');
       const billId = await billService.createBill(
         user.uid,
         user.displayName || 'Anonymous',
@@ -77,8 +71,6 @@ export default function Dashboard() {
         defaultBillData,
         []
       );
-
-      console.log('Bill created with ID:', billId);
 
       // Navigate to the newly created bill
       navigate(`/bill/${billId}`);
@@ -256,13 +248,13 @@ export default function Dashboard() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete "{billToDelete?.title}" and all associated data. 
+              This will permanently delete "{billToDelete?.title}" and all associated data.
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={confirmDelete}
               className="bg-destructive hover:bg-destructive/90"
             >

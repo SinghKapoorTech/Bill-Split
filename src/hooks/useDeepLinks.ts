@@ -13,7 +13,6 @@ export function useDeepLinks() {
     if (!isNative) return;
 
     const handleAppUrlOpen = CapApp.addListener('appUrlOpen', (data) => {
-      console.log('App opened with URL:', data.url);
       // Handle Venmo callback if needed
       // Example: venmo://... redirects back to your app
       // You can parse data.url and navigate accordingly

@@ -43,12 +43,7 @@ export function useFileUpload() {
       const originalSizeMB = (file.size / 1024 / 1024).toFixed(2);
       const compressedSizeMB = (compressedFile.size / 1024 / 1024).toFixed(2);
 
-      if (file.size > compressedFile.size * 1.1) {
-        console.log({
-          title: 'Image optimized',
-          description: `Compressed from ${originalSizeMB}MB to ${compressedSizeMB}MB for faster processing`,
-        });
-      }
+      // Image was optimized if file.size > compressedFile.size * 1.1
 
       setSelectedFile(compressedFile);
 

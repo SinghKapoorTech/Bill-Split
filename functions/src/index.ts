@@ -130,9 +130,6 @@ Rules:
         throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
       }
 
-      // Log the parsed data for debugging
-      console.log('Parsed bill data:', JSON.stringify(billData, null, 2));
-
       // Add unique IDs to each item
       billData.items = billData.items.map((item, index) => ({
         ...item,
@@ -159,7 +156,6 @@ Rules:
 
       // Normalize tip field - handle null, undefined, or non-numeric values
       if (billData.tip === null || billData.tip === undefined || typeof billData.tip !== 'number') {
-        console.log(`Normalizing tip from ${billData.tip} to 0`);
         billData.tip = 0;
       }
 
