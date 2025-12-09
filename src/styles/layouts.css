@@ -1,0 +1,153 @@
+@layer components {
+    /* ==============================================
+     TWO-COLUMN LAYOUTS
+     Grid layouts for desktop/mobile responsiveness
+     ============================================== */
+
+    .layout-two-column {
+        @apply grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8;
+    }
+
+    .layout-two-column-narrow {
+        @apply grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6;
+    }
+
+    /* ==============================================
+     CONTENT CONTAINERS
+     Standard content width constraints
+     ============================================== */
+
+    .content-container {
+        @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+    }
+
+    .content-narrow {
+        @apply max-w-3xl mx-auto;
+    }
+
+    .content-medium {
+        @apply max-w-5xl mx-auto;
+    }
+
+    .content-wide {
+        @apply max-w-6xl mx-auto;
+    }
+
+    /* ==============================================
+     SPACING UTILITIES
+     Vertical spacing patterns
+     ============================================== */
+
+    .stack-xs {
+        @apply space-y-1;
+    }
+
+    .stack-sm {
+        @apply space-y-2;
+    }
+
+    .stack-md {
+        @apply space-y-4;
+    }
+
+    .stack-lg {
+        @apply space-y-6;
+    }
+
+    .stack-xl {
+        @apply space-y-8;
+    }
+
+    /* Horizontal spacing */
+    .inline-xs {
+        @apply space-x-1;
+    }
+
+    .inline-sm {
+        @apply space-x-2;
+    }
+
+    .inline-md {
+        @apply space-x-4;
+    }
+
+    .inline-lg {
+        @apply space-x-6;
+    }
+
+    /* ==============================================
+     FLEX UTILITIES
+     Common flex patterns
+     ============================================== */
+
+    .flex-center {
+        @apply flex items-center justify-center;
+    }
+
+    .flex-between {
+        @apply flex items-center justify-between;
+    }
+
+    .flex-start {
+        @apply flex items-center justify-start;
+    }
+
+    .flex-end {
+        @apply flex items-center justify-end;
+    }
+
+    .flex-col-center {
+        @apply flex flex-col items-center justify-center;
+    }
+
+    /* ==============================================
+     RESPONSIVE PADDING
+     Mobile-friendly padding patterns
+     ============================================== */
+
+    .mobile-compact {
+        @apply p-3 md:p-6;
+    }
+
+    .mobile-compact-sm {
+        @apply p-2 md:p-4;
+    }
+
+    .mobile-compact-lg {
+        @apply p-4 md:p-8;
+    }
+
+    /* ==============================================
+     DASHBOARD LAYOUTS
+     Specific patterns for dashboard views
+     ============================================== */
+
+    .dashboard-container {
+        @apply space-y-6 md:space-y-8;
+    }
+
+    .dashboard-header {
+        @apply mb-6 md:mb-8;
+    }
+
+    .dashboard-grid {
+        @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6;
+    }
+
+    /* ==============================================
+     FORM LAYOUTS
+     Common form patterns
+     ============================================== */
+
+    .form-group {
+        @apply space-y-2;
+    }
+
+    .form-row {
+        @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+    }
+
+    .form-actions {
+        @apply flex justify-end gap-3 mt-6;
+    }
+}

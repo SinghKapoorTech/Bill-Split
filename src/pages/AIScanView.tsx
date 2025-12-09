@@ -1,68 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { deleteField } from 'firebase/firestore';
 import { HeroSection } from '@/components/layout/HeroSection';
-import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
-import { PeopleManager } from '@/components/people/PeopleManager';
-import { BillItems } from '@/components/bill/BillItems';
-import { BillSummary } from '@/components/bill/BillSummary';
-import { SplitSummary } from '@/components/people/SplitSummary';
-
+import { BillWizard } from '@/components/bill-wizard/BillWizard';
 import { ShareLinkDialog } from '@/components/share/ShareLinkDialog';
-import { TwoColumnLayout, ReceiptPreview } from '@/components/shared/TwoColumnLayout';
-import { Stepper, Step, StepContent } from '@/components/ui/stepper';
-import { StepFooter } from '@/components/shared/StepFooter';
-import { useBillSplitter } from '@/hooks/useBillSplitter';
-import { usePeopleManager } from '@/hooks/usePeopleManager';
-import { useFileUpload } from '@/hooks/useFileUpload';
-import { useReceiptAnalyzer } from '@/hooks/useReceiptAnalyzer';
-import { useItemEditor } from '@/hooks/useItemEditor';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Receipt, Loader2, Sparkles, Pencil, Users, UserPlus } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { Loader2 } from 'lucide-react';
 import { useBillContext } from '@/contexts/BillSessionContext';
-import { UI_TEXT } from '@/utils/uiConstants';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
-import { Person, BillData, ItemAssignment } from '@/types';
-import { areAllItemsAssigned } from '@/utils/calculations';
-import { ensureUserInPeople } from '@/utils/billCalculations';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { ensureUserInPeople } from '@/utils/billCalculations';
 import { billService } from '@/services/billService';
+import { Person, BillData, ItemAssignment } from '@/types';
+import { deleteField } from 'firebase/firestore';
 
-const STEPS: Step[] = [
-  { id: 1, label: 'Bill Entry', description: 'Add items' },
-  { id: 2, label: 'People', description: 'Add friends' },
-  { id: 3, label: 'Assign', description: 'Split items' },
-  { id: 4, label: 'Review', description: 'Finalize' },
-];
-
+/**
+ * AIScanView - Simplified Bill Creation Page
+ * Now uses the BillWizard component for step management
+ * Reduced from 1046 lines to ~170 lines
+ */
 export default function AIScanView() {
-  const isMobile = useIsMobile();
-  const isInitializing = useRef(true);
-  const lastSavedData = useRef<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { billId } = useParams<{ billId: string }>();
   const { user } = useAuth();
   const { profile } = useUserProfile();
 
-  // Step management
-  const [currentStep, setCurrentStep] = useState(0);
-
-  // Centralized state management
+  // Centralized session management
   const {
     activeSession,
     isLoadingSessions,
@@ -73,255 +36,97 @@ export default function AIScanView() {
     removeReceiptImage,
   } = useBillContext();
 
-  const [people, setPeople] = useState<Person[]>([]);
+  // Local state for wizard initialization
   const [billData, setBillData] = useState<BillData | null>(null);
+  const [people, setPeople] = useState<Person[]>([]);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
-  const [title, setTitle] = useState<string>('');
-  const [showClearItemsDialog, setShowClearItemsDialog] = useState(false);
-
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
-
-  const peopleManager = usePeopleManager(people, setPeople);
-  const bill = useBillSplitter({
-    people,
-    billData,
-    setBillData,
-    itemAssignments,
-    setItemAssignments,
-
-    splitEvenly,
-    setSplitEvenly,
-  });
-
-  const upload = useFileUpload();
-  const analyzer = useReceiptAnalyzer(
-    setBillData,
-    setPeople,
-    billData
-  );
-
-  const editor = useItemEditor(
-    billData,
-    setBillData,
-    bill.removeItemAssignments
-  );
+  const [title, setTitle] = useState<string>('');
+  const [currentStep, setCurrentStep] = useState(0);
 
   // Share link state
   const [showShareLinkDialog, setShowShareLinkDialog] = useState(false);
   const [isGeneratingShareCode, setIsGeneratingShareCode] = useState(false);
 
-  // Load session data from Firebase into local state
+  // Initialize data from session - track which session we've loaded to prevent auto-save loops
+  const loadedSessionId = useRef<string | null>(null);
+
   useEffect(() => {
-    isInitializing.current = true;
-
-    // Only load data if activeSession matches the billId from URL (or if no billId specified)
-    // This prevents loading stale activeSession data when navigating to a newly created bill
+    // Load session data only if:
+    // 1. We have a session AND
+    // 2. We haven't loaded this specific session yet (prevents auto-save loop)
     if (activeSession && (!billId || activeSession.id === billId)) {
-      setBillData(activeSession.billData || null);
-      setItemAssignments(activeSession.itemAssignments || {});
-      // Ensure logged-in user is always in the people list
-      setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
-      setSplitEvenly(activeSession.splitEvenly || false);
-      setTitle(activeSession.title || '');
-
-      // RESTORE STEP POSITION
-      if (activeSession.currentStep !== undefined) {
-        setCurrentStep(activeSession.currentStep);
-      } else {
-        // No saved step (old bill), default to 0
-        setCurrentStep(0);
+      // Only update if this is a different session than what we've loaded
+      if (loadedSessionId.current !== activeSession.id) {
+        console.log('✅ Loading session:', activeSession.id, 'billData:', activeSession.billData, 'people:', activeSession.people?.length);
+        setBillData(activeSession.billData || null);
+        setItemAssignments(activeSession.itemAssignments || {});
+        setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
+        setSplitEvenly(activeSession.splitEvenly || false);
+        setTitle(activeSession.title || '');
+        setCurrentStep(activeSession.currentStep || 0);
+        loadedSessionId.current = activeSession.id;
       }
-
-      if (activeSession.receiptImageUrl) {
-        upload.setImagePreview(activeSession.receiptImageUrl);
-        upload.setSelectedFile(new File([], activeSession.receiptFileName || 'receipt.jpg'));
-      } else {
-        upload.handleRemoveImage();
-      }
-
-      // Allow saves after a short delay to let state updates settle
-      const timer = setTimeout(() => (isInitializing.current = false), 200);
-      return () => clearTimeout(timer);
-    } else if (!activeSession && !billId) {
-      // Only reset to empty state if there's no activeSession AND no billId
-      // This handles the case of a completely fresh start
+    } else if (!activeSession && !billId && loadedSessionId.current === null) {
+      // Fresh start - only initialize once
+      console.log('Fresh start - initializing empty state');
       setBillData(null);
       setItemAssignments({});
       setPeople(ensureUserInPeople([], user, profile));
       setSplitEvenly(false);
-      upload.handleRemoveImage();
       setCurrentStep(0);
-
-      const timer = setTimeout(() => (isInitializing.current = false), 200);
-      return () => clearTimeout(timer);
-    } else {
-      // billId doesn't match activeSession - we're waiting for the correct bill to load
-      // Keep isInitializing true to prevent auto-save during transition
-      // Don't reset state - keep whatever is currently displayed
-      // The resumeSession effect will trigger and eventually activeSession will update
+      loadedSessionId.current = 'empty';
     }
-  }, [activeSession, billId]);
+    // Including activeSession but with session ID check to prevent loop
+  }, [activeSession, billId, user, profile]);
 
-  // Effect to load bill when billId URL parameter changes
+  // Load bill when billId URL parameter changes
+  const hasLoadedBillId = useRef<string | null>(null);
+
   useEffect(() => {
-    if (billId && billId !== activeSession?.id) {
+    // Only load if billId changed and we haven't already loaded it
+    if (billId && billId !== hasLoadedBillId.current) {
       console.log('Loading bill from URL param:', billId);
-      // Directly fetch and load the bill data
+      hasLoadedBillId.current = billId;
       resumeSession(billId).then((fetchedBill) => {
+        console.log('✅ Fetched bill:', billId, 'billData:', fetchedBill?.billData, 'people:', fetchedBill?.people?.length);
         if (fetchedBill) {
-          // Directly load the fetched bill data into state
-          // This bypasses waiting for the real-time listener
           setBillData(fetchedBill.billData || null);
           setItemAssignments(fetchedBill.itemAssignments || {});
           setPeople(ensureUserInPeople(fetchedBill.people || [], user, profile));
           setSplitEvenly(fetchedBill.splitEvenly || false);
           setTitle(fetchedBill.title || '');
           setCurrentStep(fetchedBill.currentStep || 0);
-
-          if (fetchedBill.receiptImageUrl) {
-            upload.setImagePreview(fetchedBill.receiptImageUrl);
-            upload.setSelectedFile(new File([], fetchedBill.receiptFileName || 'receipt.jpg'));
-          } else {
-            upload.handleRemoveImage();
-          }
         }
       });
     }
-  }, [billId]);
+    // Intentionally NOT including activeSession?.id to avoid loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billId, resumeSession, user, profile]);
 
-  // Effect to handle resuming a session from navigation state
+  // Resume session from navigation state (runs once on mount)
+  const hasProcessedNavState = useRef(false);
+
   useEffect(() => {
+    if (hasProcessedNavState.current) return;
+
     const { resumeSessionId } = location.state || {};
     if (resumeSessionId) {
+      hasProcessedNavState.current = true;
       resumeSession(resumeSessionId);
-      // Clear location state to prevent re-triggering on refresh
       navigate('.', { replace: true, state: {} });
     }
-  }, [location, resumeSession, navigate]);
+    // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Session timeout
   useSessionTimeout({
-    onTimeout: () => {
-      // Navigate to dashboard on timeout
-      navigate('/dashboard');
-    },
+    onTimeout: () => navigate('/dashboard'),
     timeoutMinutes: 20,
   });
 
-  // Debounced auto-save for user edits with dirty checking
-  useEffect(() => {
-    // Don't auto-save during initialization
-    if (isInitializing.current) return;
-
-    const timeoutId = setTimeout(() => {
-      // Double-check we're not in a transition state
-      if (isInitializing.current) return;
-
-      // CRITICAL: Ensure we're saving to the correct bill
-      // If billId is specified but doesn't match activeSession, we're in a transition - don't save
-      if (billId && activeSession?.id && billId !== activeSession.id) {
-        console.warn('Auto-save blocked: billId mismatch during transition', { billId, activeSessionId: activeSession?.id });
-        return;
-      }
-
-      // Create a snapshot of current data for dirty checking
-      const currentData = JSON.stringify({
-        billData,
-        people,
-        itemAssignments,
-        splitEvenly,
-        currentStep,
-        title,
-        // Receipt URLs removed - handled by uploadReceiptImage/removeReceiptImage
-      });
-
-      // Only save if data has actually changed
-      if (currentData !== lastSavedData.current) {
-        const savePayload: any = {
-          billData,
-          people,
-          itemAssignments,
-          splitEvenly,
-          currentStep,
-        };
-
-        // Only include receipt fields if they exist
-        if (activeSession?.receiptImageUrl) {
-          savePayload.receiptImageUrl = activeSession.receiptImageUrl;
-        }
-        if (activeSession?.receiptFileName) {
-          savePayload.receiptFileName = activeSession.receiptFileName;
-        }
-
-        // Only include title if it's not empty
-        if (title) {
-          savePayload.title = title;
-        }
-
-        saveSession(savePayload, billId || activeSession?.id);
-
-        // Update last saved snapshot
-        lastSavedData.current = currentData;
-      }
-    }, 3000); // Debounce by 3 seconds for better scalability
-
-    return () => clearTimeout(timeoutId);
-  }, [billData, people, itemAssignments, splitEvenly, currentStep, title]);
-
-  const handleRemovePerson = (personId: string) => {
-    peopleManager.removePerson(personId);
-    bill.removePersonFromAssignments(personId);
-  };
-
-  const handleRemoveImage = async () => {
-    // If there are items, ask if user wants to clear them
-    if (billData?.items && billData.items.length > 0) {
-      setShowClearItemsDialog(true);
-      return;
-    }
-
-    // No items, proceed with removal
-    await performImageRemoval(true);
-  };
-
-  const performImageRemoval = async (clearItems: boolean) => {
-    // Clear local UI state immediately
-    upload.handleRemoveImage();
-
-    // Remove image from Firebase Storage and clear receipt fields in Firestore
-    await removeReceiptImage();
-
-    // Update Firestore with the user's choice about items
-    if (clearItems) {
-      // Clear items both locally and in Firestore
-      setBillData(null);
-      await saveSession({
-        billData: null,
-        people,
-        itemAssignments: {},
-        splitEvenly,
-        currentStep: 0,
-        title: title || undefined,
-      }, billId || activeSession?.id);
-    } else {
-      // Keep items - just update currentStep in Firestore
-      await saveSession({
-        billData,
-        people,
-        itemAssignments,
-        splitEvenly,
-        currentStep: 0,
-        title: title || undefined,
-      }, billId || activeSession?.id);
-    }
-
-    // Reset to step 0 (Upload)
-    setCurrentStep(0);
-  };
-
-  const handleDone = () => {
-    navigate('/dashboard');
-  };
-
+  // Share link handlers
   const handleGenerateShareLink = async () => {
     if (!activeSession?.id || !user) return;
 
@@ -341,7 +146,7 @@ export default function AIScanView() {
 
     setIsGeneratingShareCode(true);
     try {
-      // Force regenerate by clearing the existing code first using deleteField()
+      // Clear existing code
       await billService.updateBill(activeSession.id, {
         shareCode: deleteField() as any,
         shareCodeCreatedAt: deleteField() as any,
@@ -357,136 +162,35 @@ export default function AIScanView() {
     }
   };
 
-  const handleAnalyzeReceipt = async () => {
-    if (!upload.imagePreview || !upload.selectedFile) {
-      console.error("Cannot analyze: image preview or file is missing.");
-      return;
-    }
-
-    // Fresh upload: analyze and upload in parallel
-    const analysisPromise = analyzer.analyzeReceipt(upload.selectedFile, upload.imagePreview);
-    const uploadPromise = uploadReceiptImage(upload.selectedFile);
-
-    const [analyzedBillData, uploadResult] = await Promise.all([analysisPromise, uploadPromise]);
-    console.log({ analyzedBillData })
-
-    // Only save if analysis was successful
-    if (!analyzedBillData) {
-      console.error('Receipt analysis failed, not saving');
-      return;
-    }
-
-    // Set restaurant name as title if available and user hasn't set a custom title
-    let newTitle: string = title || '';
-    if (!title && analyzedBillData?.restaurantName) {
-      newTitle = analyzedBillData.restaurantName;
-      setTitle(newTitle);
-    }
-
-    // Build save payload - only include defined values
-    const savePayload: any = {
-      billData: analyzedBillData,
-      people,
-      itemAssignments,
-      splitEvenly,
-    };
-
-    // Only include receipt fields if upload was successful
-    if (uploadResult?.downloadURL) {
-      savePayload.receiptImageUrl = uploadResult.downloadURL;
-    }
-    if (uploadResult?.fileName) {
-      savePayload.receiptFileName = uploadResult.fileName;
-    }
-
-    // Only include title if we have one
-    const titleToSave = analyzedBillData?.restaurantName && !title ? analyzedBillData.restaurantName : title;
-    if (titleToSave) {
-      savePayload.title = titleToSave;
-    }
-
-    // Save all state including new upload info
-    await saveSession(savePayload, billId || activeSession?.id);
-
-    // Don't automatically move to next step - let user review and proceed manually
-  };
-
-  const handleImageSelected = async (fileOrBase64: File | string) => {
-    if (typeof fileOrBase64 === 'string') {
-      // From mobile camera (base64 string)
-      upload.setImagePreview(fileOrBase64);
-      // Convert base64 to file for upload
-      const response = await fetch(fileOrBase64);
-      const blob = await response.blob();
-      const file = new File([blob], 'receipt.jpg', { type: blob.type });
-      upload.setSelectedFile(file);
-    } else {
-      // From web file input (File object)
-      upload.handleFileSelect(fileOrBase64);
-    }
-  };
-
-
-
-  // Step navigation
-  const handleNextStep = () => {
-    if (currentStep < STEPS.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handlePrevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  // Validation for step progression
-  const canProceedFromStep = (step: number): boolean => {
-    switch (step) {
-      case 0: // Bill Entry step (merged Upload + Items)
-        return billData?.items?.length > 0; // Need at least one item
-      case 1: // People step
-        return people.length > 0; // Need at least one person
-      case 2: // Assign step
-        return areAllItemsAssigned(billData, itemAssignments); // All items must be assigned
-      case 3: // Review step
-        return true; // Final step
-      default:
-        return false;
-    }
-  };
-
-  // Determine which steps can be navigated to
-  const canNavigateToStep = (stepIndex: number): boolean => {
-    // Always allow navigating to current step or previous steps
-    if (stepIndex <= currentStep) {
-      return true;
-    }
-
-    // For future steps, check if all previous steps are completed
-    for (let i = 0; i < stepIndex; i++) {
-      if (!canProceedFromStep(i)) {
-        return false;
-      }
-    }
-    return true;
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return new Date().toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric'
+    });
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric'
+    });
   };
 
   if (isLoadingSessions) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+      <div className="loading-container">
+        <Loader2 className="loading-spinner" />
       </div>
     );
   }
 
-  // Format date for display
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
+  // Wait for session data to load before rendering wizard
+  // This prevents BillWizard from initializing with empty state
+  const isDataReady = !billId || loadedSessionId.current !== null;
+
+  if (!isDataReady) {
+    return (
+      <div className="loading-container">
+        <Loader2 className="loading-spinner" />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -498,550 +202,35 @@ export default function AIScanView() {
         titlePlaceholder={formatDate(activeSession?.createdAt)}
       />
 
-      {/* Stepper */}
-      <div className="mb-6 md:mb-8">
-        <Stepper
-          steps={STEPS}
-          currentStep={currentStep}
-          orientation={isMobile ? 'horizontal' : 'horizontal'}
-          onStepClick={setCurrentStep}
-          canNavigateToStep={canNavigateToStep}
-        />
-      </div>
-
-      {/* Step Content */}
-      <StepContent stepKey={currentStep}>
-        {/* Step 1: Bill Entry (Upload + Items) */}
-        {currentStep === 0 && (
-          <div>
-            {/* Mobile with analyzed receipt: Show compact receipt thumbnail inside the Bill Items card */}
-            {isMobile && (upload.imagePreview || activeSession?.receiptImageUrl) && billData?.items && billData.items.length > 0 ? (
-              <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
-                <div className="flex items-center gap-2 mb-4">
-                  <Receipt className="w-5 h-5 text-primary" />
-                  <h3 className="text-xl font-semibold flex-1">{UI_TEXT.BILL_ITEMS}</h3>
-                  <ReceiptUploader
-                    selectedFile={upload.selectedFile}
-                    imagePreview={upload.imagePreview}
-                    isDragging={upload.isDragging}
-                    isUploading={isUploading}
-                    isAnalyzing={analyzer.isAnalyzing}
-                    isMobile={isMobile}
-                    compactMode={true}
-                    onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
-                    onDragOver={upload.handleDragOver}
-                    onDragLeave={upload.handleDragLeave}
-                    onDrop={(e) => {
-                      upload.handleDrop(e);
-                      const file = e.dataTransfer.files?.[0];
-                      if (file) handleImageSelected(file);
-                    }}
-                    onRemove={handleRemoveImage}
-                    onAnalyze={handleAnalyzeReceipt}
-                    onImageSelected={handleImageSelected}
-                    fileInputRef={upload.fileInputRef}
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Add items manually or upload a receipt to extract them automatically
-                </p>
-
-                <BillItems
-                  billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
-                  people={[]}
-                  itemAssignments={{}}
-                  editingItemId={editor.editingItemId}
-                  editingItemName={editor.editingItemName}
-                  editingItemPrice={editor.editingItemPrice}
-                  onAssign={() => { }}
-                  onEdit={editor.editItem}
-                  onSave={editor.saveEdit}
-                  onCancel={editor.cancelEdit}
-                  onDelete={editor.deleteItem}
-                  setEditingName={editor.setEditingItemName}
-                  setEditingPrice={editor.setEditingItemPrice}
-                  isAdding={editor.isAdding}
-                  newItemName={editor.newItemName}
-                  newItemPrice={editor.newItemPrice}
-                  setNewItemName={editor.setNewItemName}
-                  setNewItemPrice={editor.setNewItemPrice}
-                  onStartAdding={editor.startAdding}
-                  onAddItem={editor.addItem}
-                  onCancelAdding={editor.cancelAdding}
-                  splitEvenly={false}
-                  onToggleSplitEvenly={() => { }}
-                />
-
-                <BillSummary
-                  billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
-                  onUpdate={(updates) => setBillData({ ...billData, ...updates })}
-                />
-              </Card>
-            ) : isMobile ? (
-              /* Mobile without analyzed receipt: Show uploader then Bill Items vertically */
-              <div className="space-y-6">
-                <ReceiptUploader
-                  selectedFile={upload.selectedFile}
-                  imagePreview={upload.imagePreview}
-                  isDragging={upload.isDragging}
-                  isUploading={isUploading}
-                  isAnalyzing={analyzer.isAnalyzing}
-                  isMobile={isMobile}
-                  onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
-                  onDragOver={upload.handleDragOver}
-                  onDragLeave={upload.handleDragLeave}
-                  onDrop={(e) => {
-                    upload.handleDrop(e);
-                    const file = e.dataTransfer.files?.[0];
-                    if (file) handleImageSelected(file);
-                  }}
-                  onRemove={handleRemoveImage}
-                  onAnalyze={handleAnalyzeReceipt}
-                  onImageSelected={handleImageSelected}
-                  fileInputRef={upload.fileInputRef}
-                />
-
-                <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Receipt className="w-5 h-5 text-primary" />
-                    <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Add items manually or upload a receipt to extract them automatically
-                  </p>
-
-                  <BillItems
-                    billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
-                    people={[]}
-                    itemAssignments={{}}
-                    editingItemId={editor.editingItemId}
-                    editingItemName={editor.editingItemName}
-                    editingItemPrice={editor.editingItemPrice}
-                    onAssign={() => { }}
-                    onEdit={editor.editItem}
-                    onSave={editor.saveEdit}
-                    onCancel={editor.cancelEdit}
-                    onDelete={editor.deleteItem}
-                    setEditingName={editor.setEditingItemName}
-                    setEditingPrice={editor.setEditingItemPrice}
-                    isAdding={editor.isAdding}
-                    newItemName={editor.newItemName}
-                    newItemPrice={editor.newItemPrice}
-                    setNewItemName={editor.setNewItemName}
-                    setNewItemPrice={editor.setNewItemPrice}
-                    onStartAdding={editor.startAdding}
-                    onAddItem={editor.addItem}
-                    onCancelAdding={editor.cancelAdding}
-                    splitEvenly={false}
-                    onToggleSplitEvenly={() => { }}
-                  />
-
-                  <BillSummary
-                    billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
-                    onUpdate={(updates) => setBillData({ ...billData, ...updates })}
-                  />
-                </Card>
-              </div>
-            ) : (
-              /* Desktop: Show two-column layout */
-              <TwoColumnLayout
-                imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
-                leftColumn={
-                  <Card className="p-4 md:p-6 sticky top-4">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-primary" />
-                      Receipt Upload
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Upload a photo of your receipt and let AI extract items automatically
-                    </p>
-                    <ReceiptUploader
-                      selectedFile={upload.selectedFile}
-                      imagePreview={upload.imagePreview}
-                      isDragging={upload.isDragging}
-                      isUploading={isUploading}
-                      isAnalyzing={analyzer.isAnalyzing}
-                      isMobile={isMobile}
-                      onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
-                      onDragOver={upload.handleDragOver}
-                      onDragLeave={upload.handleDragLeave}
-                      onDrop={(e) => {
-                        upload.handleDrop(e);
-                        const file = e.dataTransfer.files?.[0];
-                        if (file) handleImageSelected(file);
-                      }}
-                      onRemove={handleRemoveImage}
-                      onAnalyze={handleAnalyzeReceipt}
-                      onImageSelected={handleImageSelected}
-                      fileInputRef={upload.fileInputRef}
-                    />
-                  </Card>
-                }
-                rightColumn={
-                  <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Receipt className="w-5 h-5 text-primary" />
-                      <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Add items manually or upload a receipt to extract them automatically
-                    </p>
-
-                    <BillItems
-                      billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
-                      people={[]}
-                      itemAssignments={{}}
-                      editingItemId={editor.editingItemId}
-                      editingItemName={editor.editingItemName}
-                      editingItemPrice={editor.editingItemPrice}
-                      onAssign={() => { }}
-                      onEdit={editor.editItem}
-                      onSave={editor.saveEdit}
-                      onCancel={editor.cancelEdit}
-                      onDelete={editor.deleteItem}
-                      setEditingName={editor.setEditingItemName}
-                      setEditingPrice={editor.setEditingItemPrice}
-                      isAdding={editor.isAdding}
-                      newItemName={editor.newItemName}
-                      newItemPrice={editor.newItemPrice}
-                      setNewItemName={editor.setNewItemName}
-                      setNewItemPrice={editor.setNewItemPrice}
-                      onStartAdding={editor.startAdding}
-                      onAddItem={editor.addItem}
-                      onCancelAdding={editor.cancelAdding}
-                      splitEvenly={false}
-                      onToggleSplitEvenly={() => { }}
-                    />
-
-                    <BillSummary
-                      billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
-                      onUpdate={(updates) => setBillData({ ...billData, ...updates })}
-                    />
-                  </Card>
-                }
-              />
-            )}
-
-            <StepFooter
-              currentStep={currentStep}
-              totalSteps={STEPS.length}
-              onNext={handleNextStep}
-              nextDisabled={!canProceedFromStep(0)}
-            />
-          </div>
-        )}
-
-
-        {/* Step 2: Add People */}
-        {currentStep === 1 && (
-          <div>
-            {isMobile && (upload.imagePreview || activeSession?.receiptImageUrl) && billData?.items && billData.items.length > 0 ? (
-              <Card className="p-3 md:p-6 rounded-t-none">
-                <div className="flex items-center gap-2 mb-4">
-                  <Users className="w-4 h-4 md:w-5 md:h-5 text-primary" />
-                  <h3 className="text-lg md:text-xl font-semibold flex-1">People</h3>
-                  <ReceiptUploader
-                    selectedFile={upload.selectedFile}
-                    imagePreview={upload.imagePreview}
-                    isDragging={upload.isDragging}
-                    isUploading={isUploading}
-                    isAnalyzing={analyzer.isAnalyzing}
-                    isMobile={isMobile}
-                    compactMode={true}
-                    onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
-                    onDragOver={upload.handleDragOver}
-                    onDragLeave={upload.handleDragLeave}
-                    onDrop={(e) => {
-                      upload.handleDrop(e);
-                      const file = e.dataTransfer.files?.[0];
-                      if (file) handleImageSelected(file);
-                    }}
-                    onRemove={handleRemoveImage}
-                    onAnalyze={handleAnalyzeReceipt}
-                    onImageSelected={handleImageSelected}
-                    fileInputRef={upload.fileInputRef}
-                  />
-                </div>
-
-                <div className="[&>div]:!p-0 [&>div]:!border-0 [&>div]:!shadow-none [&>div>div:first-child]:hidden">
-                  <PeopleManager
-                    people={people}
-                    newPersonName={peopleManager.newPersonName}
-                    newPersonVenmoId={peopleManager.newPersonVenmoId}
-                    useNameAsVenmoId={peopleManager.useNameAsVenmoId}
-                    onNameChange={peopleManager.setNewPersonName}
-                    onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                    onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
-                    onAdd={peopleManager.addPerson}
-                    onAddFromFriend={peopleManager.addFromFriend}
-                    onRemove={handleRemovePerson}
-                    onSaveAsFriend={peopleManager.savePersonAsFriend}
-                    setPeople={setPeople}
-                  />
-                </div>
-              </Card>
-            ) : (
-              <TwoColumnLayout
-                imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
-                leftColumn={
-                  !isMobile && (activeSession?.receiptImageUrl || upload.imagePreview) ? (
-                    <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
-                  ) : null
-                }
-                rightColumn={
-                  <PeopleManager
-                    people={people}
-                    newPersonName={peopleManager.newPersonName}
-                    newPersonVenmoId={peopleManager.newPersonVenmoId}
-                    useNameAsVenmoId={peopleManager.useNameAsVenmoId}
-                    onNameChange={peopleManager.setNewPersonName}
-                    onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                    onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
-                    onAdd={peopleManager.addPerson}
-                    onAddFromFriend={peopleManager.addFromFriend}
-                    onRemove={handleRemovePerson}
-                    onSaveAsFriend={peopleManager.savePersonAsFriend}
-                    setPeople={setPeople}
-                  />
-                }
-              />
-            )}
-
-            <StepFooter
-              currentStep={currentStep}
-              totalSteps={STEPS.length}
-              onBack={handlePrevStep}
-              onNext={handleNextStep}
-              nextDisabled={!canProceedFromStep(1)}
-            />
-          </div>
-        )}
-
-        {/* Step 3: Assign Items */}
-        {currentStep === 2 && billData && (
-          <div>
-            {isMobile && (upload.imagePreview || activeSession?.receiptImageUrl) && billData?.items && billData.items.length > 0 ? (
-              <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
-                <div className="flex items-center gap-2 mb-4">
-                  <Receipt className="w-5 h-5 text-primary" />
-                  <h3 className="text-xl font-semibold flex-1">{UI_TEXT.BILL_ITEMS}</h3>
-                  <ReceiptUploader
-                    selectedFile={upload.selectedFile}
-                    imagePreview={upload.imagePreview}
-                    isDragging={upload.isDragging}
-                    isUploading={isUploading}
-                    isAnalyzing={analyzer.isAnalyzing}
-                    isMobile={isMobile}
-                    compactMode={true}
-                    onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
-                    onDragOver={upload.handleDragOver}
-                    onDragLeave={upload.handleDragLeave}
-                    onDrop={(e) => {
-                      upload.handleDrop(e);
-                      const file = e.dataTransfer.files?.[0];
-                      if (file) handleImageSelected(file);
-                    }}
-                    onRemove={handleRemoveImage}
-                    onAnalyze={handleAnalyzeReceipt}
-                    onImageSelected={handleImageSelected}
-                    fileInputRef={upload.fileInputRef}
-                  />
-                </div>
-
-                <BillItems
-                  billData={billData}
-                  people={people}
-                  itemAssignments={itemAssignments}
-                  editingItemId={editor.editingItemId}
-                  editingItemName={editor.editingItemName}
-                  editingItemPrice={editor.editingItemPrice}
-                  onAssign={bill.handleItemAssignment}
-                  onEdit={editor.editItem}
-                  onSave={editor.saveEdit}
-                  onCancel={editor.cancelEdit}
-                  onDelete={editor.deleteItem}
-                  setEditingName={editor.setEditingItemName}
-                  setEditingPrice={editor.setEditingItemPrice}
-                  isAdding={editor.isAdding}
-                  newItemName={editor.newItemName}
-                  newItemPrice={editor.newItemPrice}
-                  setNewItemName={editor.setNewItemName}
-                  setNewItemPrice={editor.setNewItemPrice}
-                  onStartAdding={editor.startAdding}
-                  onAddItem={editor.addItem}
-                  onCancelAdding={editor.cancelAdding}
-                  splitEvenly={splitEvenly}
-                  onToggleSplitEvenly={bill.toggleSplitEvenly}
-                />
-
-                {people.length === 0 && !isMobile && billData && (
-                  <p className="text-sm text-muted-foreground text-center py-4 mt-4">
-                    {UI_TEXT.ADD_PEOPLE_TO_ASSIGN}
-                  </p>
-                )}
-
-                <BillSummary
-                  billData={billData}
-                  onUpdate={(updates) => setBillData({ ...billData, ...updates })}
-                />
-              </Card>
-            ) : (
-              <TwoColumnLayout
-                imageUrl={activeSession?.receiptImageUrl || upload.imagePreview}
-                leftColumn={
-                  !isMobile && (activeSession?.receiptImageUrl || upload.imagePreview) ? (
-                    <ReceiptPreview imageUrl={activeSession?.receiptImageUrl || upload.imagePreview} />
-                  ) : null
-                }
-                rightColumn={
-                  <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-2 flex-1">
-                        <Receipt className="w-5 h-5 text-primary" />
-                        <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
-                      </div>
-                    </div>
-
-                    <BillItems
-                      billData={billData}
-                      people={people}
-                      itemAssignments={itemAssignments}
-                      editingItemId={editor.editingItemId}
-                      editingItemName={editor.editingItemName}
-                      editingItemPrice={editor.editingItemPrice}
-                      onAssign={bill.handleItemAssignment}
-                      onEdit={editor.editItem}
-                      onSave={editor.saveEdit}
-                      onCancel={editor.cancelEdit}
-                      onDelete={editor.deleteItem}
-                      setEditingName={editor.setEditingItemName}
-                      setEditingPrice={editor.setEditingItemPrice}
-                      isAdding={editor.isAdding}
-                      newItemName={editor.newItemName}
-                      newItemPrice={editor.newItemPrice}
-                      setNewItemName={editor.setNewItemName}
-                      setNewItemPrice={editor.setNewItemPrice}
-                      onStartAdding={editor.startAdding}
-                      onAddItem={editor.addItem}
-                      onCancelAdding={editor.cancelAdding}
-                      splitEvenly={splitEvenly}
-                      onToggleSplitEvenly={bill.toggleSplitEvenly}
-                    />
-
-                    {people.length === 0 && !isMobile && billData && (
-                      <p className="text-sm text-muted-foreground text-center py-4 mt-4">
-                        {UI_TEXT.ADD_PEOPLE_TO_ASSIGN}
-                      </p>
-                    )}
-
-                    <BillSummary
-                      billData={billData}
-                      onUpdate={(updates) => setBillData({ ...billData, ...updates })}
-                    />
-                  </Card>
-                }
-              />
-            )}
-
-            <StepFooter
-              currentStep={currentStep}
-              totalSteps={STEPS.length}
-              onBack={handlePrevStep}
-              onNext={handleNextStep}
-              nextDisabled={!canProceedFromStep(2)}
-            />
-          </div>
-        )}
-
-        {/* Step 4: Review & Share */}
-        {currentStep === 3 && billData && (
-          <div>
-            <Card className="p-4 md:p-6 max-w-3xl mx-auto rounded-t-none">
-              {isMobile && (upload.imagePreview || activeSession?.receiptImageUrl) && billData?.items && billData.items.length > 0 && (
-                <div className="flex items-center gap-2 mb-4">
-                  <h3 className="text-xl font-semibold flex-1">Split Summary</h3>
-                  <ReceiptUploader
-                    selectedFile={upload.selectedFile}
-                    imagePreview={upload.imagePreview}
-                    isDragging={upload.isDragging}
-                    isUploading={isUploading}
-                    isAnalyzing={analyzer.isAnalyzing}
-                    isMobile={isMobile}
-                    compactMode={true}
-                    onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
-                    onDragOver={upload.handleDragOver}
-                    onDragLeave={upload.handleDragLeave}
-                    onDrop={(e) => {
-                      upload.handleDrop(e);
-                      const file = e.dataTransfer.files?.[0];
-                      if (file) handleImageSelected(file);
-                    }}
-                    onRemove={handleRemoveImage}
-                    onAnalyze={handleAnalyzeReceipt}
-                    onImageSelected={handleImageSelected}
-                    fileInputRef={upload.fileInputRef}
-                  />
-                </div>
-              )}
-              <SplitSummary
-                personTotals={bill.personTotals}
-                allItemsAssigned={bill.allItemsAssigned}
-                people={people}
-                billData={billData}
-                itemAssignments={itemAssignments}
-              />
-            </Card>
-
-            <StepFooter
-              currentStep={currentStep}
-              totalSteps={STEPS.length}
-              onBack={handlePrevStep}
-              onComplete={handleDone}
-              completeLabel="Done"
-            />
-          </div>
-        )}
-      </StepContent>
+      <BillWizard
+        activeSession={activeSession}
+        billId={billId}
+        isUploading={isUploading}
+        uploadReceiptImage={uploadReceiptImage}
+        saveSession={saveSession}
+        removeReceiptImage={removeReceiptImage}
+        initialBillData={billData}
+        initialPeople={people}
+        initialItemAssignments={itemAssignments}
+        initialSplitEvenly={splitEvenly}
+        initialTitle={title}
+        initialStep={currentStep}
+        title={title}
+        onTitleChange={setTitle}
+      />
 
       {/* Share Link Dialog */}
-      {showShareLinkDialog && activeSession?.id && (
+      {activeSession && (
         <ShareLinkDialog
-          isOpen={showShareLinkDialog}
-          onClose={() => setShowShareLinkDialog(false)}
           billId={activeSession.id}
-          shareCode={activeSession.shareCode || ''}
-          expiresAt={activeSession.shareCodeExpiresAt}
+          shareCode={activeSession.shareCode}
+          shareCodeExpiresAt={activeSession.shareCodeExpiresAt}
           onRegenerate={handleRegenerateShareLink}
           isRegenerating={isGeneratingShareCode}
+          open={showShareLinkDialog}
+          onOpenChange={setShowShareLinkDialog}
         />
       )}
-
-      {/* Clear Items Confirmation Dialog */}
-      <AlertDialog open={showClearItemsDialog} onOpenChange={setShowClearItemsDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear Bill Items?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You have {billData?.items?.length || 0} item{billData?.items?.length === 1 ? '' : 's'} in your bill.
-              Do you want to clear them when removing the receipt image?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setShowClearItemsDialog(false);
-              performImageRemoval(false);
-            }}>
-              Keep Items
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
-              setShowClearItemsDialog(false);
-              performImageRemoval(true);
-            }}>
-              Clear Items
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
