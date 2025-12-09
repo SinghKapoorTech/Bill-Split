@@ -133,7 +133,7 @@ export function PeopleManager({
     // Filter out duplicates before appending (preserves logged-in user)
     const existingIds = new Set(people.map(p => p.id));
     const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p.id));
-    
+
     setPeople([...people, ...uniqueNewPeople]);
   };
 
@@ -194,26 +194,24 @@ export function PeopleManager({
               <Button
                 variant="outline"
                 size="sm"
-                className={`hover:bg-secondary shrink-0 text-xs whitespace-nowrap ${
-                  useNameAsVenmoId || showVenmoField ? 'bg-primary/10' : ''
-                }`}
+                className={`hover:bg-secondary shrink-0 text-xs whitespace-nowrap ${useNameAsVenmoId || showVenmoField ? 'bg-primary/10' : ''
+                  }`}
               >
                 {useNameAsVenmoId
                   ? 'Use name'
                   : showVenmoField
-                  ? 'Add Ve...'
-                  : 'Venmo ID'}
+                    ? 'Add Ve...'
+                    : 'Venmo ID'}
                 <ChevronDown className="ml-1 h-3 w-3" />
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-0" align="start">
               <div className="p-2 space-y-1">
                 <div
-                  className={`flex items-center space-x-3 px-3 py-2.5 rounded-md cursor-pointer transition-all ${
-                    showVenmoField && !useNameAsVenmoId
-                      ? 'bg-primary/10 hover:bg-primary/20'
-                      : 'hover:bg-secondary'
-                  }`}
+                  className={`flex items-center space-x-3 px-3 py-2.5 rounded-md cursor-pointer transition-all ${showVenmoField && !useNameAsVenmoId
+                    ? 'bg-primary/10 hover:bg-primary/20'
+                    : 'hover:bg-secondary'
+                    }`}
                   onClick={() => {
                     if (showVenmoField && !useNameAsVenmoId) {
                       // Deselect if already selected
@@ -227,11 +225,10 @@ export function PeopleManager({
                   }}
                 >
                   <div
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                      showVenmoField && !useNameAsVenmoId
-                        ? 'bg-primary border-primary'
-                        : 'border-input'
-                    }`}
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${showVenmoField && !useNameAsVenmoId
+                      ? 'bg-primary border-primary'
+                      : 'border-input'
+                      }`}
                   >
                     {showVenmoField && !useNameAsVenmoId && <Check className="w-3 h-3 text-primary-foreground" />}
                   </div>
@@ -240,11 +237,10 @@ export function PeopleManager({
                   </span>
                 </div>
                 <div
-                  className={`flex items-center space-x-3 px-3 py-2.5 rounded-md cursor-pointer transition-all ${
-                    useNameAsVenmoId
-                      ? 'bg-primary/10 hover:bg-primary/20'
-                      : 'hover:bg-secondary'
-                  }`}
+                  className={`flex items-center space-x-3 px-3 py-2.5 rounded-md cursor-pointer transition-all ${useNameAsVenmoId
+                    ? 'bg-primary/10 hover:bg-primary/20'
+                    : 'hover:bg-secondary'
+                    }`}
                   onClick={() => {
                     if (useNameAsVenmoId) {
                       // Deselect if already selected
@@ -258,11 +254,10 @@ export function PeopleManager({
                   }}
                 >
                   <div
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                      useNameAsVenmoId
-                        ? 'bg-primary border-primary'
-                        : 'border-input'
-                    }`}
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${useNameAsVenmoId
+                      ? 'bg-primary border-primary'
+                      : 'border-input'
+                      }`}
                   >
                     {useNameAsVenmoId && <Check className="w-3 h-3 text-primary-foreground" />}
                   </div>
@@ -316,13 +311,12 @@ export function PeopleManager({
           <div className="space-y-2 mb-4">
             {people.map((person) => {
               const isCurrentUser = user && person.id === generateUserId(user.uid);
-              
+
               return (
                 <div
                   key={person.id}
-                  className={`flex items-center justify-between p-2 md:p-3 rounded-lg ${
-                    isCurrentUser ? 'bg-primary/10 border border-primary/20' : 'bg-secondary/50'
-                  }`}
+                  className={`flex items-center justify-between p-2 md:p-3 ${isCurrentUser ? 'bg-primary/10 border border-primary/20' : 'bg-secondary/50'
+                    }`}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">

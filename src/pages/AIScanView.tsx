@@ -748,7 +748,7 @@ export default function AIScanView() {
         {currentStep === 1 && (
           <div>
             {isMobile && (upload.imagePreview || activeSession?.receiptImageUrl) && billData?.items && billData.items.length > 0 ? (
-              <Card className="p-3 md:p-6">
+              <Card className="p-3 md:p-6 rounded-t-none">
                 <div className="flex items-center gap-2 mb-4">
                   <Users className="w-4 h-4 md:w-5 md:h-5 text-primary" />
                   <h3 className="text-lg md:text-xl font-semibold flex-1">People</h3>
@@ -775,26 +775,7 @@ export default function AIScanView() {
                   />
                 </div>
 
-                {/* PeopleManager content without outer Card and title */}
-                <div className="space-y-3 mb-4">
-                  {/* Row 1: Name Input + Venmo Options + Add Button */}
-                  <div className="flex gap-2">
-                    <div className="flex-1 relative">
-                      <Input
-                        placeholder="Person's name"
-                        value={peopleManager.newPersonName}
-                        onChange={(e) => peopleManager.setNewPersonName(e.target.value)}
-                        className="w-full text-xs placeholder:text-xs"
-                      />
-                    </div>
-                    <Button onClick={peopleManager.addPerson} variant="success" className="shrink-0">
-                      <UserPlus className="w-4 h-4 mr-1" />
-                      Add
-                    </Button>
-                  </div>
-                </div>
-                {/* Use full PeopleManager for functionality - render inside but hide duplicate header */}
-                <div className="[&>div]:!p-0 [&>div>div:first-child]:hidden">
+                <div className="[&>div]:!p-0 [&>div]:!border-0 [&>div]:!shadow-none [&>div>div:first-child]:hidden">
                   <PeopleManager
                     people={people}
                     newPersonName={peopleManager.newPersonName}
