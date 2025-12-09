@@ -8,24 +8,37 @@ import { Timestamp } from 'firebase/firestore';
 import { getExpirationDateString } from '@/utils/billSessionAdapter';
 
 interface ShareLinkDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  open?: boolean;
+  onClose?: () => void;
+  onOpenChange?: (open: boolean) => void;
   billId: string;
   shareCode?: string;
   expiresAt?: Timestamp;
+  shareCodeExpiresAt?: Timestamp;
   onRegenerate: () => Promise<void>;
   isRegenerating?: boolean;
 }
 
 export function ShareLinkDialog({
   isOpen,
+  open,
   onClose,
+  onOpenChange,
   billId,
   shareCode = '',
   expiresAt,
+  shareCodeExpiresAt,
   onRegenerate,
   isRegenerating = false,
 }: ShareLinkDialogProps) {
+  // Support both prop name conventions
+  const dialogOpen = open ?? isOpen ?? false;
+  const handleClose = () => {
+    if (onOpenChange) onOpenChange(false);
+    if (onClose) onClose();
+  };
+  const expiration = shareCodeExpiresAt ?? expiresAt;
   const [copied, setCopied] = useState(false);
 
   const shareUrl = shareCode ? `${window.location.origin}/join/${billId}?code=${shareCode}` : '';
@@ -41,10 +54,10 @@ export function ShareLinkDialog({
     }
   };
 
-  const isExpired = expiresAt && expiresAt.toMillis() < Date.now();
+  const isExpired = expiration && expiration.toMillis() < Date.now();
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={dialogOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -102,11 +115,11 @@ export function ShareLinkDialog({
           </div>
 
           {/* Expiration Info */}
-          {expiresAt && (
+          {expiration && (
             <div className={`flex items-center gap-2 text-sm ${isExpired ? 'text-destructive' : 'text-muted-foreground'}`}>
               <Calendar className="w-4 h-4" />
               <span>
-                {isExpired ? 'Expired' : 'Expires'}: {getExpirationDateString(expiresAt)}
+                {isExpired ? 'Expired' : 'Expires'}: {getExpirationDateString(expiration)}
               </span>
             </div>
           )}
@@ -122,7 +135,7 @@ export function ShareLinkDialog({
               <RefreshCw className={`w-4 h-4 ${isRegenerating ? 'animate-spin' : ''}`} />
               Regenerate Link
             </Button>
-            <Button onClick={onClose} className="flex-1">
+            <Button onClick={handleClose} className="flex-1">
               Done
             </Button>
           </div>

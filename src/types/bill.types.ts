@@ -2,6 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 import { Person } from './person.types';
 
 export type BillType = 'private' | 'group';
+export type BillStatus = 'active' | 'archived';
 
 export interface BillItem {
   id: string;
@@ -29,17 +30,18 @@ export interface BillMember {
 export interface Bill {
   id: string;
   billType: BillType;
+  status: BillStatus;
   ownerId: string;
   groupId?: string; // If billType === 'group'
-  
+
   billData: BillData;
-  
+
   // Who's paying for what: {itemId: [personIds]}
   itemAssignments: Record<string, string[]>;
-  
+
   // Participants
   people: Person[];
-  
+
   // User inputs
   splitEvenly: boolean;
 
@@ -52,16 +54,16 @@ export interface Bill {
   // Receipt Image
   receiptImageUrl?: string;
   receiptFileName?: string;
-  
+
   // Share Link
   shareCode?: string;
   shareCodeCreatedAt?: Timestamp;
   shareCodeExpiresAt?: Timestamp;
   shareCodeCreatedBy?: string;
-  
+
   // History
   members: BillMember[];
-  
+
   // Metadata
   createdAt: Timestamp;
   updatedAt: Timestamp;
