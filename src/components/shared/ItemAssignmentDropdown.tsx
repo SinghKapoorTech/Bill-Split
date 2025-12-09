@@ -2,6 +2,8 @@ import { Check, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Person, BillItem, ItemAssignment } from '@/types';
+import { useMemo } from 'react';
+import { getAbbreviatedNames } from '@/utils/nameAbbreviation';
 
 interface Props {
   item: BillItem;
@@ -12,6 +14,8 @@ interface Props {
 }
 
 export function ItemAssignmentDropdown({ item, people, itemAssignments, onAssign, showSplit = false }: Props) {
+  const displayNames = useMemo(() => getAbbreviatedNames(people), [people]);
+
   return (
     <div className="space-y-2">
       <Popover>
@@ -30,24 +34,22 @@ export function ItemAssignmentDropdown({ item, people, itemAssignments, onAssign
               return (
                 <div
                   key={person.id}
-                  className={`flex items-center space-x-3 px-3 py-2.5 rounded-md cursor-pointer transition-all ${
-                    isAssigned
+                  className={`flex items-center space-x-3 px-3 py-2.5 rounded-md cursor-pointer transition-all ${isAssigned
                       ? 'bg-primary/10 hover:bg-primary/20'
                       : 'hover:bg-secondary'
-                  }`}
+                    }`}
                   onClick={() => onAssign(item.id, person.id, !isAssigned)}
                 >
                   <div
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                      isAssigned
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isAssigned
                         ? 'bg-primary border-primary'
                         : 'border-input'
-                    }`}
+                      }`}
                   >
                     {isAssigned && <Check className="w-3 h-3 text-primary-foreground" />}
                   </div>
                   <span className="text-sm font-medium flex-1">
-                    {person.name}
+                    {displayNames[person.id] || person.name}
                   </span>
                 </div>
               );
@@ -61,7 +63,7 @@ export function ItemAssignmentDropdown({ item, people, itemAssignments, onAssign
             const splitAmount = item.price / (itemAssignments[item.id] || []).length;
             return (
               <p key={person.id}>
-                {person.name}: ${splitAmount.toFixed(2)}
+                {displayNames[person.id] || person.name}: ${splitAmount.toFixed(2)}
               </p>
             );
           })}

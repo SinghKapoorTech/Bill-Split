@@ -42,7 +42,7 @@
   }
 
   .section-title-responsive {
-    @apply text-lg md:text-xl font-semibold flex-1;
+    @apply text-base md:text-xl font-medium md:font-semibold flex-1;
   }
 
   /* ==============================================

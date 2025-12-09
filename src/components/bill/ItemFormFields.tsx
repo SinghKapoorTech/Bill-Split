@@ -95,51 +95,55 @@ export function ItemFormFields({
     );
   }
 
-  // Card layout - renders as stacked form
+  // Card layout - renders as compact inline form on mobile
   return (
-    <div className="space-y-2 md:space-y-3">
-      <div>
-        <label className="text-sm font-medium text-muted-foreground mb-1 block">
-          {FORM_LABELS.ITEM_NAME}
-        </label>
-        <Input
-          placeholder={FORM_LABELS.ENTER_ITEM_NAME}
-          value={itemName}
-          onChange={(e) => onNameChange(e.target.value)}
-          onKeyPress={(e) => handleKeyPress(e, !!canSubmit)}
-          className="text-base md:text-sm"
-          autoFocus={mode === 'add'}
-        />
-      </div>
-      <div>
-        <label className="text-sm font-medium text-muted-foreground mb-1 block">
-          {FORM_LABELS.PRICE}
-        </label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-            $
-          </span>
+    <div className="space-y-2">
+      {/* Inline fields on mobile, stacked on desktop */}
+      <div className="flex gap-2 md:flex-col md:gap-3">
+        <div className="flex-1">
+          <label className="hidden md:block text-sm font-medium text-muted-foreground mb-1">
+            {FORM_LABELS.ITEM_NAME}
+          </label>
           <Input
-            type="number"
-            inputMode="decimal"
-            placeholder={FORM_LABELS.PRICE_PLACEHOLDER}
-            value={itemPrice}
-            onChange={(e) => onPriceChange(e.target.value)}
+            placeholder={mode === 'edit' ? 'Item name' : FORM_LABELS.ENTER_ITEM_NAME}
+            value={itemName}
+            onChange={(e) => onNameChange(e.target.value)}
             onKeyPress={(e) => handleKeyPress(e, !!canSubmit)}
-            className="text-base md:text-sm text-right pl-8"
-            step="0.01"
-            min="0"
+            className="text-sm h-9"
+            autoFocus={mode === 'add'}
           />
         </div>
+        <div className="w-24 md:w-full">
+          <label className="hidden md:block text-sm font-medium text-muted-foreground mb-1">
+            {FORM_LABELS.PRICE}
+          </label>
+          <div className="relative">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+              $
+            </span>
+            <Input
+              type="number"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={itemPrice}
+              onChange={(e) => onPriceChange(e.target.value)}
+              onKeyPress={(e) => handleKeyPress(e, !!canSubmit)}
+              className="text-sm h-9 text-right pl-6"
+              step="0.01"
+              min="0"
+            />
+          </div>
+        </div>
       </div>
-      <div className="flex gap-2">
-        <Button variant="success" className="flex-1" onClick={onSave}>
-          <Check className="w-4 h-4 mr-2" />
-          {mode === 'add' ? UI_TEXT.ADD_ITEM : UI_TEXT.SAVE}
+      {/* Compact action buttons */}
+      <div className="flex gap-1.5">
+        <Button variant="success" size="sm" className="flex-1 h-8" onClick={onSave}>
+          <Check className="w-3.5 h-3.5 mr-1" />
+          {mode === 'add' ? 'Add' : 'Save'}
         </Button>
-        <Button variant="outline" className="flex-1" onClick={onCancel}>
-          <X className="w-4 h-4 mr-2" />
-          {UI_TEXT.CANCEL}
+        <Button variant="outline" size="sm" className="flex-1 h-8" onClick={onCancel}>
+          <X className="w-3.5 h-3.5 mr-1" />
+          Cancel
         </Button>
       </div>
     </div>

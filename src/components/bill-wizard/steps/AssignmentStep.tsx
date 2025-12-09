@@ -7,18 +7,21 @@ import { StepFooter } from '@/components/shared/StepFooter';
 import { StepHeader } from '@/components/shared/StepHeader';
 import { Person, BillData, ItemAssignment } from '@/types';
 import { UI_TEXT } from '@/utils/uiConstants';
+import { useItemEditor } from '@/hooks/useItemEditor';
 
 interface AssignmentStepProps {
     // Data
     billData: BillData | null;
+    setBillData: (data: BillData | null) => void;
     people: Person[];
     itemAssignments: ItemAssignment;
     splitEvenly: boolean;
 
     // Event handlers
     onAssign: (itemId: string, personId: string, checked: boolean) => void;
-    onToggleSplitEvenly: (itemId: string) => void;
+    onToggleSplitEvenly: () => void;
     removePersonFromAssignments: (personId: string) => void;
+    removeItemAssignments: (itemId: string) => void;
 
     // Receipt state (for mobile thumbnail)
     imagePreview: string | null;
@@ -49,6 +52,7 @@ interface AssignmentStepProps {
  */
 export function AssignmentStep({
     billData,
+    setBillData,
     people,
     itemAssignments,
     splitEvenly,
@@ -68,8 +72,12 @@ export function AssignmentStep({
     currentStep,
     totalSteps,
     isMobile,
-    upload
+    upload,
+    removeItemAssignments
 }: AssignmentStepProps) {
+    // Use the item editor hook for edit/delete functionality
+    const editor = useItemEditor(billData, setBillData, removeItemAssignments);
+
     const hasReceipt = imagePreview || receiptImageUrl;
     const hasItems = billData?.items && billData.items.length > 0;
 
@@ -78,24 +86,24 @@ export function AssignmentStep({
             billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
             people={people}
             itemAssignments={itemAssignments}
-            editingItemId={null}
-            editingItemName=""
-            editingItemPrice=""
+            editingItemId={editor.editingItemId}
+            editingItemName={editor.editingItemName}
+            editingItemPrice={editor.editingItemPrice}
             onAssign={onAssign}
-            onEdit={() => { }}
-            onSave={() => { }}
-            onCancel={() => { }}
-            onDelete={() => { }}
-            setEditingName={() => { }}
-            setEditingPrice={() => { }}
-            isAdding={false}
-            newItemName=""
-            newItemPrice=""
-            setNewItemName={() => { }}
-            setNewItemPrice={() => { }}
-            onStartAdding={() => { }}
-            onAddItem={() => { }}
-            onCancelAdding={() => { }}
+            onEdit={editor.editItem}
+            onSave={editor.saveEdit}
+            onCancel={editor.cancelEdit}
+            onDelete={editor.deleteItem}
+            setEditingName={editor.setEditingItemName}
+            setEditingPrice={editor.setEditingItemPrice}
+            isAdding={editor.isAdding}
+            newItemName={editor.newItemName}
+            newItemPrice={editor.newItemPrice}
+            setNewItemName={editor.setNewItemName}
+            setNewItemPrice={editor.setNewItemPrice}
+            onStartAdding={editor.startAdding}
+            onAddItem={editor.addItem}
+            onCancelAdding={editor.cancelAdding}
             splitEvenly={splitEvenly}
             onToggleSplitEvenly={onToggleSplitEvenly}
         />

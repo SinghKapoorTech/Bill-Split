@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { DollarSign } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { VenmoChargeDialog } from '@/components/venmo/VenmoChargeDialog';
 import { ProfileSettings } from '@/components/profile/ProfileSettings';
 import { useToast } from '@/hooks/use-toast';
 import { UI_TEXT, ERROR_MESSAGES } from '@/utils/uiConstants';
+import { getAbbreviatedNames } from '@/utils/nameAbbreviation';
 
 interface Props {
   personTotals: PersonTotal[];
@@ -26,6 +27,10 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
   const [chargeDialogOpen, setChargeDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [currentCharge, setCurrentCharge] = useState<VenmoCharge | null>(null);
+
+  // Get abbreviated display names
+  const displayNames = useMemo(() => getAbbreviatedNames(people), [people]);
+
   const generateItemDescription = (personId: string): string => {
     const assignedItems: string[] = [];
 
@@ -117,7 +122,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
               key={pt.personId}
               className="p-3 md:p-4 bg-secondary/30 rounded-lg border border-primary/10"
             >
-              <div className="font-semibold text-base md:text-lg mb-2 md:mb-3">{pt.name}</div>
+              <div className="font-semibold text-base md:text-lg mb-2 md:mb-3">{displayNames[pt.personId] || pt.name}</div>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Items:</span>
@@ -147,7 +152,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                     onClick={() => handleChargeOnVenmo(pt, person?.venmoId)}
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z"/>
+                      <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z" />
                     </svg>
                     {UI_TEXT.CHARGE_ON_VENMO}
                   </Button>

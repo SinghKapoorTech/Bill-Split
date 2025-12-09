@@ -34,7 +34,7 @@ export function BillItems(props: Props) {
 
   if (isMobile) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2 md:space-y-3">
         <BillItemCard
           billData={props.billData}
           people={props.people}

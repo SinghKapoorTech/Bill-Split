@@ -304,12 +304,14 @@ export function BillWizard({
                 {wizard.currentStep === 2 && (
                     <AssignmentStep
                         billData={billData}
+                        setBillData={setBillData}
                         people={people}
                         itemAssignments={itemAssignments}
                         splitEvenly={splitEvenly}
                         onAssign={bill.handleItemAssignment}
                         onToggleSplitEvenly={bill.toggleSplitEvenly}
                         removePersonFromAssignments={bill.removePersonFromAssignments}
+                        removeItemAssignments={bill.removeItemAssignments}
                         imagePreview={upload.imagePreview}
                         selectedFile={upload.selectedFile}
                         isUploading={isUploading}
