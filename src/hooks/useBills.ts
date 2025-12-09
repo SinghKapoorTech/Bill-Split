@@ -51,7 +51,7 @@ export function useBills() {
 
     setIsLoading(true);
     const billsRef = collection(db, 'bills');
-    
+
     // Query for all private bills, ordered by updatedAt
     const q = query(
       billsRef,
@@ -63,11 +63,11 @@ export function useBills() {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const bills = snapshot.docs.map(doc => ({ 
-          id: doc.id, 
-          ...doc.data() 
+        const bills = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
         } as Bill));
-        
+
         if (bills.length > 0) {
           setActiveSession(bills[0]);
           setSavedSessions(bills.slice(1));
@@ -79,10 +79,10 @@ export function useBills() {
       },
       (error) => {
         console.error('Error loading sessions:', error);
-        toast({ 
-          title: 'Error', 
-          description: 'Could not load your sessions.', 
-          variant: 'destructive' 
+        toast({
+          title: 'Error',
+          description: 'Could not load your sessions.',
+          variant: 'destructive'
         });
         setIsLoading(false);
       }
@@ -130,17 +130,17 @@ export function useBills() {
         if (cleanedData.receiptFileName !== undefined) additionalUpdates.receiptFileName = cleanedData.receiptFileName;
         if (cleanedData.currentStep !== undefined) additionalUpdates.currentStep = cleanedData.currentStep;
         if (cleanedData.title !== undefined) additionalUpdates.title = cleanedData.title;
-        
+
         if (Object.keys(additionalUpdates).length > 0) {
           await billService.updateBill(newBillId, additionalUpdates);
         }
       }
     } catch (error) {
       console.error('Error saving session:', error);
-      toast({ 
-        title: 'Error', 
-        description: 'Could not save session.', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Could not save session.',
+        variant: 'destructive'
       });
     }
   }, [user, toast]);
@@ -173,10 +173,10 @@ export function useBills() {
       return { downloadURL, fileName };
     } catch (error) {
       console.error('Error uploading image:', error);
-      toast({ 
-        title: 'Upload Failed', 
-        description: 'Could not upload receipt.', 
-        variant: 'destructive' 
+      toast({
+        title: 'Upload Failed',
+        description: 'Could not upload receipt.',
+        variant: 'destructive'
       });
       return null;
     } finally {
@@ -213,10 +213,10 @@ export function useBills() {
       });
     } catch (error) {
       console.error('Error removing receipt image:', error);
-      toast({ 
-        title: 'Error', 
-        description: 'Could not remove receipt image.', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Could not remove receipt image.',
+        variant: 'destructive'
       });
     }
   }, [activeSession, getStorageRef, toast]);
@@ -253,10 +253,10 @@ export function useBills() {
       }
     } catch (error) {
       console.error('Error clearing session:', error);
-      toast({ 
-        title: 'Error', 
-        description: 'Could not clear session.', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Could not clear session.',
+        variant: 'destructive'
       });
     }
   }, [activeSession, getStorageRef, toast]);
@@ -283,39 +283,42 @@ export function useBills() {
       toast({ title: 'Success', description: 'Session deleted.' });
     } catch (error) {
       console.error('Error deleting session:', error);
-      toast({ 
-        title: 'Error', 
-        description: 'Could not delete session.', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Could not delete session.',
+        variant: 'destructive'
       });
     } finally {
       setIsDeleting(false);
     }
   }, [getStorageRef, toast]);
 
-  const resumeSession = useCallback(async (sessionId: string) => {
+  const resumeSession = useCallback(async (sessionId: string, silentLoad = false) => {
     setIsResuming(true);
     try {
       // Fetch the bill from Firestore
       const bill = await billService.getBill(sessionId);
-      
+
       if (!bill) {
         throw new Error('Bill not found');
       }
-      
+
       // Touch the bill to update its updatedAt timestamp, moving it to the top
-      await billService.updateBill(sessionId, { 
+      await billService.updateBill(sessionId, {
         updatedAt: Timestamp.now()
       });
 
-      toast({ title: 'Success', description: 'Session resumed.' });
+      // Only show toast if this is an explicit resume action (not a silent URL load)
+      if (!silentLoad) {
+        toast({ title: 'Success', description: 'Session resumed.' });
+      }
       return bill;
     } catch (error) {
       console.error('Error resuming session:', error);
-      toast({ 
-        title: 'Error', 
-        description: 'Could not resume session.', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Could not resume session.',
+        variant: 'destructive'
       });
       return null;
     } finally {

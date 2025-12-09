@@ -118,7 +118,7 @@ export function ReceiptUploader({
           : imagePreview
             ? 'border-primary/40'
             : 'border-primary/20 hover:border-primary/40'
-        } ${isMobile && !imagePreview ? 'min-h-[60vh] flex items-center justify-center' : ''
+        } ${isMobile && !imagePreview ? 'min-h-[50vh] flex items-center justify-center' : ''
         }`}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}

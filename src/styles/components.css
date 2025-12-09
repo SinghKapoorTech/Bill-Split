@@ -170,4 +170,28 @@
   .mobile-full-height-uploader {
     @apply min-h-[60vh] flex items-center justify-center;
   }
+
+  /* ==============================================
+     TAB SELECTOR
+     Modern mobile tab navigation
+     ============================================== */
+
+  .tab-base {
+    @apply flex items-center justify-center gap-2 px-4 py-2.5 rounded-md transition-all duration-300 ease-out cursor-pointer whitespace-nowrap;
+  }
+
+  .tab-active {
+    @apply bg-gradient-to-r from-primary to-primary-glow text-primary-foreground shadow-md;
+  }
+
+  .tab-inactive {
+    @apply bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50;
+  }
+
+  /* Mobile tab optimizations - larger touch targets */
+  @media (max-width: 768px) {
+    .tab-base {
+      @apply px-6 py-3 text-sm;
+    }
+  }
 }

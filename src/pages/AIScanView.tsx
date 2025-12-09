@@ -88,7 +88,8 @@ export default function AIScanView() {
     if (billId && billId !== hasLoadedBillId.current) {
       console.log('Loading bill from URL param:', billId);
       hasLoadedBillId.current = billId;
-      resumeSession(billId).then((fetchedBill) => {
+      // Pass silentLoad=true to prevent toast when loading from URL
+      resumeSession(billId, true).then((fetchedBill) => {
         console.log('✅ Fetched bill:', billId, 'billData:', fetchedBill?.billData, 'people:', fetchedBill?.people?.length);
         if (fetchedBill) {
           setBillData(fetchedBill.billData || null);
