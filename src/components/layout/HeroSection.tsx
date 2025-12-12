@@ -36,7 +36,8 @@ export function HeroSection({ hasBillData, onShare, title, onTitleChange, titleP
         </h2>
       )}
 
-      <div className="flex gap-2 justify-center mt-2 flex-wrap">
+      {/* Desktop only: Show share button */}
+      <div className="hidden md:flex gap-2 justify-center mt-2 flex-wrap">
         {hasBillData && onShare && (
           <Button variant="info" size="sm" onClick={onShare}>
             <Share2 className="w-4 h-4 mr-2" />

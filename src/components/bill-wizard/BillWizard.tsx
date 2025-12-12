@@ -5,6 +5,7 @@ import { BillEntryStep } from './steps/BillEntryStep';
 import { PeopleStep } from './steps/PeopleStep';
 import { AssignmentStep } from './steps/AssignmentStep';
 import { ReviewStep } from './steps/ReviewStep';
+import { WizardNavigation } from './WizardNavigation';
 import { useBillWizard } from './hooks/useBillWizard';
 import { useBillSession } from './hooks/useBillSession';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
@@ -53,6 +54,10 @@ interface BillWizardProps {
     // Controlled title (so parent can track updates)
     title: string;
     onTitleChange: (title: string) => void;
+
+    // Share functionality (for mobile navigation)
+    hasBillData: boolean;
+    onShare?: () => void;
 }
 
 /**
@@ -74,7 +79,9 @@ export function BillWizard({
     initialTitle,
     initialStep = 0,
     title,
-    onTitleChange
+    onTitleChange,
+    hasBillData,
+    onShare
 }: BillWizardProps) {
     const navigate = useNavigate();
     const isMobile = useIsMobile();
@@ -244,6 +251,21 @@ export function BillWizard({
                     canNavigateToStep={wizard.canNavigateToStep}
                 />
             </div>
+
+            {/* Mobile Navigation (below stepper) */}
+            {isMobile && (
+                <WizardNavigation
+                    currentStep={wizard.currentStep}
+                    totalSteps={STEPS.length}
+                    onBack={wizard.handlePrevStep}
+                    onNext={wizard.handleNextStep}
+                    onComplete={handleDone}
+                    nextDisabled={!wizard.canProceedFromStep(wizard.currentStep)}
+                    hasBillData={hasBillData}
+                    onShare={onShare}
+                    isMobile={isMobile}
+                />
+            )}
 
             {/* Step Content */}
             <StepContent stepKey={wizard.currentStep}>

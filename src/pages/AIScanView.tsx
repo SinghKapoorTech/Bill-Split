@@ -214,6 +214,8 @@ export default function AIScanView() {
         initialStep={currentStep}
         title={title}
         onTitleChange={setTitle}
+        hasBillData={!!billData}
+        onShare={handleGenerateShareLink}
       />
 
       {/* Share Link Dialog */}

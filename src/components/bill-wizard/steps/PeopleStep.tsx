@@ -125,13 +125,16 @@ export function PeopleStep({
                     </div>
                 </Card>
 
-                <StepFooter
-                    currentStep={currentStep}
-                    totalSteps={totalSteps}
-                    onBack={onPrev}
-                    onNext={onNext}
-                    nextDisabled={!canProceed}
-                />
+                {/* Desktop only: StepFooter */}
+                <div className="hidden md:block">
+                    <StepFooter
+                        currentStep={currentStep}
+                        totalSteps={totalSteps}
+                        onBack={onPrev}
+                        onNext={onNext}
+                        nextDisabled={!canProceed}
+                    />
+                </div>
             </div>
         );
     }
@@ -164,13 +167,16 @@ export function PeopleStep({
                 }
             />
 
-            <StepFooter
-                currentStep={currentStep}
-                totalSteps={totalSteps}
-                onBack={onPrev}
-                onNext={onNext}
-                nextDisabled={!canProceed}
-            />
+            {/* Desktop only: StepFooter */}
+            <div className="hidden md:block">
+                <StepFooter
+                    currentStep={currentStep}
+                    totalSteps={totalSteps}
+                    onBack={onPrev}
+                    onNext={onNext}
+                    nextDisabled={!canProceed}
+                />
+            </div>
         </div>
     );
 }

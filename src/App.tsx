@@ -27,7 +27,9 @@ function DeepLinkHandler() {
 
   useEffect(() => {
     // Listen for deep links
-    const listener = CapApp.addListener('appUrlOpen', (event) => {
+    let listenerHandle: any = null;
+
+    CapApp.addListener('appUrlOpen', (event) => {
       const url = event.url;
 
       // Parse the URL to extract the path
@@ -39,10 +41,14 @@ function DeepLinkHandler() {
       } catch (error) {
         console.error('Error parsing deep link URL:', error);
       }
+    }).then(handle => {
+      listenerHandle = handle;
     });
 
     return () => {
-      listener.then(l => l.remove());
+      if (listenerHandle) {
+        listenerHandle.remove();
+      }
     };
   }, [navigate]);
 

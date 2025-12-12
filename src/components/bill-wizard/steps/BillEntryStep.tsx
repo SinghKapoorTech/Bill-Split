@@ -182,12 +182,15 @@ export function BillEntryStep({
                     )}
                 </div>
 
-                <StepFooter
-                    currentStep={currentStep}
-                    totalSteps={totalSteps}
-                    onNext={onNext}
-                    nextDisabled={!canProceed}
-                />
+                {/* Desktop only: StepFooter */}
+                <div className="hidden md:block">
+                    <StepFooter
+                        currentStep={currentStep}
+                        totalSteps={totalSteps}
+                        onNext={onNext}
+                        nextDisabled={!canProceed}
+                    />
+                </div>
             </div>
         );
     }
@@ -248,12 +251,15 @@ export function BillEntryStep({
                 }
             />
 
-            <StepFooter
-                currentStep={currentStep}
-                totalSteps={totalSteps}
-                onNext={onNext}
-                nextDisabled={!canProceed}
-            />
+            {/* Desktop only: StepFooter */}
+            <div className="hidden md:block">
+                <StepFooter
+                    currentStep={currentStep}
+                    totalSteps={totalSteps}
+                    onNext={onNext}
+                    nextDisabled={!canProceed}
+                />
+            </div>
         </div>
     );
 }

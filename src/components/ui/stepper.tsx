@@ -98,11 +98,11 @@ export function Stepper({
                   )}
                 </div>
 
-                {/* Step Label - Desktop */}
+                {/* Step Label - Mobile & Desktop */}
                 {isHorizontal && (
-                  <div 
+                  <div
                     className={cn(
-                      "hidden md:flex flex-col items-center mt-2 min-w-[100px]",
+                      "flex flex-col items-center mt-2 min-w-[60px] md:min-w-[100px]",
                       isClickable && 'cursor-pointer',
                       !canNavigate && 'opacity-50 cursor-not-allowed'
                     )}
@@ -110,7 +110,7 @@ export function Stepper({
                   >
                     <span
                       className={cn(
-                        'text-sm font-medium text-center',
+                        'text-xs md:text-sm font-medium text-center',
                         isCurrent && 'text-primary',
                         !isCurrent && 'text-muted-foreground'
                       )}
@@ -118,7 +118,7 @@ export function Stepper({
                       {step.label}
                     </span>
                     {step.description && (
-                      <span className="text-xs text-muted-foreground text-center mt-1">
+                      <span className="hidden md:block text-xs text-muted-foreground text-center mt-1">
                         {step.description}
                       </span>
                     )}

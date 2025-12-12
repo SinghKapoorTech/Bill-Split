@@ -43,8 +43,11 @@ export function useSessionTimeout({ onTimeout, timeoutMinutes }: UseSessionTimeo
     };
 
     // Register listeners
+    let listenerHandle: any = null;
     if (Capacitor.isNativePlatform()) {
-      App.addListener('appStateChange', handleAppStateChange);
+      App.addListener('appStateChange', handleAppStateChange).then(handle => {
+        listenerHandle = handle;
+      });
     } else {
       document.addEventListener('visibilitychange', handleVisibilityChange);
     }
@@ -54,8 +57,8 @@ export function useSessionTimeout({ onTimeout, timeoutMinutes }: UseSessionTimeo
 
     // Cleanup
     return () => {
-      if (Capacitor.isNativePlatform()) {
-        App.removeAllListeners();
+      if (Capacitor.isNativePlatform() && listenerHandle) {
+        listenerHandle.remove();
       } else {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
       }

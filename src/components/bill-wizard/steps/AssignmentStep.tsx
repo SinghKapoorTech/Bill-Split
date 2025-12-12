@@ -140,13 +140,16 @@ export function AssignmentStep({
                     {billItemsContent}
                 </Card>
 
-                <StepFooter
-                    currentStep={currentStep}
-                    totalSteps={totalSteps}
-                    onBack={onPrev}
-                    onNext={onNext}
-                    nextDisabled={!canProceed}
-                />
+                {/* Desktop only: StepFooter */}
+                <div className="hidden md:block">
+                    <StepFooter
+                        currentStep={currentStep}
+                        totalSteps={totalSteps}
+                        onBack={onPrev}
+                        onNext={onNext}
+                        nextDisabled={!canProceed}
+                    />
+                </div>
             </div>
         );
     }
@@ -179,13 +182,16 @@ export function AssignmentStep({
                 }
             />
 
-            <StepFooter
-                currentStep={currentStep}
-                totalSteps={totalSteps}
-                onBack={onPrev}
-                onNext={onNext}
-                nextDisabled={!canProceed}
-            />
+            {/* Desktop only: StepFooter */}
+            <div className="hidden md:block">
+                <StepFooter
+                    currentStep={currentStep}
+                    totalSteps={totalSteps}
+                    onBack={onPrev}
+                    onNext={onNext}
+                    nextDisabled={!canProceed}
+                />
+            </div>
         </div>
     );
 }

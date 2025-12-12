@@ -95,13 +95,16 @@ export function ReviewStep({
                 />
             </Card>
 
-            <StepFooter
-                currentStep={currentStep}
-                totalSteps={totalSteps}
-                onBack={onPrev}
-                onComplete={onComplete}
-                completeLabel="Done"
-            />
+            {/* Desktop only: StepFooter */}
+            <div className="hidden md:block">
+                <StepFooter
+                    currentStep={currentStep}
+                    totalSteps={totalSteps}
+                    onBack={onPrev}
+                    onComplete={onComplete}
+                    completeLabel="Done"
+                />
+            </div>
         </div>
     );
 }
