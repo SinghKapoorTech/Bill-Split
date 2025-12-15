@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card';
-import { Receipt } from 'lucide-react';
+import { Receipt, Loader2 } from 'lucide-react';
 import { BillItems } from '@/components/bill/BillItems';
 import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
 import { TwoColumnLayout, ReceiptPreview } from '@/components/shared/TwoColumnLayout';
@@ -28,6 +28,7 @@ interface AssignmentStepProps {
     selectedFile: File | null;
     isUploading: boolean;
     isAnalyzing: boolean;
+    isAIProcessing?: boolean;
     receiptImageUrl?: string;
     onImageSelected?: (fileOrBase64: File | string) => void;
     onAnalyze?: () => void;
@@ -62,6 +63,7 @@ export function AssignmentStep({
     selectedFile,
     isUploading,
     isAnalyzing,
+    isAIProcessing,
     receiptImageUrl,
     onImageSelected,
     onAnalyze,
@@ -77,6 +79,23 @@ export function AssignmentStep({
 }: AssignmentStepProps) {
     // Use the item editor hook for edit/delete functionality
     const editor = useItemEditor(billData, setBillData, removeItemAssignments);
+
+    // Show loading overlay if AI is still processing
+    if (isAIProcessing) {
+        return (
+            <div className="relative min-h-[500px] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <p className="text-lg text-muted-foreground">
+                        Extracting items from receipt...
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                        This usually takes a few seconds
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     const hasReceipt = imagePreview || receiptImageUrl;
     const hasItems = billData?.items && billData.items.length > 0;

@@ -92,6 +92,7 @@ export function BillWizard({
     const [itemAssignments, setItemAssignments] = useState<ItemAssignment>(initialItemAssignments);
     const [splitEvenly, setSplitEvenly] = useState<boolean>(initialSplitEvenly);
     const [showClearItemsDialog, setShowClearItemsDialog] = useState(false);
+    const [isAIProcessing, setIsAIProcessing] = useState(false);
 
     // Hooks
     const upload = useFileUpload();
@@ -184,43 +185,66 @@ export function BillWizard({
             return;
         }
 
+        setIsAIProcessing(true);
+
+        // Start both operations in parallel
         const analysisPromise = analyzer.analyzeReceipt(upload.selectedFile, upload.imagePreview);
         const uploadPromise = uploadReceiptImage(upload.selectedFile);
 
-        const [analyzedBillData, uploadResult] = await Promise.all([analysisPromise, uploadPromise]);
+        // Show loading screen for 1-2 seconds (randomized)
+        const delay = 1000 + Math.random() * 1000; // Random between 1000-2000ms
+        await new Promise(resolve => setTimeout(resolve, delay));
 
-        if (!analyzedBillData) {
-            console.error('Receipt analysis failed, not saving');
-            return;
+        // Navigate to People step (step 1)
+        wizard.setCurrentStep(1);
+
+        // Continue processing in background
+        try {
+            const [analyzedBillData, uploadResult] = await Promise.all([analysisPromise, uploadPromise]);
+
+            if (!analyzedBillData) {
+                throw new Error('Receipt analysis failed');
+            }
+
+            // Update title from restaurant name if no title exists
+            let newTitle: string = title || '';
+            if (!title && analyzedBillData?.restaurantName) {
+                newTitle = analyzedBillData.restaurantName;
+                onTitleChange(newTitle);
+            }
+
+            const savePayload: any = {
+                billData: analyzedBillData,
+                people,
+                itemAssignments,
+                splitEvenly,
+            };
+
+            if (uploadResult?.downloadURL) {
+                savePayload.receiptImageUrl = uploadResult.downloadURL;
+            }
+            if (uploadResult?.fileName) {
+                savePayload.receiptFileName = uploadResult.fileName;
+            }
+
+            const titleToSave = analyzedBillData?.restaurantName && !title
+                ? analyzedBillData.restaurantName
+                : title;
+            if (titleToSave) {
+                savePayload.title = titleToSave;
+            }
+
+            await saveSession(savePayload, billId || activeSession?.id);
+
+        } catch (error) {
+            console.error('Receipt analysis failed:', error);
+
+            // Navigate back to upload step
+            wizard.setCurrentStep(0);
+
+        } finally {
+            setIsAIProcessing(false);
         }
-
-        // Update title from restaurant name if no title exists
-        let newTitle: string = title || '';
-        if (!title && analyzedBillData?.restaurantName) {
-            newTitle = analyzedBillData.restaurantName;
-            onTitleChange(newTitle); // Notify parent of title change
-        }
-
-        const savePayload: any = {
-            billData: analyzedBillData,
-            people,
-            itemAssignments,
-            splitEvenly,
-        };
-
-        if (uploadResult?.downloadURL) {
-            savePayload.receiptImageUrl = uploadResult.downloadURL;
-        }
-        if (uploadResult?.fileName) {
-            savePayload.receiptFileName = uploadResult.fileName;
-        }
-
-        const titleToSave = analyzedBillData?.restaurantName && !title ? analyzedBillData.restaurantName : title;
-        if (titleToSave) {
-            savePayload.title = titleToSave;
-        }
-
-        await saveSession(savePayload, billId || activeSession?.id);
     };
 
     const handleImageSelected = async (fileOrBase64: File | string) => {
@@ -338,6 +362,7 @@ export function BillWizard({
                         selectedFile={upload.selectedFile}
                         isUploading={isUploading}
                         isAnalyzing={analyzer.isAnalyzing}
+                        isAIProcessing={isAIProcessing}
                         receiptImageUrl={activeSession?.receiptImageUrl}
                         onImageSelected={handleImageSelected}
                         onAnalyze={handleAnalyzeReceipt}
