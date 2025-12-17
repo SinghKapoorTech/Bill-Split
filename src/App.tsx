@@ -3,12 +3,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate, Navigate } from "react-router-dom";
 import { App as CapApp } from "@capacitor/app";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { BillSessionProvider } from "@/contexts/BillSessionContext";
 import { Layout } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { usePlatform } from "@/hooks/usePlatform";
+import { LoadingScreen } from "@/components/shared/LoadingScreen";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import AIScanView from "./pages/AIScanView";
@@ -16,6 +18,7 @@ import GroupEventView from "./pages/GroupEventView";
 import GroupDetailView from "./pages/GroupDetailView";
 import SettingsView from "./pages/SettingsView";
 import Auth from "./pages/Auth";
+import MobileAuth from "./pages/MobileAuth";
 import JoinSession from "./pages/JoinSession";
 import CollaborativeSessionView from "./pages/CollaborativeSessionView";
 import NotFound from "./pages/NotFound";
@@ -55,6 +58,33 @@ function DeepLinkHandler() {
   return null;
 }
 
+/**
+ * Platform-aware root route component
+ * - Native app + not logged in: Show MobileAuth
+ * - Native app + logged in: Redirect to dashboard
+ * - Web browser: Show LandingPage (regardless of auth)
+ */
+function RootRoute() {
+  const { user, loading } = useAuth();
+  const { isNative } = usePlatform();
+
+  // Show loading screen during auth state check
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  // Native app flow
+  if (isNative) {
+    if (user) {
+      return <Navigate to="/dashboard" replace />;
+    }
+    return <MobileAuth />;
+  }
+
+  // Web browser flow (unchanged)
+  return <LandingPage />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -65,8 +95,8 @@ const App = () => (
           <BrowserRouter>
             <DeepLinkHandler />
             <Routes>
-              {/* Public: Landing page */}
-              <Route path="/" element={<LandingPage />} />
+              {/* Public: Platform-aware root route */}
+              <Route path="/" element={<RootRoute />} />
 
               {/* Protected routes with layout */}
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
