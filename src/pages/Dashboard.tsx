@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,6 +41,38 @@ export default function Dashboard() {
     deleteSession,
     resumeSession
   } = useBillContext();
+
+  // Cleanup: Auto-delete empty bills on Dashboard mount
+  useEffect(() => {
+    // Wait for sessions to load and user to be authenticated
+    if (!user || isLoadingSessions) return;
+
+    // Find empty bills to delete
+    const now = Date.now();
+    const GRACE_PERIOD_MS = 2 * 60 * 1000; // 2 minutes grace period
+
+    const emptyBills = [
+      ...(activeSession ? [activeSession] : []),
+      ...savedSessions
+    ].filter(bill => {
+      const isEmpty = !bill.billData?.items || bill.billData.items.length === 0;
+      const hasNoReceipt = !bill.receiptImageUrl;
+
+      // Check if bill is old enough to delete (grace period for active editing)
+      const billAge = now - (bill.createdAt?.toMillis?.() || 0);
+      const isOldEnough = billAge > GRACE_PERIOD_MS;
+
+      return isEmpty && hasNoReceipt && isOldEnough;
+    });
+
+    // Delete them silently (no user notification needed)
+    if (emptyBills.length > 0) {
+      console.log(`Cleaning up ${emptyBills.length} empty bill(s)`);
+      emptyBills.forEach(bill => {
+        deleteSession(bill.id, bill.receiptFileName);
+      });
+    }
+  }, [user, isLoadingSessions, activeSession, savedSessions, deleteSession]);
 
   const handleNewBill = async () => {
 
@@ -124,10 +156,15 @@ export default function Dashboard() {
   };
 
   // Combine active session and saved sessions into one list
+  // Filter out bills with 0 items (unless they have a receipt image - AI might be processing)
   const allBills = [
     ...(activeSession ? [activeSession] : []),
     ...savedSessions
-  ];
+  ].filter(bill => {
+    const hasItems = bill.billData?.items && bill.billData.items.length > 0;
+    const hasReceipt = !!bill.receiptImageUrl;
+    return hasItems || hasReceipt;
+  });
 
   if (isLoadingSessions) {
     return (
