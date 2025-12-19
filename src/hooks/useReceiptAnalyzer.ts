@@ -41,17 +41,9 @@ export function useReceiptAnalyzer(
       if (currentBillData) {
         finalData = mergeBillData(currentBillData, filteredData);
         setBillData(finalData);
-        toast({
-          title: 'Success!',
-          description: `Added ${filteredData.items.length} new items to your bill.`,
-        });
       } else {
         finalData = filteredData;
         setBillData(filteredData);
-        toast({
-          title: 'Success!',
-          description: `Extracted ${filteredData.items.length} items from your receipt.`,
-        });
       }
       return finalData;
     } catch (error) {

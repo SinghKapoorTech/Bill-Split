@@ -97,8 +97,6 @@ export default function AIScanView() {
         }
       });
     }
-    // Intentionally NOT including activeSession?.id to avoid loop
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [billId, resumeSession, user, profile]);
 
   // Resume session from navigation state (runs once on mount)
