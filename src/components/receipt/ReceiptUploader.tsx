@@ -153,7 +153,7 @@ export function ReceiptUploader({
             onClick={handleSelectImage}
           >
             <Upload className="mr-2 h-5 w-5" />
-            {isNative ? 'Take Photo' : 'Choose File'}
+            {isNative || isMobile ? 'Take Photo' : 'Choose Photo'}
           </Button>
 
           {!isNative && (
