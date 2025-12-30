@@ -15,6 +15,7 @@ import { useFileUpload } from '@/hooks/useFileUpload';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Person, BillData, ItemAssignment } from '@/types';
 import { Step } from './types';
+import { ScanSuccessAnimation } from '@/components/shared/ScanSuccessAnimation';
 import { deleteField } from 'firebase/firestore';
 import {
     AlertDialog,
@@ -93,6 +94,7 @@ export function BillWizard({
     const [splitEvenly, setSplitEvenly] = useState<boolean>(initialSplitEvenly);
     const [showClearItemsDialog, setShowClearItemsDialog] = useState(false);
     const [isAIProcessing, setIsAIProcessing] = useState(false);
+    const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
     // Hooks
     const upload = useFileUpload();
@@ -191,20 +193,16 @@ export function BillWizard({
         const analysisPromise = analyzer.analyzeReceipt(upload.selectedFile, upload.imagePreview);
         const uploadPromise = uploadReceiptImage(upload.selectedFile);
 
-        // Show loading screen for 1-2 seconds (randomized)
-        const delay = 1000 + Math.random() * 1000; // Random between 1000-2000ms
-        await new Promise(resolve => setTimeout(resolve, delay));
-
-        // Navigate to People step (step 1)
-        wizard.setCurrentStep(1);
-
-        // Continue processing in background
+        // Wait for both to complete (no early navigation)
         try {
             const [analyzedBillData, uploadResult] = await Promise.all([analysisPromise, uploadPromise]);
 
             if (!analyzedBillData) {
                 throw new Error('Receipt analysis failed');
             }
+
+            // Show success animation (navigation happens in onComplete callback)
+            setShowSuccessAnimation(true);
 
             // Update title from restaurant name if no title exists
             let newTitle: string = title || '';
@@ -236,16 +234,17 @@ export function BillWizard({
 
             await saveSession(savePayload, billId || activeSession?.id);
 
+            // Navigate to People step after save completes
+            wizard.setCurrentStep(1);
+
         } catch (error) {
             console.error('Receipt analysis failed:', error);
-
-            // Navigate back to upload step
-            wizard.setCurrentStep(0);
-
+            // Stay on upload step (don't navigate away)
         } finally {
             setIsAIProcessing(false);
         }
     };
+
 
     const handleImageSelected = async (fileOrBase64: File | string) => {
         if (typeof fileOrBase64 === 'string') {
@@ -265,6 +264,12 @@ export function BillWizard({
 
     return (
         <>
+            {/* Success Animation Overlay */}
+            <ScanSuccessAnimation
+                show={showSuccessAnimation}
+                onComplete={() => setShowSuccessAnimation(false)}
+            />
+
             {/* Stepper */}
             <div className="wizard-stepper">
                 <Stepper
