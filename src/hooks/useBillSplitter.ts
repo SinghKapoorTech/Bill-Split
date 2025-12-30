@@ -76,12 +76,18 @@ export function useBillSplitter({
     setItemAssignments(newAssignments);
   };
 
+  const clearAllAssignments = () => {
+    setItemAssignments({});
+  };
+
   const toggleSplitEvenly = () => {
     const newSplitEvenly = !splitEvenly;
     setSplitEvenly(newSplitEvenly);
 
     if (newSplitEvenly) {
       assignEveryoneToAllItems();
+    } else {
+      clearAllAssignments();
     }
   };
 
@@ -92,7 +98,7 @@ export function useBillSplitter({
     }
   }, [splitEvenly, billData?.items?.length, people.length]);
 
-  
+
 
   return {
     billData,

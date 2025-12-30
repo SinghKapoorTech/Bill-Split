@@ -150,12 +150,6 @@ export function AssignmentStep({
                         onRemoveImage={onRemoveImage}
                     />
 
-                    {!canProceed && (
-                        <p className="text-caption-center py-4 mt-4">
-                            Assign each item to at least one person to continue
-                        </p>
-                    )}
-
                     {billItemsContent}
                 </Card>
 
@@ -189,13 +183,6 @@ export function AssignmentStep({
                             <Receipt className="icon-md icon-primary" />
                             <h3 className="section-title">{UI_TEXT.BILL_ITEMS}</h3>
                         </div>
-
-                        {!canProceed && (
-                            <p className="text-caption-center py-4 mt-4">
-                                Assign each item to at least one person to continue
-                            </p>
-                        )}
-
                         {billItemsContent}
                     </Card>
                 }

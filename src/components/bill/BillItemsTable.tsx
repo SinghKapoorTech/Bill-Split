@@ -71,11 +71,11 @@ export function BillItemsTable({
           {people.length > 0 && (
             <Button
               onClick={onToggleSplitEvenly}
-              variant={splitEvenly ? "default" : "outline"}
-              className="gap-2"
+              variant={splitEvenly ? "destructive" : "outline"}
+              className={`gap-2 ${!splitEvenly ? 'hover:bg-blue-500 hover:text-white hover:border-blue-500' : ''}`}
             >
               <Users className="w-4 h-4" />
-              {UI_TEXT.SPLIT_EVENLY}
+              {splitEvenly ? 'Deselect All' : UI_TEXT.SPLIT_EVENLY}
             </Button>
           )}
         </div>
@@ -116,32 +116,31 @@ export function BillItemsTable({
               </TableRow>
             ) : (
               items.map((item) => {
-              const hasAssignments = (itemAssignments[item.id] || []).length > 0;
-              return (
-                <TableRow
-                  key={item.id}
-                  className={`transition-all duration-300 ${
-                    hasAssignments
+                const hasAssignments = (itemAssignments[item.id] || []).length > 0;
+                return (
+                  <TableRow
+                    key={item.id}
+                    className={`transition-all duration-300 ${hasAssignments
                       ? 'border-l-4 !border-l-primary bg-primary/5'
                       : 'border-l-4 border-l-transparent'
-                  }`}
-                >
-                  {editingItemId === item.id ? (
-                    <ItemFormFields
-                      mode="edit"
-                      itemName={editingItemName}
-                      itemPrice={editingItemPrice}
-                      onNameChange={setEditingName}
-                      onPriceChange={setEditingPrice}
-                      onSave={onSave}
-                      onCancel={onCancel}
-                      layout="table"
-                      hasPeople={people.length > 0}
-                    />
-                  ) : (
-                    <>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell className="text-right">${item.price.toFixed(2)}</TableCell>
+                      }`}
+                  >
+                    {editingItemId === item.id ? (
+                      <ItemFormFields
+                        mode="edit"
+                        itemName={editingItemName}
+                        itemPrice={editingItemPrice}
+                        onNameChange={setEditingName}
+                        onPriceChange={setEditingPrice}
+                        onSave={onSave}
+                        onCancel={onCancel}
+                        layout="table"
+                        hasPeople={people.length > 0}
+                      />
+                    ) : (
+                      <>
+                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell className="text-right">${item.price.toFixed(2)}</TableCell>
                         <TableCell>
                           <ItemAssignmentBadges
                             item={item}
@@ -151,25 +150,25 @@ export function BillItemsTable({
                             showSplit={true}
                           />
                         </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => onEdit(item.id, item.name, item.price)}>
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => onDelete(item.id)}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </>
-                  )}
-                </TableRow>
-              );
-            })
-          )}
-        </TableBody>
-      </Table>
-    </div>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => onEdit(item.id, item.name, item.price)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => onDelete(item.id)}>
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </>
+                    )}
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </>
   );
 }
