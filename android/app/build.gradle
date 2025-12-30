@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.billsplit.app"
+    namespace "com.singhkapoortech.divit"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.billsplit.app"
+        applicationId "com.singhkapoortech.divit"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
