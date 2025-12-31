@@ -20,7 +20,7 @@ interface Props {
   billName?: string;
 }
 
-export function SplitSummary({ personTotals, allItemsAssigned, people, billData, itemAssignments, billName = 'ChipMates' }: Props) {
+export function SplitSummary({ personTotals, allItemsAssigned, people, billData, itemAssignments, billName = 'Divit' }: Props) {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { toast } = useToast();

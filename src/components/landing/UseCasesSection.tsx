@@ -51,7 +51,7 @@ export function UseCasesSection() {
             Perfect For Any Situation
           </h2>
           <p className="text-xl md:text-2xl text-slate-600 max-w-3xl mx-auto">
-            From casual dinners to group adventures, ChipMates has you covered
+            From casual dinners to group adventures, Divit has you covered
           </p>
         </motion.div>
 

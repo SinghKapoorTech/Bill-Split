@@ -17,7 +17,7 @@ export function LandingHeader() {
               <Receipt className="w-6 h-6 text-white" />
             </div>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
-              ChipMates
+              Divit
             </h1>
           </div>
 

@@ -98,7 +98,7 @@ const MobileAuth = () => {
           variants={itemVariants}
           className="text-5xl md:text-6xl font-extrabold text-center mb-4 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 bg-clip-text text-transparent"
         >
-          ChipMates
+          Divit
         </motion.h1>
 
         {/* Tagline */}

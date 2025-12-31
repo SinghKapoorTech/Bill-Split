@@ -18,7 +18,7 @@ export function LandingFooter() {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
                 <Receipt className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-white">ChipMates</span>
+              <span className="text-xl font-bold text-white">Divit</span>
             </div>
             <p className="text-sm text-slate-400">Making bill splitting simple and fair</p>
           </div>
@@ -33,7 +33,7 @@ export function LandingFooter() {
 
         {/* Copyright */}
         <div className="mt-6 pt-6 border-t border-slate-800 text-center text-sm text-slate-500">
-          © 2024 ChipMates. All rights reserved.
+          © 2024 Divit. All rights reserved.
         </div>
       </div>
     </motion.footer>

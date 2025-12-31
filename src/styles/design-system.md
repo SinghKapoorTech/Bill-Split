@@ -1,4 +1,4 @@
-# ChipMates Design System
+# Divit Design System
 
 > **Last Updated**: November 21, 2024  
 > **Purpose**: Central design reference for consistent UI/UX across the application
@@ -344,4 +344,4 @@ transform: translateY(-4px);
 ---
 
 **Version**: 1.0  
-**Maintained by**: ChipMates Development Team
+**Maintained by**: Divit Development Team

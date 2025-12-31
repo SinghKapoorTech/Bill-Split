@@ -44,7 +44,7 @@ export function VenmoChargeDialog({ charge, open, onOpenChange }: Props) {
     const updatedCharge = {
       ...charge,
       recipientId: venmoId.trim(),
-      note: description.trim() || 'ChipMates',
+      note: description.trim() || 'Divit',
     };
 
     if (isVenmoInstalled()) {
