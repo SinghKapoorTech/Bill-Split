@@ -11,9 +11,18 @@ interface Props {
   itemAssignments: ItemAssignment;
   onAssign: (itemId: string, personId: string, checked: boolean) => void;
   showSplit?: boolean;
+  /** If set, only this person's badge is clickable (for guest mode) */
+  restrictToPersonId?: string;
 }
 
-export function ItemAssignmentBadges({ item, people, itemAssignments, onAssign, showSplit = false }: Props) {
+export function ItemAssignmentBadges({ 
+  item, 
+  people, 
+  itemAssignments, 
+  onAssign, 
+  showSplit = false,
+  restrictToPersonId 
+}: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasAssignments = (itemAssignments[item.id] || []).length > 0;
 
@@ -25,15 +34,21 @@ export function ItemAssignmentBadges({ item, people, itemAssignments, onAssign, 
       <div className="flex flex-wrap gap-1 md:gap-2">
         {people.map((person) => {
           const isAssigned = (itemAssignments[item.id] || []).includes(person.id);
+          const isClickable = !restrictToPersonId || restrictToPersonId === person.id;
+          
           return (
             <Badge
               key={person.id}
               variant={isAssigned ? 'default' : 'outline'}
-              className={`cursor-pointer px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm min-h-7 transition-all hover:scale-105 ${isAssigned
+              className={`px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm min-h-7 transition-all ${
+                isClickable 
+                  ? 'cursor-pointer hover:scale-105' 
+                  : 'cursor-not-allowed opacity-60'
+              } ${isAssigned
                 ? 'bg-primary text-primary-foreground shadow-md'
-                : 'hover:bg-secondary hover:border-primary/50'
-                }`}
-              onClick={() => onAssign(item.id, person.id, !isAssigned)}
+                : isClickable ? 'hover:bg-secondary hover:border-primary/50' : ''
+              }`}
+              onClick={() => isClickable && onAssign(item.id, person.id, !isAssigned)}
             >
               {displayNames[person.id] || person.name}
               {isAssigned && <Check className="w-2.5 h-2.5 md:w-3 md:h-3 ml-1" />}

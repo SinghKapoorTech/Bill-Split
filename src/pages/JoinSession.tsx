@@ -72,8 +72,20 @@ export default function JoinSession() {
   }, [sessionId, shareCodeFromUrl]);
 
   const handleJoin = async () => {
-    if (!user && !anonymousName.trim()) {
+    const name = user?.displayName || anonymousName.trim();
+    
+    if (!name) {
       setError('Please enter your name');
+      return;
+    }
+
+    // Check for duplicate name (case-insensitive)
+    const existingPerson = sessionData?.people?.find(
+      p => p.name.toLowerCase() === name.toLowerCase()
+    );
+    
+    if (existingPerson) {
+      setError(`"${existingPerson.name}" is already on this bill. Please use a different name.`);
       return;
     }
 
@@ -81,7 +93,13 @@ export default function JoinSession() {
     setError(null);
 
     try {
-      await joinSession(anonymousName.trim());
+      const userId = await joinSession(anonymousName.trim());
+      
+      // Store guestId in localStorage for anonymous users so they can be identified later
+      if (!user && userId && sessionId) {
+        localStorage.setItem(`guest-id-${sessionId}`, userId);
+      }
+      
       // Navigate to the collaborative session view
       navigate(`/session/${sessionId}`);
     } catch (err) {
@@ -164,9 +182,13 @@ export default function JoinSession() {
               id="anonymous-name"
               placeholder="Enter your name"
               value={anonymousName}
-              onChange={(e) => setAnonymousName(e.target.value)}
+              onChange={(e) => {
+                setAnonymousName(e.target.value);
+                setError(null); // Clear error when typing
+              }}
               onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
               autoFocus
+              className={error ? 'border-destructive' : ''}
             />
             <p className="text-xs text-muted-foreground">
               This will be displayed to other participants

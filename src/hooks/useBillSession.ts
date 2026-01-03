@@ -84,15 +84,18 @@ export function useBillSession(billId: string | null) {
   /**
    * Adds the current user as a member of the session
    * @param anonymousName - Optional name for anonymous users
+   * @returns The userId that was used to join (useful for anonymous users)
    */
   const joinSession = useCallback(
-    async (anonymousName?: string) => {
-      if (!billId) return;
+    async (anonymousName?: string): Promise<string | undefined> => {
+      if (!billId) return undefined;
 
       try {
-        const userId = user?.uid || 'anonymous';
+        // Generate unique ID for anonymous users
+        const guestId = `guest-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const userId = user?.uid || guestId;
         const userName = user?.displayName || anonymousName || 'Anonymous';
-        const email = user?.email || undefined;
+        const email = user?.email;
 
         await billService.joinBill(billId, userId, userName, email);
 
@@ -100,6 +103,8 @@ export function useBillSession(billId: string | null) {
           title: 'Joined Session',
           description: 'You joined the collaborative bill session.',
         });
+        
+        return userId;
       } catch (error) {
         console.error('Error joining session:', error);
         toast({
@@ -107,6 +112,7 @@ export function useBillSession(billId: string | null) {
           description: 'Could not join session.',
           variant: 'destructive',
         });
+        return undefined;
       }
     },
     [billId, user, toast]

@@ -53,19 +53,30 @@ service cloud.firestore {
     // ========== Bills Collection Security Rules ==========
     
     match /bills/{billId} {
-      // READ: Owner, group members, or authenticated members
-      // Note: Share code validation happens in app layer (JoinSession.tsx)
-      // Guests are added to members array after validation
-      allow read: if request.auth != null && (
-                       // Owner can always read
-                       request.auth.uid == resource.data.ownerId ||
-                       // Group members can read group bills
-                       (resource.data.billType == 'group' && 
-                        resource.data.groupId != null &&
-                        request.auth.uid in get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.memberIds) ||
-                       // Authenticated members can read (includes guests who joined via share link)
-                       isBillMember(resource.data)
-                     );
+      // Helper: Check if bill has a valid (non-expired) share code
+      function hasValidShareCode() {
+        return resource.data.shareCode != null && 
+               resource.data.shareCodeExpiresAt != null &&
+               resource.data.shareCodeExpiresAt > request.time;
+      }
+      
+      // READ: 
+      // - Authenticated: Owner, group members, or bill members
+      // - Anonymous: Bills with valid share code (for join flow)
+      allow read: if 
+        // Anonymous users can read bills with valid share codes
+        hasValidShareCode() ||
+        // Authenticated users follow normal rules
+        (request.auth != null && (
+          // Owner can always read
+          request.auth.uid == resource.data.ownerId ||
+          // Group members can read group bills
+          (resource.data.billType == 'group' && 
+           resource.data.groupId != null &&
+           request.auth.uid in get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.memberIds) ||
+          // Authenticated members can read (includes guests who joined via share link)
+          isBillMember(resource.data)
+        ));
       
       // CREATE: Authenticated users only, must set themselves as owner
       allow create: if request.auth != null &&
@@ -76,18 +87,24 @@ service cloud.firestore {
                          request.resource.data.groupId != null &&
                          request.auth.uid in get(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.memberIds));
       
-      // UPDATE: Owner and group members have full access
-      // All authenticated members can update limited fields (assignments, people)
-      allow update: if request.auth != null && (
-                         // Owner has full access
-                         request.auth.uid == resource.data.ownerId ||
-                         // Group members have full access to group bills
-                         (resource.data.billType == 'group' &&
-                          resource.data.groupId != null &&
-                          request.auth.uid in get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.memberIds) ||
-                         // All authenticated members can update specific fields (assignments, people)
-                         (isBillMember(resource.data) && isGuestUpdate())
-                       );
+      // UPDATE: 
+      // - Owner and group members have full access
+      // - Authenticated members can update limited fields
+      // - Anonymous users with valid share code can update limited fields (for claiming items)
+      allow update: if 
+        // Anonymous users with valid share code can update assignments/people
+        (hasValidShareCode() && isGuestUpdate()) ||
+        // Authenticated users follow normal rules
+        (request.auth != null && (
+          // Owner has full access
+          request.auth.uid == resource.data.ownerId ||
+          // Group members have full access to group bills
+          (resource.data.billType == 'group' &&
+           resource.data.groupId != null &&
+           request.auth.uid in get(/databases/$(database)/documents/groups/$(resource.data.groupId)).data.memberIds) ||
+          // All authenticated members can update specific fields (assignments, people)
+          (isBillMember(resource.data) && isGuestUpdate())
+        ));
       
       // DELETE: Only owner can delete
       allow delete: if request.auth != null &&

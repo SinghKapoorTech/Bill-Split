@@ -122,22 +122,35 @@ export const billService = {
   },
 
   /**
-   * Joins a bill as a member (for authenticated users)
+   * Joins a bill as a member (for authenticated or anonymous users)
+   * Also adds the user to the people array so they can claim items immediately
    */
   async joinBill(billId: string, userId: string, userName: string, email?: string): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
     const now = Timestamp.now();
 
+    // Build member object without undefined fields (Firestore doesn't accept undefined)
     const newMember: BillMember = {
       userId,
       name: userName,
-      email,
       joinedAt: now,
-      isAnonymous: false
+      isAnonymous: userId.startsWith('guest-') || userId === 'anonymous'
+    };
+
+    // Only add email if defined
+    if (email) {
+      newMember.email = email;
+    }
+
+    // Create person object for the people array (for item assignment)
+    const newPerson = {
+      id: userId,
+      name: userName,
     };
 
     await updateDoc(billRef, {
       members: arrayUnion(newMember),
+      people: arrayUnion(newPerson),
       updatedAt: serverTimestamp(),
       lastActivity: serverTimestamp()
     });

@@ -105,12 +105,12 @@ const App = () => (
                 <Route path="groups" element={<GroupEventView />} />
                 <Route path="groups/:groupId" element={<GroupDetailView />} />
                 <Route path="settings" element={<SettingsView />} />
-                <Route path="session/:sessionId" element={<CollaborativeSessionView />} />
               </Route>
 
-              {/* Public: Auth and join pages */}
+              {/* Public: Auth, join, and collaborative session pages */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/join/:sessionId" element={<JoinSession />} />
+              <Route path="/session/:sessionId" element={<CollaborativeSessionView />} />
 
               {/* Public: 404 */}
               <Route path="*" element={<NotFound />} />

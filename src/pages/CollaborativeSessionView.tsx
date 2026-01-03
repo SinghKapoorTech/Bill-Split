@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
 import { PeopleManager } from '@/components/people/PeopleManager';
 import { BillItems } from '@/components/bill/BillItems';
 import { BillSummary } from '@/components/bill/BillSummary';
 import { SplitSummary } from '@/components/people/SplitSummary';
+import { GuestClaimView } from '@/components/guest/GuestClaimView';
 
 import { ShareButton } from '@/components/share/ShareButton';
 import { ShareSessionModal } from '@/components/share/ShareSessionModal';
@@ -71,7 +72,6 @@ export default function CollaborativeSessionView() {
       setItemAssignments(session.itemAssignments || {});
       // Ensure logged-in user is always in the people list
       setPeople(ensureUserInPeople(session.people || [], user, profile));
-      setPeople(ensureUserInPeople(session.people || [], user, profile));
       setSplitEvenly(session.splitEvenly || false);
       if (session.receiptImageUrl) {
         upload.setImagePreview(session.receiptImageUrl);
@@ -97,6 +97,38 @@ export default function CollaborativeSessionView() {
 
     return () => clearTimeout(timeoutId);
   }, [billData, people, itemAssignments, splitEvenly, session, updateSession]);
+
+  // Determine if current user is the owner (must be before early returns)
+  const isOwner = useMemo(() => {
+    if (!user || !session) return false;
+    return session.ownerId === user.uid;
+  }, [user, session]);
+
+  // Handlers for GuestClaimView (defined before early returns)
+  const handleAddSelfToPeople = (newPerson: Person) => {
+    const updatedPeople = [...people, newPerson];
+    setPeople(updatedPeople);
+    updateSession({ people: updatedPeople });
+  };
+
+  const handleClaimItem = (itemId: string, personId: string, claimed: boolean) => {
+    const currentAssignments = itemAssignments[itemId] || [];
+    let newAssignments: string[];
+
+    if (claimed) {
+      newAssignments = [...currentAssignments, personId];
+    } else {
+      newAssignments = currentAssignments.filter(id => id !== personId);
+    }
+
+    const updatedItemAssignments = {
+      ...itemAssignments,
+      [itemId]: newAssignments,
+    };
+
+    setItemAssignments(updatedItemAssignments);
+    updateSession({ itemAssignments: updatedItemAssignments });
+  };
 
   const handleRemovePerson = (personId: string) => {
     peopleManager.removePerson(personId);
@@ -172,6 +204,33 @@ export default function CollaborativeSessionView() {
           <p className="text-muted-foreground">This collaborative session has ended.</p>
           <Button onClick={() => navigate('/dashboard')}>Go to App</Button>
         </Card>
+      </div>
+    );
+  }
+
+  // Guest view - simplified claim interface
+  if (!isOwner && session) {
+    return (
+      <div className="container mx-auto px-4 py-6 max-w-2xl">
+        <div className="mb-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">
+              {session.billData?.restaurantName || 'Split Bill'}
+            </h2>
+            <CollaborativeBadge memberCount={session.members.length} />
+          </div>
+          <Alert>
+            <AlertDescription>
+              Claim the items you're paying for. Your selections sync in real-time.
+            </AlertDescription>
+          </Alert>
+        </div>
+
+        <GuestClaimView
+          session={session}
+          onAddSelfToPeople={handleAddSelfToPeople}
+          onClaimItem={handleClaimItem}
+        />
       </div>
     );
   }
