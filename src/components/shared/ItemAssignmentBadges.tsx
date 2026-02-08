@@ -15,13 +15,13 @@ interface Props {
   restrictToPersonId?: string;
 }
 
-export function ItemAssignmentBadges({ 
-  item, 
-  people, 
-  itemAssignments, 
-  onAssign, 
+export function ItemAssignmentBadges({
+  item,
+  people,
+  itemAssignments,
+  onAssign,
   showSplit = false,
-  restrictToPersonId 
+  restrictToPersonId
 }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasAssignments = (itemAssignments[item.id] || []).length > 0;
@@ -35,19 +35,18 @@ export function ItemAssignmentBadges({
         {people.map((person) => {
           const isAssigned = (itemAssignments[item.id] || []).includes(person.id);
           const isClickable = !restrictToPersonId || restrictToPersonId === person.id;
-          
+
           return (
             <Badge
               key={person.id}
               variant={isAssigned ? 'default' : 'outline'}
-              className={`px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm min-h-7 transition-all ${
-                isClickable 
-                  ? 'cursor-pointer hover:scale-105' 
+              className={`px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm min-h-7 transition-colors duration-100 ${isClickable
+                  ? 'cursor-pointer'
                   : 'cursor-not-allowed opacity-60'
-              } ${isAssigned
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : isClickable ? 'hover:bg-secondary hover:border-primary/50' : ''
-              }`}
+                } ${isAssigned
+                  ? 'bg-primary text-primary-foreground'
+                  : isClickable ? 'hover:bg-secondary hover:border-primary/50' : ''
+                }`}
               onClick={() => isClickable && onAssign(item.id, person.id, !isAssigned)}
             >
               {displayNames[person.id] || person.name}

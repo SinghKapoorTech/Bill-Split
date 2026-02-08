@@ -19,13 +19,13 @@ export function FeaturesSection() {
       icon: Camera,
       title: 'AI Receipt Scanning',
       description: 'Upload any receipt and our AI automatically extracts items, prices, tax, and tip. No manual entry required.',
-      gradient: 'from-cyan-500 to-blue-500',
+      gradient: 'from-indigo-500 to-violet-500',
     },
     {
       icon: Calculator,
       title: 'Fair Splitting',
       description: 'Proportional tax and tip distribution. Split items evenly or assign specific items to specific people.',
-      gradient: 'from-blue-500 to-purple-500',
+      gradient: 'from-violet-500 to-purple-500',
     },
     {
       icon: Share2,
@@ -37,19 +37,19 @@ export function FeaturesSection() {
       icon: Calendar,
       title: 'Multi-Receipt Events',
       description: 'Create events with multiple receipts from the whole group. Perfect for trips or group activities.',
-      gradient: 'from-cyan-500 to-teal-500',
+      gradient: 'from-indigo-500 to-emerald-500',
     },
     {
       icon: Users,
       title: 'Save Friends & Squads',
       description: 'Save your frequent groups and friends for faster bill splitting. No more re-entering names every time.',
-      gradient: 'from-teal-500 to-blue-500',
+      gradient: 'from-emerald-500 to-teal-500',
     },
     {
       icon: CreditCard,
       title: 'Payment Integration',
       description: 'Seamless Venmo integration. Send payment requests with itemized breakdowns instantly.',
-      gradient: 'from-pink-500 to-rose-500',
+      gradient: 'from-rose-500 to-orange-500',
     },
   ];
 

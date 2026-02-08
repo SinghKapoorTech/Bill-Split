@@ -13,10 +13,10 @@ export function LandingHeader() {
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           {/* Logo */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg">
               <Receipt className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-500 to-blue-500 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-500 to-violet-500 bg-clip-text text-transparent">
               Divit
             </h1>
           </div>
@@ -25,7 +25,7 @@ export function LandingHeader() {
           {user ? (
             <Button
               onClick={() => navigate('/dashboard')}
-              className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold px-6 py-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 border-0 gap-2"
+              className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-semibold px-6 py-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 border-0 gap-2"
             >
               <LayoutDashboard className="w-4 h-4" />
               Dashboard
@@ -33,7 +33,7 @@ export function LandingHeader() {
           ) : (
             <Button
               onClick={() => navigate('/auth')}
-              className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold px-6 py-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 border-0"
+              className="bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-semibold px-6 py-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 border-0"
             >
               Sign In
             </Button>
@@ -43,3 +43,4 @@ export function LandingHeader() {
     </header>
   );
 }
+

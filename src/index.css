@@ -13,84 +13,89 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Base colors - warm, inviting background */
-    --background: 30 20% 98%;
-    --foreground: 220 15% 18%;
+    /* ============================================
+       PROFESSIONAL FINANCE APP COLOR PALETTE
+       Deep Indigo + Emerald + Slate
+       ============================================ */
+
+    /* Base colors - Clean slate backgrounds */
+    --background: 220 14% 96%;
+    --foreground: 224 28% 18%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 15% 18%;
+    --card-foreground: 224 28% 18%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 18%;
+    --popover-foreground: 224 28% 18%;
 
     /* Surface for elevated components like tabs */
     --surface-elevated: 0 0% 100%;
 
-    /* Primary - Vibrant teal/cyan */
-    --primary: 202 80% 62%;
+    /* Primary - Deep Indigo (Trust & Professionalism) */
+    --primary: 234 62% 52%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 175 65% 58%;
+    --primary-glow: 234 60% 65%;
 
-    /* Secondary - Soft gray-blue */
-    --secondary: 220 15% 93%;
-    --secondary-foreground: 220 15% 25%;
+    /* Secondary - Soft slate for subtle backgrounds */
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 224 28% 25%;
 
     /* Muted - Subtle backgrounds and text */
-    --muted: 220 12% 95%;
-    --muted-foreground: 220 10% 48%;
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 14% 46%;
 
-    /* Accent - Vibrant coral/salmon */
-    --accent: 12 100% 50%;
+    /* Accent - Soft Violet for secondary highlights */
+    --accent: 262 52% 58%;
     --accent-foreground: 0 0% 100%;
 
-    /* Success - Fresh green for positive actions */
-    --success: 142 71% 35%;
+    /* Success - Emerald Green (Money & Positive Actions) */
+    --success: 158 64% 40%;
     --success-foreground: 0 0% 100%;
 
-    /* Info - Vibrant blue for sharing/info */
-    --info: 210 85% 55%;
+    /* Info - Sky Blue for sharing/informational */
+    --info: 206 85% 55%;
     --info-foreground: 0 0% 100%;
 
-    /* Warning - Warm amber for caution */
+    /* Warning - Warm Amber for caution */
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning-foreground: 224 28% 15%;
 
-    /* Destructive - Vibrant red */
-    --destructive: 0 72% 51%;
+    /* Destructive - Clear Red for errors */
+    --destructive: 4 72% 52%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders and inputs */
-    --border: 220 15% 86%;
-    --input: 220 15% 88%;
-    --ring: 175 55% 48%;
+    /* Borders and inputs - Slate tones */
+    --border: 220 14% 86%;
+    --input: 220 14% 88%;
+    --ring: 234 62% 52%;
 
     --radius: 0.75rem;
 
-    /* Gradients - vibrant and colorful */
-    --gradient-hero: linear-gradient(135deg, hsl(175, 55%, 48%) 0%, hsl(49, 71%, 45%) 50%, hsl(12, 75%, 62%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(30, 20%, 98%) 0%, hsl(220, 15%, 96%) 100%);
+    /* Gradients - Professional with subtle depth */
+    --gradient-hero: linear-gradient(135deg, hsl(234, 62%, 52%) 0%, hsl(262, 52%, 58%) 50%, hsl(158, 64%, 45%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(220, 14%, 96%) 0%, hsl(220, 14%, 93%) 100%);
 
-    /* Shadows - softer, more natural */
-    --shadow-soft: 0 2px 12px -2px hsl(220 15% 20% / 0.06);
-    --shadow-medium: 0 4px 20px -4px hsl(220 15% 20% / 0.1);
-    --shadow-strong: 0 8px 32px -8px hsl(220 15% 20% / 0.15);
+    /* Shadows - Clean, professional depth */
+    --shadow-soft: 0 2px 12px -2px hsl(224 28% 18% / 0.06);
+    --shadow-medium: 0 4px 20px -4px hsl(224 28% 18% / 0.1);
+    --shadow-strong: 0 8px 32px -8px hsl(224 28% 18% / 0.15);
 
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-    /* Parallax Gradient Colors */
-    --gradient-cyan-primary: 202 80% 62%;
-    --gradient-cyan-bright: 180 100% 70%;
-    --gradient-teal: 175 65% 58%;
-    --gradient-blue: 210 85% 55%;
-    --gradient-coral: 12 100% 50%;
-    --gradient-pink: 330 80% 65%;
-    --gradient-purple: 270 70% 65%;
+    /* Parallax Gradient Colors - Updated */
+    --gradient-cyan-primary: 234 62% 52%;
+    --gradient-cyan-bright: 234 65% 65%;
+    --gradient-teal: 158 64% 45%;
+    --gradient-blue: 206 85% 55%;
+    --gradient-coral: 262 52% 58%;
+    --gradient-pink: 280 60% 60%;
+    --gradient-purple: 262 52% 58%;
     --gradient-amber: 38 92% 50%;
 
     /* Parallax Layer Opacities */
-    --parallax-bg-opacity: 0.12;
-    --parallax-mid-opacity: 0.18;
-    --parallax-fg-opacity: 0.10;
+    --parallax-bg-opacity: 0.10;
+    --parallax-mid-opacity: 0.15;
+    --parallax-fg-opacity: 0.08;
 
     /* Parallax Blur Amounts */
     --parallax-blur-bg: 100px;
@@ -99,65 +104,68 @@ All colors MUST be HSL.
   }
 
   .dark {
-    /* Dark mode - warm, sophisticated */
-    --background: 220 18% 12%;
-    --foreground: 30 10% 92%;
+    /* ============================================
+       DARK MODE - Professional Finance Palette
+       Deep Slate + Lighter Indigo for visibility
+       ============================================ */
+    --background: 224 22% 11%;
+    --foreground: 220 14% 92%;
 
-    --card: 220 16% 16%;
-    --card-foreground: 30 10% 92%;
+    --card: 224 20% 15%;
+    --card-foreground: 220 14% 92%;
 
-    --popover: 220 16% 16%;
-    --popover-foreground: 30 10% 92%;
+    --popover: 224 20% 15%;
+    --popover-foreground: 220 14% 92%;
 
     /* Surface for elevated components like tabs */
-    --surface-elevated: 220 16% 18%;
+    --surface-elevated: 224 18% 17%;
 
-    /* Primary - Vibrant teal for dark mode */
-    --primary: 175 60% 52%;
-    --primary-foreground: 220 18% 12%;
-    --primary-glow: 175 70% 62%;
+    /* Primary - Lighter Indigo for dark mode visibility */
+    --primary: 234 65% 65%;
+    --primary-foreground: 224 22% 11%;
+    --primary-glow: 234 70% 72%;
 
-    /* Secondary - Muted dark blue-gray */
-    --secondary: 220 15% 20%;
-    --secondary-foreground: 30 10% 92%;
+    /* Secondary - Dark slate */
+    --secondary: 224 18% 20%;
+    --secondary-foreground: 220 14% 92%;
 
     /* Muted backgrounds */
-    --muted: 220 15% 18%;
-    --muted-foreground: 220 8% 60%;
+    --muted: 224 16% 18%;
+    --muted-foreground: 220 10% 56%;
 
-    /* Accent - Vibrant coral for dark mode */
-    --accent: 12 75% 65%;
-    --accent-foreground: 220 18% 12%;
+    /* Accent - Lighter Violet for dark mode */
+    --accent: 262 55% 68%;
+    --accent-foreground: 224 22% 11%;
 
-    /* Success - Bright green for dark mode */
-    --success: 142 65% 48%;
-    --success-foreground: 220 18% 12%;
+    /* Success - Brighter Emerald for dark mode */
+    --success: 158 60% 52%;
+    --success-foreground: 224 22% 11%;
 
-    /* Info - Bright blue for dark mode */
-    --info: 210 80% 58%;
-    --info-foreground: 220 18% 12%;
+    /* Info - Brighter blue for dark mode */
+    --info: 206 80% 62%;
+    --info-foreground: 224 22% 11%;
 
-    /* Warning - Bright amber for dark mode */
-    --warning: 38 90% 55%;
-    --warning-foreground: 220 18% 12%;
+    /* Warning - Brighter amber for dark mode */
+    --warning: 38 88% 58%;
+    --warning-foreground: 224 22% 11%;
 
-    /* Destructive - Vibrant red for dark */
-    --destructive: 0 70% 55%;
-    --destructive-foreground: 30 10% 92%;
+    /* Destructive - Brighter red for dark mode */
+    --destructive: 4 68% 58%;
+    --destructive-foreground: 220 14% 92%;
 
-    /* Borders - softer in dark mode */
-    --border: 220 15% 22%;
-    --input: 220 15% 22%;
-    --ring: 175 60% 52%;
+    /* Borders - Slate tones */
+    --border: 224 18% 24%;
+    --input: 224 18% 22%;
+    --ring: 234 65% 65%;
 
     /* Gradients for dark mode */
-    --gradient-hero: linear-gradient(135deg, hsl(175, 60%, 52%) 0%, hsl(175, 70%, 62%) 50%, hsl(12, 75%, 65%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(220, 18%, 12%) 0%, hsl(220, 16%, 14%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(234, 65%, 65%) 0%, hsl(262, 55%, 68%) 50%, hsl(158, 60%, 52%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(224, 22%, 11%) 0%, hsl(224, 20%, 13%) 100%);
 
     /* Softer shadows for dark mode */
-    --shadow-soft: 0 2px 12px -2px hsl(0 0% 0% / 0.2);
-    --shadow-medium: 0 4px 20px -4px hsl(0 0% 0% / 0.3);
-    --shadow-strong: 0 8px 32px -8px hsl(0 0% 0% / 0.4);
+    --shadow-soft: 0 2px 12px -2px hsl(0 0% 0% / 0.25);
+    --shadow-medium: 0 4px 20px -4px hsl(0 0% 0% / 0.35);
+    --shadow-strong: 0 8px 32px -8px hsl(0 0% 0% / 0.45);
   }
 }
 

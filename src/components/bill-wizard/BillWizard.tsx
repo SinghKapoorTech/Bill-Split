@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Stepper, StepContent } from '@/components/ui/stepper';
+import { PillProgress } from '@/components/ui/pill-progress';
+import { SwipeableStepContainer, useSwipeNavigation } from '@/components/ui/swipeable-container';
 import { BillEntryStep } from './steps/BillEntryStep';
 import { PeopleStep } from './steps/PeopleStep';
 import { AssignmentStep } from './steps/AssignmentStep';
@@ -270,18 +272,150 @@ export function BillWizard({
                 onComplete={() => setShowSuccessAnimation(false)}
             />
 
-            {/* Stepper */}
+            {/* Stepper - Use PillProgress on mobile for modern look */}
             <div className="wizard-stepper">
-                <Stepper
-                    steps={STEPS}
-                    currentStep={wizard.currentStep}
-                    orientation={isMobile ? 'horizontal' : 'horizontal'}
-                    onStepClick={wizard.setCurrentStep}
-                    canNavigateToStep={wizard.canNavigateToStep}
-                />
+                {isMobile ? (
+                    <PillProgress
+                        steps={STEPS}
+                        currentStep={wizard.currentStep}
+                        onStepClick={wizard.setCurrentStep}
+                        canNavigateToStep={wizard.canNavigateToStep}
+                    />
+                ) : (
+                    <Stepper
+                        steps={STEPS}
+                        currentStep={wizard.currentStep}
+                        orientation="horizontal"
+                        onStepClick={wizard.setCurrentStep}
+                        canNavigateToStep={wizard.canNavigateToStep}
+                    />
+                )}
             </div>
 
-            {/* Mobile Navigation (below stepper) */}
+            {/* Bottom padding spacer for fixed mobile navigation */}
+            {isMobile && <div className="h-4" />}
+
+            {/* Step Content - with bottom padding for fixed navigation on mobile */}
+            {/* Wrap in SwipeableStepContainer on mobile for gesture navigation */}
+            <SwipeableStepContainer
+                onSwipeLeft={wizard.canProceedFromStep(wizard.currentStep) ? wizard.handleNextStep : undefined}
+                onSwipeRight={wizard.currentStep > 0 ? wizard.handlePrevStep : undefined}
+                canSwipeLeft={wizard.canProceedFromStep(wizard.currentStep)}
+                canSwipeRight={wizard.currentStep > 0}
+                className={isMobile ? 'pb-[140px] relative' : ''}
+            >
+                <StepContent stepKey={wizard.currentStep}>
+                    {wizard.currentStep === 0 && (
+                        <BillEntryStep
+                            billData={billData}
+                            setBillData={setBillData}
+                            imagePreview={upload.imagePreview}
+                            selectedFile={upload.selectedFile}
+                            isUploading={isUploading}
+                            isAnalyzing={analyzer.isAnalyzing}
+                            receiptImageUrl={activeSession?.receiptImageUrl}
+                            onAnalyze={handleAnalyzeReceipt}
+                            onRemoveImage={handleRemoveImage}
+                            onImageSelected={handleImageSelected}
+                            onNext={wizard.handleNextStep}
+                            canProceed={wizard.canProceedFromStep(0)}
+                            currentStep={wizard.currentStep}
+                            totalSteps={STEPS.length}
+                            isMobile={isMobile}
+                            removeItemAssignments={bill.removeItemAssignments}
+                        />
+                    )}
+
+                    {wizard.currentStep === 1 && (
+                        <PeopleStep
+                            people={people}
+                            setPeople={setPeople}
+                            billData={billData}
+                            newPersonName={peopleManager.newPersonName}
+                            newPersonVenmoId={peopleManager.newPersonVenmoId}
+                            useNameAsVenmoId={peopleManager.useNameAsVenmoId}
+                            onNameChange={peopleManager.setNewPersonName}
+                            onVenmoIdChange={peopleManager.setNewPersonVenmoId}
+                            onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
+                            onAdd={peopleManager.addPerson}
+                            onAddFromFriend={peopleManager.addFromFriend}
+                            onRemove={handleRemovePerson}
+                            onSaveAsFriend={peopleManager.savePersonAsFriend}
+                            imagePreview={upload.imagePreview}
+                            selectedFile={upload.selectedFile}
+                            isUploading={isUploading}
+                            isAnalyzing={analyzer.isAnalyzing}
+                            receiptImageUrl={activeSession?.receiptImageUrl}
+                            onImageSelected={handleImageSelected}
+                            onAnalyze={handleAnalyzeReceipt}
+                            onRemoveImage={handleRemoveImage}
+                            onNext={wizard.handleNextStep}
+                            onPrev={wizard.handlePrevStep}
+                            canProceed={wizard.canProceedFromStep(1)}
+                            currentStep={wizard.currentStep}
+                            totalSteps={STEPS.length}
+                            isMobile={isMobile}
+                            upload={upload}
+                        />
+                    )}
+
+                    {wizard.currentStep === 2 && (
+                        <AssignmentStep
+                            billData={billData}
+                            setBillData={setBillData}
+                            people={people}
+                            itemAssignments={itemAssignments}
+                            splitEvenly={splitEvenly}
+                            onAssign={bill.handleItemAssignment}
+                            onToggleSplitEvenly={bill.toggleSplitEvenly}
+                            removePersonFromAssignments={bill.removePersonFromAssignments}
+                            removeItemAssignments={bill.removeItemAssignments}
+                            imagePreview={upload.imagePreview}
+                            selectedFile={upload.selectedFile}
+                            isUploading={isUploading}
+                            isAnalyzing={analyzer.isAnalyzing}
+                            isAIProcessing={isAIProcessing}
+                            receiptImageUrl={activeSession?.receiptImageUrl}
+                            onImageSelected={handleImageSelected}
+                            onAnalyze={handleAnalyzeReceipt}
+                            onRemoveImage={handleRemoveImage}
+                            onNext={wizard.handleNextStep}
+                            onPrev={wizard.handlePrevStep}
+                            canProceed={wizard.canProceedFromStep(2)}
+                            currentStep={wizard.currentStep}
+                            totalSteps={STEPS.length}
+                            isMobile={isMobile}
+                            upload={upload}
+                        />
+                    )}
+
+                    {wizard.currentStep === 3 && (
+                        <ReviewStep
+                            billData={billData}
+                            people={people}
+                            itemAssignments={itemAssignments}
+                            personTotals={bill.personTotals}
+                            allItemsAssigned={bill.allItemsAssigned}
+                            imagePreview={upload.imagePreview}
+                            selectedFile={upload.selectedFile}
+                            isUploading={isUploading}
+                            isAnalyzing={analyzer.isAnalyzing}
+                            receiptImageUrl={activeSession?.receiptImageUrl}
+                            onImageSelected={handleImageSelected}
+                            onAnalyze={handleAnalyzeReceipt}
+                            onRemoveImage={handleRemoveImage}
+                            onComplete={handleDone}
+                            onPrev={wizard.handlePrevStep}
+                            currentStep={wizard.currentStep}
+                            totalSteps={STEPS.length}
+                            isMobile={isMobile}
+                            upload={upload}
+                        />
+                    )}
+                </StepContent>
+            </SwipeableStepContainer>
+
+            {/* Mobile Navigation (fixed at bottom) */}
             {isMobile && (
                 <WizardNavigation
                     currentStep={wizard.currentStep}
@@ -289,123 +423,13 @@ export function BillWizard({
                     onBack={wizard.handlePrevStep}
                     onNext={wizard.handleNextStep}
                     onComplete={handleDone}
+                    onExit={() => navigate('/dashboard')}
                     nextDisabled={!wizard.canProceedFromStep(wizard.currentStep)}
                     hasBillData={hasBillData}
                     onShare={onShare}
                     isMobile={isMobile}
                 />
             )}
-
-            {/* Step Content */}
-            <StepContent stepKey={wizard.currentStep}>
-                {wizard.currentStep === 0 && (
-                    <BillEntryStep
-                        billData={billData}
-                        setBillData={setBillData}
-                        imagePreview={upload.imagePreview}
-                        selectedFile={upload.selectedFile}
-                        isUploading={isUploading}
-                        isAnalyzing={analyzer.isAnalyzing}
-                        receiptImageUrl={activeSession?.receiptImageUrl}
-                        onAnalyze={handleAnalyzeReceipt}
-                        onRemoveImage={handleRemoveImage}
-                        onImageSelected={handleImageSelected}
-                        onNext={wizard.handleNextStep}
-                        canProceed={wizard.canProceedFromStep(0)}
-                        currentStep={wizard.currentStep}
-                        totalSteps={STEPS.length}
-                        isMobile={isMobile}
-                        removeItemAssignments={bill.removeItemAssignments}
-                    />
-                )}
-
-                {wizard.currentStep === 1 && (
-                    <PeopleStep
-                        people={people}
-                        setPeople={setPeople}
-                        billData={billData}
-                        newPersonName={peopleManager.newPersonName}
-                        newPersonVenmoId={peopleManager.newPersonVenmoId}
-                        useNameAsVenmoId={peopleManager.useNameAsVenmoId}
-                        onNameChange={peopleManager.setNewPersonName}
-                        onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                        onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
-                        onAdd={peopleManager.addPerson}
-                        onAddFromFriend={peopleManager.addFromFriend}
-                        onRemove={handleRemovePerson}
-                        onSaveAsFriend={peopleManager.savePersonAsFriend}
-                        imagePreview={upload.imagePreview}
-                        selectedFile={upload.selectedFile}
-                        isUploading={isUploading}
-                        isAnalyzing={analyzer.isAnalyzing}
-                        receiptImageUrl={activeSession?.receiptImageUrl}
-                        onImageSelected={handleImageSelected}
-                        onAnalyze={handleAnalyzeReceipt}
-                        onRemoveImage={handleRemoveImage}
-                        onNext={wizard.handleNextStep}
-                        onPrev={wizard.handlePrevStep}
-                        canProceed={wizard.canProceedFromStep(1)}
-                        currentStep={wizard.currentStep}
-                        totalSteps={STEPS.length}
-                        isMobile={isMobile}
-                        upload={upload}
-                    />
-                )}
-
-                {wizard.currentStep === 2 && (
-                    <AssignmentStep
-                        billData={billData}
-                        setBillData={setBillData}
-                        people={people}
-                        itemAssignments={itemAssignments}
-                        splitEvenly={splitEvenly}
-                        onAssign={bill.handleItemAssignment}
-                        onToggleSplitEvenly={bill.toggleSplitEvenly}
-                        removePersonFromAssignments={bill.removePersonFromAssignments}
-                        removeItemAssignments={bill.removeItemAssignments}
-                        imagePreview={upload.imagePreview}
-                        selectedFile={upload.selectedFile}
-                        isUploading={isUploading}
-                        isAnalyzing={analyzer.isAnalyzing}
-                        isAIProcessing={isAIProcessing}
-                        receiptImageUrl={activeSession?.receiptImageUrl}
-                        onImageSelected={handleImageSelected}
-                        onAnalyze={handleAnalyzeReceipt}
-                        onRemoveImage={handleRemoveImage}
-                        onNext={wizard.handleNextStep}
-                        onPrev={wizard.handlePrevStep}
-                        canProceed={wizard.canProceedFromStep(2)}
-                        currentStep={wizard.currentStep}
-                        totalSteps={STEPS.length}
-                        isMobile={isMobile}
-                        upload={upload}
-                    />
-                )}
-
-                {wizard.currentStep === 3 && (
-                    <ReviewStep
-                        billData={billData}
-                        people={people}
-                        itemAssignments={itemAssignments}
-                        personTotals={bill.personTotals}
-                        allItemsAssigned={bill.allItemsAssigned}
-                        imagePreview={upload.imagePreview}
-                        selectedFile={upload.selectedFile}
-                        isUploading={isUploading}
-                        isAnalyzing={analyzer.isAnalyzing}
-                        receiptImageUrl={activeSession?.receiptImageUrl}
-                        onImageSelected={handleImageSelected}
-                        onAnalyze={handleAnalyzeReceipt}
-                        onRemoveImage={handleRemoveImage}
-                        onComplete={handleDone}
-                        onPrev={wizard.handlePrevStep}
-                        currentStep={wizard.currentStep}
-                        totalSteps={STEPS.length}
-                        isMobile={isMobile}
-                        upload={upload}
-                    />
-                )}
-            </StepContent>
 
             {/* Clear Items Dialog */}
             <AlertDialog open={showClearItemsDialog} onOpenChange={setShowClearItemsDialog}>
@@ -438,3 +462,4 @@ export function BillWizard({
         </>
     );
 }
+

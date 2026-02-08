@@ -7,13 +7,13 @@ export function FeaturesGrid() {
       icon: Camera,
       title: 'AI-Powered Scanning',
       description: 'Upload any receipt and our AI automatically extracts items, prices, tax, and tip. No manual entry required.',
-      gradient: 'from-cyan-500 to-blue-500',
+      gradient: 'from-indigo-500 to-violet-500',
     },
     {
       icon: Calculator,
       title: 'Smart Bill Splitting',
       description: 'Assign items to people, split evenly, or customize. Get instant calculations with tax and tip automatically distributed.',
-      gradient: 'from-blue-500 to-purple-500',
+      gradient: 'from-violet-500 to-purple-500',
     },
     {
       icon: Users,

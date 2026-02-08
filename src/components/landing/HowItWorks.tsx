@@ -12,22 +12,22 @@ export function HowItWorks() {
             icon: Camera,
             title: '1. Snap',
             description: 'Take a photo of any receipt (restaurants, groceries, utilities). Our AI instantly extracts every item.',
-            color: 'text-cyan-500',
-            bg: 'bg-cyan-50',
+            color: 'text-indigo-500',
+            bg: 'bg-indigo-50',
         },
         {
             icon: UserPlus,
             title: '2. Assign',
             description: 'Drag and drop items to friends. Split shared items evenly or by exact amounts.',
-            color: 'text-blue-500',
-            bg: 'bg-blue-50',
+            color: 'text-violet-500',
+            bg: 'bg-violet-50',
         },
         {
             icon: CreditCard,
             title: '3. Settle',
             description: 'Send a secure link. Friends can pay you back instantly via Venmo.',
-            color: 'text-purple-500',
-            bg: 'bg-purple-50',
+            color: 'text-emerald-500',
+            bg: 'bg-emerald-50',
         },
     ];
 
@@ -55,7 +55,7 @@ export function HowItWorks() {
 
                 <div className="grid md:grid-cols-3 gap-8 relative">
                     {/* Connecting Line (Desktop) */}
-                    <div className="hidden md:block absolute top-12 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-100 via-blue-100 to-purple-100 -z-10" />
+                    <div className="hidden md:block absolute top-12 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-100 via-violet-100 to-emerald-100 -z-10" />
 
                     {steps.map((step, index) => {
                         const Icon = step.icon;

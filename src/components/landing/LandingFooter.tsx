@@ -15,7 +15,7 @@ export function LandingFooter() {
           {/* Logo and tagline */}
           <div className="flex flex-col items-center md:items-start gap-2">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center">
                 <Receipt className="w-5 h-5 text-white" />
               </div>
               <span className="text-xl font-bold text-white">Divit</span>

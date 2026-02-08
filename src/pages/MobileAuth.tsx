@@ -36,7 +36,7 @@ const MobileAuth = () => {
     return (
       <div className="fixed inset-0 w-full h-full flex items-center justify-center">
         <ParallaxGradientBackground />
-        <Loader2 className="w-12 h-12 animate-spin text-cyan-500" />
+        <Loader2 className="w-12 h-12 animate-spin text-indigo-500" />
       </div>
     );
   }
@@ -88,7 +88,7 @@ const MobileAuth = () => {
       >
         {/* Animated Logo */}
         <motion.div variants={logoVariants} className="mb-8">
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-cyan-500 via-blue-500 to-purple-500 flex items-center justify-center shadow-2xl shadow-cyan-500/30">
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-500 flex items-center justify-center shadow-2xl shadow-indigo-500/30">
             <Receipt className="w-10 h-10 text-white" strokeWidth={2} />
           </div>
         </motion.div>
@@ -96,7 +96,7 @@ const MobileAuth = () => {
         {/* App Name with Gradient */}
         <motion.h1
           variants={itemVariants}
-          className="text-5xl md:text-6xl font-extrabold text-center mb-4 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 bg-clip-text text-transparent"
+          className="text-5xl md:text-6xl font-extrabold text-center mb-4 bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500 bg-clip-text text-transparent"
         >
           Divit
         </motion.h1>

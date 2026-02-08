@@ -72,7 +72,7 @@ export function BillItemsTable({
             <Button
               onClick={onToggleSplitEvenly}
               variant={splitEvenly ? "destructive" : "outline"}
-              className={`gap-2 ${!splitEvenly ? 'hover:bg-blue-500 hover:text-white hover:border-blue-500' : ''}`}
+              className={`gap-2 ${!splitEvenly ? 'hover:bg-primary hover:text-primary-foreground hover:border-primary' : ''}`}
             >
               <Users className="w-4 h-4" />
               {splitEvenly ? 'Deselect All' : UI_TEXT.SPLIT_EVENLY}

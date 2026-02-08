@@ -70,12 +70,12 @@ export function Stepper({
                   className={cn(
                     'flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all',
                     isCompleted &&
-                      'border-primary bg-primary text-primary-foreground',
+                    'border-primary bg-primary text-primary-foreground',
                     isCurrent &&
-                      'border-primary bg-background text-primary scale-110',
+                    'border-primary bg-background text-primary scale-110',
                     !isCompleted &&
-                      !isCurrent &&
-                      'border-muted-foreground/30 bg-muted text-muted-foreground',
+                    !isCurrent &&
+                    'border-muted-foreground/30 bg-muted text-muted-foreground',
                     isClickable && 'cursor-pointer hover:scale-105 active:scale-95',
                     !canNavigate && 'opacity-50 cursor-not-allowed'
                   )}
@@ -84,10 +84,10 @@ export function Stepper({
                   onClick={handleClick}
                   role={isClickable ? 'button' : undefined}
                   tabIndex={isClickable ? 0 : undefined}
-                  onKeyDown={isClickable ? (e) => {
+                  onKeyDown={isClickable ? (e: React.KeyboardEvent<HTMLDivElement>) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      handleClick(e as any);
+                      handleClick(e as unknown as React.MouseEvent);
                     }
                   } : undefined}
                 >
@@ -127,7 +127,7 @@ export function Stepper({
 
                 {/* Step Label - Mobile (Vertical) */}
                 {!isHorizontal && (
-                  <div 
+                  <div
                     className={cn(
                       "ml-4 flex flex-col",
                       isClickable && 'cursor-pointer',
@@ -181,15 +181,23 @@ interface StepContentProps {
   stepKey?: string | number; // Unique key for AnimatePresence
 }
 
+/**
+ * StepContent - Animated wrapper for wizard step content
+ * Uses Y-axis movement with subtle scale for premium feel
+ * Material Design easing curve for smooth, natural motion
+ */
 export function StepContent({ children, className, stepKey }: StepContentProps) {
   return (
     <AnimatePresence mode="wait">
       <motion.div
         key={stepKey}
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -20 }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{
+          duration: 0.15,
+          ease: 'easeOut',
+        }}
         className={cn(className)}
         role="region"
       >

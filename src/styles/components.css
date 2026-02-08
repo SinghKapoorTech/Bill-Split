@@ -194,4 +194,98 @@
       @apply px-6 py-3 text-sm;
     }
   }
+
+  /* ==============================================
+     BUTTON MICRO-INTERACTIONS
+     Global tap/hover animations for buttons
+     ============================================== */
+
+  /* Base button animation - apply to all buttons */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+                background-color 0.15s ease;
+  }
+
+  /* Active/pressed state - scale down slightly */
+  button:not(:disabled):active,
+  [role="button"]:not(:disabled):active {
+    transform: scale(0.97);
+  }
+
+  /* Hover state - subtle lift */
+  @media (hover: hover) {
+    button:not(:disabled):hover,
+    [role="button"]:not(:disabled):hover {
+      transform: translateY(-1px);
+    }
+  }
+
+  /* Primary button glow on hover */
+  .btn-primary-glow:hover {
+    box-shadow: 0 4px 20px -4px hsl(var(--primary) / 0.4);
+  }
+
+  /* Card interactive - for clickable cards */
+  .card-interactive {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px -8px rgba(0, 0, 0, 0.15);
+  }
+
+  .card-interactive:active {
+    transform: scale(0.98);
+  }
+
+  /* Badge animation helper */
+  .badge-bounce {
+    animation: badge-bounce 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes badge-bounce {
+    0% { transform: scale(0.8); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+
+  /* Glow pulse animation */
+  .glow-pulse {
+    animation: glow-pulse 0.6s ease-in-out;
+  }
+
+  @keyframes glow-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); }
+    50% { box-shadow: 0 0 20px 4px hsl(var(--primary) / 0.4); }
+  }
+
+  /* Slide in animation for list items */
+  .slide-in-up {
+    animation: slide-in-up 0.25s ease-out forwards;
+  }
+
+  @keyframes slide-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Success checkmark animation */
+  .success-pop {
+    animation: success-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  @keyframes success-pop {
+    0% { transform: scale(0); opacity: 0; }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); opacity: 1; }
+  }
 }
