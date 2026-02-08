@@ -1,4 +1,4 @@
-import { Check, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Person, BillItem, ItemAssignment } from '@/types';
@@ -41,8 +41,8 @@ export function ItemAssignmentBadges({
               key={person.id}
               variant={isAssigned ? 'default' : 'outline'}
               className={`px-2 py-1 md:px-3 md:py-1.5 text-xs md:text-sm min-h-7 transition-colors duration-100 ${isClickable
-                  ? 'cursor-pointer'
-                  : 'cursor-not-allowed opacity-60'
+                ? 'cursor-pointer'
+                : 'cursor-not-allowed opacity-60'
                 } ${isAssigned
                   ? 'bg-primary text-primary-foreground'
                   : isClickable ? 'hover:bg-secondary hover:border-primary/50' : ''
@@ -50,7 +50,6 @@ export function ItemAssignmentBadges({
               onClick={() => isClickable && onAssign(item.id, person.id, !isAssigned)}
             >
               {displayNames[person.id] || person.name}
-              {isAssigned && <Check className="w-2.5 h-2.5 md:w-3 md:h-3 ml-1" />}
             </Badge>
           );
         })}

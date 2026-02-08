@@ -151,43 +151,6 @@ export default function GroupEventView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Feature Cards */}
-      <div className="grid md:grid-cols-3 gap-6 mt-12">
-        <Card className="p-6 text-center space-y-3">
-          <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mx-auto">
-            <Users className="w-6 h-6 text-primary" />
-          </div>
-          <h4 className="font-semibold">Organize by Group</h4>
-          <p className="text-sm text-muted-foreground">
-            Keep roommate bills separate from vacation expenses
-          </p>
-        </Card>
-
-        <Card className="p-6 text-center space-y-3">
-          <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mx-auto">
-            <svg className="w-6 h-6 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          </div>
-          <h4 className="font-semibold">Transaction History</h4>
-          <p className="text-sm text-muted-foreground">
-            See all past bills and payments for each group
-          </p>
-        </Card>
-
-        <Card className="p-6 text-center space-y-3">
-          <div className="w-12 h-12 rounded-lg bg-primary-glow/10 flex items-center justify-center mx-auto">
-            <svg className="w-6 h-6 text-primary-glow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-          </div>
-          <h4 className="font-semibold">Shared Members</h4>
-          <p className="text-sm text-muted-foreground">
-            Add members once, reuse across all group transactions
-          </p>
-        </Card>
-      </div>
     </>
   );
 }
