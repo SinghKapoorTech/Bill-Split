@@ -49,7 +49,7 @@ export function useBillSession({
         return () => clearTimeout(timer);
     }, [activeSession?.id]);
 
-    // Debounced auto-save with dirty checking
+        // Debounced auto-save with dirty checking
     useEffect(() => {
         // Don't auto-save during initialization
         if (isInitializing.current) return;
@@ -59,20 +59,16 @@ export function useBillSession({
             if (isInitializing.current) return;
 
             // CRITICAL: Ensure we're saving to the correct bill
-            // If billId is specified but doesn't match activeSession, we're in a transition - don't save
             if (billId && activeSession?.id && billId !== activeSession.id) {
-                console.warn('Auto-save blocked: billId mismatch during transition', {
-                    billId,
-                    activeSessionId: activeSession?.id
-                });
                 return;
             }
 
             // Create a snapshot of current data for dirty checking
+            // EXCLUDING people and itemAssignments as they are now atomic
             const currentData = JSON.stringify({
                 billData,
-                people,
-                itemAssignments,
+                // people, // Atomic
+                // itemAssignments, // Atomic
                 splitEvenly,
                 currentStep,
                 title,
@@ -82,8 +78,8 @@ export function useBillSession({
             if (currentData !== lastSavedData.current) {
                 const savePayload: any = {
                     billData,
-                    people,
-                    itemAssignments,
+                    // people,
+                    // itemAssignments,
                     splitEvenly,
                     currentStep,
                 };
@@ -96,20 +92,18 @@ export function useBillSession({
                     savePayload.receiptFileName = receiptFileName;
                 }
 
-                // Only include title if it's not empty
                 if (title) {
                     savePayload.title = title;
                 }
 
                 saveSession(savePayload, billId || activeSession?.id);
 
-                // Update last saved snapshot
                 lastSavedData.current = currentData;
             }
         }, 3000); // Debounce by 3 seconds
 
         return () => clearTimeout(timeoutId);
-    }, [billData, people, itemAssignments, splitEvenly, currentStep, title]);
+    }, [billData, splitEvenly, currentStep, title]);
 
     return {
         isInitializing: isInitializing.current

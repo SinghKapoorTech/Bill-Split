@@ -9,7 +9,8 @@ import {
   getDocs,
   Timestamp,
   serverTimestamp,
-  arrayUnion
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Bill, BillData, BillType, BillMember } from '@/types/bill.types';
@@ -43,6 +44,7 @@ export const billService = {
     const newBill: Bill = {
       id: newBillRef.id,
       billType,
+      status: 'active',
       ownerId,
       ...(groupId && { groupId }), // Only include groupId if it's defined
       billData,
@@ -198,5 +200,35 @@ export const billService = {
     });
     
     return code;
+  },
+
+  /**
+   * Atomically toggles a person's assignment to an item
+   * Uses arrayUnion/arrayRemove to prevent race conditions
+   */
+  async toggleItemAssignment(
+    billId: string, 
+    itemId: string, 
+    personId: string, 
+    isAssigned: boolean
+  ): Promise<void> {
+    const billRef = doc(db, BILLS_COLLECTION, billId);
+    
+    // key in the map: itemAssignments.itemId
+    const fieldPath = `itemAssignments.${itemId}`;
+    
+    if (isAssigned) {
+      await updateDoc(billRef, {
+        [fieldPath]: arrayUnion(personId),
+        updatedAt: serverTimestamp(),
+        lastActivity: serverTimestamp()
+      });
+    } else {
+      await updateDoc(billRef, {
+        [fieldPath]: arrayRemove(personId),
+        updatedAt: serverTimestamp(),
+        lastActivity: serverTimestamp()
+      });
+    }
   }
 };

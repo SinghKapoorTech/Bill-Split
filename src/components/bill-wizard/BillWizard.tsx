@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { billService } from '@/services/billService';
+import { arrayUnion } from 'firebase/firestore';
 import { Stepper, StepContent } from '@/components/ui/stepper';
 import { PillProgress } from '@/components/ui/pill-progress';
 import { SwipeableStepContainer, useSwipeNavigation } from '@/components/ui/swipeable-container';
@@ -18,7 +20,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Person, BillData, ItemAssignment } from '@/types';
 import { Step } from './types';
 import { ScanSuccessAnimation } from '@/components/shared/ScanSuccessAnimation';
-import { deleteField } from 'firebase/firestore';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -112,6 +113,20 @@ export function BillWizard({
         setSplitEvenly,
     });
 
+    // Validating and syncing props to state for real-time updates
+    useEffect(() => {
+        // We only sync assignments and people to avoid interrupting bill editing
+        if (initialItemAssignments) {
+            setItemAssignments(initialItemAssignments);
+        }
+    }, [initialItemAssignments]);
+
+    useEffect(() => {
+        if (initialPeople) {
+            setPeople(initialPeople);
+        }
+    }, [initialPeople]);
+
     // Initialize receipt image preview from session if exists
     useEffect(() => {
         if (activeSession?.receiptImageUrl && !upload.imagePreview) {
@@ -140,6 +155,42 @@ export function BillWizard({
         receiptFileName: activeSession?.receiptFileName,
         saveSession
     });
+
+    // Atomic Handlers for Real-time Sync
+    const handleAtomicAssignment = (itemId: string, personId: string, checked: boolean) => {
+        // Optimistic UI update
+        bill.handleItemAssignment(itemId, personId, checked);
+        
+        // Atomic Firestore update
+        const id = billId || activeSession?.id;
+        if (id) {
+            billService.toggleItemAssignment(id, itemId, personId, checked).catch(console.error);
+        }
+    };
+
+    const handleAtomicAddPerson = async () => {
+        const newPerson = await peopleManager.addPerson();
+         if (newPerson) {
+            const id = billId || activeSession?.id;
+            if (id) {
+                 billService.updateBill(id, { 
+                     people: arrayUnion(newPerson) as unknown as Person[] 
+                 }).catch(console.error);
+            }
+         }
+    };
+
+    const handleAtomicAddFromFriend = (friend: any) => {
+         const newPerson = peopleManager.addFromFriend(friend);
+         if (newPerson) {
+            const id = billId || activeSession?.id;
+            if (id) {
+                 billService.updateBill(id, { 
+                     people: arrayUnion(newPerson) as unknown as Person[] 
+                 }).catch(console.error);
+            }
+         }
+    };
 
     // Event handlers
     const handleRemovePerson = (personId: string) => {
@@ -337,8 +388,11 @@ export function BillWizard({
                             onNameChange={peopleManager.setNewPersonName}
                             onVenmoIdChange={peopleManager.setNewPersonVenmoId}
                             onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
-                            onAdd={peopleManager.addPerson}
-                            onAddFromFriend={peopleManager.addFromFriend}
+                            isMobile={isMobile}
+                            upload={upload}
+                            // Atomic handlers
+                            onAdd={handleAtomicAddPerson}
+                            onAddFromFriend={handleAtomicAddFromFriend}
                             onRemove={handleRemovePerson}
                             onSaveAsFriend={peopleManager.savePersonAsFriend}
                             imagePreview={upload.imagePreview}
@@ -354,8 +408,6 @@ export function BillWizard({
                             canProceed={wizard.canProceedFromStep(1)}
                             currentStep={wizard.currentStep}
                             totalSteps={STEPS.length}
-                            isMobile={isMobile}
-                            upload={upload}
                         />
                     )}
 
@@ -366,7 +418,7 @@ export function BillWizard({
                             people={people}
                             itemAssignments={itemAssignments}
                             splitEvenly={splitEvenly}
-                            onAssign={bill.handleItemAssignment}
+                            onAssign={handleAtomicAssignment}
                             onToggleSplitEvenly={bill.toggleSplitEvenly}
                             removePersonFromAssignments={bill.removePersonFromAssignments}
                             removeItemAssignments={bill.removeItemAssignments}

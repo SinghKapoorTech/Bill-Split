@@ -56,11 +56,17 @@ export default function AIScanView() {
     // 1. We have a session AND
     // 2. We haven't loaded this specific session yet (prevents auto-save loop)
     if (activeSession && (!billId || activeSession.id === billId)) {
-      // Only update if this is a different session than what we've loaded
+      // Always sync real-time fields (assignments, people)
+      // This ensures we see what others are doing
+      setItemAssignments(activeSession.itemAssignments || {});
+      // Only update people if the length changed or we want to be strict?
+      // Let's just sync it. People list is small.
+      setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
+
+      // Only update static/editor fields if this is a different session load
+      // preventing cursor jumps or overwrite of local edits
       if (loadedSessionId.current !== activeSession.id) {
         setBillData(activeSession.billData || null);
-        setItemAssignments(activeSession.itemAssignments || {});
-        setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
         setSplitEvenly(activeSession.splitEvenly || false);
         setTitle(activeSession.title || '');
         setCurrentStep(activeSession.currentStep || 0);

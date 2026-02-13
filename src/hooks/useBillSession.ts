@@ -138,5 +138,18 @@ export function useBillSession(billId: string | null) {
     updateSession,
     joinSession,
     endSession,
+    toggleAssignment: useCallback(async (itemId: string, personId: string, isAssigned: boolean) => {
+      if (!billId) return;
+      try {
+        await billService.toggleItemAssignment(billId, itemId, personId, isAssigned);
+      } catch (error) {
+        console.error('Error toggling assignment:', error);
+        toast({
+          title: 'Update Failed',
+          description: 'Could not update item assignment.',
+          variant: 'destructive',
+        });
+      }
+    }, [billId, toast])
   };
 }

@@ -32,7 +32,7 @@ export function usePeopleManager(
     }
   }, [user, profile?.venmoId, people.length]);
 
-  const addPerson = async () => {
+  const addPerson = async (): Promise<Person | null> => {
     // Validate input
     const validation = validatePersonInput(newPersonName);
     if (!validation.isValid && validation.error) {
@@ -41,7 +41,7 @@ export function usePeopleManager(
         description: validation.error.description,
         variant: 'destructive',
       });
-      return;
+      return null;
     }
 
     // Create person object with proper venmoId handling
@@ -58,6 +58,8 @@ export function usePeopleManager(
     setNewPersonName('');
     setNewPersonVenmoId('');
     setUseNameAsVenmoId(false);
+
+    return newPerson;
   };
 
   const removePerson = (personId: string) => {
@@ -77,7 +79,7 @@ export function usePeopleManager(
     setPeople(people.filter(p => p.id !== personId));
   };
 
-  const addFromFriend = (friend: { name: string; venmoId?: string }) => {
+  const addFromFriend = (friend: { name: string; venmoId?: string }): Person => {
     const newPerson: Person = {
       id: generatePersonId(),
       name: friend.name,
@@ -90,6 +92,8 @@ export function usePeopleManager(
       title: 'Friend added',
       description: `${friend.name} has been added to the bill.`,
     });
+
+    return newPerson;
   };
 
   const savePersonAsFriend = async (person: Person) => {

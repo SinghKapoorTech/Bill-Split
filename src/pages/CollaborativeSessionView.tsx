@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { arrayUnion } from 'firebase/firestore'; 
 import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
 import { PeopleManager } from '@/components/people/PeopleManager';
 import { BillItems } from '@/components/bill/BillItems';
@@ -39,7 +40,7 @@ export default function CollaborativeSessionView() {
   const { profile } = useUserProfile();
 
   // Collaborative session hook with real-time updates
-  const { session, isLoading, error, updateSession, endSession } = useBillSession(sessionId || null);
+  const { session, isLoading, error, updateSession, endSession, toggleAssignment } = useBillSession(sessionId || null);
 
   // Local state synced with collaborative session
   const [people, setPeople] = useState<Person[]>([]);
@@ -83,20 +84,22 @@ export default function CollaborativeSessionView() {
   }, [session]);
 
   // Debounced auto-save to Firestore
+  // NOTE: We excluded people and itemAssignments from auto-save to prevent race conditions.
+  // Those are now updated atomically via events.
   useEffect(() => {
     if (isInitializing.current || !session) return;
 
     const timeoutId = setTimeout(() => {
       updateSession({
         billData,
-        people,
-        itemAssignments,
+        // people, // Handled atomically/immediately
+        // itemAssignments, // Handled atomically
         splitEvenly,
       });
     }, 1500);
 
     return () => clearTimeout(timeoutId);
-  }, [billData, people, itemAssignments, splitEvenly, session, updateSession]);
+  }, [billData, splitEvenly, session, updateSession]);
 
   // Determine if current user is the owner (must be before early returns)
   const isOwner = useMemo(() => {
@@ -108,26 +111,15 @@ export default function CollaborativeSessionView() {
   const handleAddSelfToPeople = (newPerson: Person) => {
     const updatedPeople = [...people, newPerson];
     setPeople(updatedPeople);
-    updateSession({ people: updatedPeople });
+    updateSession({ people: arrayUnion(newPerson) as unknown as Person[] });
   };
 
   const handleClaimItem = (itemId: string, personId: string, claimed: boolean) => {
-    const currentAssignments = itemAssignments[itemId] || [];
-    let newAssignments: string[];
-
-    if (claimed) {
-      newAssignments = [...currentAssignments, personId];
-    } else {
-      newAssignments = currentAssignments.filter(id => id !== personId);
-    }
-
-    const updatedItemAssignments = {
-      ...itemAssignments,
-      [itemId]: newAssignments,
-    };
-
-    setItemAssignments(updatedItemAssignments);
-    updateSession({ itemAssignments: updatedItemAssignments });
+    // 1. Optimistic update (for UI responsiveness)
+    bill.handleItemAssignment(itemId, personId, claimed);
+    
+    // 2. Atomic update (for real-time sync)
+    toggleAssignment(itemId, personId, claimed);
   };
 
   const handleRemovePerson = (personId: string) => {
@@ -305,9 +297,24 @@ export default function CollaborativeSessionView() {
                 onNameChange={peopleManager.setNewPersonName}
                 onVenmoIdChange={peopleManager.setNewPersonVenmoId}
                 onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
-                onAdd={peopleManager.addPerson}
-                onAddFromFriend={peopleManager.addFromFriend}
-                onRemove={handleRemovePerson}
+                onAdd={async () => {
+                  const newPerson = await peopleManager.addPerson();
+                  if (newPerson) {
+                    // Atomic add
+                    updateSession({ people: arrayUnion(newPerson) as unknown as Person[] });
+                  }
+                }}
+                onAddFromFriend={(f) => {
+                  const newPerson = peopleManager.addFromFriend(f);
+                  if (newPerson) {
+                     updateSession({ people: arrayUnion(newPerson) as unknown as Person[] });
+                  }
+                }}
+                onRemove={(id) => {
+                   handleRemovePerson(id);
+                   const newPeople = people.filter(p => p.id !== id);
+                   updateSession({ people: newPeople });
+                }}
                 onSaveAsFriend={peopleManager.savePersonAsFriend}
                 setPeople={setPeople}
               />
@@ -405,7 +412,7 @@ export default function CollaborativeSessionView() {
               editingItemId={editor.editingItemId}
               editingItemName={editor.editingItemName}
               editingItemPrice={editor.editingItemPrice}
-              onAssign={bill.handleItemAssignment}
+              onAssign={handleClaimItem}
               onEdit={editor.editItem}
               onSave={editor.saveEdit}
               onCancel={editor.cancelEdit}
