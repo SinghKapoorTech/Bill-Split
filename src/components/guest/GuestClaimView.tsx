@@ -1,17 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Check, User, Users, Receipt } from 'lucide-react';
+import { Check, User, Users, Receipt, Edit2 } from 'lucide-react';
 import { Bill, BillItem } from '@/types/bill.types';
 import { Person } from '@/types/person.types';
 import { useAuth } from '@/contexts/AuthContext';
 import { ItemAssignmentBadges } from '@/components/shared/ItemAssignmentBadges';
+import { EditPersonDialog } from '@/components/people/EditPersonDialog';
 
 interface GuestClaimViewProps {
   session: Bill;
   onAddSelfToPeople: (person: Person) => void;
   onClaimItem: (itemId: string, personId: string, claimed: boolean) => void;
+  onUpdatePerson: (personId: string, updates: Partial<Person>) => Promise<void>;
 }
 
 /**
@@ -23,9 +25,17 @@ export function GuestClaimView({
   session,
   onAddSelfToPeople,
   onClaimItem,
+  onUpdatePerson
 }: GuestClaimViewProps) {
   const { user } = useAuth();
-  const [guestName, setGuestName] = useState('');
+  
+  // Initialize from localStorage if available
+  const [guestName, setGuestName] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('preferred-guest-name') || '';
+    }
+    return '';
+  });
   
   // For anonymous users: store their guest ID so we can find them in the people list
   // Use localStorage to persist across page refreshes
@@ -35,6 +45,8 @@ export function GuestClaimView({
     }
     return null;
   });
+
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Find if current user is already in people list
   const currentPerson = useMemo(() => {
@@ -85,9 +97,29 @@ export function GuestClaimView({
     if (!user) {
       setGuestId(newGuestId);
       localStorage.setItem(`guest-id-${session.id}`, newGuestId);
+      localStorage.setItem('preferred-guest-name', name);
     }
 
     onAddSelfToPeople(newPerson);
+  };
+
+  const handleUpdateProfile = async (updates: Partial<Person>) => {
+    if (!currentPerson) return;
+    
+    await onUpdatePerson(currentPerson.id, updates);
+    
+    // Update local storage if name changed
+    if (updates.name && !user) {
+      localStorage.setItem('preferred-guest-name', updates.name);
+    }
+  };
+
+  const handleSwitchUser = () => {
+    if (window.confirm('Are you sure you want to sign out as this guest? You will lose access to your claimed items unless you rejoin with the same name.')) {
+        setGuestId(null);
+        localStorage.removeItem(`guest-id-${session.id}`);
+        // We keep 'preferred-guest-name' for convenience
+    }
   };
 
   const items = session.billData?.items || [];
@@ -183,17 +215,56 @@ export function GuestClaimView({
       {/* User info header */}
       <Card className="p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <User className="w-4 h-4 text-primary" />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <User className="w-5 h-5 text-primary" />
             </div>
-            <span className="font-medium">{currentPerson.name}</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-lg">{currentPerson.name}</span>
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6" 
+                    onClick={() => setIsEditDialogOpen(true)}
+                >
+                    <Edit2 className="w-3 h-3" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                {currentPerson.venmoId && (
+                    <span className="text-xs text-muted-foreground">
+                      {currentPerson.venmoId}
+                    </span>
+                )}
+                {!user && (
+                    <button 
+                        onClick={handleSwitchUser}
+                        className="text-xs text-muted-foreground underline hover:text-primary ml-1"
+                    >
+                        Not you?
+                    </button>
+                )}
+              </div>
+            </div>
           </div>
-          <span className="text-sm text-muted-foreground">
-            Tap your name to claim
-          </span>
+          <div className="text-right">
+             <span className="text-sm text-muted-foreground block">Total</span>
+             <span className="text-xl font-bold text-primary">
+                ${calculatePersonTotal(items, itemAssignments, currentPerson.id).toFixed(2)}
+             </span>
+          </div>
         </div>
       </Card>
+
+      {/* Edit Person Dialog */}
+      <EditPersonDialog
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        person={currentPerson}
+        onSave={handleUpdateProfile}
+        existingNames={session.people?.map(p => p.name) || []}
+      />
 
       {items.length === 0 ? (
         <Card className="p-8 text-center">
@@ -285,3 +356,4 @@ function calculatePersonTotal(
 
   return total;
 }
+

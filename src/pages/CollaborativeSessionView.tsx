@@ -163,42 +163,25 @@ export default function CollaborativeSessionView() {
     navigate('/dashboard');
   };
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-12 h-12 animate-spin text-primary" />
-      </div>
+  const handleUpdatePerson = async (personId: string, updates: Partial<Person>) => {
+    // 1. Optimistic update
+    const updatedPeople = people.map(p => 
+      p.id === personId ? { ...p, ...updates } : p
     );
-  }
-
-  // Error state
-  if (error || !session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="max-w-md p-8 space-y-4 text-center">
-          <AlertCircle className="w-16 h-16 text-destructive mx-auto" />
-          <h2 className="text-2xl font-bold">Session Error</h2>
-          <p className="text-muted-foreground">{error || 'Session not found'}</p>
-          <Button onClick={() => navigate('/dashboard')}>Go to App</Button>
-        </Card>
-      </div>
-    );
-  }
-
-  // Session ended
-  if (session.status === 'archived') {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="max-w-md p-8 space-y-4 text-center">
-          <AlertCircle className="w-16 h-16 text-muted-foreground mx-auto" />
-          <h2 className="text-2xl font-bold">Session Ended</h2>
-          <p className="text-muted-foreground">This collaborative session has ended.</p>
-          <Button onClick={() => navigate('/dashboard')}>Go to App</Button>
-        </Card>
-      </div>
-    );
-  }
+    setPeople(updatedPeople);
+    
+    // 2. Atomic update via service
+    if (session) {
+      // We need to import billService to use its static method
+      // But since we are using useBillSession, we might not have direct access to the service method 
+      // if it's not exposed by the hook. 
+      // Let's check imports. billService is imported in the file? No.
+      // We should probably add the method to useBillSession or import billService directly.
+      // Importing billService directly is easier for now as per plan.
+      const { billService } = await import('@/services/billService');
+      await billService.updatePersonDetails(session.id, personId, updates);
+    }
+  };
 
   // Guest view - simplified claim interface
   if (!isOwner && session) {
@@ -222,6 +205,7 @@ export default function CollaborativeSessionView() {
           session={session}
           onAddSelfToPeople={handleAddSelfToPeople}
           onClaimItem={handleClaimItem}
+          onUpdatePerson={handleUpdatePerson}
         />
       </div>
     );

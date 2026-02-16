@@ -230,5 +230,56 @@ export const billService = {
         lastActivity: serverTimestamp()
       });
     }
+  },
+  
+  /**
+   * Updates a person's details (name, venmoId) in the bill
+   * This requires a read-modify-write cycle for the people array
+   */
+  async updatePersonDetails(
+    billId: string, 
+    personId: string, 
+    updates: Partial<Person>
+  ): Promise<void> {
+    const billRef = doc(db, BILLS_COLLECTION, billId);
+    
+    // 1. Get current bill data
+    const billSnap = await getDoc(billRef);
+    if (!billSnap.exists()) throw new Error('Bill not found');
+    
+    const billData = billSnap.data() as Bill;
+    const people = billData.people || [];
+    
+    // 2. Find and update the person
+    const personIndex = people.findIndex(p => p.id === personId);
+    if (personIndex === -1) throw new Error('Person not found on this bill');
+    
+    const updatedPeople = [...people];
+    updatedPeople[personIndex] = {
+      ...updatedPeople[personIndex],
+      ...updates
+    };
+    
+    // 3. Write back the updated people array
+    // Also update member record if this person is a member
+    const members = billData.members || [];
+    const memberIndex = members.findIndex(m => m.userId === personId);
+    
+    const updatePayload: any = {
+      people: updatedPeople,
+      updatedAt: serverTimestamp(),
+      lastActivity: serverTimestamp()
+    };
+    
+    if (memberIndex !== -1 && updates.name) {
+      const updatedMembers = [...members];
+      updatedMembers[memberIndex] = {
+        ...updatedMembers[memberIndex],
+        name: updates.name
+      };
+      updatePayload.members = updatedMembers;
+    }
+    
+    await updateDoc(billRef, updatePayload);
   }
 };
