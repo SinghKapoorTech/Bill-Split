@@ -29,7 +29,8 @@ export const billService = {
     billType: BillType,
     billData: BillData,
     people: Person[],
-    groupId?: string
+    groupId?: string,
+    squadId?: string
   ): Promise<string> {
     const newBillRef = doc(collection(db, BILLS_COLLECTION));
     const now = Timestamp.now();
@@ -47,6 +48,7 @@ export const billService = {
       status: 'active',
       ownerId,
       ...(groupId && { groupId }), // Only include groupId if it's defined
+      ...(squadId && { squadId }), // Only include squadId if it's defined
       billData,
       itemAssignments: {},
       people,

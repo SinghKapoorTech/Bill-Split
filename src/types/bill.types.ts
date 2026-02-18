@@ -33,6 +33,7 @@ export interface Bill {
   status: BillStatus;
   ownerId: string;
   groupId?: string; // If billType === 'group'
+  squadId?: string; // Optional squad ID
 
   billData: BillData;
 

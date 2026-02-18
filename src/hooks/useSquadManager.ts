@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from './use-toast';
-import { Squad, CreateSquadInput, UpdateSquadInput } from '@/types/squad.types';
+import { Squad, HydratedSquad, CreateSquadInput, UpdateSquadInput } from '@/types/squad.types';
 import {
   fetchUserSquads,
   saveSquad,
@@ -14,7 +14,7 @@ import { validateSquadName, validateSquadMembers } from '@/utils/squadUtils';
 export function useSquadManager() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [squads, setSquads] = useState<Squad[]>([]);
+  const [squads, setSquads] = useState<HydratedSquad[]>([]);
   const [loading, setLoading] = useState(true);
 
   /**
@@ -197,7 +197,7 @@ export function useSquadManager() {
    * Finds a squad by ID
    */
   const findSquadById = useCallback(
-    (squadId: string): Squad | undefined => {
+    (squadId: string): HydratedSquad | undefined => {
       return squads.find(s => s.id === squadId);
     },
     [squads]
@@ -207,7 +207,7 @@ export function useSquadManager() {
    * Gets a squad by ID (async version that fetches from Firestore)
    */
   const getSquad = useCallback(
-    async (squadId: string): Promise<Squad | null> => {
+    async (squadId: string): Promise<HydratedSquad | null> => {
       if (!user) return null;
 
       try {

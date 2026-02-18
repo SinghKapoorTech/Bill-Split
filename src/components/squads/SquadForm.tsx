@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, UserPlus } from 'lucide-react';
+import { X, UserPlus, Mail, Phone, Ticket } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -29,23 +29,32 @@ export function SquadForm({
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const [members, setMembers] = useState<SquadMember[]>(initialMembers);
+  
+  // New member inputs
   const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberPhone, setNewMemberPhone] = useState('');
   const [newMemberVenmoId, setNewMemberVenmoId] = useState('');
-  const [showVenmoField, setShowVenmoField] = useState(false);
+  
+  const [showExtraFields, setShowExtraFields] = useState(false);
 
   const handleAddMember = () => {
     if (!newMemberName.trim()) return;
 
     const newMember: SquadMember = sanitizeSquadMember({
       name: newMemberName,
+      email: newMemberEmail.trim() || undefined,
+      phoneNumber: newMemberPhone.trim() || undefined,
       venmoId: newMemberVenmoId.trim() || undefined,
     });
 
-    // Check for duplicates - compare by name and venmoId
+    // Check for duplicates
+    // A simplified check mainly on name or if contact info matches
     const isDuplicate = members.some(
       (member) =>
-        member.name.toLowerCase() === newMember.name.toLowerCase() &&
-        member.venmoId?.toLowerCase() === newMember.venmoId?.toLowerCase()
+        (member.name.toLowerCase() === newMember.name.toLowerCase()) ||
+        (member.email && newMember.email && member.email.toLowerCase() === newMember.email.toLowerCase()) ||
+        (member.phoneNumber && newMember.phoneNumber && member.phoneNumber === newMember.phoneNumber)
     );
 
     if (!isDuplicate) {
@@ -53,8 +62,10 @@ export function SquadForm({
     }
 
     setNewMemberName('');
+    setNewMemberEmail('');
+    setNewMemberPhone('');
     setNewMemberVenmoId('');
-    setShowVenmoField(false);
+    setShowExtraFields(false);
   };
 
   const handleRemoveMember = (index: number) => {
@@ -71,18 +82,108 @@ export function SquadForm({
     <div className="space-y-4">
       <SquadNameField value={name} onChange={setName} />
       <SquadDescriptionField value={description} onChange={setDescription} />
-      <SquadMemberSelector
-        members={members}
-        setMembers={setMembers}
-        newMemberName={newMemberName}
-        newMemberVenmoId={newMemberVenmoId}
-        showVenmoField={showVenmoField}
-        onNewMemberNameChange={setNewMemberName}
-        onNewMemberVenmoIdChange={setNewMemberVenmoId}
-        onShowVenmoFieldChange={setShowVenmoField}
-        onAddMember={handleAddMember}
-        onRemoveMember={handleRemoveMember}
-      />
+      
+      <div className="space-y-2">
+        <Label>Members *</Label>
+        <div className="border border-border rounded-md p-3 space-y-3 bg-card">
+          <div className="space-y-3">
+             <div className="flex gap-2">
+                <Input
+                  placeholder="Name"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={handleAddMember} variant="secondary" size="icon" type="button" disabled={!newMemberName.trim()}>
+                  <UserPlus className="w-4 h-4" />
+                </Button>
+             </div>
+             
+             {!showExtraFields ? (
+                <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setShowExtraFields(true)} className="text-xs text-muted-foreground h-auto py-1">
+                        + Add Contact Info (Email/Phone/Venmo)
+                    </Button>
+                </div>
+             ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 animate-in fade-in slide-in-from-top-1">
+                    <div className="relative">
+                        <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            placeholder="Email" 
+                            className="pl-9 text-xs" 
+                            value={newMemberEmail}
+                            onChange={(e) => setNewMemberEmail(e.target.value)}
+                        />
+                    </div>
+                    <div className="relative">
+                        <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            placeholder="Phone" 
+                            className="pl-9 text-xs" 
+                            value={newMemberPhone}
+                            onChange={(e) => setNewMemberPhone(e.target.value)}
+                        />
+                    </div>
+                    <div className="relative">
+                        <Ticket className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            placeholder="Venmo ID" 
+                            className="pl-9 text-xs" 
+                            value={newMemberVenmoId}
+                            onChange={(e) => setNewMemberVenmoId(e.target.value)}
+                        />
+                    </div>
+                </div>
+             )}
+          </div>
+
+          <ValidMemberUserSearch 
+            onSelect={(user) => {
+                 setNewMemberName(user.displayName);
+                 setNewMemberEmail(user.email || '');
+                 setNewMemberPhone(user.phoneNumber || '');
+                 setNewMemberVenmoId(user.venmoId || '');
+                 // Auto add? Or just populate fields? Populating fields is safer to review.
+                 // Actually, if selected from existing friend/user, we should attach the ID directly if possible?
+                 // SquadMember has optional `id`.
+                 // Let's populate fields and let user click add.
+            }}
+          />
+
+          {members.length > 0 && (
+            <div className="space-y-1 pt-2 max-h-[200px] overflow-y-auto">
+              <Label className="text-xs text-muted-foreground">Current Members</Label>
+              {members.map((member, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-2 bg-secondary/30 rounded text-sm"
+                >
+                  <div className="flex flex-col">
+                    <span className="font-medium">{member.name}</span>
+                    <div className="flex gap-2 text-xs text-muted-foreground">
+                        {member.email && <span className="flex items-center gap-0.5"><Mail className="w-3 h-3"/> {member.email}</span>}
+                        {member.phoneNumber && <span className="flex items-center gap-0.5"><Phone className="w-3 h-3"/> {member.phoneNumber}</span>}
+                        {member.venmoId && <span className="flex items-center gap-0.5"><Ticket className="w-3 h-3"/> {member.venmoId}</span>}
+                        {!member.email && !member.phoneNumber && !member.venmoId && <span>No contact info</span>}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveMember(index)}
+                    type="button"
+                    className="h-8 w-8 p-0"
+                  >
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <Button onClick={handleSubmit} variant="success" disabled={!isValid} className="w-full">
         {submitLabel}
       </Button>
@@ -106,7 +207,7 @@ function SquadNameField({ value, onChange }: SquadNameFieldProps) {
       <Label htmlFor="squad-name">Squad Name *</Label>
       <Input
         id="squad-name"
-        placeholder="e.g., College Friends, Roommates, Game Night Crew"
+        placeholder="e.g., College Friends, Roommates"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         maxLength={50}
@@ -136,208 +237,35 @@ function SquadDescriptionField({ value, onChange }: SquadDescriptionFieldProps) 
   );
 }
 
-interface Friend {
-  name: string;
-  venmoId?: string;
-}
+// Simplified version of the friend search just to populate name/contact
+function ValidMemberUserSearch({ onSelect }: { onSelect: (user: any) => void }) {
+    const { user } = useAuth();
+    const [friends, setFriends] = useState<any[]>([]);
+    
+    useEffect(() => {
+        if (!user) return;
+        const loadFriends = async () => {
+             const userDocRef = doc(db, 'users', user.uid);
+             const userDoc = await getDoc(userDocRef);
+             if (userDoc.exists()) {
+                 setFriends(userDoc.data().friends || []);
+             }
+        };
+        loadFriends();
+    }, [user]);
+    
+    if (friends.length === 0) return null;
 
-interface SquadMemberSelectorProps {
-  members: SquadMember[];
-  setMembers: React.Dispatch<React.SetStateAction<SquadMember[]>>;
-  newMemberName: string;
-  newMemberVenmoId: string;
-  showVenmoField: boolean;
-  onNewMemberNameChange: (value: string) => void;
-  onNewMemberVenmoIdChange: (value: string) => void;
-  onShowVenmoFieldChange: (value: boolean) => void;
-  onAddMember: () => void;
-  onRemoveMember: (index: number) => void;
-}
-
-function SquadMemberSelector({
-  members,
-  setMembers,
-  newMemberName,
-  newMemberVenmoId,
-  showVenmoField,
-  onNewMemberNameChange,
-  onNewMemberVenmoIdChange,
-  onShowVenmoFieldChange,
-  onAddMember,
-  onRemoveMember,
-}: SquadMemberSelectorProps) {
-  const { user } = useAuth();
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [filteredFriends, setFilteredFriends] = useState<Friend[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const suggestionsRef = useRef<HTMLDivElement>(null);
-
-  // Load friends list
-  useEffect(() => {
-    if (user) {
-      loadFriends();
-    }
-  }, [user]);
-
-  // Filter friends based on input
-  useEffect(() => {
-    if (newMemberName.trim().length > 0) {
-      const filtered = friends.filter(friend =>
-        friend.name.toLowerCase().startsWith(newMemberName.toLowerCase())
-      );
-      setFilteredFriends(filtered);
-      setShowSuggestions(filtered.length > 0);
-    } else {
-      setShowSuggestions(false);
-    }
-  }, [newMemberName, friends]);
-
-  // Close suggestions when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        suggestionsRef.current &&
-        !suggestionsRef.current.contains(event.target as Node) &&
-        inputRef.current &&
-        !inputRef.current.contains(event.target as Node)
-      ) {
-        setShowSuggestions(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const loadFriends = async () => {
-    if (!user) return;
-
-    try {
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        setFriends(data.friends || []);
-      }
-    } catch (error) {
-      console.error('Error loading friends:', error);
-    }
-  };
-
-  const handleSelectFriend = (friend: Friend) => {
-    // Add the friend directly to members list
-    const newMember: SquadMember = sanitizeSquadMember({
-      name: friend.name,
-      venmoId: friend.venmoId,
-    });
-
-    // Check for duplicates - compare by name and venmoId
-    const isDuplicate = members.some(
-      (member) =>
-        member.name.toLowerCase() === newMember.name.toLowerCase() &&
-        member.venmoId?.toLowerCase() === newMember.venmoId?.toLowerCase()
+    return (
+        <div className="pt-2">
+             <Label className="text-xs text-muted-foreground mb-1 block">Quick Add Friend</Label>
+             <div className="flex gap-1 flex-wrap">
+                 {friends.slice(0, 5).map((f, i) => (
+                     <Badge key={i} variant="outline" className="cursor-pointer hover:bg-secondary" onClick={() => onSelect({ displayName: f.name, venmoId: f.venmoId })}>
+                        {f.name}
+                     </Badge>
+                 ))}
+             </div>
+        </div>
     );
-
-    if (!isDuplicate) {
-      setMembers([...members, newMember]);
-    }
-
-    // Clear input fields
-    onNewMemberNameChange('');
-    onNewMemberVenmoIdChange('');
-    setShowSuggestions(false);
-  };
-
-  return (
-    <div className="space-y-2">
-      <Label>Members *</Label>
-      <div className="flex gap-2">
-        <div className="flex-1 relative">
-          <Input
-            ref={inputRef}
-            placeholder="Member name"
-            value={newMemberName}
-            onChange={(e) => onNewMemberNameChange(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && !showVenmoField && onAddMember()}
-            className="flex-1"
-          />
-          {showSuggestions && filteredFriends.length > 0 && (
-            <div
-              ref={suggestionsRef}
-              className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-[200px] overflow-y-auto"
-            >
-              {filteredFriends.map((friend, index) => (
-                <div
-                  key={index}
-                  onClick={() => handleSelectFriend(friend)}
-                  className="px-3 py-2 cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
-                >
-                  <div className="font-medium">{friend.name}</div>
-                  {friend.venmoId && (
-                    <div className="text-xs text-muted-foreground">
-                      @{friend.venmoId}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <Button onClick={onAddMember} variant="success" size="icon" type="button">
-          <UserPlus className="w-4 h-4" />
-        </Button>
-      </div>
-
-      {showVenmoField && (
-        <Input
-          placeholder="Venmo username (without @)"
-          value={newMemberVenmoId}
-          onChange={(e) => onNewMemberVenmoIdChange(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && onAddMember()}
-          className="text-sm"
-        />
-      )}
-
-      <Badge
-        variant={showVenmoField ? 'default' : 'outline'}
-        className="cursor-pointer px-3 py-1 text-xs hover:opacity-80 transition-opacity"
-        onClick={() => onShowVenmoFieldChange(!showVenmoField)}
-      >
-        Add Venmo ID
-      </Badge>
-
-
-
-      {members.length > 0 && (
-        <div className="space-y-1 max-h-[200px] overflow-y-auto border border-border rounded-md p-2">
-          {members.map((member, index) => (
-            <div
-              key={index}
-              className="flex items-center justify-between p-2 bg-secondary/30 rounded"
-            >
-              <div className="flex-1">
-                <span className="text-sm font-medium">{member.name}</span>
-                {member.venmoId && (
-                  <span className="text-xs text-muted-foreground ml-2">
-                    @{member.venmoId}
-                  </span>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onRemoveMember(index)}
-                type="button"
-                aria-label={`Remove ${member.name}`}
-              >
-                <X className="w-4 h-4 text-muted-foreground" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }

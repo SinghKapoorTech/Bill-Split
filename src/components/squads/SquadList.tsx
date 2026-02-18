@@ -1,10 +1,10 @@
 import { Users, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Squad } from '@/types/squad.types';
+import { HydratedSquad } from '@/types/squad.types';
 
 interface SquadListProps {
-  squads: Squad[];
-  onEdit: (squad: Squad) => void;
+  squads: HydratedSquad[];
+  onEdit: (squad: HydratedSquad) => void;
   onDelete: (squadId: string) => void;
 }
 
@@ -28,7 +28,7 @@ export function SquadList({ squads, onEdit, onDelete }: SquadListProps) {
 }
 
 interface SquadListItemProps {
-  squad: Squad;
+  squad: HydratedSquad;
   onEdit: () => void;
   onDelete: () => void;
 }

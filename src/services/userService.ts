@@ -51,7 +51,7 @@ export const userService = {
         photoURL: user.photoURL || undefined,
         phoneNumber: user.phoneNumber || undefined,
         friends: [],
-        squads: [],
+        squadIds: [],
         createdAt: now,
         lastLoginAt: now
       };
@@ -73,6 +73,8 @@ export const userService = {
       await updateDoc(userRef, updates);
     }
   },
+
+
 
   /**
    * Gets a user by email or phone number
@@ -131,53 +133,60 @@ export const userService = {
   },
 
   /**
-   * Creates a new squad
+   * Creates a shadow user for an invited member
    */
-  async createSquad(userId: string, squad: Squad): Promise<void> {
-    const userRef = doc(db, USERS_COLLECTION, userId);
-    await updateDoc(userRef, {
-      squads: arrayUnion(squad)
-    });
-  },
-
-  /**
-   * Updates an existing squad (by name)
-   */
-  async updateSquad(userId: string, oldName: string, updatedSquad: Squad): Promise<void> {
-    const userRef = doc(db, USERS_COLLECTION, userId);
-    const userSnap = await getDoc(userRef);
+  async createShadowUser(contact: string, name?: string): Promise<string> {
+    const usersRef = collection(db, USERS_COLLECTION);
     
-    if (!userSnap.exists()) return;
-    
-    const userData = userSnap.data() as UserProfile;
-    const squads = userData.squads || [];
-    
-    const index = squads.findIndex(s => s.name === oldName);
-    if (index === -1) {
-      throw new Error('Squad not found');
+    // Check if user already exists with this contact to avoid duplicates
+    const existingUser = await this.getUserByContact(contact);
+    if (existingUser) {
+      return existingUser.uid;
     }
+
+    const newUserId = doc(usersRef).id; // Auto-generate ID
+    const now = Timestamp.now();
     
-    squads[index] = updatedSquad;
+    const isEmail = contact.includes('@');
     
-    await updateDoc(userRef, {
-      squads: squads
-    });
+    const newProfile: any = {
+      uid: newUserId,
+      displayName: name || contact,
+      friends: [],
+      squadIds: [],
+      createdAt: now,
+      lastLoginAt: now,
+      isShadow: true
+    };
+
+    if (isEmail) {
+      newProfile.email = contact;
+    } else {
+      newProfile.phoneNumber = contact;
+    }
+
+    await setDoc(doc(db, USERS_COLLECTION, newUserId), newProfile);
+    return newUserId;
   },
 
   /**
-   * Deletes a squad
+   * Resolves a user identifier (ID, email, phone) to a User ID
+   * Creates a shadow user if not found
    */
-  async deleteSquad(userId: string, squadName: string): Promise<void> {
-    const userRef = doc(db, USERS_COLLECTION, userId);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) return;
-    
-    const userData = userSnap.data() as UserProfile;
-    const updatedSquads = userData.squads.filter(s => s.name !== squadName);
-    
-    await updateDoc(userRef, {
-      squads: updatedSquads
-    });
+  async resolveUser(identifier: string, name?: string): Promise<string> {
+    // 1. Check if it's already a valid User ID
+    const userProfile = await this.getUserProfile(identifier);
+    if (userProfile) {
+      return userProfile.uid;
+    }
+
+    // 2. Check if it's an email or phone number in DB
+    const contactUser = await this.getUserByContact(identifier);
+    if (contactUser) {
+      return contactUser.uid;
+    }
+
+    // 3. Create a shadow user
+    return this.createShadowUser(identifier, name);
   }
 };

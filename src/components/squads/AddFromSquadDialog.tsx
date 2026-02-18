@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSquadManager } from '@/hooks/useSquadManager';
-import { Squad, SquadMember } from '@/types/squad.types';
+import { HydratedSquad, SquadMember } from '@/types/squad.types';
 
 interface AddFromSquadDialogProps {
   open: boolean;
@@ -21,7 +21,7 @@ interface AddFromSquadDialogProps {
 export function AddFromSquadDialog({ open, onOpenChange, onAddSquad }: AddFromSquadDialogProps) {
   const { squads, loading, loadSquads } = useSquadManager();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSquad, setSelectedSquad] = useState<Squad | null>(null);
+  const [selectedSquad, setSelectedSquad] = useState<HydratedSquad | null>(null);
 
   // Refresh squads when dialog opens
   useEffect(() => {
@@ -34,7 +34,7 @@ export function AddFromSquadDialog({ open, onOpenChange, onAddSquad }: AddFromSq
     squad.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleSelectSquad = (squad: Squad) => {
+  const handleSelectSquad = (squad: HydratedSquad) => {
     setSelectedSquad(squad);
   };
 
@@ -123,8 +123,8 @@ function SquadSearchInput({ value, onChange }: SquadSearchInputProps) {
 }
 
 interface SquadSelectionListProps {
-  squads: Squad[];
-  onSelect: (squad: Squad) => void;
+  squads: HydratedSquad[];
+  onSelect: (squad: HydratedSquad) => void;
   searchQuery: string;
 }
 
@@ -164,7 +164,7 @@ function SquadSelectionList({ squads, onSelect, searchQuery }: SquadSelectionLis
 }
 
 interface SquadPreviewProps {
-  squad: Squad;
+  squad: HydratedSquad;
 }
 
 function SquadPreview({ squad }: SquadPreviewProps) {

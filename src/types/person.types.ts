@@ -35,7 +35,7 @@ export interface UserProfile {
   
   // Quick access for adding to bills
   friends: Friend[];
-  squads: Squad[];
+  squadIds: string[];
   
   createdAt: Timestamp;
   lastLoginAt: Timestamp;

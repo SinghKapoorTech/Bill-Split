@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useSquadManager } from './useSquadManager';
-import { Squad, SquadMember, CreateSquadInput } from '@/types/squad.types';
+import { Squad, HydratedSquad, SquadMember, CreateSquadInput } from '@/types/squad.types';
 
 export function useSquadEditor() {
   const { squads, loading, createSquad, updateSquad, deleteSquad } = useSquadManager();
   const [activeTab, setActiveTab] = useState<'list' | 'create' | 'edit'>('list');
-  const [editingSquad, setEditingSquad] = useState<Squad | null>(null);
+  const [editingSquad, setEditingSquad] = useState<HydratedSquad | null>(null);
 
   const handleCreate = async (name: string, description: string, members: SquadMember[]) => {
     const input: CreateSquadInput = { name, description, members };
@@ -16,7 +16,7 @@ export function useSquadEditor() {
     }
   };
 
-  const handleEdit = (squad: Squad) => {
+  const handleEdit = (squad: HydratedSquad) => {
     setEditingSquad(squad);
     setActiveTab('edit');
   };
