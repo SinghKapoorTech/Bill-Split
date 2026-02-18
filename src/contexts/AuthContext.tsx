@@ -5,6 +5,7 @@ import { collection, query, where, getDocs, updateDoc, doc, arrayUnion, arrayRem
 import { useToast } from '@/hooks/use-toast';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { userService } from '@/services/userService';
 
 interface AuthContextType {
   user: User | null | undefined;
@@ -102,6 +103,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Check for pending group invitations when user logs in
         if (currentUser) {
+          try {
+            await userService.syncUserProfile(currentUser);
+          } catch (error) {
+            console.error('Error syncing user profile:', error);
+          }
           await checkAndAcceptInvitations(currentUser);
         }
 

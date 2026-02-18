@@ -6,7 +6,12 @@ import {
   arrayUnion,
   arrayRemove,
   Timestamp,
-  serverTimestamp
+  serverTimestamp,
+  collection,
+  query,
+  where,
+  getDocs,
+  limit
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { UserProfile, Friend, Squad } from '@/types/person.types';
@@ -31,7 +36,7 @@ export const userService = {
   /**
    * Creates or updates a user profile on login
    */
-  async syncUserProfile(user: { uid: string; email: string | null; displayName: string | null; photoURL: string | null }): Promise<void> {
+  async syncUserProfile(user: { uid: string; email: string | null; displayName: string | null; photoURL: string | null; phoneNumber?: string | null }): Promise<void> {
     const userRef = doc(db, USERS_COLLECTION, user.uid);
     const userSnap = await getDoc(userRef);
 
@@ -44,6 +49,7 @@ export const userService = {
         email: user.email || '',
         displayName: user.displayName || 'User',
         photoURL: user.photoURL || undefined,
+        phoneNumber: user.phoneNumber || undefined,
         friends: [],
         squads: [],
         createdAt: now,
@@ -51,15 +57,46 @@ export const userService = {
       };
       await setDoc(userRef, newProfile);
     } else {
-      // Update last login
-      await updateDoc(userRef, {
+      // Update last login and basic info
+      const updates: any = {
         lastLoginAt: now,
         // Update basic info if changed
         email: user.email || '',
         displayName: user.displayName || 'User',
         photoURL: user.photoURL || undefined
-      });
+      };
+
+      if (user.phoneNumber) {
+        updates.phoneNumber = user.phoneNumber;
+      }
+
+      await updateDoc(userRef, updates);
     }
+  },
+
+  /**
+   * Gets a user by email or phone number
+   */
+  async getUserByContact(contact: string): Promise<UserProfile | null> {
+    const usersRef = collection(db, USERS_COLLECTION);
+    
+    // Try by email
+    const emailQuery = query(usersRef, where('email', '==', contact), limit(1));
+    const emailSnap = await getDocs(emailQuery);
+    
+    if (!emailSnap.empty) {
+      return emailSnap.docs[0].data() as UserProfile;
+    }
+
+    // Try by phone number
+    const phoneQuery = query(usersRef, where('phoneNumber', '==', contact), limit(1));
+    const phoneSnap = await getDocs(phoneQuery);
+
+    if (!phoneSnap.empty) {
+      return phoneSnap.docs[0].data() as UserProfile;
+    }
+
+    return null;
   },
 
   /**
