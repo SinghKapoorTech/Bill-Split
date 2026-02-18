@@ -22,6 +22,7 @@ import MobileAuth from "./pages/MobileAuth";
 import JoinSession from "./pages/JoinSession";
 import CollaborativeSessionView from "./pages/CollaborativeSessionView";
 import NotFound from "./pages/NotFound";
+import SquadsView from "./pages/SquadsView";
 
 const queryClient = new QueryClient();
 
@@ -104,6 +105,7 @@ const App = () => (
                 <Route path="bill/:billId" element={<AIScanView />} />
                 <Route path="groups" element={<GroupEventView />} />
                 <Route path="groups/:groupId" element={<GroupDetailView />} />
+                <Route path="squads" element={<SquadsView />} />
                 <Route path="settings" element={<SettingsView />} />
               </Route>
 
