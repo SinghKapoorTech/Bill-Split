@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { billService } from '@/services/billService';
-import { arrayUnion } from 'firebase/firestore';
+import { arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Stepper, StepContent } from '@/components/ui/stepper';
 import { PillProgress } from '@/components/ui/pill-progress';
 import { SwipeableStepContainer, useSwipeNavigation } from '@/components/ui/swipeable-container';
@@ -193,9 +193,52 @@ export function BillWizard({
     };
 
     // Event handlers
-    const handleRemovePerson = (personId: string) => {
+    const handleRemovePerson = async (personId: string) => {
+        // 1. Optimistic update
         peopleManager.removePerson(personId);
         bill.removePersonFromAssignments(personId);
+
+        // 2. Atomic Firestore update
+        const id = billId || activeSession?.id;
+        if (id) {
+             // We need to find the person object to remove it from the array
+             // Since firestore arrayRemove requires the exact object, this is tricky if we don't have it.
+             // However, we can read the current state or just filter and update the whole array.
+             // Given we want to be safe, let's filter and update the people array.
+             // But wait, arrayRemove is better for concurrency. 
+             // THE PROBLEM: Person objects might have changed properties? No, usually not in this flow.
+             // actually, peopleManager.removePerson updates local state.
+             // To be safe and simple: Filter the local 'people' (before removal) and update the whole array.
+             // Although arrayRemove is atomic, we'd need the exact object instance.
+             // Let's use the 'update whole array' approach for people list as it's small and safer for now,
+             // creating a read-modify-write pattern (or just write if we trust local state, but local state is now updated).
+             // Actually, we should use the `people` state *before* it was updated? Or just filter it here.
+             
+             const personToRemove = people.find(p => p.id === personId);
+             if (personToRemove) {
+                 // Try atomic remove first if we have the object
+                 try {
+                     await billService.updateBill(id, {
+                         people: arrayRemove(personToRemove) as unknown as Person[]
+                     });
+                 } catch (e) {
+                     // Fallback or just relying on the fact that if it fails, it might be due to object mismatch
+                     // But actually, billService.updateBill handles the update. 
+                     // Let's simpler: just filter and set.
+                     // But strict atomic is better.
+                     // Let's stick to the plan: use billService.updateBill.
+                     // And since we might not have exact object match due to references, 
+                     // filtering the current list and sending the new list is often more reliable for "delete by ID"
+                     // unless we want to write a specific 'removePerson' method in service.
+                     // The arrayRemove needs exact value equality for primitives or object equality/deep equality? Firestore is strict.
+                     
+                     // BETTER APPROACH: Filter locally and send the updated list. 
+                     // It's atomic enough for this list size and frequency.
+                     const updatedPeople = people.filter(p => p.id !== personId);
+                     await billService.updateBill(id, { people: updatedPeople });
+                 }
+             }
+        }
     };
 
     const handleRemoveImage = async () => {

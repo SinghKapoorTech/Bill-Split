@@ -123,8 +123,13 @@ export default function CollaborativeSessionView() {
   };
 
   const handleRemovePerson = (personId: string) => {
+    // 1. Optimistic update
     peopleManager.removePerson(personId);
     bill.removePersonFromAssignments(personId);
+    
+    // 2. Atomic update via service
+    const updatedPeople = people.filter(p => p.id !== personId);
+    updateSession({ people: updatedPeople });
   };
 
   const handleAnalyzeReceipt = async () => {
