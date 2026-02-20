@@ -141,7 +141,7 @@ export function ReceiptUploader({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/heic,image/heif"
+              accept="image/*"
               onChange={onFileInput}
               className="hidden"
             />
