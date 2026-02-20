@@ -330,6 +330,7 @@ export default function CollaborativeSessionView() {
                    const newPeople = people.filter(p => p.id !== id);
                    updateSession({ people: newPeople });
                 }}
+                onUpdate={handleUpdatePerson}
                 onSaveAsFriend={peopleManager.savePersonAsFriend}
                 setPeople={setPeople}
               />
@@ -406,6 +407,7 @@ export default function CollaborativeSessionView() {
             onAdd={peopleManager.addPerson}
             onAddFromFriend={peopleManager.addFromFriend}
             onRemove={handleRemovePerson}
+            onUpdate={handleUpdatePerson}
             onSaveAsFriend={peopleManager.savePersonAsFriend}
             setPeople={setPeople}
           />

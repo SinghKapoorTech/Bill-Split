@@ -30,6 +30,7 @@ interface Props {
   onAdd: () => void;
   onAddFromFriend: (friend: Friend) => void;
   onRemove: (personId: string) => void;
+  onUpdate: (personId: string, updates: Partial<Person>) => Promise<void>;
   onSaveAsFriend: (person: Person) => void;
   setPeople: React.Dispatch<React.SetStateAction<Person[]>>;
 }
@@ -50,6 +51,7 @@ export function PeopleManager({
   onAdd,
   onAddFromFriend,
   onRemove,
+  onUpdate,
   onSaveAsFriend,
   setPeople
 }: Props) {
@@ -125,6 +127,8 @@ export function PeopleManager({
     await loadFriends();
   };
 
+  const existingNames = people.map(p => p.name);
+
   return (
     <Card className="bill-card-tight">
       <div className="section-header">
@@ -162,7 +166,9 @@ export function PeopleManager({
                   isCurrentUser={!!isCurrentUser}
                   isInFriends={isPersonInFriends(person.name)}
                   onRemove={onRemove}
+                  onUpdate={onUpdate}
                   onSaveAsFriend={handleSaveAsFriend}
+                  existingNames={existingNames}
                 />
               );
             })}
