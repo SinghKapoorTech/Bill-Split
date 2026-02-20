@@ -125,7 +125,7 @@ export function ManageFriends({ open, onOpenChange }: Props) {
                         <p className="font-medium">{friend.name}</p>
                         {friend.venmoId && (
                           <p className="text-xs text-muted-foreground">
-                            @{friend.venmoId}
+                            @{friend.venmoId.replace(/^@+/, '')}
                           </p>
                         )}
                       </div>

@@ -25,7 +25,7 @@ export function VenmoChargeDialog({ charge, open, onOpenChange }: Props) {
 
   useEffect(() => {
     if (charge?.recipientId) {
-      setVenmoId(charge.recipientId);
+      setVenmoId(charge.recipientId.replace(/^@+/, ''));
     } else {
       setVenmoId('');
     }
@@ -43,7 +43,7 @@ export function VenmoChargeDialog({ charge, open, onOpenChange }: Props) {
 
     const updatedCharge = {
       ...charge,
-      recipientId: venmoId.trim(),
+      recipientId: venmoId.replace(/^@+/, '').trim(),
       note: description.trim() || 'Divit',
     };
 

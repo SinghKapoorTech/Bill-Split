@@ -28,7 +28,7 @@ export function UserVenmoIdEditor({ currentVenmoId }: UserVenmoIdEditorProps) {
       <div className="flex items-center gap-2">
         {currentVenmoId ? (
           <span className="text-xs text-muted-foreground">
-            (@{currentVenmoId})
+            (@{currentVenmoId.replace(/^@+/, '')})
           </span>
         ) : (
           <span className="text-xs text-muted-foreground italic">

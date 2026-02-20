@@ -36,7 +36,7 @@ export function useFriendsEditor() {
 
     const newFriend: Friend = {
       name: newFriendName.trim(),
-      venmoId: newFriendVenmoId.trim() || undefined,
+      venmoId: newFriendVenmoId.replace(/^@+/, '').trim() || undefined,
     };
 
     const updatedFriends = [...friends, newFriend];
@@ -71,7 +71,7 @@ export function useFriendsEditor() {
     const updatedFriends = [...friends];
     updatedFriends[editingIndex!] = {
       name: editingName.trim(),
-      venmoId: editingVenmoId.trim() || undefined,
+      venmoId: editingVenmoId.replace(/^@+/, '').trim() || undefined,
     };
 
     setFriends(updatedFriends);

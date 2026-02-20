@@ -44,7 +44,7 @@ export function PersonCard({
                 ) : (
                     person.venmoId && (
                         <span className="ml-2 text-xs text-muted-foreground">
-                            (@{person.venmoId})
+                            (@{person.venmoId.replace(/^@+/, '')})
                         </span>
                     )
                 )}

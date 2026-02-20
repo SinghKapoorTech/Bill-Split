@@ -45,7 +45,7 @@ export function SquadForm({
       name: newMemberName,
       email: newMemberEmail.trim() || undefined,
       phoneNumber: newMemberPhone.trim() || undefined,
-      venmoId: newMemberVenmoId.trim() || undefined,
+      venmoId: newMemberVenmoId.replace(/^@+/, '').trim() || undefined,
     });
 
     // Check for duplicates

@@ -11,7 +11,7 @@ export function useProfileEditor() {
 
   useEffect(() => {
     if (profile?.venmoId) {
-      setVenmoId(profile.venmoId);
+      setVenmoId(profile.venmoId.replace(/^@+/, ''));
     }
   }, [profile]);
 
@@ -23,7 +23,7 @@ export function useProfileEditor() {
   };
 
   const handleCancel = () => {
-    setVenmoId(profile?.venmoId || '');
+    setVenmoId(profile?.venmoId?.replace(/^@+/, '') || '');
     setIsEditing(false);
   };
 

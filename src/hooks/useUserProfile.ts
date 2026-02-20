@@ -54,9 +54,12 @@ export function useUserProfile() {
   const updateVenmoId = async (venmoId: string) => {
     if (!user || !profile) return;
 
+    // Remove any @ symbols and whitespace
+    const cleanVenmoId = venmoId.replace(/^@+/, '').trim();
+
     try {
       const docRef = doc(db, 'users', user.uid);
-      const updatedProfile = { ...profile, venmoId };
+      const updatedProfile = { ...profile, venmoId: cleanVenmoId };
 
       await setDoc(docRef, updatedProfile, { merge: true });
       setProfile(updatedProfile);
