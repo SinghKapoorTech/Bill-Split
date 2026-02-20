@@ -32,6 +32,7 @@ export interface UserProfile {
   photoURL?: string;
   venmoId?: string;
   phoneNumber?: string;
+  username?: string;
   
   // Quick access for adding to bills
   friends: Friend[];

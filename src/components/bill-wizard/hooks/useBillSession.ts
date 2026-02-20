@@ -65,6 +65,7 @@ export function useBillSession({
 
             // Create a snapshot of current data for dirty checking
             // EXCLUDING people and itemAssignments as they are now atomic
+            // EXCEPT for itemAssignments when splitEvenly is active, because they are auto-generated.
             const currentData = JSON.stringify({
                 billData,
                 // people, // Atomic
@@ -72,6 +73,7 @@ export function useBillSession({
                 splitEvenly,
                 currentStep,
                 title,
+                ...(splitEvenly ? { itemAssignments } : {})
             });
 
             // Only save if data has actually changed
@@ -83,6 +85,10 @@ export function useBillSession({
                     splitEvenly,
                     currentStep,
                 };
+                
+                if (splitEvenly) {
+                    savePayload.itemAssignments = itemAssignments;
+                }
 
                 // Only include receipt fields if they exist
                 if (receiptImageUrl) {

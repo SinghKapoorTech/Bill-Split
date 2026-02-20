@@ -6,6 +6,7 @@ import { useToast } from './use-toast';
 import { generatePersonId, generateUserId, ensureUserInPeople } from '@/utils/billCalculations';
 import { validatePersonInput } from '@/utils/validation';
 import { saveFriendToFirestore, createPersonObject } from '@/utils/firestore';
+import { userService } from '@/services/userService';
 
 /**
  * Hook for managing people on a bill
@@ -19,7 +20,6 @@ export function usePeopleManager(
 ) {
   const [newPersonName, setNewPersonName] = useState('');
   const [newPersonVenmoId, setNewPersonVenmoId] = useState('');
-  const [useNameAsVenmoId, setUseNameAsVenmoId] = useState(false);
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { toast } = useToast();
@@ -33,6 +33,44 @@ export function usePeopleManager(
   }, [user, profile?.venmoId, people.length]);
 
   const addPerson = async (): Promise<Person | null> => {
+    // Check if it's an email search
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newPersonName.trim());
+    
+    if (isEmail) {
+      toast({
+        title: 'Searching...',
+        description: `Looking up user by email...`,
+        duration: 1500,
+      });
+      const globalUser = await userService.getUserByContact(newPersonName.trim());
+      
+      if (!globalUser) {
+        toast({
+          title: 'User Not Found',
+          description: `No user found with the email ${newPersonName.trim()}.`,
+          variant: 'destructive',
+        });
+        return null;
+      }
+      
+      const newPerson: Person = {
+        id: generateUserId(globalUser.uid),
+        name: globalUser.displayName || 'App User',
+      };
+      if (globalUser.venmoId) {
+        newPerson.venmoId = globalUser.venmoId;
+      }
+      
+      const alreadyExists = people.some(p => p.id === newPerson.id);
+      if (!alreadyExists) {
+        setPeople([...people, newPerson]);
+      }
+      
+      setNewPersonName('');
+      setNewPersonVenmoId('');
+      return newPerson;
+    }
+
     // Validate input
     const validation = validatePersonInput(newPersonName);
     if (!validation.isValid && validation.error) {
@@ -45,7 +83,7 @@ export function usePeopleManager(
     }
 
     // Create person object with proper venmoId handling
-    const personData = createPersonObject(newPersonName, newPersonVenmoId, useNameAsVenmoId);
+    const personData = createPersonObject(newPersonName, newPersonVenmoId);
 
     const newPerson: Person = {
       id: generatePersonId(),
@@ -57,7 +95,6 @@ export function usePeopleManager(
     // Reset form
     setNewPersonName('');
     setNewPersonVenmoId('');
-    setUseNameAsVenmoId(false);
 
     return newPerson;
   };
@@ -79,18 +116,36 @@ export function usePeopleManager(
     setPeople(people.filter(p => p.id !== personId));
   };
 
-  const addFromFriend = (friend: { name: string; venmoId?: string }): Person => {
+  const addFromFriend = (friend: { id?: string; name: string; venmoId?: string }): Person | null => {
+    // Determine the ID: if friend has an id from global search use it, otherwise generate a generic one
+    const personId = friend.id || generatePersonId();
+    
+    // Check if person already exists in the bill
+    const alreadyExists = people.some(p => p.id === personId);
+    if (alreadyExists) {
+      toast({
+        title: 'Already added',
+        description: `${friend.name} is already on the bill.`,
+        variant: 'destructive',
+        duration: 1500,
+      });
+      return null;
+    }
+
     const newPerson: Person = {
-      id: generatePersonId(),
+      id: personId,
       name: friend.name,
-      venmoId: friend.venmoId,
     };
+    if (friend.venmoId) {
+      newPerson.venmoId = friend.venmoId;
+    }
 
     setPeople([...people, newPerson]);
 
     toast({
-      title: 'Friend added',
+      title: 'Added to bill',
       description: `${friend.name} has been added to the bill.`,
+      duration: 1000,
     });
 
     return newPerson;
@@ -117,6 +172,7 @@ export function usePeopleManager(
       toast({
         title: 'Saved to friends',
         description: `${person.name} has been saved to your friends list.`,
+        duration: 1000,
       });
     } else if (result.error) {
       toast({
@@ -131,10 +187,8 @@ export function usePeopleManager(
     people,
     newPersonName,
     newPersonVenmoId,
-    useNameAsVenmoId,
     setNewPersonName,
     setNewPersonVenmoId,
-    setUseNameAsVenmoId,
     addPerson,
     addFromFriend,
     removePerson,

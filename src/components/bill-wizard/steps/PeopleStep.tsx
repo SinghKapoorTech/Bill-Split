@@ -12,17 +12,16 @@ interface PeopleStepProps {
     people: Person[];
     setPeople: (people: Person[]) => void;
     billData: BillData | null;
-
+    
     // People manager props
     newPersonName: string;
     newPersonVenmoId: string;
-    useNameAsVenmoId: boolean;
     onNameChange: (name: string) => void;
     onVenmoIdChange: (id: string) => void;
-    onUseNameAsVenmoIdChange: (checked: boolean) => void;
     onAdd: () => void;
     onAddFromFriend: (friend: any) => void;
     onRemove: (personId: string) => void;
+    onUpdate: (personId: string, updates: Partial<Person>) => Promise<void>;
     onSaveAsFriend: (person: Person) => void;
 
     // Receipt state (for mobile thumbnail)
@@ -58,13 +57,12 @@ export function PeopleStep({
     billData,
     newPersonName,
     newPersonVenmoId,
-    useNameAsVenmoId,
     onNameChange,
     onVenmoIdChange,
-    onUseNameAsVenmoIdChange,
     onAdd,
     onAddFromFriend,
     onRemove,
+    onUpdate,
     onSaveAsFriend,
     imagePreview,
     selectedFile,
@@ -112,13 +110,12 @@ export function PeopleStep({
                             people={people}
                             newPersonName={newPersonName}
                             newPersonVenmoId={newPersonVenmoId}
-                            useNameAsVenmoId={useNameAsVenmoId}
                             onNameChange={onNameChange}
                             onVenmoIdChange={onVenmoIdChange}
-                            onUseNameAsVenmoIdChange={onUseNameAsVenmoIdChange}
                             onAdd={onAdd}
                             onAddFromFriend={onAddFromFriend}
                             onRemove={onRemove}
+                            onUpdate={onUpdate}
                             onSaveAsFriend={onSaveAsFriend}
                             setPeople={setPeople}
                         />
@@ -154,13 +151,12 @@ export function PeopleStep({
                         people={people}
                         newPersonName={newPersonName}
                         newPersonVenmoId={newPersonVenmoId}
-                        useNameAsVenmoId={useNameAsVenmoId}
                         onNameChange={onNameChange}
                         onVenmoIdChange={onVenmoIdChange}
-                        onUseNameAsVenmoIdChange={onUseNameAsVenmoIdChange}
                         onAdd={onAdd}
                         onAddFromFriend={onAddFromFriend}
                         onRemove={onRemove}
+                        onUpdate={onUpdate}
                         onSaveAsFriend={onSaveAsFriend}
                         setPeople={setPeople}
                     />

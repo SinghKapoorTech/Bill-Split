@@ -3,8 +3,10 @@ import { Users } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Person } from '@/types';
 import { PersonCard } from './PersonCard';
-import { AddPersonForm } from './AddPersonForm';
+import { AddPersonDialog } from './AddPersonDialog';
 import { AddFromFriendsDialog } from './AddFromFriendsDialog';
+import { UserPlus, UserCheck } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { AddFromSquadDialog } from '@/components/squads/AddFromSquadDialog';
 import { SaveAsSquadButton } from '@/components/squads/SaveAsSquadButton';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,20 +15,22 @@ import { db } from '@/config/firebase';
 import { convertSquadMembersToPeople } from '@/utils/squadUtils';
 import { SquadMember } from '@/types/squad.types';
 import { generateUserId } from '@/utils/billCalculations';
+import { userService } from '@/services/userService';
 
 interface Friend {
+  id?: string;
   name: string;
   venmoId?: string;
+  email?: string;
+  username?: string;
 }
 
 interface Props {
   people: Person[];
   newPersonName: string;
   newPersonVenmoId: string;
-  useNameAsVenmoId: boolean;
   onNameChange: (name: string) => void;
   onVenmoIdChange: (venmoId: string) => void;
-  onUseNameAsVenmoIdChange: (checked: boolean) => void;
   onAdd: () => void;
   onAddFromFriend: (friend: Friend) => void;
   onRemove: (personId: string) => void;
@@ -44,10 +48,8 @@ export function PeopleManager({
   people,
   newPersonName,
   newPersonVenmoId,
-  useNameAsVenmoId,
   onNameChange,
   onVenmoIdChange,
-  onUseNameAsVenmoIdChange,
   onAdd,
   onAddFromFriend,
   onRemove,
@@ -56,7 +58,7 @@ export function PeopleManager({
   setPeople
 }: Props) {
   const { user } = useAuth();
-  const [showVenmoField, setShowVenmoField] = useState(false);
+  const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
   const [friendsDialogOpen, setFriendsDialogOpen] = useState(false);
   const [squadDialogOpen, setSquadDialogOpen] = useState(false);
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -70,14 +72,88 @@ export function PeopleManager({
     }
   }, [user]);
 
-  // Filter friends based on input
+  // Filter friends based on input and search global users if email or username prefix
   useEffect(() => {
-    if (newPersonName.trim().length > 0) {
+    const searchInput = newPersonName.trim();
+    if (searchInput.length > 0) {
+      // 1. Filter local friends
       const filtered = friends.filter(friend =>
-        friend.name.toLowerCase().startsWith(newPersonName.toLowerCase())
+        friend.name.toLowerCase().includes(searchInput.toLowerCase())
       );
-      setFilteredFriends(filtered);
-      setShowSuggestions(filtered.length > 0);
+      
+      // 2. Global search if it looks like an email
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(searchInput);
+      
+      // 3. Or if it's at least 2 chars, do a global username search
+      const shouldSearchGlobal = isEmail || searchInput.length >= 2;
+
+      if (shouldSearchGlobal) {
+        // We use a small debounce effect implicitly by tracking the active request
+        let isActive = true;
+
+        const performSearch = async () => {
+          try {
+            let globalUsers = [];
+            
+            if (isEmail) {
+              const userByEmail = await userService.getUserByContact(searchInput);
+              if (userByEmail) {
+                globalUsers.push(userByEmail);
+              }
+            } else {
+              // Not an email, so we do a prefix search on username
+              globalUsers = await userService.searchUsersByUsername(searchInput);
+            }
+
+            if (!isActive) return;
+
+            const newFiltered = [...filtered];
+
+            for (const globalUser of globalUsers) {
+              // Skip if this is the currently logged-in user
+              if (user && globalUser.uid === user.uid) {
+                continue;
+              }
+
+              // Check if they are already in the friend suggestions
+              const alreadyInFriends = newFiltered.some(f => 
+                f.email === globalUser.email || 
+                (f.id && f.id === globalUser.uid) ||
+                (f.id && f.id === generateUserId(globalUser.uid))
+              );
+              
+              if (!alreadyInFriends) {
+                // Add to suggestion list with a special flag/email/username
+                newFiltered.push({
+                  id: generateUserId(globalUser.uid),
+                  name: globalUser.displayName || 'App User',
+                  venmoId: globalUser.venmoId,
+                  email: globalUser.email,
+                  username: globalUser.username
+                });
+              }
+            }
+            
+            setFilteredFriends(newFiltered);
+            setShowSuggestions(newFiltered.length > 0);
+          } catch (err) {
+            console.error("Global search failed", err);
+            if (isActive) {
+              setFilteredFriends(filtered);
+              setShowSuggestions(filtered.length > 0);
+            }
+          }
+        };
+
+        performSearch();
+
+        return () => {
+          isActive = false;
+        };
+      } else {
+        setFilteredFriends(filtered);
+        setShowSuggestions(filtered.length > 0);
+      }
     } else {
       setShowSuggestions(false);
     }
@@ -108,7 +184,16 @@ export function PeopleManager({
     onAddFromFriend(friend);
     onNameChange('');
     onVenmoIdChange('');
-    setShowSuggestions(false);
+    // Dialog handles its own close state now
+  };
+
+  const handleManualAdd = (name: string, venmoId: string) => {
+    onNameChange(name);
+    onVenmoIdChange(venmoId);
+    // Use timeout to ensure state is set before onAdd is called, since useState is async
+    setTimeout(() => {
+        onAdd();
+    }, 0);
   };
 
   const handleAddSquad = (members: SquadMember[]) => {
@@ -136,23 +221,32 @@ export function PeopleManager({
         <h3 className="section-title-responsive">People</h3>
       </div>
 
-      <AddPersonForm
-        name={newPersonName}
-        venmoId={newPersonVenmoId}
-        useNameAsVenmoId={useNameAsVenmoId}
-        showVenmoField={showVenmoField}
-        onNameChange={onNameChange}
-        onVenmoIdChange={onVenmoIdChange}
-        onUseNameAsVenmoIdChange={onUseNameAsVenmoIdChange}
-        onShowVenmoFieldChange={setShowVenmoField}
-        onSubmit={handleAdd}
-        friendSuggestions={filteredFriends}
-        showSuggestions={showSuggestions}
-        onSelectSuggestion={handleSelectFriend}
-        onCloseSuggestions={() => setShowSuggestions(false)}
-        onOpenFriendsDialog={() => setFriendsDialogOpen(true)}
-        onOpenSquadDialog={() => setSquadDialogOpen(true)}
-      />
+      <div className="flex gap-2 mb-4">
+        <AddPersonDialog
+          isOpen={isAddPersonOpen}
+          setIsOpen={setIsAddPersonOpen}
+          friendSuggestions={filteredFriends}
+          onSearchChange={onNameChange}
+          onSelectSuggestion={handleSelectFriend}
+          onAddManual={handleManualAdd}
+        />
+        <Button
+            onClick={() => setFriendsDialogOpen(true)}
+            variant="outline"
+            className="flex-1"
+        >
+            <UserCheck className="w-4 h-4 mr-2" />
+            Friends
+        </Button>
+        <Button
+            onClick={() => setSquadDialogOpen(true)}
+            variant="outline"
+            className="flex-1"
+        >
+            <Users className="w-4 h-4 mr-2" />
+            Squads
+        </Button>
+      </div>
 
       {people.length > 0 && (
         <>

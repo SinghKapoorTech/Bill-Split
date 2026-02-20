@@ -18,6 +18,32 @@ import { UserProfile, Friend, Squad } from '@/types/person.types';
 
 const USERS_COLLECTION = 'users';
 
+/**
+ * Generates a readable unique username (e.g., john_doe or john_doe_1)
+ */
+async function generateUniqueUsername(name: string): Promise<string> {
+  const baseName = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+  let username = baseName || 'user';
+  let isUnique = false;
+  let counter = 0;
+
+  const usersRef = collection(db, USERS_COLLECTION);
+
+  while (!isUnique) {
+    const q = query(usersRef, where('username', '==', username), limit(1));
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      isUnique = true;
+    } else {
+      counter++;
+      username = `${baseName}_${counter}`;
+    }
+  }
+
+  return username;
+}
+
 export const userService = {
   /**
    * Gets a user profile by ID
@@ -44,12 +70,14 @@ export const userService = {
 
     if (!userSnap.exists()) {
       // Create new profile
+      const username = await generateUniqueUsername(user.displayName || 'user');
       const newProfile: UserProfile = {
         uid: user.uid,
         email: user.email || '',
         displayName: user.displayName || 'User',
         photoURL: user.photoURL || undefined,
         phoneNumber: user.phoneNumber || undefined,
+        username,
         friends: [],
         squadIds: [],
         createdAt: now,
@@ -102,6 +130,35 @@ export const userService = {
   },
 
   /**
+   * Searches for users by their username prefix (starts with)
+   * Firestore doesn't do substring search natively, so this is a standard prefix query.
+   */
+  async searchUsersByUsername(queryStr: string): Promise<UserProfile[]> {
+    if (!queryStr || queryStr.length < 2) return [];
+    
+    // Normalize query string (assuming usernames are lowercase)
+    const normalizedQuery = queryStr.trim().toLowerCase();
+    
+    const usersRef = collection(db, USERS_COLLECTION);
+    
+    // Firestore prefix query pattern: field >= query and field <= query + '\uf8ff'
+    const q = query(
+      usersRef, 
+      where('username', '>=', normalizedQuery), 
+      where('username', '<=', normalizedQuery + '\uf8ff'),
+      limit(5)
+    );
+    
+    try {
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => doc.data() as UserProfile);
+    } catch (error) {
+      console.error("Error searching users by username:", error);
+      return [];
+    }
+  },
+
+  /**
    * Adds a friend to the user's friend list
    */
   async addFriend(userId: string, friend: Friend): Promise<void> {
@@ -148,10 +205,12 @@ export const userService = {
     const now = Timestamp.now();
     
     const isEmail = contact.includes('@');
+    const username = await generateUniqueUsername(name || (isEmail ? contact.split('@')[0] : 'user'));
     
     const newProfile: any = {
       uid: newUserId,
       displayName: name || contact,
+      username,
       friends: [],
       squadIds: [],
       createdAt: now,

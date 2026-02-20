@@ -156,15 +156,45 @@ export function BillWizard({
         saveSession
     });
 
-    // Atomic Handlers for Real-time Sync
     const handleAtomicAssignment = (itemId: string, personId: string, checked: boolean) => {
         // Optimistic UI update
         bill.handleItemAssignment(itemId, personId, checked);
         
-        // Atomic Firestore update
         const id = billId || activeSession?.id;
+        
+        if (splitEvenly) {
+            setSplitEvenly(false);
+            if (id) {
+                billService.updateBill(id, { splitEvenly: false }).catch(console.error);
+            }
+        }
+        
+        // Atomic Firestore update
         if (id) {
             billService.toggleItemAssignment(id, itemId, personId, checked).catch(console.error);
+        }
+    };
+
+    const handleToggleSplitEvenly = () => {
+        // Optimistic UI update
+        bill.toggleSplitEvenly();
+        
+        // Atomic Firestore update
+        const newSplitEvenly = !splitEvenly;
+        const newAssignments: ItemAssignment = {};
+        
+        if (newSplitEvenly && billData && people.length > 0) {
+            billData.items.forEach(item => {
+                newAssignments[item.id] = people.map(p => p.id);
+            });
+        }
+        
+        const id = billId || activeSession?.id;
+        if (id) {
+            billService.updateBill(id, {
+                splitEvenly: newSplitEvenly,
+                itemAssignments: newAssignments
+            }).catch(console.error);
         }
     };
 
@@ -216,28 +246,27 @@ export function BillWizard({
              
              const personToRemove = people.find(p => p.id === personId);
              if (personToRemove) {
-                 // Try atomic remove first if we have the object
                  try {
-                     await billService.updateBill(id, {
-                         people: arrayRemove(personToRemove) as unknown as Person[]
-                     });
-                 } catch (e) {
-                     // Fallback or just relying on the fact that if it fails, it might be due to object mismatch
-                     // But actually, billService.updateBill handles the update. 
-                     // Let's simpler: just filter and set.
-                     // But strict atomic is better.
-                     // Let's stick to the plan: use billService.updateBill.
-                     // And since we might not have exact object match due to references, 
-                     // filtering the current list and sending the new list is often more reliable for "delete by ID"
-                     // unless we want to write a specific 'removePerson' method in service.
-                     // The arrayRemove needs exact value equality for primitives or object equality/deep equality? Firestore is strict.
-                     
-                     // BETTER APPROACH: Filter locally and send the updated list. 
-                     // It's atomic enough for this list size and frequency.
                      const updatedPeople = people.filter(p => p.id !== personId);
                      await billService.updateBill(id, { people: updatedPeople });
+                 } catch (e) {
+                     console.error("Failed to remove person", e);
                  }
              }
+        }
+    };
+
+    const handleUpdatePerson = async (personId: string, updates: Partial<Person>) => {
+        // Optimistic update
+        const updatedPeople = people.map(p => 
+            p.id === personId ? { ...p, ...updates } : p
+        );
+        setPeople(updatedPeople);
+        
+        // Atomic update via service
+        const id = billId || activeSession?.id;
+        if (id) {
+            await billService.updatePersonDetails(id, personId, updates).catch(console.error);
         }
     };
 
@@ -427,16 +456,15 @@ export function BillWizard({
                             billData={billData}
                             newPersonName={peopleManager.newPersonName}
                             newPersonVenmoId={peopleManager.newPersonVenmoId}
-                            useNameAsVenmoId={peopleManager.useNameAsVenmoId}
                             onNameChange={peopleManager.setNewPersonName}
                             onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                            onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
                             isMobile={isMobile}
                             upload={upload}
                             // Atomic handlers
                             onAdd={handleAtomicAddPerson}
                             onAddFromFriend={handleAtomicAddFromFriend}
                             onRemove={handleRemovePerson}
+                            onUpdate={handleUpdatePerson}
                             onSaveAsFriend={peopleManager.savePersonAsFriend}
                             imagePreview={upload.imagePreview}
                             selectedFile={upload.selectedFile}
@@ -462,7 +490,7 @@ export function BillWizard({
                             itemAssignments={itemAssignments}
                             splitEvenly={splitEvenly}
                             onAssign={handleAtomicAssignment}
-                            onToggleSplitEvenly={bill.toggleSplitEvenly}
+                            onToggleSplitEvenly={handleToggleSplitEvenly}
                             removePersonFromAssignments={bill.removePersonFromAssignments}
                             removeItemAssignments={bill.removeItemAssignments}
                             imagePreview={upload.imagePreview}

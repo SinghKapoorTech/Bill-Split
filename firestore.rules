@@ -3,9 +3,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // User's private data: only owner can access
+    // User's private data: only owner can write, but others can read basic profile info for search
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
     // Groups collection - users can read groups they own or are members of

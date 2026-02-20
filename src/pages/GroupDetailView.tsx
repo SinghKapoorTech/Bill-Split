@@ -206,6 +206,7 @@ export default function GroupDetailView() {
             imagePreview={upload.imagePreview}
             isDragging={upload.isDragging}
             isAnalyzing={analyzer.isAnalyzing}
+            isUploading={false}
             onFileInput={upload.handleFileInput}
             onDragOver={upload.handleDragOver}
             onDragLeave={upload.handleDragLeave}
@@ -222,13 +223,12 @@ export default function GroupDetailView() {
                 people={people}
                 newPersonName={peopleManager.newPersonName}
                 newPersonVenmoId={peopleManager.newPersonVenmoId}
-                useNameAsVenmoId={peopleManager.useNameAsVenmoId}
                 onNameChange={peopleManager.setNewPersonName}
                 onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
                 onAdd={peopleManager.addPerson}
                 onAddFromFriend={peopleManager.addFromFriend}
                 onRemove={handleRemovePerson}
+                onUpdate={async () => {}}
                 onSaveAsFriend={peopleManager.savePersonAsFriend}
                 setPeople={setPeople}
               />
@@ -309,13 +309,12 @@ export default function GroupDetailView() {
               people={people}
               newPersonName={peopleManager.newPersonName}
               newPersonVenmoId={peopleManager.newPersonVenmoId}
-              useNameAsVenmoId={peopleManager.useNameAsVenmoId}
               onNameChange={peopleManager.setNewPersonName}
               onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-              onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
               onAdd={peopleManager.addPerson}
               onAddFromFriend={peopleManager.addFromFriend}
               onRemove={handleRemovePerson}
+              onUpdate={async () => {}}
               onSaveAsFriend={peopleManager.savePersonAsFriend}
               setPeople={setPeople}
             />

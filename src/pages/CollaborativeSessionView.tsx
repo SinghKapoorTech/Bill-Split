@@ -85,21 +85,27 @@ export default function CollaborativeSessionView() {
 
   // Debounced auto-save to Firestore
   // NOTE: We excluded people and itemAssignments from auto-save to prevent race conditions.
-  // Those are now updated atomically via events.
+  // Those are now updated atomically via events (except when split evenly is true).
   useEffect(() => {
     if (isInitializing.current || !session) return;
 
     const timeoutId = setTimeout(() => {
-      updateSession({
+      const updates: any = {
         billData,
-        // people, // Handled atomically/immediately
-        // itemAssignments, // Handled atomically
         splitEvenly,
-      });
+      };
+      
+      // If split evenly is active, assignments are deterministic (all people)
+      // so we can safely auto-save them without worrying about race conditions.
+      if (splitEvenly) {
+        updates.itemAssignments = itemAssignments;
+      }
+      
+      updateSession(updates);
     }, 1500);
 
     return () => clearTimeout(timeoutId);
-  }, [billData, splitEvenly, session, updateSession]);
+  }, [billData, splitEvenly, itemAssignments, session, updateSession]);
 
   // Determine if current user is the owner (must be before early returns)
   const isOwner = useMemo(() => {
@@ -118,6 +124,11 @@ export default function CollaborativeSessionView() {
     // 1. Optimistic update (for UI responsiveness)
     bill.handleItemAssignment(itemId, personId, claimed);
     
+    if (splitEvenly) {
+      setSplitEvenly(false);
+      updateSession({ splitEvenly: false });
+    }
+    
     // 2. Atomic update (for real-time sync)
     toggleAssignment(itemId, personId, claimed);
   };
@@ -130,6 +141,28 @@ export default function CollaborativeSessionView() {
     // 2. Atomic update via service
     const updatedPeople = people.filter(p => p.id !== personId);
     updateSession({ people: updatedPeople });
+  };
+
+  const handleToggleSplitEvenly = () => {
+    // 1. Optimistic update
+    bill.toggleSplitEvenly();
+    
+    // 2. Atomic update to Firebase
+    const newSplitEvenly = !splitEvenly;
+    const newAssignments: ItemAssignment = {};
+    
+    if (newSplitEvenly && billData && people.length > 0) {
+      billData.items.forEach(item => {
+        newAssignments[item.id] = people.map(p => p.id);
+      });
+    }
+    
+    if (session) {
+      updateSession({
+        splitEvenly: newSplitEvenly,
+        itemAssignments: newAssignments
+      });
+    }
   };
 
   const handleAnalyzeReceipt = async () => {
@@ -308,10 +341,8 @@ export default function CollaborativeSessionView() {
                 people={people}
                 newPersonName={peopleManager.newPersonName}
                 newPersonVenmoId={peopleManager.newPersonVenmoId}
-                useNameAsVenmoId={peopleManager.useNameAsVenmoId}
                 onNameChange={peopleManager.setNewPersonName}
                 onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
                 onAdd={async () => {
                   const newPerson = await peopleManager.addPerson();
                   if (newPerson) {
@@ -352,7 +383,7 @@ export default function CollaborativeSessionView() {
                   editingItemId={editor.editingItemId}
                   editingItemName={editor.editingItemName}
                   editingItemPrice={editor.editingItemPrice}
-                  onAssign={bill.handleItemAssignment}
+                  onAssign={handleClaimItem}
                   onEdit={editor.editItem}
                   onSave={editor.saveEdit}
                   onCancel={editor.cancelEdit}
@@ -368,7 +399,7 @@ export default function CollaborativeSessionView() {
                   onAddItem={editor.addItem}
                   onCancelAdding={editor.cancelAdding}
                   splitEvenly={splitEvenly}
-                  onToggleSplitEvenly={bill.toggleSplitEvenly}
+                  onToggleSplitEvenly={handleToggleSplitEvenly}
                 />
 
                 {people.length === 0 && !isMobile && billData && (
@@ -400,10 +431,8 @@ export default function CollaborativeSessionView() {
             people={people}
             newPersonName={peopleManager.newPersonName}
             newPersonVenmoId={peopleManager.newPersonVenmoId}
-            useNameAsVenmoId={peopleManager.useNameAsVenmoId}
             onNameChange={peopleManager.setNewPersonName}
             onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-            onUseNameAsVenmoIdChange={peopleManager.setUseNameAsVenmoId}
             onAdd={peopleManager.addPerson}
             onAddFromFriend={peopleManager.addFromFriend}
             onRemove={handleRemovePerson}
@@ -445,7 +474,7 @@ export default function CollaborativeSessionView() {
               onAddItem={editor.addItem}
               onCancelAdding={editor.cancelAdding}
               splitEvenly={splitEvenly}
-              onToggleSplitEvenly={bill.toggleSplitEvenly}
+              onToggleSplitEvenly={handleToggleSplitEvenly}
             />
 
             {billData && (

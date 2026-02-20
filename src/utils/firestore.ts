@@ -103,8 +103,7 @@ export async function updateUserProfile(
  */
 export function createPersonObject(
   name: string,
-  venmoId: string,
-  useNameAsVenmoId: boolean
+  venmoId: string
 ): { name: string; venmoId?: string } {
   const trimmedName = name.trim();
   const trimmedVenmoId = venmoId.trim();
@@ -113,10 +112,7 @@ export function createPersonObject(
     name: trimmedName,
   };
 
-  // Set venmoId based on preference
-  if (useNameAsVenmoId) {
-    personData.venmoId = trimmedName;
-  } else if (trimmedVenmoId) {
+  if (trimmedVenmoId) {
     personData.venmoId = trimmedVenmoId;
   }
 
