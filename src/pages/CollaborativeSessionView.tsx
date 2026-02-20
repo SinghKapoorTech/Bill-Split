@@ -188,6 +188,32 @@ export default function CollaborativeSessionView() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !session) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {error || "Session not found or has been deleted."}
+          </AlertDescription>
+        </Alert>
+        <div className="mt-4 text-center">
+          <Button onClick={() => navigate('/')} variant="outline">
+            Return Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Guest view - simplified claim interface
   if (!isOwner && session) {
     return (
