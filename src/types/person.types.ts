@@ -16,7 +16,10 @@ export interface PersonTotal {
 }
 
 export interface Friend {
+  id?: string;
   name: string;
+  email?: string;
+  username?: string;
   venmoId?: string;
 }
 
