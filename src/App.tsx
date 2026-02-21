@@ -14,8 +14,8 @@ import { LoadingScreen } from "@/components/shared/LoadingScreen";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import AIScanView from "./pages/AIScanView";
-import GroupEventView from "./pages/GroupEventView";
-import GroupDetailView from "./pages/GroupDetailView";
+import TripsView from "./pages/TripsView";
+import TripDetailView from "./pages/TripDetailView";
 import SettingsView from "./pages/SettingsView";
 import Auth from "./pages/Auth";
 import MobileAuth from "./pages/MobileAuth";
@@ -103,8 +103,8 @@ const App = () => (
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="bill/:billId" element={<AIScanView />} />
-                <Route path="groups" element={<GroupEventView />} />
-                <Route path="groups/:groupId" element={<GroupDetailView />} />
+                <Route path="trips" element={<TripsView />} />
+                <Route path="trips/:tripId" element={<TripDetailView />} />
                 <Route path="squads" element={<SquadsView />} />
                 <Route path="settings" element={<SettingsView />} />
               </Route>

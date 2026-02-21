@@ -3,19 +3,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Users, Mail, X, Loader2 } from 'lucide-react';
-import { Group } from '@/types/group.types';
-import { useGroupInvites } from '@/hooks/useGroupInvites';
+import { Users, Mail, Loader2 } from 'lucide-react';
+import { Trip } from '@/types/trip.types';
+import { useTripInvites } from '@/hooks/useTripInvites';
 
 interface InviteMembersDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  group: Group;
+  trip: Trip;
 }
 
-export function InviteMembersDialog({ open, onOpenChange, group }: InviteMembersDialogProps) {
+export function InviteMembersDialog({ open, onOpenChange, trip }: InviteMembersDialogProps) {
   const [email, setEmail] = useState('');
-  const { inviteMember, isInviting } = useGroupInvites(group.id);
+  const { inviteMember, isInviting } = useTripInvites(trip.id);
 
   const handleInvite = async () => {
     if (!email.trim()) return;
@@ -38,7 +38,7 @@ export function InviteMembersDialog({ open, onOpenChange, group }: InviteMembers
         <DialogHeader>
           <DialogTitle>Invite Members</DialogTitle>
           <DialogDescription>
-            Invite people to {group.name} by email. If they have an account, they'll be added immediately.
+            Invite people to {trip.name} by email. If they have an account, they'll be added immediately.
           </DialogDescription>
         </DialogHeader>
 
@@ -67,11 +67,11 @@ export function InviteMembersDialog({ open, onOpenChange, group }: InviteMembers
           </div>
 
           {/* Pending Invitations */}
-          {group.pendingInvites && group.pendingInvites.length > 0 && (
+          {trip.pendingInvites && trip.pendingInvites.length > 0 && (
             <div className="space-y-2">
               <Label className="text-sm text-muted-foreground">Pending Invitations</Label>
               <div className="space-y-1">
-                {group.pendingInvites.map((inviteEmail) => (
+                {trip.pendingInvites.map((inviteEmail) => (
                   <div
                     key={inviteEmail}
                     className="flex items-center justify-between p-2 rounded-md bg-muted/50"
@@ -90,12 +90,12 @@ export function InviteMembersDialog({ open, onOpenChange, group }: InviteMembers
           {/* Current Members */}
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">
-              Members ({group.memberIds.length})
+              Members ({trip.memberIds.length})
             </Label>
             <div className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
               <Users className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                {group.memberIds.length} {group.memberIds.length === 1 ? 'member' : 'members'}
+                {trip.memberIds.length} {trip.memberIds.length === 1 ? 'member' : 'members'}
               </span>
             </div>
           </div>

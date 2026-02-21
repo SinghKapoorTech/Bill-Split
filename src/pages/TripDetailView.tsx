@@ -10,27 +10,30 @@ import { BillItems } from '@/components/bill/BillItems';
 import { BillSummary } from '@/components/bill/BillSummary';
 import { SplitSummary } from '@/components/people/SplitSummary';
 
-import { InviteMembersDialog } from '@/components/groups/InviteMembersDialog';
+import { InviteMembersDialog } from '@/components/trips/InviteMembersDialog';
 import { useBillSplitter } from '@/hooks/useBillSplitter';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useReceiptAnalyzer } from '@/hooks/useReceiptAnalyzer';
 import { useItemEditor } from '@/hooks/useItemEditor';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { Group } from '@/types/group.types';
+import { Trip } from '@/types/trip.types';
 import { Person, BillData, ItemAssignment } from '@/types';
-import { UI_TEXT, NAVIGATION, LOADING } from '@/utils/uiConstants';
+import { UI_TEXT, NAVIGATION } from '@/utils/uiConstants';
 import { ensureUserInPeople } from '@/utils/billCalculations';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
-export default function GroupDetailView() {
-  const { groupId } = useParams<{ groupId: string }>();
+// NOTE: Firestore collection name remains 'groups' until data migration.
+const TRIPS_COLLECTION = 'groups';
+
+export default function TripDetailView() {
+  const { tripId } = useParams<{ tripId: string }>();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [group, setGroup] = useState<Group | null>(null);
+  const [trip, setTrip] = useState<Trip | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ai-scan');
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -62,19 +65,19 @@ export default function GroupDetailView() {
   );
 
   useEffect(() => {
-    if (!groupId) {
+    if (!tripId) {
       setLoading(false);
       return;
     }
 
-    // Use real-time listener to keep group data updated
+    // Use real-time listener to keep trip data updated
     const unsubscribe = onSnapshot(
-      doc(db, 'groups', groupId),
-      (groupDoc) => {
-        if (groupDoc.exists()) {
-          const data = groupDoc.data();
-          setGroup({
-            id: groupDoc.id,
+      doc(db, TRIPS_COLLECTION, tripId),
+      (tripDoc) => {
+        if (tripDoc.exists()) {
+          const data = tripDoc.data();
+          setTrip({
+            id: tripDoc.id,
             name: data.name,
             description: data.description,
             createdAt: data.createdAt?.toDate() || new Date(),
@@ -84,18 +87,18 @@ export default function GroupDetailView() {
             pendingInvites: data.pendingInvites || [],
           });
         } else {
-          setGroup(null);
+          setTrip(null);
         }
         setLoading(false);
       },
       (error) => {
-        console.error('Error fetching group:', error);
+        console.error('Error fetching trip:', error);
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [groupId]);
+  }, [tripId]);
 
   const handleRemovePerson = (personId: string) => {
     peopleManager.removePerson(personId);
@@ -105,7 +108,6 @@ export default function GroupDetailView() {
   const handleStartOver = () => {
     setBillData(null);
     setItemAssignments({});
-    // Ensure logged-in user is added even when clearing
     setPeople(ensureUserInPeople([], user, profile));
     setSplitEvenly(false);
     if (activeTab === 'ai-scan') {
@@ -131,14 +133,14 @@ export default function GroupDetailView() {
   };
 
   if (loading) {
-    return <div className="text-center py-12 text-muted-foreground">{LOADING.LOADING_GROUP}</div>;
+    return <div className="text-center py-12 text-muted-foreground">Loading trip...</div>;
   }
 
-  if (!group) {
+  if (!trip) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground mb-4">{LOADING.GROUP_NOT_FOUND}</p>
-        <Button onClick={() => navigate('/groups')}>{NAVIGATION.BACK_TO_GROUPS}</Button>
+        <p className="text-muted-foreground mb-4">Trip not found.</p>
+        <Button onClick={() => navigate('/trips')}>{NAVIGATION.BACK_TO_TRIPS}</Button>
       </div>
     );
   }
@@ -149,19 +151,19 @@ export default function GroupDetailView() {
         <Button
           variant="ghost"
           className="mb-4 gap-2"
-          onClick={() => navigate('/groups')}
+          onClick={() => navigate('/trips')}
         >
           <ArrowLeft className="w-4 h-4" />
-          {NAVIGATION.BACK_TO_GROUPS}
+          {NAVIGATION.BACK_TO_TRIPS}
         </Button>
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="space-y-2">
             <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
-              {group.name}
+              {trip.name}
             </h2>
-            {group.description && (
-              <p className="text-lg text-muted-foreground">{group.description}</p>
+            {trip.description && (
+              <p className="text-lg text-muted-foreground">{trip.description}</p>
             )}
           </div>
           <Button onClick={() => setInviteDialogOpen(true)} className="gap-2 shrink-0">
@@ -174,7 +176,7 @@ export default function GroupDetailView() {
       <InviteMembersDialog
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
-        group={group}
+        trip={trip}
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -239,8 +241,6 @@ export default function GroupDetailView() {
                     <Receipt className="w-5 h-5 text-primary" />
                     <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
                   </div>
-
-
                 </div>
 
                 <BillItems
@@ -325,8 +325,6 @@ export default function GroupDetailView() {
                   <Receipt className="w-5 h-5 text-primary" />
                   <h3 className="text-xl font-semibold">Bill Items</h3>
                 </div>
-
-
               </div>
 
               <BillItems

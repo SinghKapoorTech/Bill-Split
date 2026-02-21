@@ -17,8 +17,8 @@ export function FeaturesGrid() {
     },
     {
       icon: Users,
-      title: 'Group Management',
-      description: 'Create groups for recurring events, save your squads, and share bills in real-time with collaborative sessions.',
+      title: 'Trip Management',
+      description: 'Create trips for events, save your squads, and share bills in real-time with collaborative sessions.',
       gradient: 'from-purple-500 to-pink-500',
     },
   ];

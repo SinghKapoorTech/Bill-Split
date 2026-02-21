@@ -9,7 +9,7 @@ interface InviteMemberResponse {
   message: string;
 }
 
-export function useGroupInvites(groupId: string) {
+export function useTripInvites(tripId: string) {
   const [isInviting, setIsInviting] = useState(false);
   const { toast } = useToast();
 
@@ -17,12 +17,13 @@ export function useGroupInvites(groupId: string) {
     setIsInviting(true);
 
     try {
+      // Cloud function still called 'inviteMemberToGroup' until function is renamed
       const inviteMemberToGroup = httpsCallable<
         { groupId: string; email: string },
         InviteMemberResponse
       >(functions, 'inviteMemberToGroup');
 
-      const result = await inviteMemberToGroup({ groupId, email });
+      const result = await inviteMemberToGroup({ groupId: tripId, email });
 
       if (result.data.success) {
         toast({
@@ -41,9 +42,9 @@ export function useGroupInvites(groupId: string) {
       if (error.code === 'functions/already-exists') {
         errorMessage = error.message;
       } else if (error.code === 'functions/permission-denied') {
-        errorMessage = 'You do not have permission to invite members to this group.';
+        errorMessage = 'You do not have permission to invite members to this trip.';
       } else if (error.code === 'functions/not-found') {
-        errorMessage = 'Group not found.';
+        errorMessage = 'Trip not found.';
       } else if (error.code === 'functions/invalid-argument') {
         errorMessage = error.message || 'Invalid email address.';
       }

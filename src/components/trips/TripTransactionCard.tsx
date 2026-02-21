@@ -1,16 +1,16 @@
-import { GroupTransaction } from '@/types';
+import { TripTransaction } from '@/types/trip.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2 } from 'lucide-react';
 
 interface Props {
-  transaction: GroupTransaction;
+  transaction: TripTransaction;
   currentUserId: string | undefined;
   onEdit: () => void;
   onDelete: () => void;
 }
 
-export function GroupTransactionCard({ transaction, currentUserId, onEdit, onDelete }: Props) {
+export function TripTransactionCard({ transaction, currentUserId, onEdit, onDelete }: Props) {
   const formattedDate = new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'long',

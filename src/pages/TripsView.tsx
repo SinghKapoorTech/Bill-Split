@@ -13,68 +13,68 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { CreateGroupDialog } from '@/components/groups/CreateGroupDialog';
-import { GroupCard } from '@/components/groups/GroupCard';
-import { useGroupManager } from '@/hooks/useGroupManager';
+import { CreateTripDialog } from '@/components/trips/CreateTripDialog';
+import { TripCard } from '@/components/trips/TripCard';
+import { useTripManager } from '@/hooks/useTripManager';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
-export default function GroupEventView() {
+export default function TripsView() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [groupToDelete, setGroupToDelete] = useState<{ id: string; name: string } | null>(null);
-  const { groups, loading, createGroup, deleteGroup } = useGroupManager();
+  const [tripToDelete, setTripToDelete] = useState<{ id: string; name: string } | null>(null);
+  const { trips, loading, createTrip, deleteTrip } = useTripManager();
   const { toast } = useToast();
 
-  const handleCreateGroup = async (name: string, description: string) => {
+  const handleCreateTrip = async (name: string, description: string) => {
     try {
-      await createGroup(name, description);
+      await createTrip(name, description);
 
       toast({
-        title: 'Group created',
+        title: 'Trip created',
         description: `${name} has been created successfully.`,
       });
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to create group. Please try again.',
+        description: 'Failed to create trip. Please try again.',
         variant: 'destructive',
       });
     }
   };
 
-  const handleGroupClick = (groupId: string) => {
-    navigate(`/groups/${groupId}`);
+  const handleTripClick = (tripId: string) => {
+    navigate(`/trips/${tripId}`);
   };
 
-  const handleDeleteGroup = (groupId: string) => {
-    const group = groups.find((g) => g.id === groupId);
-    if (!group) return;
+  const handleDeleteTrip = (tripId: string) => {
+    const trip = trips.find((t) => t.id === tripId);
+    if (!trip) return;
 
-    setGroupToDelete({ id: groupId, name: group.name });
+    setTripToDelete({ id: tripId, name: trip.name });
     setDeleteDialogOpen(true);
   };
 
-  const confirmDeleteGroup = async () => {
-    if (!groupToDelete) return;
+  const confirmDeleteTrip = async () => {
+    if (!tripToDelete) return;
 
     try {
-      await deleteGroup(groupToDelete.id);
+      await deleteTrip(tripToDelete.id);
       toast({
-        title: 'Group deleted',
-        description: `${groupToDelete.name} has been deleted successfully.`,
+        title: 'Trip deleted',
+        description: `${tripToDelete.name} has been deleted successfully.`,
       });
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to delete group. Please try again.',
+        description: 'Failed to delete trip. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setDeleteDialogOpen(false);
-      setGroupToDelete(null);
+      setTripToDelete(null);
     }
   };
 
@@ -83,66 +83,66 @@ export default function GroupEventView() {
       <div className="text-center mb-4 md:mb-12 space-y-3 md:space-y-4">
         <div className="space-y-2">
           <h2 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
-            Your Events
+            Your Trips
           </h2>
         </div>
-        {groups.length > 0 && (
+        {trips.length > 0 && (
           <Button className="gap-2" onClick={() => setDialogOpen(true)}>
             <Plus className="w-4 h-4" />
-            <span className="sm:inline">New Event</span>
+            <span className="sm:inline">New Trip</span>
           </Button>
         )}
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading groups...</div>
-      ) : groups.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">Loading trips...</div>
+      ) : trips.length === 0 ? (
         <Card className="p-12 text-center space-y-6">
           <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
             <Users className="w-10 h-10 text-primary" />
           </div>
           <div className="space-y-2">
-            <h3 className="text-xl font-semibold">No groups yet</h3>
+            <h3 className="text-xl font-semibold">No trips yet</h3>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Create your first group to start organizing bills with roommates, friends, or for events.
+              Create your first trip to start organizing bills with friends for events, vacations, and more.
             </p>
           </div>
           <Button className="gap-2" onClick={() => setDialogOpen(true)}>
             <Plus className="w-4 h-4" />
-            Create First Group
+            Create First Trip
           </Button>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {groups.map((group) => (
-            <GroupCard
-              key={group.id}
-              group={group}
-              onClick={() => handleGroupClick(group.id)}
-              onDelete={handleDeleteGroup}
+          {trips.map((trip) => (
+            <TripCard
+              key={trip.id}
+              trip={trip}
+              onClick={() => handleTripClick(trip.id)}
+              onDelete={handleDeleteTrip}
               currentUserId={user?.uid}
             />
           ))}
         </div>
       )}
 
-      <CreateGroupDialog
+      <CreateTripDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onCreateGroup={handleCreateGroup}
+        onCreateTrip={handleCreateTrip}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Group</AlertDialogTitle>
+            <AlertDialogTitle>Delete Trip</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{groupToDelete?.name}"? This action cannot be undone and will remove all associated transactions.
+              Are you sure you want to delete "{tripToDelete?.name}"? This action cannot be undone and will remove all associated transactions.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteGroup} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction onClick={confirmDeleteTrip} className="bg-destructive hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

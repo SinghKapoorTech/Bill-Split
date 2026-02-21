@@ -5,29 +5,29 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
-interface CreateGroupDialogProps {
+interface CreateTripDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreateGroup: (name: string, description: string) => void;
+  onCreateTrip: (name: string, description: string) => void;
 }
 
-export function CreateGroupDialog({ open, onOpenChange, onCreateGroup }: CreateGroupDialogProps) {
-  const [groupName, setGroupName] = useState('');
+export function CreateTripDialog({ open, onOpenChange, onCreateTrip }: CreateTripDialogProps) {
+  const [tripName, setTripName] = useState('');
   const [description, setDescription] = useState('');
 
   const handleCreate = () => {
-    if (!groupName.trim()) return;
+    if (!tripName.trim()) return;
 
-    onCreateGroup(groupName.trim(), description.trim());
+    onCreateTrip(tripName.trim(), description.trim());
 
     // Reset form
-    setGroupName('');
+    setTripName('');
     setDescription('');
     onOpenChange(false);
   };
 
   const handleCancel = () => {
-    setGroupName('');
+    setTripName('');
     setDescription('');
     onOpenChange(false);
   };
@@ -36,17 +36,17 @@ export function CreateGroupDialog({ open, onOpenChange, onCreateGroup }: CreateG
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Create New Group</DialogTitle>
+          <DialogTitle>Create New Trip</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="group-name">Group Name *</Label>
+            <Label htmlFor="trip-name">Trip Name *</Label>
             <Input
-              id="group-name"
-              placeholder="e.g., Roommates, Vacation 2024, Game Night"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
+              id="trip-name"
+              placeholder="e.g., Vegas Weekend, Ski Trip 2026, Game Night"
+              value={tripName}
+              onChange={(e) => setTripName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
               autoFocus
             />
@@ -56,7 +56,7 @@ export function CreateGroupDialog({ open, onOpenChange, onCreateGroup }: CreateG
             <Label htmlFor="description">Description (Optional)</Label>
             <Textarea
               id="description"
-              placeholder="Add details about this group..."
+              placeholder="Add details about this trip..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -68,8 +68,8 @@ export function CreateGroupDialog({ open, onOpenChange, onCreateGroup }: CreateG
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button variant="success" onClick={handleCreate} disabled={!groupName.trim()}>
-            Create Group
+          <Button variant="success" onClick={handleCreate} disabled={!tripName.trim()}>
+            Create Trip
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -11,7 +11,7 @@ export function MobileNavBar() {
 
   const navItems = [
     { name: 'Home', path: '/dashboard', icon: MdDashboard },
-    { name: 'Events', path: '/groups', icon: MdGroups },
+    { name: 'Trips', path: '/trips', icon: MdGroups },
     { name: 'Create', path: '#', icon: MdAdd }, // Placeholder for center button
     { name: 'Squads', path: '/squads', icon: MdPeople },
     { name: 'Profile', path: '/settings', icon: MdAccountCircle },
