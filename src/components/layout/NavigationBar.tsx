@@ -6,7 +6,7 @@ export function NavigationBar() {
 
   const tabs = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/trips', label: 'Trips', icon: Users },
+    { path: '/events', label: 'Events', icon: Users },
   ];
 
   return (

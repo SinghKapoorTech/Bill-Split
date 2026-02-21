@@ -25,13 +25,13 @@ import { billService } from '@/services/billService';
 import { useToast } from '@/hooks/use-toast';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
-import { TripCard } from '@/components/trips/TripCard';
-import { useTripManager } from '@/hooks/useTripManager';
+import { EventCard } from '@/components/events/EventCard';
+import { useEventManager } from '@/hooks/useEventManager';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { trips, loading: tripsLoading } = useTripManager();
+  const { events, loading: eventsLoading } = useEventManager();
   const { toast } = useToast();
   const [isCreatingBill, setIsCreatingBill] = useState(false);
   const [billToDelete, setBillToDelete] = useState<{ id: string; receiptFileName?: string; title: string } | null>(null);
@@ -289,45 +289,45 @@ export default function Dashboard() {
           <div>
             <h2 className="text-2xl font-semibold flex items-center gap-2">
               <MapPin className="w-6 h-6" />
-              My Trips
+              My Events
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Your trips and shared expenses
+              Your events and shared expenses
             </p>
           </div>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/trips')}>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/events')}>
             <Plus className="w-4 h-4" />
-            New Trip
+            New Event
           </Button>
         </div>
 
-        {tripsLoading ? (
+        {eventsLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
-        ) : trips.length === 0 ? (
+        ) : events.length === 0 ? (
           <Card className="p-8">
             <div className="text-center">
               <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-muted flex items-center justify-center">
                 <MapPin className="w-6 h-6 text-muted-foreground" />
               </div>
-              <h3 className="text-base font-medium mb-1">No trips yet</h3>
+              <h3 className="text-base font-medium mb-1">No events yet</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Create a trip to organize bills for events, vacations, and more.
+                Create an event to organize bills for events, vacations, and more.
               </p>
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/trips')}>
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/events')}>
                 <Plus className="w-4 h-4" />
-                Create First Trip
+                Create First Event
               </Button>
             </div>
           </Card>
         ) : (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {trips.map((trip) => (
-              <TripCard
-                key={trip.id}
-                trip={trip}
-                onClick={() => navigate(`/trips/${trip.id}`)}
+            {events.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                onClick={() => navigate(`/events/${event.id}`)}
                 currentUserId={user?.uid}
               />
             ))}

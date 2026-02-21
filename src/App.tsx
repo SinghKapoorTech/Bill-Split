@@ -14,8 +14,8 @@ import { LoadingScreen } from "@/components/shared/LoadingScreen";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import AIScanView from "./pages/AIScanView";
-import TripsView from "./pages/TripsView";
-import TripDetailView from "./pages/TripDetailView";
+import EventsView from "./pages/EventsView";
+import EventDetailView from "./pages/EventDetailView";
 import SettingsView from "./pages/SettingsView";
 import Auth from "./pages/Auth";
 import MobileAuth from "./pages/MobileAuth";
@@ -93,7 +93,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <DeepLinkHandler />
             <Routes>
               {/* Public: Platform-aware root route */}
@@ -103,8 +103,8 @@ const App = () => (
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="bill/:billId" element={<AIScanView />} />
-                <Route path="trips" element={<TripsView />} />
-                <Route path="trips/:tripId" element={<TripDetailView />} />
+                <Route path="events" element={<EventsView />} />
+                <Route path="events/:eventId" element={<EventDetailView />} />
                 <Route path="squads" element={<SquadsView />} />
                 <Route path="settings" element={<SettingsView />} />
               </Route>

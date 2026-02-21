@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus } from 'lucide-react';
+import { CalendarDays, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -13,68 +13,65 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { CreateTripDialog } from '@/components/trips/CreateTripDialog';
-import { TripCard } from '@/components/trips/TripCard';
-import { useTripManager } from '@/hooks/useTripManager';
+import { CreateEventDialog } from '@/components/events/CreateEventDialog';
+import { EventCard } from '@/components/events/EventCard';
+import { useEventManager } from '@/hooks/useEventManager';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
-export default function TripsView() {
+export default function EventsView() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [tripToDelete, setTripToDelete] = useState<{ id: string; name: string } | null>(null);
-  const { trips, loading, createTrip, deleteTrip } = useTripManager();
+  const [eventToDelete, setEventToDelete] = useState<{ id: string; name: string } | null>(null);
+  const { events, loading, createEvent, deleteEvent } = useEventManager();
   const { toast } = useToast();
 
-  const handleCreateTrip = async (name: string, description: string) => {
+  const handleCreateEvent = async (name: string, description: string) => {
     try {
-      await createTrip(name, description);
-
+      await createEvent(name, description);
       toast({
-        title: 'Trip created',
+        title: 'Event created',
         description: `${name} has been created successfully.`,
       });
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to create trip. Please try again.',
+        description: 'Failed to create event. Please try again.',
         variant: 'destructive',
       });
     }
   };
 
-  const handleTripClick = (tripId: string) => {
-    navigate(`/trips/${tripId}`);
+  const handleEventClick = (eventId: string) => {
+    navigate(`/events/${eventId}`);
   };
 
-  const handleDeleteTrip = (tripId: string) => {
-    const trip = trips.find((t) => t.id === tripId);
-    if (!trip) return;
-
-    setTripToDelete({ id: tripId, name: trip.name });
+  const handleDeleteEvent = (eventId: string) => {
+    const event = events.find((e) => e.id === eventId);
+    if (!event) return;
+    setEventToDelete({ id: eventId, name: event.name });
     setDeleteDialogOpen(true);
   };
 
-  const confirmDeleteTrip = async () => {
-    if (!tripToDelete) return;
-
+  const confirmDeleteEvent = async () => {
+    if (!eventToDelete) return;
     try {
-      await deleteTrip(tripToDelete.id);
+      await deleteEvent(eventToDelete.id);
       toast({
-        title: 'Trip deleted',
-        description: `${tripToDelete.name} has been deleted successfully.`,
+        title: 'Event deleted',
+        description: `${eventToDelete.name} has been deleted successfully.`,
       });
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to delete trip. Please try again.',
+        description: 'Failed to delete event. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setDeleteDialogOpen(false);
-      setTripToDelete(null);
+      setEventToDelete(null);
     }
   };
 
@@ -83,66 +80,66 @@ export default function TripsView() {
       <div className="text-center mb-4 md:mb-12 space-y-3 md:space-y-4">
         <div className="space-y-2">
           <h2 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
-            Your Trips
+            Your Events
           </h2>
         </div>
-        {trips.length > 0 && (
+        {events.length > 0 && (
           <Button className="gap-2" onClick={() => setDialogOpen(true)}>
             <Plus className="w-4 h-4" />
-            <span className="sm:inline">New Trip</span>
+            <span className="sm:inline">New Event</span>
           </Button>
         )}
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading trips...</div>
-      ) : trips.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">Loading events...</div>
+      ) : events.length === 0 ? (
         <Card className="p-12 text-center space-y-6">
           <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-            <Users className="w-10 h-10 text-primary" />
+            <CalendarDays className="w-10 h-10 text-primary" />
           </div>
           <div className="space-y-2">
-            <h3 className="text-xl font-semibold">No trips yet</h3>
+            <h3 className="text-xl font-semibold">No events yet</h3>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Create your first trip to start organizing bills with friends for events, vacations, and more.
+              Create your first event to start organizing bills with friends for vacations, dinners, and more.
             </p>
           </div>
           <Button className="gap-2" onClick={() => setDialogOpen(true)}>
             <Plus className="w-4 h-4" />
-            Create First Trip
+            Create First Event
           </Button>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {trips.map((trip) => (
-            <TripCard
-              key={trip.id}
-              trip={trip}
-              onClick={() => handleTripClick(trip.id)}
-              onDelete={handleDeleteTrip}
+          {events.map((event) => (
+            <EventCard
+              key={event.id}
+              event={event}
+              onClick={() => handleEventClick(event.id)}
+              onDelete={handleDeleteEvent}
               currentUserId={user?.uid}
             />
           ))}
         </div>
       )}
 
-      <CreateTripDialog
+      <CreateEventDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onCreateTrip={handleCreateTrip}
+        onCreateEvent={handleCreateEvent}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Trip</AlertDialogTitle>
+            <AlertDialogTitle>Delete Event</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{tripToDelete?.name}"? This action cannot be undone and will remove all associated transactions.
+              Are you sure you want to delete "{eventToDelete?.name}"? This action cannot be undone and will remove all associated transactions.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeleteTrip} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction onClick={confirmDeleteEvent} className="bg-destructive hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

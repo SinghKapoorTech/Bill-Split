@@ -10,7 +10,7 @@ import { BillItems } from '@/components/bill/BillItems';
 import { BillSummary } from '@/components/bill/BillSummary';
 import { SplitSummary } from '@/components/people/SplitSummary';
 
-import { InviteMembersDialog } from '@/components/trips/InviteMembersDialog';
+import { InviteMembersDialog } from '@/components/events/InviteMembersDialog';
 import { useBillSplitter } from '@/hooks/useBillSplitter';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
 import { useFileUpload } from '@/hooks/useFileUpload';
@@ -19,21 +19,21 @@ import { useItemEditor } from '@/hooks/useItemEditor';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { Trip } from '@/types/trip.types';
+import { TripEvent } from '@/types/event.types';
 import { Person, BillData, ItemAssignment } from '@/types';
 import { UI_TEXT, NAVIGATION } from '@/utils/uiConstants';
 import { ensureUserInPeople } from '@/utils/billCalculations';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
-// NOTE: Firestore collection name remains 'groups' until data migration.
-const TRIPS_COLLECTION = 'groups';
+// Firestore collection name
+const EVENTS_COLLECTION = 'events';
 
-export default function TripDetailView() {
-  const { tripId } = useParams<{ tripId: string }>();
+export default function EventDetailView() {
+  const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [trip, setTrip] = useState<Trip | null>(null);
+  const [event, setEvent] = useState<TripEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ai-scan');
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -65,19 +65,18 @@ export default function TripDetailView() {
   );
 
   useEffect(() => {
-    if (!tripId) {
+    if (!eventId) {
       setLoading(false);
       return;
     }
 
-    // Use real-time listener to keep trip data updated
     const unsubscribe = onSnapshot(
-      doc(db, TRIPS_COLLECTION, tripId),
-      (tripDoc) => {
-        if (tripDoc.exists()) {
-          const data = tripDoc.data();
-          setTrip({
-            id: tripDoc.id,
+      doc(db, EVENTS_COLLECTION, eventId),
+      (eventDoc) => {
+        if (eventDoc.exists()) {
+          const data = eventDoc.data();
+          setEvent({
+            id: eventDoc.id,
             name: data.name,
             description: data.description,
             createdAt: data.createdAt?.toDate() || new Date(),
@@ -87,18 +86,18 @@ export default function TripDetailView() {
             pendingInvites: data.pendingInvites || [],
           });
         } else {
-          setTrip(null);
+          setEvent(null);
         }
         setLoading(false);
       },
       (error) => {
-        console.error('Error fetching trip:', error);
+        console.error('Error fetching event:', error);
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [tripId]);
+  }, [eventId]);
 
   const handleRemovePerson = (personId: string) => {
     peopleManager.removePerson(personId);
@@ -133,14 +132,14 @@ export default function TripDetailView() {
   };
 
   if (loading) {
-    return <div className="text-center py-12 text-muted-foreground">Loading trip...</div>;
+    return <div className="text-center py-12 text-muted-foreground">Loading event...</div>;
   }
 
-  if (!trip) {
+  if (!event) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground mb-4">Trip not found.</p>
-        <Button onClick={() => navigate('/trips')}>{NAVIGATION.BACK_TO_TRIPS}</Button>
+        <p className="text-muted-foreground mb-4">Event not found.</p>
+        <Button onClick={() => navigate('/events')}>{NAVIGATION.BACK_TO_EVENTS}</Button>
       </div>
     );
   }
@@ -151,19 +150,19 @@ export default function TripDetailView() {
         <Button
           variant="ghost"
           className="mb-4 gap-2"
-          onClick={() => navigate('/trips')}
+          onClick={() => navigate('/events')}
         >
           <ArrowLeft className="w-4 h-4" />
-          {NAVIGATION.BACK_TO_TRIPS}
+          {NAVIGATION.BACK_TO_EVENTS}
         </Button>
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="space-y-2">
             <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
-              {trip.name}
+              {event.name}
             </h2>
-            {trip.description && (
-              <p className="text-lg text-muted-foreground">{trip.description}</p>
+            {event.description && (
+              <p className="text-lg text-muted-foreground">{event.description}</p>
             )}
           </div>
           <Button onClick={() => setInviteDialogOpen(true)} className="gap-2 shrink-0">
@@ -176,7 +175,7 @@ export default function TripDetailView() {
       <InviteMembersDialog
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
-        trip={trip}
+        event={event}
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

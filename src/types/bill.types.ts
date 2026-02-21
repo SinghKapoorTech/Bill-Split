@@ -32,7 +32,7 @@ export interface Bill {
   billType: BillType;
   status: BillStatus;
   ownerId: string;
-  groupId?: string; // If billType === 'group'
+  eventId?: string; // If billType === 'group'
   squadId?: string; // Optional squad ID
 
   billData: BillData;

@@ -38,36 +38,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!currentUser.email) return;
 
     try {
-      // Query for groups where this user's email is in pendingInvites
-      const groupsRef = collection(db, 'groups');
-      const q = query(groupsRef, where('pendingInvites', 'array-contains', currentUser.email));
+      // Query for events where this user's email is in pendingInvites
+      const eventsRef = collection(db, 'events');
+      const q = query(eventsRef, where('pendingInvites', 'array-contains', currentUser.email));
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
-        const groupsToJoin = querySnapshot.docs.length;
+        const eventsToJoin = querySnapshot.docs.length;
 
-        // Process each group invitation
-        for (const groupDoc of querySnapshot.docs) {
-          const groupRef = doc(db, 'groups', groupDoc.id);
+        // Process each event invitation
+        for (const eventDoc of querySnapshot.docs) {
+          const eventRef = doc(db, 'events', eventDoc.id);
 
           // Add user to memberIds and remove from pendingInvites
-          await updateDoc(groupRef, {
+          await updateDoc(eventRef, {
             memberIds: arrayUnion(currentUser.uid),
             pendingInvites: arrayRemove(currentUser.email),
           });
 
           // Update invitation status
-          const invitationsRef = collection(db, 'groupInvitations');
+          const invitationsRef = collection(db, 'eventInvitations');
           const inviteQuery = query(
             invitationsRef,
             where('email', '==', currentUser.email),
-            where('groupId', '==', groupDoc.id),
+            where('eventId', '==', eventDoc.id),
             where('status', '==', 'pending')
           );
           const inviteSnapshot = await getDocs(inviteQuery);
 
           for (const inviteDoc of inviteSnapshot.docs) {
-            await updateDoc(doc(db, 'groupInvitations', inviteDoc.id), {
+            await updateDoc(doc(db, 'eventInvitations', inviteDoc.id), {
               status: 'accepted',
             });
           }
@@ -75,12 +75,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Show success message
         toast({
-          title: 'Welcome to your groups!',
-          description: `You've been added to ${groupsToJoin} ${groupsToJoin === 1 ? 'group' : 'groups'}.`,
+          title: 'Welcome to your events!',
+          description: `You've been added to ${eventsToJoin} ${eventsToJoin === 1 ? 'event' : 'events'}.`,
         });
       }
     } catch (error) {
-      console.error('Error accepting group invitations:', error);
+      console.error('Error accepting event invitations:', error);
       // Don't show error to user - this is a background operation
     }
   };
@@ -101,7 +101,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         clearTimeout(timeout);
         setUser(currentUser);
 
-        // Check for pending group invitations when user logs in
+        // Check for pending event invitations when user logs in
         if (currentUser) {
           try {
             await userService.syncUserProfile(currentUser);

@@ -57,7 +57,7 @@ export const UI_TEXT = {
   // Empty states
   NO_ITEMS_YET: 'No items yet. Click "Add Item" to get started.',
   NO_FRIENDS_YET: 'No friends saved yet. Add friends to quickly add them to bills.',
-  NO_SQUADS_YET: 'No squads yet. Create a squad to quickly add groups to bills.',
+  NO_SQUADS_YET: 'No squads yet. Create a squad to quickly add people to bills.',
 } as const;
 
 // Form labels and placeholders
@@ -72,14 +72,14 @@ export const FORM_LABELS = {
 // Navigation labels
 export const NAVIGATION = {
   AI_SCAN: 'AI Scan',
-  TRIPS: 'Trips',
-  BACK_TO_TRIPS: 'Back to Trips',
+  EVENTS: 'Events',
+  BACK_TO_EVENTS: 'Back to Events',
 } as const;
 
 // Loading and status messages
 export const LOADING = {
-  LOADING_TRIP: 'Loading trip...',
-  TRIP_NOT_FOUND: 'Trip not found',
+  LOADING_EVENT: 'Loading event...',
+  EVENT_NOT_FOUND: 'Event not found',
   LOADING_SQUADS: 'Loading squads...',
 } as const;
 
@@ -105,5 +105,5 @@ export const SUCCESS_MESSAGES = {
 export const DIALOG_DESCRIPTIONS = {
   PROFILE_SETTINGS: 'Update your Venmo ID to enable charging others for their split.',
   MANAGE_FRIENDS: 'Add or remove friends to quickly add them to bills.',
-  MANAGE_SQUADS: 'Create and manage groups of people to quickly add them to bills.',
+  MANAGE_SQUADS: 'Create and manage squads of people to quickly add them to bills.',
 } as const;

@@ -1,7 +1,7 @@
 {
   "indexes": [
     {
-      "collectionGroup": "groups",
+      "collectionGroup": "events",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -37,7 +37,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "groupId",
+          "fieldPath": "eventId",
           "order": "ASCENDING"
         },
         {

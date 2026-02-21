@@ -57,7 +57,7 @@ export default function SquadsView() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">My Squads</h1>
-          <p className="text-muted-foreground">Manage your groups</p>
+          <p className="text-muted-foreground">Manage your squads</p>
         </div>
         <Dialog open={createDialogOpen} onOpenChange={(open) => {
             setCreateDialogOpen(open);
