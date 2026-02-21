@@ -221,31 +221,35 @@ export function PeopleManager({
         <h3 className="section-title-responsive">People</h3>
       </div>
 
-      <div className="flex gap-2 mb-4">
-        <AddPersonDialog
-          isOpen={isAddPersonOpen}
-          setIsOpen={setIsAddPersonOpen}
-          friendSuggestions={filteredFriends}
-          onSearchChange={onNameChange}
-          onSelectSuggestion={handleSelectFriend}
-          onAddManual={handleManualAdd}
-        />
-        <Button
-            onClick={() => setFriendsDialogOpen(true)}
-            variant="outline"
-            className="flex-1"
-        >
-            <UserCheck className="w-4 h-4 mr-2" />
-            Friends
-        </Button>
-        <Button
-            onClick={() => setSquadDialogOpen(true)}
-            variant="outline"
-            className="flex-1"
-        >
-            <Users className="w-4 h-4 mr-2" />
-            Squads
-        </Button>
+      <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex-1 w-full min-w-[200px]">
+          <AddPersonDialog
+            isOpen={isAddPersonOpen}
+            setIsOpen={setIsAddPersonOpen}
+            friendSuggestions={filteredFriends}
+            onSearchChange={onNameChange}
+            onSelectSuggestion={handleSelectFriend}
+            onAddManual={handleManualAdd}
+          />
+        </div>
+        <div className="flex flex-1 gap-2 min-w-[200px]">
+          <Button
+              onClick={() => setFriendsDialogOpen(true)}
+              variant="outline"
+              className="flex-1"
+          >
+              <UserCheck className="w-4 h-4 mr-2" />
+              Friends
+          </Button>
+          <Button
+              onClick={() => setSquadDialogOpen(true)}
+              variant="outline"
+              className="flex-1"
+          >
+              <Users className="w-4 h-4 mr-2" />
+              Squads
+          </Button>
+        </div>
       </div>
 
       {people.length > 0 && (

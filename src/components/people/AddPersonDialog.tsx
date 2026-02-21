@@ -50,8 +50,7 @@ export function AddPersonDialog({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 50); // Small delay to ensure modal is rendered
+    if (isOpen) {
       setSearchInput('');
       setManualName('');
       setManualVenmoId('');
@@ -100,7 +99,7 @@ export function AddPersonDialog({
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               ref={inputRef}
-              placeholder="Search by name, @username, or email..."
+              placeholder="Name, @username, or email..."
               className="pl-9"
               value={searchInput}
               onChange={(e) => handleSearchChange(e.target.value)}
@@ -118,31 +117,19 @@ export function AddPersonDialog({
                       <button
                         key={idx}
                         onClick={() => handleSelect(friend)}
-                        className="w-full text-left flex flex-col p-3 rounded-md border border-border/40 bg-card hover:border-primary/30 hover:bg-accent/50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all mb-2 cursor-pointer"
+                        className="w-full text-left flex items-center p-2 rounded-md border border-border/40 bg-card hover:border-primary/30 hover:bg-accent/50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all mb-1.5 cursor-pointer h-12"
                       >
-                        <div className="flex items-center gap-2 font-medium">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          {friend.name}
+                        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 mr-3 flex-shrink-0">
+                          <User className="h-4 w-4 text-primary" />
                         </div>
-
-                        <div className="mt-2 grid grid-cols-1 gap-1 pl-6">
+                        
+                        <div className="flex flex-col flex-1 overflow-hidden">
+                          <span className="text-sm font-medium truncate">{friend.name}</span>
+                          
                           {friend.username && (
-                            <div className="flex items-center gap-1.5 text-xs text-primary font-semibold">
-                              <span className="text-muted-foreground font-normal">Username:</span>
+                            <span className="text-xs text-muted-foreground truncate">
                               @{friend.username}
-                            </div>
-                          )}
-                          {friend.venmoId && (
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <AtSign className="h-3 w-3" />
-                              <span className="font-medium text-foreground">@{friend.venmoId}</span> (Venmo)
-                            </div>
-                          )}
-                          {friend.email && (
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <Mail className="h-3 w-3" />
-                              {friend.email}
-                            </div>
+                            </span>
                           )}
                         </div>
                       </button>
