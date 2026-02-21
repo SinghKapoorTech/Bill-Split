@@ -1,23 +1,23 @@
-import { Users, Calendar, Trash2 } from 'lucide-react';
+import { Users, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Group } from '@/types/group.types';
-import { formatDistanceToNow } from 'date-fns';
+import { Trip } from '@/types/trip.types';
 
-interface GroupCardProps {
-  group: Group;
+
+interface TripCardProps {
+  trip: Trip;
   onClick?: () => void;
-  onDelete?: (groupId: string) => void;
+  onDelete?: (tripId: string) => void;
   currentUserId?: string;
 }
 
-export function GroupCard({ group, onClick, onDelete, currentUserId }: GroupCardProps) {
-  const isOwner = currentUserId === group.ownerId;
+export function TripCard({ trip, onClick, onDelete, currentUserId }: TripCardProps) {
+  const isOwner = currentUserId === trip.ownerId;
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onDelete) {
-      onDelete(group.id);
+      onDelete(trip.id);
     }
   };
 
@@ -28,18 +28,14 @@ export function GroupCard({ group, onClick, onDelete, currentUserId }: GroupCard
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold mb-2">{group.name}</h3>
-          {group.description && (
-            <p className="text-sm text-muted-foreground mb-3">{group.description}</p>
+          <h3 className="text-lg font-semibold mb-2">{trip.name}</h3>
+          {trip.description && (
+            <p className="text-sm text-muted-foreground mb-3">{trip.description}</p>
           )}
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4" />
-              <span>{group.memberIds.length} members</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
-              <span>Updated {formatDistanceToNow(group.updatedAt, { addSuffix: true })}</span>
+              <span>{trip.memberIds.length} members</span>
             </div>
           </div>
         </div>

@@ -2,23 +2,26 @@ import { useState, useEffect } from 'react';
 import { collection, addDoc, deleteDoc, doc, query, where, onSnapshot, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { Group } from '@/types/group.types';
+import { Trip } from '@/types/trip.types';
 
-export function useGroupManager() {
+// NOTE: Firestore collection name remains 'groups' until data migration.
+const TRIPS_COLLECTION = 'groups';
+
+export function useTripManager() {
   const { user } = useAuth();
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
-      setGroups([]);
+      setTrips([]);
       setLoading(false);
       return;
     }
 
-    const groupsRef = collection(db, 'groups');
+    const tripsRef = collection(db, TRIPS_COLLECTION);
     const q = query(
-      groupsRef,
+      tripsRef,
       where('ownerId', '==', user.uid),
       orderBy('updatedAt', 'desc')
     );
@@ -26,7 +29,7 @@ export function useGroupManager() {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const groupsData = snapshot.docs.map((doc) => {
+        const tripsData = snapshot.docs.map((doc) => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -36,14 +39,14 @@ export function useGroupManager() {
             updatedAt: data.updatedAt?.toDate() || new Date(),
             ownerId: data.ownerId,
             memberIds: data.memberIds || [],
-          } as Group;
+          } as Trip;
         });
-        setGroups(groupsData);
+        setTrips(tripsData);
         setLoading(false);
       },
       (error) => {
-        console.error('Error fetching groups:', error);
-        setGroups([]);
+        console.error('Error fetching trips:', error);
+        setTrips([]);
         setLoading(false);    
       }
     );
@@ -51,13 +54,13 @@ export function useGroupManager() {
     return () => unsubscribe();
   }, [user]);
 
-  const createGroup = async (name: string, description?: string) => {
+  const createTrip = async (name: string, description?: string) => {
     if (!user) {
-      throw new Error('Must be logged in to create a group');
+      throw new Error('Must be logged in to create a trip');
     }
 
     const now = Timestamp.now();
-    const groupData = {
+    const tripData = {
       name,
       description: description || '',
       createdAt: now,
@@ -66,23 +69,23 @@ export function useGroupManager() {
       memberIds: [user.uid],
     };
 
-    const docRef = await addDoc(collection(db, 'groups'), groupData);
+    const docRef = await addDoc(collection(db, TRIPS_COLLECTION), tripData);
     return docRef.id;
   };
 
-  const deleteGroup = async (groupId: string) => {
+  const deleteTrip = async (tripId: string) => {
     if (!user) {
-      throw new Error('Must be logged in to delete a group');
+      throw new Error('Must be logged in to delete a trip');
     }
 
-    const docRef = doc(db, 'groups', groupId);
+    const docRef = doc(db, TRIPS_COLLECTION, tripId);
     await deleteDoc(docRef);
   };
 
   return {
-    groups,
+    trips,
     loading,
-    createGroup,
-    deleteGroup,
+    createTrip,
+    deleteTrip,
   };
 }

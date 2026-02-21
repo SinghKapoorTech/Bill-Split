@@ -11,7 +11,7 @@
 
 ### Problem Statement
 
-The current Bill Split app has a flat schema with a single `bills` collection and a `groups` collection that was bolted on after the fact. This structure cannot support:
+The current Bill Split app has a flat schema with a single `bills` collection. This structure cannot support:
 
 - Running balances across multiple bills (Splitwise-style settle-up)
 - Persistent friend groups with financial history
@@ -43,7 +43,7 @@ The current Bill Split app has a flat schema with a single `bills` collection an
 |---|-------|----------|
 | Q1 | Bill permissions | Any Trip member can edit any bill in that Trip |
 | Q2 | Bill mobility | Bills move freely between standalone / Trip / Squad |
-| Q3 | Entity model | Three pages: Bills, Trips, Squads |
+| Q3 | Entity model | Three pages: Bills, Trips, Squads (no separate Groups concept) |
 | Q4 | Settle-up | Debt optimization + timestamp-based settlement marker |
 | Q5 | Payment tracking | Separate payments collection with full audit trail |
 | Q6 | People identity | Mixed authenticated + shadow profiles (merge on sign-up) |
@@ -1158,10 +1158,8 @@ The migration transforms the existing schema into the new one. Since this is a c
 |-----|-----|
 | `users/{userId}` | `users/{userId}` -- remove `squadIds`, add `isShadow: false` |
 | `bills/{billId}` (billType: 'private') | `bills/{billId}` -- set `tripId: null`, `squadId: null`, `paidBy: ownerId`, `createdBy: ownerId`. Remove `billType`, `status`, `ownerId`, `members`. |
-| `bills/{billId}` (billType: 'group') | `bills/{billId}` -- set `tripId: <migrated trip ID>`, `squadId: null`, `paidBy: ownerId`, `createdBy: ownerId`. Remove old fields. |
-| `groups/{groupId}` | `trips/{tripId}` -- map `ownerId` to `createdBy`, keep `memberIds`, `pendingInvites`. |
+| `bills/{billId}` (billType: 'trip') | `bills/{billId}` -- set `tripId: <existing trip ID>`, `squadId: null`, `paidBy: ownerId`, `createdBy: ownerId`. Remove old fields. |
 | `squads/{squadId}` (old) | `squads/{squadId}` -- add `createdBy` (first member), keep `memberIds`. Remove from user docs `squadIds`. |
-| `groupInvitations/{id}` | Delete (invitations are now inline `pendingInvites` on Trip/Squad docs). |
 
 ### 8.3 Migration Script Steps
 
@@ -1172,47 +1170,32 @@ Phase 1: Migrate Users
     - Add isShadow: false
     - Preserve all other fields
 
-Phase 2: Migrate Groups -> Trips
-  For each group document:
-    - Create new trip document with same ID (or generate new):
-      {
-        id, name, description,
-        createdBy: group.ownerId,
-        memberIds: group.memberIds,
-        pendingInvites: group.pendingInvites || [],
-        createdAt: group.createdAt,
-        updatedAt: group.updatedAt
-      }
-    - Record mapping: oldGroupId -> newTripId
-
-Phase 3: Migrate Bills
+Phase 2: Migrate Bills
   For each bill document:
     - Set createdBy = bill.ownerId
     - Set paidBy = bill.ownerId (best guess -- owner likely paid)
-    - If bill.billType == 'group' and bill.groupId exists:
-        Set tripId = mapping[bill.groupId]
+    - If bill has a tripId already set:
+        Keep tripId as-is
         Set squadId = null
     - Else:
         Set tripId = null
         Set squadId = null
-    - Remove fields: billType, status, ownerId, groupId, members, savedAt
+    - Remove fields: billType, status, ownerId, members, savedAt
     - Preserve: billData, itemAssignments, people, splitEvenly, title,
                 currentStep, receipt*, shareCode*, timestamps
 
-Phase 4: Migrate Squads
+Phase 3: Migrate Squads
   For each squad document:
     - Add createdBy = squad.memberIds[0] (creator unknown, use first member)
     - Add pendingInvites = []
     - Keep memberIds, name, description, timestamps
 
-Phase 5: Cleanup
-  - Delete all groupInvitations documents
-  - Delete all old groups documents (now migrated to trips)
+Phase 4: Cleanup
   - Remove receiptAnalysisCache collection
   - Deploy new security rules
   - Deploy new indexes
 
-Phase 6: Deploy new client code
+Phase 5: Deploy new client code
   - All new services, hooks, and components
 ```
 

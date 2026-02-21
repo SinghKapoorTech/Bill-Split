@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 
-export interface Group {
+export interface Trip {
   id: string;
   name: string;
   description?: string;
@@ -11,9 +11,9 @@ export interface Group {
   updatedAt: Timestamp;
 }
 
-export interface GroupInvitation {
+export interface TripInvitation {
   id: string;
-  groupId: string;
+  tripId: string;
   email: string;
   invitedBy: string;
   status: 'pending' | 'accepted' | 'declined';
@@ -22,9 +22,9 @@ export interface GroupInvitation {
 }
 
 // Legacy type - to be migrated to Bill
-export interface GroupTransaction {
+export interface TripTransaction {
   id: string;
-  groupId: string;
+  tripId: string;
   billData: {
     items: Array<{ id: string; name: string; price: number }>;
     subtotal: number;
@@ -34,10 +34,6 @@ export interface GroupTransaction {
   };
   itemAssignments: Record<string, string[]>;
   personTotals: Record<string, number>;
-  createdAt: Date; // Keeping as Date for now if legacy code expects it, or update to Timestamp if safe. 
-                   // Given it's legacy, I'll leave it as is or update to Timestamp if I suspect it's from Firestore.
-                   // Actually, usually Firestore returns Timestamp. I'll stick to Date for this one to minimize breakage if it's not being touched.
-                   // But wait, if I import Timestamp, I might as well use it if it's a firestore doc.
-                   // Let's keep it as Date for now to be safe, as I'm not migrating this part yet.
+  createdAt: Date;
   createdBy: string;
 }

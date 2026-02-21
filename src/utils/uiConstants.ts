@@ -72,14 +72,14 @@ export const FORM_LABELS = {
 // Navigation labels
 export const NAVIGATION = {
   AI_SCAN: 'AI Scan',
-  GROUPS: 'Groups',
-  BACK_TO_GROUPS: 'Back to Groups',
+  TRIPS: 'Trips',
+  BACK_TO_TRIPS: 'Back to Trips',
 } as const;
 
 // Loading and status messages
 export const LOADING = {
-  LOADING_GROUP: 'Loading group...',
-  GROUP_NOT_FOUND: 'Group not found',
+  LOADING_TRIP: 'Loading trip...',
+  TRIP_NOT_FOUND: 'Trip not found',
   LOADING_SQUADS: 'Loading squads...',
 } as const;
 
