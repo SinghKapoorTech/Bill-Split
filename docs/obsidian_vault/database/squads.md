@@ -6,7 +6,7 @@ tags: [database, schema, firestore, squads]
 
 # `squads` Collection
 
-The `squads` collection manages recurring groups of friends who frequently split bills together (e.g., "Roommates", "Event in Cabo"). Squads are designed to be lightweight and easily imported into a new Bill.
+The `squads` collection manages recurring groups of players/friends who frequently interact (e.g., "Roommates", "Coworkers"). A squad represents a group of people and can include multiple trips/events or a collection of bills directly. Squads are designed to be lightweight and easily imported.
 
 ## Document ID
 Custom ID generated via `generateSquadId()` (e.g., UUID).
@@ -19,6 +19,8 @@ Custom ID generated via `generateSquadId()` (e.g., UUID).
 | `name` | String | Display name of the squad. |
 | `description` | String (Optional) | Context for the squad. |
 | `memberIds` | Array of String | Array of UID references to the **[Users](users.md)** collection. |
+| `bills` | Array of String (Optional) | Array of Bill IDs associated with this squad. |
+| `events` | Array of String (Optional) | Array of Event IDs associated with this squad. |
 | `createdAt` | Timestamp | Creation time. |
 | `updatedAt` | Timestamp | Last modification time. |
 

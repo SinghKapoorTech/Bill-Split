@@ -9,6 +9,8 @@ interface FirestoreSquad {
   name: string;
   description?: string;
   memberIds: string[];
+  bills?: string[];
+  events?: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -22,6 +24,8 @@ function convertFromFirestore(data: FirestoreSquad): Squad {
     name: data.name,
     description: data.description,
     memberIds: data.memberIds || [],
+    bills: data.bills || [],
+    events: data.events || [],
     createdAt: data.createdAt.toDate(),
     updatedAt: data.updatedAt.toDate(),
   };
@@ -35,6 +39,8 @@ function convertToFirestore(squad: Omit<Squad, 'createdAt' | 'updatedAt'> & { cr
     name: squad.name,
     description: squad.description,
     memberIds: squad.memberIds,
+    bills: squad.bills || [],
+    events: squad.events || [],
     createdAt: squad.createdAt ? Timestamp.fromDate(squad.createdAt) : Timestamp.now(),
     updatedAt: squad.updatedAt ? Timestamp.fromDate(squad.updatedAt) : Timestamp.now(),
   };
@@ -155,6 +161,8 @@ export async function saveSquad(userId: string, input: CreateSquadInput): Promis
       name: input.name.trim(),
       description: input.description?.trim(),
       memberIds: memberIds,
+      bills: [],
+      events: [],
       createdAt: now,
       updatedAt: now,
     };
