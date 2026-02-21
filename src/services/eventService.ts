@@ -13,22 +13,22 @@ import {
   arrayRemove
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { Trip, TripInvitation } from '@/types/trip.types';
+import { TripEvent, EventInvitation } from '@/types/event.types';
 
-// NOTE: Firestore collection names remain 'groups' / 'groupInvitations' until data migration.
-const TRIPS_COLLECTION = 'groups';
-const INVITATIONS_COLLECTION = 'groupInvitations';
+// Firestore collection names
+const EVENTS_COLLECTION = 'events';
+const INVITATIONS_COLLECTION = 'eventInvitations';
 
-export const tripService = {
+export const eventService = {
   /**
-   * Creates a new trip
+   * Creates a new event
    */
-  async createTrip(ownerId: string, name: string, description?: string): Promise<string> {
-    const newTripRef = doc(collection(db, TRIPS_COLLECTION));
+  async createEvent(ownerId: string, name: string, description?: string): Promise<string> {
+    const newEventRef = doc(collection(db, EVENTS_COLLECTION));
     const now = Timestamp.now();
 
-    const newTrip: Trip = {
-      id: newTripRef.id,
+    const newEvent: TripEvent = {
+      id: newEventRef.id,
       name,
       description,
       ownerId,
@@ -38,45 +38,45 @@ export const tripService = {
       updatedAt: now
     };
 
-    await setDoc(newTripRef, newTrip);
-    return newTripRef.id;
+    await setDoc(newEventRef, newEvent);
+    return newEventRef.id;
   },
 
   /**
-   * Gets a trip by ID
+   * Gets an event by ID
    */
-  async getTrip(tripId: string): Promise<Trip | null> {
-    const tripRef = doc(db, TRIPS_COLLECTION, tripId);
-    const tripSnap = await getDoc(tripRef);
+  async getEvent(eventId: string): Promise<TripEvent | null> {
+    const eventRef = doc(db, EVENTS_COLLECTION, eventId);
+    const eventSnap = await getDoc(eventRef);
 
-    if (!tripSnap.exists()) {
+    if (!eventSnap.exists()) {
       return null;
     }
 
-    return tripSnap.data() as Trip;
+    return eventSnap.data() as TripEvent;
   },
 
   /**
-   * Updates a trip
+   * Updates an event
    */
-  async updateTrip(tripId: string, updates: Partial<Trip>): Promise<void> {
-    const tripRef = doc(db, TRIPS_COLLECTION, tripId);
-    await updateDoc(tripRef, {
+  async updateEvent(eventId: string, updates: Partial<TripEvent>): Promise<void> {
+    const eventRef = doc(db, EVENTS_COLLECTION, eventId);
+    await updateDoc(eventRef, {
       ...updates,
       updatedAt: serverTimestamp()
     });
   },
 
   /**
-   * Invites a user to a trip by email
+   * Invites a user to an event by email
    */
-  async inviteMember(tripId: string, email: string, invitedBy: string): Promise<string> {
+  async inviteMember(eventId: string, email: string, invitedBy: string): Promise<string> {
     const now = Timestamp.now();
     const inviteRef = doc(collection(db, INVITATIONS_COLLECTION));
     
-    const invitation: TripInvitation = {
+    const invitation: EventInvitation = {
       id: inviteRef.id,
-      tripId,
+      eventId: eventId,
       email,
       invitedBy,
       status: 'pending',
@@ -85,9 +85,9 @@ export const tripService = {
     
     await setDoc(inviteRef, invitation);
     
-    // Update trip pending invites
-    const tripRef = doc(db, TRIPS_COLLECTION, tripId);
-    await updateDoc(tripRef, {
+    // Update event pending invites
+    const eventRef = doc(db, EVENTS_COLLECTION, eventId);
+    await updateDoc(eventRef, {
       pendingInvites: arrayUnion(email),
       updatedAt: serverTimestamp()
     });
@@ -106,7 +106,7 @@ export const tripService = {
       throw new Error('Invitation not found');
     }
     
-    const invite = inviteSnap.data() as TripInvitation;
+    const invite = inviteSnap.data() as EventInvitation;
     const now = Timestamp.now();
     
     await updateDoc(inviteRef, {
@@ -115,9 +115,8 @@ export const tripService = {
     });
     
     if (accept) {
-      // Add user to trip
-      const tripRef = doc(db, TRIPS_COLLECTION, invite.tripId);
-      await updateDoc(tripRef, {
+      const eventRef = doc(db, EVENTS_COLLECTION, invite.eventId);
+      await updateDoc(eventRef, {
         memberIds: arrayUnion(userId),
         pendingInvites: arrayRemove(invite.email),
         updatedAt: serverTimestamp()
@@ -128,7 +127,7 @@ export const tripService = {
   /**
    * Gets pending invitations for an email
    */
-  async getPendingInvitations(email: string): Promise<TripInvitation[]> {
+  async getPendingInvitations(email: string): Promise<EventInvitation[]> {
     const q = query(
       collection(db, INVITATIONS_COLLECTION),
       where('email', '==', email),
@@ -136,6 +135,6 @@ export const tripService = {
     );
     
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => doc.data() as TripInvitation);
+    return snapshot.docs.map(doc => doc.data() as EventInvitation);
   }
 };

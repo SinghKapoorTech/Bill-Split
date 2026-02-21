@@ -9,7 +9,7 @@ interface InviteMemberResponse {
   message: string;
 }
 
-export function useTripInvites(tripId: string) {
+export function useEventInvites(eventId: string) {
   const [isInviting, setIsInviting] = useState(false);
   const { toast } = useToast();
 
@@ -17,13 +17,12 @@ export function useTripInvites(tripId: string) {
     setIsInviting(true);
 
     try {
-      // Cloud function still called 'inviteMemberToGroup' until function is renamed
-      const inviteMemberToGroup = httpsCallable<
-        { groupId: string; email: string },
+      const inviteMemberToEvent = httpsCallable<
+        { eventId: string; email: string },
         InviteMemberResponse
-      >(functions, 'inviteMemberToGroup');
+      >(functions, 'inviteMemberToEvent');
 
-      const result = await inviteMemberToGroup({ groupId: tripId, email });
+      const result = await inviteMemberToEvent({ eventId, email });
 
       if (result.data.success) {
         toast({
@@ -42,9 +41,9 @@ export function useTripInvites(tripId: string) {
       if (error.code === 'functions/already-exists') {
         errorMessage = error.message;
       } else if (error.code === 'functions/permission-denied') {
-        errorMessage = 'You do not have permission to invite members to this trip.';
+        errorMessage = 'You do not have permission to invite members to this event.';
       } else if (error.code === 'functions/not-found') {
-        errorMessage = 'Trip not found.';
+        errorMessage = 'Event not found.';
       } else if (error.code === 'functions/invalid-argument') {
         errorMessage = error.message || 'Invalid email address.';
       }

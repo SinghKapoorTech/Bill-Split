@@ -2,26 +2,26 @@ import { useState, useEffect } from 'react';
 import { collection, addDoc, deleteDoc, doc, query, where, onSnapshot, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { Trip } from '@/types/trip.types';
+import { TripEvent } from '@/types/event.types';
 
-// NOTE: Firestore collection name remains 'groups' until data migration.
-const TRIPS_COLLECTION = 'groups';
+// Firestore collection name
+const EVENTS_COLLECTION = 'events';
 
-export function useTripManager() {
+export function useEventManager() {
   const { user } = useAuth();
-  const [trips, setTrips] = useState<Trip[]>([]);
+  const [events, setEvents] = useState<TripEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
-      setTrips([]);
+      setEvents([]);
       setLoading(false);
       return;
     }
 
-    const tripsRef = collection(db, TRIPS_COLLECTION);
+    const eventsRef = collection(db, EVENTS_COLLECTION);
     const q = query(
-      tripsRef,
+      eventsRef,
       where('ownerId', '==', user.uid),
       orderBy('updatedAt', 'desc')
     );
@@ -29,7 +29,7 @@ export function useTripManager() {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const tripsData = snapshot.docs.map((doc) => {
+        const eventsData = snapshot.docs.map((doc) => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -39,14 +39,14 @@ export function useTripManager() {
             updatedAt: data.updatedAt?.toDate() || new Date(),
             ownerId: data.ownerId,
             memberIds: data.memberIds || [],
-          } as Trip;
+          } as TripEvent;
         });
-        setTrips(tripsData);
+        setEvents(eventsData);
         setLoading(false);
       },
       (error) => {
-        console.error('Error fetching trips:', error);
-        setTrips([]);
+        console.error('Error fetching events:', error);
+        setEvents([]);
         setLoading(false);    
       }
     );
@@ -54,13 +54,13 @@ export function useTripManager() {
     return () => unsubscribe();
   }, [user]);
 
-  const createTrip = async (name: string, description?: string) => {
+  const createEvent = async (name: string, description?: string) => {
     if (!user) {
-      throw new Error('Must be logged in to create a trip');
+      throw new Error('Must be logged in to create an event');
     }
 
     const now = Timestamp.now();
-    const tripData = {
+    const eventData = {
       name,
       description: description || '',
       createdAt: now,
@@ -69,23 +69,23 @@ export function useTripManager() {
       memberIds: [user.uid],
     };
 
-    const docRef = await addDoc(collection(db, TRIPS_COLLECTION), tripData);
+    const docRef = await addDoc(collection(db, EVENTS_COLLECTION), eventData);
     return docRef.id;
   };
 
-  const deleteTrip = async (tripId: string) => {
+  const deleteEvent = async (eventId: string) => {
     if (!user) {
-      throw new Error('Must be logged in to delete a trip');
+      throw new Error('Must be logged in to delete an event');
     }
 
-    const docRef = doc(db, TRIPS_COLLECTION, tripId);
+    const docRef = doc(db, EVENTS_COLLECTION, eventId);
     await deleteDoc(docRef);
   };
 
   return {
-    trips,
+    events,
     loading,
-    createTrip,
-    deleteTrip,
+    createEvent,
+    deleteEvent,
   };
 }

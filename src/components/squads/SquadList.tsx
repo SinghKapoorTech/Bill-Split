@@ -92,7 +92,7 @@ function EmptySquadList() {
         No squads saved yet
       </p>
       <p className="text-xs text-muted-foreground">
-        Create a squad to quickly add groups of friends to bills
+        Create a squad to quickly add friends to bills
       </p>
     </div>
   );

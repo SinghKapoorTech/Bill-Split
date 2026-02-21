@@ -5,29 +5,29 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
-interface CreateTripDialogProps {
+interface CreateEventDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreateTrip: (name: string, description: string) => void;
+  onCreateEvent: (name: string, description: string) => void;
 }
 
-export function CreateTripDialog({ open, onOpenChange, onCreateTrip }: CreateTripDialogProps) {
-  const [tripName, setTripName] = useState('');
+export function CreateEventDialog({ open, onOpenChange, onCreateEvent }: CreateEventDialogProps) {
+  const [eventName, setEventName] = useState('');
   const [description, setDescription] = useState('');
 
   const handleCreate = () => {
-    if (!tripName.trim()) return;
+    if (!eventName.trim()) return;
 
-    onCreateTrip(tripName.trim(), description.trim());
+    onCreateEvent(eventName.trim(), description.trim());
 
     // Reset form
-    setTripName('');
+    setEventName('');
     setDescription('');
     onOpenChange(false);
   };
 
   const handleCancel = () => {
-    setTripName('');
+    setEventName('');
     setDescription('');
     onOpenChange(false);
   };
@@ -36,17 +36,17 @@ export function CreateTripDialog({ open, onOpenChange, onCreateTrip }: CreateTri
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Create New Trip</DialogTitle>
+          <DialogTitle>Create New Event</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="trip-name">Trip Name *</Label>
+            <Label htmlFor="event-name">Event Name *</Label>
             <Input
-              id="trip-name"
+              id="event-name"
               placeholder="e.g., Vegas Weekend, Ski Trip 2026, Game Night"
-              value={tripName}
-              onChange={(e) => setTripName(e.target.value)}
+              value={eventName}
+              onChange={(e) => setEventName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
               autoFocus
             />
@@ -56,7 +56,7 @@ export function CreateTripDialog({ open, onOpenChange, onCreateTrip }: CreateTri
             <Label htmlFor="description">Description (Optional)</Label>
             <Textarea
               id="description"
-              placeholder="Add details about this trip..."
+              placeholder="Add details about this event..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -68,8 +68,8 @@ export function CreateTripDialog({ open, onOpenChange, onCreateTrip }: CreateTri
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button variant="success" onClick={handleCreate} disabled={!tripName.trim()}>
-            Create Trip
+          <Button variant="success" onClick={handleCreate} disabled={!eventName.trim()}>
+            Create Event
           </Button>
         </DialogFooter>
       </DialogContent>

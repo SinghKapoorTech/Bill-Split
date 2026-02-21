@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 
-export interface Trip {
+// Using TripEvent to avoid conflict with the browser's built-in Event type
+export interface TripEvent {
   id: string;
   name: string;
   description?: string;
@@ -11,9 +12,9 @@ export interface Trip {
   updatedAt: Timestamp;
 }
 
-export interface TripInvitation {
+export interface EventInvitation {
   id: string;
-  tripId: string;
+  eventId: string; // Firestore field name
   email: string;
   invitedBy: string;
   status: 'pending' | 'accepted' | 'declined';
@@ -22,9 +23,9 @@ export interface TripInvitation {
 }
 
 // Legacy type - to be migrated to Bill
-export interface TripTransaction {
+export interface EventTransaction {
   id: string;
-  tripId: string;
+  eventId: string; // Firestore field name
   billData: {
     items: Array<{ id: string; name: string; price: number }>;
     subtotal: number;

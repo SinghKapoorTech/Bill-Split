@@ -13,14 +13,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Bill } from '@/types/bill.types';
 import { billService } from '@/services/billService';
 
-// NOTE: Firestore collection name remains 'groups' on bills until data migration.
-export function useTripBills(tripId: string) {
+export function useEventBills(eventId: string) {
   const { user } = useAuth();
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!tripId || !user) {
+    if (!eventId || !user) {
       setBills([]);
       setLoading(false);
       return;
@@ -28,10 +27,9 @@ export function useTripBills(tripId: string) {
 
     setLoading(true);
     const billsRef = collection(db, 'bills');
-    // Query bills for this trip, ordered by creation time
     const q = query(
       billsRef, 
-      where('groupId', '==', tripId), 
+      where('eventId', '==', eventId), 
       orderBy('createdAt', 'desc')
     );
 
@@ -43,15 +41,15 @@ export function useTripBills(tripId: string) {
       setBills(billsData);
       setLoading(false);
     }, (error) => {
-      console.error('Error fetching trip bills:', error);
+      console.error('Error fetching event bills:', error);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [tripId, user]);
+  }, [eventId, user]);
 
   const createTransaction = useCallback(async (data: any) => {
-    if (!user || !tripId) throw new Error('User or trip not specified.');
+    if (!user || !eventId) throw new Error('User or event not specified.');
 
     const billId = await billService.createBill(
       user.uid,
@@ -59,7 +57,7 @@ export function useTripBills(tripId: string) {
       'group',
       data.billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 },
       data.people || [],
-      tripId
+      eventId
     );
     
     if (data.itemAssignments || data.splitEvenly || data.receiptImageUrl || data.receiptFileName) {
@@ -73,7 +71,7 @@ export function useTripBills(tripId: string) {
     }
 
     return billId;
-  }, [user, tripId]);
+  }, [user, eventId]);
 
   const updateTransaction = useCallback(async (billId: string, data: Partial<Bill>) => {
     await billService.updateBill(billId, data);

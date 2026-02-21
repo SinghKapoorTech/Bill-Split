@@ -61,8 +61,8 @@ export function validateBillData(bill: Partial<Bill>): boolean {
     throw new Error('Bill type is required');
   }
 
-  if (bill.billType === 'group' && !bill.groupId) {
-    throw new Error('Group ID is required for group bills');
+  if (bill.billType === 'group' && !bill.eventId) {
+    throw new Error('Event ID is required for group bills');
   }
 
   return true;

@@ -2,7 +2,7 @@
  * Firebase Cloud Functions for Bill Split
  *
  * Securely handles Gemini AI API calls server-side to protect API keys
- * and manages group invitations
+ * and manages trip invitations
  */
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
@@ -193,7 +193,7 @@ Rules:
  * Request data for inviteMemberToGroup function
  */
 interface InviteMemberRequest {
-  groupId: string;
+  eventId: string;
   email: string;
 }
 
@@ -204,19 +204,19 @@ interface InviteMemberRequest {
  * - If yes: Adds them directly to the group's memberIds
  * - If no: Adds email to pendingInvites for when they sign up
  */
-export const inviteMemberToGroup = onCall<InviteMemberRequest>(
+export const inviteMemberToEvent = onCall<InviteMemberRequest>(
   async (request) => {
     // Validate authentication
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'User must be authenticated');
     }
 
-    const { groupId, email } = request.data;
+    const { eventId, email } = request.data;
     const inviterId = request.auth.uid;
 
     // Validate input
-    if (!groupId || !email) {
-      throw new HttpsError('invalid-argument', 'groupId and email are required');
+    if (!eventId || !email) {
+      throw new HttpsError('invalid-argument', 'eventId and email are required');
     }
 
     // Validate email format
@@ -227,22 +227,22 @@ export const inviteMemberToGroup = onCall<InviteMemberRequest>(
 
     try {
       const db = getFirestore();
-      const groupRef = db.collection('groups').doc(groupId);
-      const groupDoc = await groupRef.get();
+      const eventRef = db.collection('events').doc(eventId);
+      const eventDoc = await eventRef.get();
 
-      if (!groupDoc.exists) {
-        throw new HttpsError('not-found', 'Group not found');
+      if (!eventDoc.exists) {
+        throw new HttpsError('not-found', 'Event not found');
       }
 
-      const groupData = groupDoc.data();
+      const eventData = eventDoc.data();
 
-      if (!groupData) {
-        throw new HttpsError('not-found', 'Group data not found');
+      if (!eventData) {
+        throw new HttpsError('not-found', 'Event data not found');
       }
 
-      // Check if inviter is a member of the group
-      if (!groupData.memberIds || !groupData.memberIds.includes(inviterId)) {
-        throw new HttpsError('permission-denied', 'Only group members can invite others');
+      // Check if inviter is a member of the event
+      if (!eventData.memberIds || !eventData.memberIds.includes(inviterId)) {
+        throw new HttpsError('permission-denied', 'Only event members can invite others');
       }
 
       // Check if user with this email already exists
@@ -258,17 +258,17 @@ export const inviteMemberToGroup = onCall<InviteMemberRequest>(
       }
 
       if (userRecord) {
-        // User exists - add them directly to the group
+        // User exists - add them directly to the trip
         const userId = userRecord.uid;
 
         // Check if already a member
-        if (groupData.memberIds.includes(userId)) {
-          throw new HttpsError('already-exists', 'User is already a member of this group');
+        if (eventData.memberIds.includes(userId)) {
+          throw new HttpsError('already-exists', 'User is already a member of this event');
         }
 
-        // Add user to group
+        // Add user to event
         const { FieldValue } = await import('firebase-admin/firestore');
-        await groupRef.update({
+        await eventRef.update({
           memberIds: FieldValue.arrayUnion(userId),
           pendingInvites: FieldValue.arrayRemove(email),
           updatedAt: FieldValue.serverTimestamp(),
@@ -277,11 +277,11 @@ export const inviteMemberToGroup = onCall<InviteMemberRequest>(
         return {
           success: true,
           userExists: true,
-          message: `${email} has been added to the group`,
+          message: `${email} has been added to the event`,
         };
       } else {
         // User doesn't exist - add to pending invites
-        const pendingInvites = groupData.pendingInvites || [];
+        const pendingInvites = eventData.pendingInvites || [];
 
         // Check if already invited
         if (pendingInvites.includes(email)) {
@@ -295,15 +295,15 @@ export const inviteMemberToGroup = onCall<InviteMemberRequest>(
 
         // Add to pending invites
         const { FieldValue } = await import('firebase-admin/firestore');
-        await groupRef.update({
+        await eventRef.update({
           pendingInvites: FieldValue.arrayUnion(email),
           updatedAt: FieldValue.serverTimestamp(),
         });
 
         // Create invitation record
-        await db.collection('groupInvitations').add({
-          groupId,
-          groupName: groupData.name,
+        await db.collection('eventInvitations').add({
+          eventId,
+          eventName: eventData.name,
           email,
           invitedBy: inviterId,
           invitedByName: inviterName,
