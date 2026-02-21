@@ -34,5 +34,5 @@ Within the `BillItemCard` or `BillItemsTable` (depending on screen size), each l
 ## 3. The "Split Evenly" Action
 A prominent feature of this step is the global "Split Evenly" (or "Assign All") toggle.
 - When activated, a helper function (`onToggleSplitEvenly`) iterates through every existing line item and fully assigns the entire currently selected `people` array to each item.
-- This creates an atomic Firestore update ensuring the entire group is synced simultaneously.
+- This creates an atomic Firestore update (modifying `itemAssignments` in the **[bills](../database/bills.md)** collection) ensuring the entire group is synced simultaneously.
 - If a user manually adjusts a single item *after* clicking "Split Evenly", the global flag is disabled, seamlessly transitioning them back to manual assignment mode without losing their other split data.

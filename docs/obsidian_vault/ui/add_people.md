@@ -33,7 +33,7 @@ Below the buttons, the active list of selected people is rendered using `PersonC
 ### Method 1: The "Add Person" Dialog
 *Handled by `AddPersonDialog.tsx`*
 - Explored in detail in the [Search Architecture](search.md).
-- Allows global search by email or username.
+- Allows global search by email or username (queries the **[users](../database/users.md)** collection).
 - Fallback for entering a guest manually (just name and optional Venmo ID).
 
 ### Method 2: The "Friends" Dialog
@@ -44,7 +44,7 @@ Below the buttons, the active list of selected people is rendered using `PersonC
 
 ### Method 3: The "Squads" Dialog
 *Handled by `AddFromSquadDialog.tsx`*
-- **Purpose**: For recurring group events (e.g., roommates, trip groups). Allows adding multiple people simultaneously.
+- **Purpose**: For recurring group events (e.g., roommates, trip groups). Allows adding multiple people simultaneously. (See **[squads schema](../database/squads.md)**).
 - **Data Source**: Uses the `useSquadManager` hook to load the user's saved squads.
 - **Flow**:
   1. **Search/List**: The user sees a list of their squads with a search bar to filter by name. Each squad shows its member count.

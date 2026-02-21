@@ -19,7 +19,7 @@ This view handles two very different user experiences:
 
 ### `CollaborativeSessionView.tsx`
 This acts as the master container for the entire routing endpoint `/session/:sessionId`.
-- **Real-time Sync**: It utilizes the `useBillSession` hook to establish a WebSocket connection to the Firebase document. Every change made by any user triggers an update here.
+- **Real-time Sync**: It utilizes the `useBillSession` hook to establish a WebSocket connection to the Firebase **[bills](../database/bills.md)** document. Every change made by any user triggers an update here.
 - **State Management**: It maintains the master local copies of `billData`, `people`, `itemAssignments`, and `splitEvenly`. 
 - **Optimistic UI**: When a user performs an action (like assigning an item), this component updates the local state *instantly* via optimistic updates, making the app feel incredibly fast, while firing off the atomic update to Firebase in the background.
 
