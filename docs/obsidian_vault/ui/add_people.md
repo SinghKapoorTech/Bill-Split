@@ -11,6 +11,8 @@ This document outlines the UI architecture, user flows, and component structure 
 ## 1. Overview
 The "Add People" flow is designed to be highly flexible, catering to different scenarios: adding a new user from scratch, quickly selecting a saved friend, or importing an entire group (a Squad) at once. The central orchestrator for this is the `PeopleManager` component.
 
+![Add People Flow Recording](media/add_people_flow.webp)
+
 ## 2. Core Components & Layout
 
 ### `PeopleStep.tsx`

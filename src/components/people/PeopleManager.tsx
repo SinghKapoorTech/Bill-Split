@@ -221,8 +221,8 @@ export function PeopleManager({
         <h3 className="section-title-responsive">People</h3>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        <div className="flex-1 w-full min-w-[200px]">
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+        <div className="w-full sm:flex-1">
           <AddPersonDialog
             isOpen={isAddPersonOpen}
             setIsOpen={setIsAddPersonOpen}
@@ -232,7 +232,7 @@ export function PeopleManager({
             onAddManual={handleManualAdd}
           />
         </div>
-        <div className="flex flex-1 gap-2 min-w-[200px]">
+        <div className="flex gap-2 w-full sm:flex-1">
           <Button
               onClick={() => setFriendsDialogOpen(true)}
               variant="outline"
