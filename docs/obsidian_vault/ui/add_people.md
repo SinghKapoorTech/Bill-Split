@@ -46,7 +46,7 @@ Below the buttons, the active list of selected people is rendered using `PersonC
 
 ### Method 3: The "Squads" Dialog
 *Handled by `AddFromSquadDialog.tsx`*
-- **Purpose**: For recurring group events (e.g., roommates, trip groups). Allows adding multiple people simultaneously. (See **[squads schema](../database/squads.md)**).
+- **Purpose**: For recurring group events (e.g., roommates, event squads). Allows adding multiple people simultaneously. (See **[squads schema](../database/squads.md)**).
 - **Data Source**: Uses the `useSquadManager` hook to load the user's saved squads.
 - **Flow**:
   1. **Search/List**: The user sees a list of their squads with a search bar to filter by name. Each squad shows its member count.

@@ -6,7 +6,7 @@ tags: [database, schema, firestore, squads]
 
 # `squads` Collection
 
-The `squads` collection manages recurring groups of friends who frequently split bills together (e.g., "Roommates", "Trip to Cabo"). Squads are designed to be lightweight and easily imported into a new Bill.
+The `squads` collection manages recurring groups of friends who frequently split bills together (e.g., "Roommates", "Event in Cabo"). Squads are designed to be lightweight and easily imported into a new Bill.
 
 ## Document ID
 Custom ID generated via `generateSquadId()` (e.g., UUID).

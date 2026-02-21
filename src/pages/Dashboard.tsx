@@ -18,20 +18,16 @@ import {
   Plus,
   Receipt,
   Loader2,
-  MapPin,
 } from 'lucide-react';
 import { Bill } from '@/types/bill.types';
 import { billService } from '@/services/billService';
 import { useToast } from '@/hooks/use-toast';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
-import { EventCard } from '@/components/events/EventCard';
-import { useEventManager } from '@/hooks/useEventManager';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { events, loading: eventsLoading } = useEventManager();
   const { toast } = useToast();
   const [isCreatingBill, setIsCreatingBill] = useState(false);
   const [billToDelete, setBillToDelete] = useState<{ id: string; receiptFileName?: string; title: string } | null>(null);
@@ -283,57 +279,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Trips Section */}
-      <div className="mt-10">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-semibold flex items-center gap-2">
-              <MapPin className="w-6 h-6" />
-              My Events
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Your events and shared expenses
-            </p>
-          </div>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/events')}>
-            <Plus className="w-4 h-4" />
-            New Event
-          </Button>
-        </div>
-
-        {eventsLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : events.length === 0 ? (
-          <Card className="p-8">
-            <div className="text-center">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-muted flex items-center justify-center">
-                <MapPin className="w-6 h-6 text-muted-foreground" />
-              </div>
-              <h3 className="text-base font-medium mb-1">No events yet</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Create an event to organize bills for events, vacations, and more.
-              </p>
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate('/events')}>
-                <Plus className="w-4 h-4" />
-                Create First Event
-              </Button>
-            </div>
-          </Card>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {events.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                onClick={() => navigate(`/events/${event.id}`)}
-                currentUserId={user?.uid}
-              />
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!billToDelete} onOpenChange={(open) => !open && setBillToDelete(null)}>
