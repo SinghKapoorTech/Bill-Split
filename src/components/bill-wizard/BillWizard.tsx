@@ -48,6 +48,7 @@ interface BillWizardProps {
     uploadReceiptImage: (file: File) => Promise<any>;
     saveSession: (data: any, id?: string) => void;
     removeReceiptImage: () => Promise<void>;
+    deleteSession?: (id: string, receiptFileName?: string) => Promise<void>;
 
     // Initial data
     initialBillData: BillData | null;
@@ -78,6 +79,7 @@ export function BillWizard({
     uploadReceiptImage,
     saveSession,
     removeReceiptImage,
+    deleteSession,
     initialBillData,
     initialPeople,
     initialItemAssignments,
@@ -317,9 +319,14 @@ export function BillWizard({
 
         setIsAIProcessing(true);
 
-        // Start both operations in parallel
+        // Start both operations in parallel (skip upload if auto-upload already finished)
         const analysisPromise = analyzer.analyzeReceipt(upload.selectedFile, upload.imagePreview);
-        const uploadPromise = uploadReceiptImage(upload.selectedFile);
+        const uploadPromise = !activeSession?.receiptImageUrl
+            ? uploadReceiptImage(upload.selectedFile)
+            : Promise.resolve({
+                  downloadURL: activeSession.receiptImageUrl,
+                  fileName: activeSession.receiptFileName
+              });
 
         // Wait for both to complete (no early navigation)
         try {
@@ -375,14 +382,31 @@ export function BillWizard({
 
 
     const handleImageSelected = async (fileOrBase64: File | string) => {
+        let fileToUpload: File;
         if (typeof fileOrBase64 === 'string') {
             upload.setImagePreview(fileOrBase64);
             const response = await fetch(fileOrBase64);
             const blob = await response.blob();
-            const file = new File([blob], 'receipt.jpg', { type: blob.type });
-            upload.setSelectedFile(file);
+            fileToUpload = new File([blob], 'receipt.jpg', { type: blob.type });
+            upload.setSelectedFile(fileToUpload);
         } else {
             upload.handleFileSelect(fileOrBase64);
+            fileToUpload = fileOrBase64;
+        }
+        
+        // Auto-upload in background so it's not lost on exit
+        const id = billId || activeSession?.id;
+        if (id) {
+            uploadReceiptImage(fileToUpload)
+                .then(uploadResult => {
+                    if (uploadResult?.downloadURL) {
+                        saveSession({
+                            receiptImageUrl: uploadResult.downloadURL,
+                            receiptFileName: uploadResult.fileName
+                        }, id);
+                    }
+                })
+                .catch(e => console.error("Auto-upload failed:", e));
         }
     };
 
@@ -403,8 +427,19 @@ export function BillWizard({
         ).catch(err => console.error('Failed to auto-apply friend balances on review:', err));
     }, [wizard.currentStep]); // intentionally only re-runs when the step changes
 
-    const handleDone = () => {
-        navigate('/dashboard');
+    const handleDone = async () => {
+        const isEmpty = !billData?.items || billData.items.length === 0;
+        const hasNoReceiptFile = !activeSession?.receiptFileName && !upload.selectedFile && !upload.imagePreview;
+
+        if (isEmpty && hasNoReceiptFile && activeSession?.id && deleteSession) {
+            await deleteSession(activeSession.id, activeSession.receiptFileName);
+        }
+
+        if (activeSession?.eventId) {
+            navigate(`/events/${activeSession.eventId}`);
+        } else {
+            navigate('/dashboard');
+        }
     };
 
     return (
@@ -566,7 +601,8 @@ export function BillWizard({
                     onBack={wizard.handlePrevStep}
                     onNext={wizard.handleNextStep}
                     onComplete={handleDone}
-                    onExit={() => navigate('/dashboard')}
+                    onExit={handleDone}
+                    exitLabel={activeSession?.eventId ? 'Event' : 'Dashboard'}
                     nextDisabled={!wizard.canProceedFromStep(wizard.currentStep)}
                     hasBillData={hasBillData}
                     onShare={onShare}

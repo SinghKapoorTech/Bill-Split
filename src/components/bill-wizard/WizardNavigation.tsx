@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Share2, Check, Home } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share2, Check, Home, Calendar } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -9,7 +9,8 @@ interface WizardNavigationProps {
   onBack?: () => void;
   onNext?: () => void;
   onComplete?: () => void;
-  onExit?: () => void; // Navigate back to dashboard
+  onExit?: () => void; // Navigate back to dashboard or event
+  exitLabel?: string;
   nextDisabled?: boolean;
   hasBillData: boolean;
   onShare?: () => void;
@@ -33,6 +34,7 @@ export function WizardNavigation({
   onNext,
   onComplete,
   onExit,
+  exitLabel = 'Dashboard',
   nextDisabled = false,
   hasBillData,
   onShare,
@@ -101,8 +103,8 @@ export function WizardNavigation({
                   'transition-all duration-200'
                 )}
               >
-                <Home className="w-5 h-5" />
-                <span className="font-medium">Dashboard</span>
+                {exitLabel === 'Event' ? <Calendar className="w-5 h-5" /> : <Home className="w-5 h-5" />}
+                <span className="font-medium">{exitLabel}</span>
               </Button>
             </motion.div>
           )}

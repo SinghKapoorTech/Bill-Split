@@ -11,8 +11,8 @@ This document outlines the architecture of the main interactive core of the Bill
 ## 1. Overview
 The "Full Bill View" isn't a single page, but rather a complex, stateful wizard orchestrated by a few key components. The primary entry point for this experience is `CollaborativeSessionView.tsx`. 
 
-This view handles two very different user experiences:
-1. **The Host (Owner)**: The user who created the bill. They get the full `BillWizard` experience to upload receipts, add friends, and manage the flow.
+This view handles two very different user experiences based on access level:
+1. **Full Access (Owner or Event Member)**: The user who created the bill or is a member of the event the bill belongs to. They get the full `BillWizard` experience to upload receipts, add friends, and manage the flow.
 2. **The Guest (Participant)**: Someone who joined via a link. They are presented with a simplified `GuestClaimView` where they can only claim items they owe for in real-time.
 
 ## 2. Core Orchestrators
@@ -24,7 +24,7 @@ This acts as the master container for the entire routing endpoint `/session/:ses
 - **Optimistic UI**: When a user performs an action (like assigning an item), this component updates the local state *instantly* via optimistic updates, making the app feel incredibly fast, while firing off the atomic update to Firebase in the background.
 
 ### `BillWizard.tsx`
-If the current user is the "Owner", the view renders the `BillWizard`.
+If the current user has full access, the view renders the `BillWizard`.
 This component is tasked with guiding the user through the 4 critical phases of splitting a bill. It uses a clean, swipeable (on mobile) step-by-step progress interface.
 
 ## 3. The 4-Step Wizard Flow

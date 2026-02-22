@@ -154,9 +154,9 @@ users/{userId}/                          # User profiles
 
 bills/{billId}/                          # All bills (private + group)
   - id: string
-  - billType: 'private' | 'group'
+  - billType: 'private' | 'event'
   - ownerId: string                      # User who created the bill
-  - groupId?: string                     # If billType is 'group'
+  - eventId?: string                     # If billType is 'event'
   - billData: {
       items: [{ id, name, price, quantity }],
       subtotal: number,
@@ -222,11 +222,11 @@ receipts/collaborative/{fileName}        # Shared receipt images
 - Users can only read/write their own document (`/users/{userId}`)
 
 **Bills Collection:**
-- **Read**: Owner, group members (for group bills), or authenticated members (via share link)
+- **Read**: Owner, event members (for event bills), or authenticated members (via share link)
 - **Create**: Authenticated users only, must set themselves as owner
 - **Update**:
   - Owner has full access
-  - Group members have full access (for group bills)
+  - Event members have full access (for event bills)
   - Authenticated members can update limited fields (itemAssignments, people, lastActivity)
 - **Delete**: Owner only
 

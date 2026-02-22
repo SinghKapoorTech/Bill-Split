@@ -156,12 +156,13 @@ export default function Dashboard() {
     return bill.title || bill.billData?.restaurantName || formatDate(bill.createdAt);
   };
 
-  // Combine active session and saved sessions into one list
-  // Filter out bills with 0 items (unless they have a receipt image - AI might be processing)
   const allBills = [
     ...(activeSession ? [activeSession] : []),
     ...savedSessions
   ].filter(bill => {
+    // Hide event bills from Dashboard
+    if (bill.billType !== 'private') return false;
+
     const hasItems = bill.billData?.items && bill.billData.items.length > 0;
     const hasReceipt = !!bill.receiptImageUrl;
     return hasItems || hasReceipt;
@@ -256,6 +257,7 @@ export default function Dashboard() {
                     isDeleting={isDeleting}
                     formatDate={formatDate}
                     getBillTitle={getBillTitle}
+                    isOwner={bill.ownerId === user?.uid}
                   />
                 ))}
               </div>
@@ -274,6 +276,7 @@ export default function Dashboard() {
                     isDeleting={isDeleting}
                     formatDate={formatDate}
                     getBillTitle={getBillTitle}
+                    isOwner={bill.ownerId === user?.uid}
                   />
                 ))}
               </div>

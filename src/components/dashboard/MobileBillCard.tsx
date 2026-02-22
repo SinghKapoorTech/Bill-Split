@@ -24,6 +24,7 @@ interface MobileBillCardProps {
   isDeleting: boolean;
   formatDate: (timestamp: any) => string;
   getBillTitle: (bill: Bill) => string;
+  isOwner?: boolean;
 }
 
 /**
@@ -38,7 +39,8 @@ export default function MobileBillCard({
   isResuming,
   isDeleting,
   formatDate,
-  getBillTitle
+  getBillTitle,
+  isOwner = true
 }: MobileBillCardProps) {
   // Build the consolidated info line: "$XX.XX • X items • X people"
   const itemCount = bill.billData?.items?.length || 0;
@@ -107,19 +109,21 @@ export default function MobileBillCard({
 
       {/* Right section: Actions */}
       <div className="flex items-center gap-1 shrink-0">
-        <Button
-          onClick={handleDeleteClick}
-          disabled={isDeleting}
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-        >
-          {isDeleting ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Trash2 className="w-4 h-4" />
-          )}
-        </Button>
+        {isOwner && (
+          <Button
+            onClick={handleDeleteClick}
+            disabled={isDeleting}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+          >
+            {isDeleting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
+          </Button>
+        )}
         
         <ChevronRight className="w-5 h-5 text-muted-foreground" />
       </div>

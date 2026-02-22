@@ -21,6 +21,7 @@ interface DesktopBillCardProps {
   isDeleting: boolean;
   formatDate: (timestamp: any) => string;
   getBillTitle: (bill: Bill) => string;
+  isOwner?: boolean;
 }
 
 /**
@@ -35,7 +36,8 @@ export default function DesktopBillCard({
   isResuming,
   isDeleting,
   formatDate,
-  getBillTitle
+  getBillTitle,
+  isOwner = true
 }: DesktopBillCardProps) {
   return (
     <Card
@@ -126,19 +128,21 @@ export default function DesktopBillCard({
               Resume
             </Button>
           )}
-          <Button
-            onClick={() => onDelete(bill)}
-            disabled={isDeleting}
-            variant="destructive"
-            size="sm"
-            className="gap-1"
-          >
-            {isDeleting ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Trash2 className="w-3 h-3" />
-            )}
-          </Button>
+          {isOwner && (
+            <Button
+              onClick={() => onDelete(bill)}
+              disabled={isDeleting}
+              variant="destructive"
+              size="sm"
+              className="gap-1"
+            >
+              {isDeleting ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Trash2 className="w-3 h-3" />
+              )}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

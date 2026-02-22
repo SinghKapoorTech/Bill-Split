@@ -59,6 +59,36 @@ export function useBillSession(billId: string | null) {
     return () => unsubscribe();
   }, [billId, toast]);
 
+  // Real-time listener for the parent event (if applicable)
+  const [isEventMember, setIsEventMember] = useState(false);
+  
+  useEffect(() => {
+    if (!session?.eventId || !user) {
+      setIsEventMember(false);
+      return;
+    }
+
+    const eventRef = doc(db, 'events', session.eventId);
+    const unsubscribe = onSnapshot(
+      eventRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const eventData = snapshot.data();
+          const members = eventData.memberIds || [];
+          setIsEventMember(members.includes(user.uid));
+        } else {
+          setIsEventMember(false);
+        }
+      },
+      (err) => {
+        console.error('Error listening to parent event:', err);
+        setIsEventMember(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [session?.eventId, user]);
+
   /**
    * Updates the bill
    * @param updates - Partial bill data to update
@@ -135,6 +165,7 @@ export function useBillSession(billId: string | null) {
     session,
     isLoading,
     error,
+    isEventMember,
     updateSession,
     joinSession,
     endSession,

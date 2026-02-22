@@ -40,7 +40,7 @@ export default function CollaborativeSessionView() {
   const { profile } = useUserProfile();
 
   // Collaborative session hook with real-time updates
-  const { session, isLoading, error, updateSession, endSession, toggleAssignment } = useBillSession(sessionId || null);
+  const { session, isLoading, error, isEventMember, updateSession, endSession, toggleAssignment } = useBillSession(sessionId || null);
 
   // Local state synced with collaborative session
   const [people, setPeople] = useState<Person[]>([]);
@@ -107,11 +107,12 @@ export default function CollaborativeSessionView() {
     return () => clearTimeout(timeoutId);
   }, [billData, splitEvenly, itemAssignments, session, updateSession]);
 
-  // Determine if current user is the owner (must be before early returns)
-  const isOwner = useMemo(() => {
+  // Determine if current user has full edit access (must be before early returns)
+  const hasFullAccess = useMemo(() => {
     if (!user || !session) return false;
-    return session.ownerId === user.uid;
-  }, [user, session]);
+    // User has full access if they own the bill OR if they are a member of the parent event
+    return session.ownerId === user.uid || isEventMember;
+  }, [user, session, isEventMember]);
 
   // Handlers for GuestClaimView (defined before early returns)
   const handleAddSelfToPeople = (newPerson: Person) => {
@@ -198,7 +199,11 @@ export default function CollaborativeSessionView() {
 
   const handleEndSession = async () => {
     await endSession();
-    navigate('/dashboard');
+    if (session?.eventId) {
+      navigate(`/events/${session.eventId}`);
+    } else {
+      navigate('/dashboard');
+    }
   };
 
   const handleUpdatePerson = async (personId: string, updates: Partial<Person>) => {
@@ -248,7 +253,7 @@ export default function CollaborativeSessionView() {
   }
 
   // Guest view - simplified claim interface
-  if (!isOwner && session) {
+  if (!hasFullAccess && session) {
     return (
       <div className="container mx-auto px-4 py-6 max-w-2xl">
         <div className="mb-6 space-y-3">
