@@ -79,13 +79,21 @@ export function useEventBills(eventId: string) {
   }, []);
 
   const deleteTransaction = useCallback(async (billId: string) => {
+    if (eventId) {
+      await eventLedgerService.reverseBillFromEventLedgerIdempotent(eventId, billId)
+        .catch(err => console.error('Failed to reverse from event ledger on delete:', err));
+    }
+    
+    if (user) {
+      // Event bills also contribute to global friend balances, reverse them!
+      const { friendBalanceService } = await import('@/services/friendBalanceService');
+      await friendBalanceService.reverseBillBalancesIdempotent(billId, user.uid)
+        .catch(err => console.error('Failed to reverse bill balances on delete:', err));
+    }
+
     const billRef = doc(db, 'bills', billId);
     await deleteDoc(billRef);
-    if (eventId) {
-      await eventLedgerService.recalculateEventLedger(eventId)
-        .catch(err => console.error('Failed to recalculate event ledger on delete:', err));
-    }
-  }, [eventId]);
+  }, [eventId, user]);
 
   return {
     transactions: bills,

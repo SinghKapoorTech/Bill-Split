@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Users, Trash2, UserPlus, Pencil, Check, X, Search, User, AtSign, Mail } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useFriendsEditor } from '@/hooks/useFriendsEditor';
 import { useToast } from '@/hooks/use-toast';
 import { UI_TEXT, SUCCESS_MESSAGES } from '@/utils/uiConstants';
+import { SettleUpModal } from '@/components/settlements/SettleUpModal';
 
 export function ManageFriendsCard() {
   const {
@@ -35,7 +37,13 @@ export function ManageFriendsCard() {
     handleSaveEdit,
     handleCancelEdit,
     isLoadingFriends,
+    refreshFriends,
   } = useFriendsEditor();
+
+  const [settleTarget, setSettleTarget] = useState<{ userId: string; name: string; amount: number } | null>(null);
+
+  // Fallback for ID if the raw friend doesn't have it mapped consistently
+  const getFriendId = (f: any) => f.id || f.userId || '';
 
   return (
     <Card className="p-4 md:p-6">
@@ -275,6 +283,19 @@ export function ManageFriendsCard() {
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    {friend.balance && friend.balance < 0 ? (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setSettleTarget({
+                          userId: getFriendId(friend),
+                          name: friend.name,
+                          amount: Math.abs(friend.balance as number)
+                        })}
+                      >
+                        Settle Up
+                      </Button>
+                    ) : null}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -296,6 +317,20 @@ export function ManageFriendsCard() {
           ))
         )}
       </div>
+
+      {settleTarget && (
+        <SettleUpModal
+          open={!!settleTarget}
+          onOpenChange={(open) => !open && setSettleTarget(null)}
+          targetUserId={settleTarget.userId}
+          targetUserName={settleTarget.name}
+          recommendedAmount={settleTarget.amount}
+          onSuccess={() => {
+            setSettleTarget(null);
+            refreshFriends();
+          }}
+        />
+      )}
     </Card>
   );
 }

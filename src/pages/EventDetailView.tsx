@@ -19,6 +19,7 @@ import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useEventLedger } from '@/hooks/useEventLedger';
 import { generateUserId } from '@/utils/billCalculations';
+import { SettleUpModal } from '@/components/settlements/SettleUpModal';
 
 // Firestore collection name
 const EVENTS_COLLECTION = 'events';
@@ -37,6 +38,9 @@ export default function EventDetailView() {
   
   const { netBalances, optimizedDebts, loading: ledgerLoading } = useEventLedger(eventId || '');
   const [memberProfiles, setMemberProfiles] = useState<Record<string, any>>({});
+  
+  // Settlement state
+  const [settleTarget, setSettleTarget] = useState<{ userId: string; name: string; amount: number } | null>(null);
 
   // Need to bring in session methods to resume/delete from the list
   const { deleteSession, resumeSession, activeSession, isDeleting, isResuming } = useBillContext();
@@ -255,7 +259,19 @@ export default function EventDetailView() {
                     </div>
                     {isCurrentUserInvolved && (
                       <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={() => {
-                          toast({ title: "Coming soon", description: "Settling up functionality will be added later." });
+                          const isCurrentUserPaying = user?.uid === debt.fromUserId;
+                          // If current user is paying, they settle with 'toUser'. 
+                          // If current user is receiving, they can't 'settle up' the other person's debt right now, 
+                          // but usually "settling up" implies recording a payment YOU made.
+                          if (isCurrentUserPaying) {
+                            setSettleTarget({
+                              userId: debt.toUserId,
+                              name: toName,
+                              amount: debt.amount
+                            });
+                          } else {
+                            toast({ title: 'Notice', description: 'Only the person who owes money can record a settlement.' });
+                          }
                       }}>
                         Settle Up
                       </Button>
@@ -339,6 +355,21 @@ export default function EventDetailView() {
           </>
         )}
       </div>
+
+      {settleTarget && user && (
+        <SettleUpModal
+          open={!!settleTarget}
+          onOpenChange={(open) => !open && setSettleTarget(null)}
+          targetUserId={settleTarget.userId}
+          targetUserName={settleTarget.name}
+          recommendedAmount={settleTarget.amount}
+          eventId={event.id}
+          onSuccess={() => {
+            // Ledger automatically refreshes because of real-time listener in useEventLedger
+            setSettleTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 }

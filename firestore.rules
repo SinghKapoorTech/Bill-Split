@@ -160,6 +160,28 @@ service cloud.firestore {
                         request.auth.uid in get(/databases/$(database)/documents/events/$(eventId)).data.memberIds));
     }
 
+    // ========== Settlements Collection ==========
+    match /settlements/{settlementId} {
+      allow read: if request.auth != null &&
+                     (request.auth.uid == resource.data.fromUserId ||
+                      request.auth.uid == resource.data.toUserId ||
+                      ('eventId' in resource.data && resource.data.eventId != null &&
+                       exists(/databases/$(database)/documents/events/$(resource.data.eventId)) &&
+                       (request.auth.uid == get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.ownerId ||
+                        ('memberIds' in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data &&
+                         request.auth.uid in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.memberIds))));
+      
+      allow create: if request.auth != null &&
+                       (request.auth.uid == request.resource.data.fromUserId ||
+                        request.auth.uid == request.resource.data.toUserId);
+                        
+      allow update: if false; // Settlements should be immutable
+      
+      allow delete: if request.auth != null &&
+                       (request.auth.uid == resource.data.fromUserId ||
+                        request.auth.uid == resource.data.toUserId);
+    }
+
     // Receipt analysis cache (if you re-add the cache feature later)
     match /receiptAnalysisCache/{document=**} {
       allow read, write: if true;

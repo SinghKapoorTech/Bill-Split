@@ -57,7 +57,7 @@ Entering the Review step automatically commits the bill's balances to the **[[..
 
 ### When it fires
 
-A `useEffect` in `BillWizard.tsx` watches `currentStep`. As soon as it equals `3` (the Review step, 0-indexed), `friendBalanceService.applyBillBalances()` is called in the background.
+A `useEffect` in `BillWizard.tsx` watches `currentStep`. As soon as it equals `3` (the Review step, 0-indexed), `friendBalanceService.applyBillBalancesIdempotent()` is called in the background.
 
 ### Why not on "Done"?
 
@@ -67,16 +67,16 @@ Users frequently leave from the Review screen without pressing Done — most com
 
 1. Reads the bill's `people` list and cross-references each `person.id` against the owner's Firebase friends list.
 2. Only people with linked Firebase UIDs are written (manually-added people without accounts are skipped).
-3. Computes the **delta** from `processedBalances` (previously committed totals) — so re-visiting the review after a re-edit correctly unwinds the old number and applies the new one.
-4. Runs one Firestore transaction per affected friend.
-5. Writes `processedBalances` back to the bill, then calls `recalculateAllFriendBalances()` to update the dashboard.
+3. The Idempotent Engine retrieves `processedBalances` (previously committed totals) and reverses the exact math footprint in the ledger, then applies the new total.
+4. Runs one ACID Firestore transaction per affected friend to safely perform the overwrite.
+5. Writes the new footprint back to `processedBalances` on the bill, then calls `recalculateAllFriendBalances()` to update the dashboard.
 
 ### Idempotency
 
-Calling it multiple times with the same data is a no-op. If delta = 0 for all friends (no changes since last visit), no Firestore writes occur.
+Calling it multiple times with the same data is safe. The engine strictly reverses the exact old footprint and re-applies the new amount via a single transaction, leaving the math unchanged.
 
 ## 5. Dependencies
 
 - `VenmoChargeDialog.tsx`: The modal that facilitates the deep link or API call to Venmo.
 - `ProfileSettings.tsx`: Invoked dynamically if the user is missing prerequisite profile data.
-- `friendBalanceService.ts → applyBillBalances()`: Commits balance deltas to the **[[../database/friend_balances|friend_balances]]** collection.
+- `friendBalanceService.ts → applyBillBalancesIdempotent()`: Commits new idempotent footprints to the **[[../database/friend_balances|friend_balances]]** collection.

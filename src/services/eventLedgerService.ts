@@ -136,6 +136,158 @@ export const eventLedgerService = {
   },
 
   /**
+   * Applies the exact delta of a bill to the event's ledger collection.
+   * This handles Creates, Edits, and Bill-specific Settlements identically.
+   */
+  async applyBillToEventLedgerIdempotent(
+    eventId: string,
+    billId: string,
+    ownerId: string,
+    personTotals: PersonTotal[]
+  ): Promise<void> {
+    const billRef = doc(db, BILLS_COLLECTION, billId);
+    const eventLedgerRef = doc(db, EVENT_BALANCES_COLLECTION, eventId);
+
+    // 1. Resolve Person IDs to Firebase User IDs to maintain ledger integrity
+    const userProfile = await userService.getUserProfile(ownerId);
+    const rawFriends: any[] = userProfile?.friends || [];
+    const friendUserIds = new Set<string>(
+      rawFriends.map(f => typeof f === 'string' ? f : (f.userId || f.id)).filter(Boolean)
+    );
+    friendUserIds.add(ownerId);
+
+    await runTransaction(db, async (transaction) => {
+      const billSnap = await transaction.get(billRef);
+      if (!billSnap.exists()) return;
+
+      const billData = billSnap.data() as Bill;
+      const settledPersonIds = billData.settledPersonIds || [];
+      const previousBalances = billData.eventBalancesApplied || {};
+
+      // 2. Pre-calculate the NEW exact debts each friend owes for this bill
+      const newDeltasInside: Record<string, number> = {};
+      let totalBillAmount = 0;
+      
+      for (const total of personTotals) {
+        totalBillAmount += total.total;
+        const isOwner = total.personId === ownerId;
+        const firebaseUserId = friendUserIds.has(total.personId) ? total.personId : null;
+        
+        if (!firebaseUserId) continue;
+
+        if (!newDeltasInside[firebaseUserId]) {
+          newDeltasInside[firebaseUserId] = 0;
+        }
+
+        // If this is not the owner, they owe their share unless settled
+        if (!isOwner) {
+           const owesAmount = settledPersonIds.includes(total.personId) ? 0 : total.total;
+           newDeltasInside[firebaseUserId] -= owesAmount;
+        }
+      }
+      
+      // The owner is owed the exact sum of what everyone else owes
+      if (!newDeltasInside[ownerId]) {
+          newDeltasInside[ownerId] = 0;
+      }
+      
+      let ownerIsOwed = 0;
+      for (const [uid, amt] of Object.entries(newDeltasInside)) {
+         if (uid !== ownerId) {
+             ownerIsOwed += Math.abs(amt);
+         }
+      }
+      newDeltasInside[ownerId] = ownerIsOwed;
+
+      // 3. Read Event Ledger
+      const ledgerSnap = await transaction.get(eventLedgerRef);
+      let ledgerData: EventLedger;
+      if (ledgerSnap.exists()) {
+        ledgerData = ledgerSnap.data() as EventLedger;
+      } else {
+        ledgerData = {
+          eventId,
+          netBalances: {},
+          optimizedDebts: [],
+          processedBillIds: [],
+          lastUpdatedAt: Timestamp.now()
+        };
+      }
+
+      // 4. Reverse previous footprint
+      for (const [uid, prevAmount] of Object.entries(previousBalances)) {
+         if (!ledgerData.netBalances[uid]) ledgerData.netBalances[uid] = 0;
+         ledgerData.netBalances[uid] -= prevAmount;
+      }
+
+      // 5. Apply new footprint
+      for (const [uid, newAmount] of Object.entries(newDeltasInside)) {
+         if (!ledgerData.netBalances[uid]) ledgerData.netBalances[uid] = 0;
+         ledgerData.netBalances[uid] += newAmount;
+
+         if (Math.abs(ledgerData.netBalances[uid]) < 0.01) {
+             ledgerData.netBalances[uid] = 0;
+         }
+      }
+
+      // 6. Re-optimize debts
+      ledgerData.optimizedDebts = eventLedgerService.optimizeDebts(ledgerData.netBalances);
+      ledgerData.lastUpdatedAt = Timestamp.now();
+
+      if (!ledgerData.processedBillIds.includes(billId)) {
+          ledgerData.processedBillIds.push(billId);
+      }
+
+      // 7. Write updates
+      transaction.set(eventLedgerRef, ledgerData, { merge: true });
+      transaction.update(billRef, { eventBalancesApplied: newDeltasInside });
+    });
+  },
+
+  /**
+   * Reverses an idempotent footprint before an event bill is deleted.
+   */
+  async reverseBillFromEventLedgerIdempotent(
+    eventId: string,
+    billId: string
+  ): Promise<void> {
+    const billRef = doc(db, BILLS_COLLECTION, billId);
+    const eventLedgerRef = doc(db, EVENT_BALANCES_COLLECTION, eventId);
+
+    await runTransaction(db, async (transaction) => {
+      const billSnap = await transaction.get(billRef);
+      if (!billSnap.exists()) return;
+
+      const billData = billSnap.data() as Bill;
+      const previousBalances = billData.eventBalancesApplied;
+      
+      if (!previousBalances || Object.keys(previousBalances).length === 0) return;
+
+      const ledgerSnap = await transaction.get(eventLedgerRef);
+      if (!ledgerSnap.exists()) return;
+
+      const ledgerData = ledgerSnap.data() as EventLedger;
+
+      // Reverse footprint
+      for (const [uid, prevAmount] of Object.entries(previousBalances)) {
+         if (!ledgerData.netBalances[uid]) ledgerData.netBalances[uid] = 0;
+         ledgerData.netBalances[uid] -= prevAmount;
+         if (Math.abs(ledgerData.netBalances[uid]) < 0.01) {
+             ledgerData.netBalances[uid] = 0;
+         }
+      }
+
+      // Re-optimize
+      ledgerData.optimizedDebts = eventLedgerService.optimizeDebts(ledgerData.netBalances);
+      ledgerData.lastUpdatedAt = Timestamp.now();
+
+      // Write updates
+      transaction.set(eventLedgerRef, ledgerData, { merge: true });
+      transaction.update(billRef, { eventBalancesApplied: {} });
+    });
+  },
+
+  /**
    * Rebuilds the event ledger by scanning all active bills for the event.
    */
   async recalculateEventLedger(eventId: string): Promise<void> {
@@ -276,5 +428,49 @@ export const eventLedgerService = {
     }
 
     return optimizedDebts;
+  },
+
+  /**
+   * Applies a settlement immediately to the event ledger.
+   */
+  async applySettlement(
+    eventId: string,
+    fromUserId: string, // the person paying
+    toUserId: string,   // the person receiving
+    amount: number
+  ): Promise<void> {
+    const eventLedgerRef = doc(db, EVENT_BALANCES_COLLECTION, eventId);
+
+    await runTransaction(db, async (transaction) => {
+      const ledgerSnap = await transaction.get(eventLedgerRef);
+      let ledgerData: EventLedger;
+      
+      if (ledgerSnap.exists()) {
+        ledgerData = ledgerSnap.data() as EventLedger;
+      } else {
+        ledgerData = {
+          eventId,
+          netBalances: {},
+          optimizedDebts: [],
+          processedBillIds: [],
+          lastUpdatedAt: Timestamp.now()
+        };
+      }
+
+      if (!ledgerData.netBalances[fromUserId]) ledgerData.netBalances[fromUserId] = 0;
+      if (!ledgerData.netBalances[toUserId]) ledgerData.netBalances[toUserId] = 0;
+
+      // fromUser pays toUser. 
+      // fromUser's net balance increases (they paid out of pocket, so they are owed more)
+      // toUser's net balance decreases (they received money, so they owe more)
+      ledgerData.netBalances[fromUserId] += amount;
+      ledgerData.netBalances[toUserId] -= amount;
+
+      // Re-optimize
+      ledgerData.optimizedDebts = eventLedgerService.optimizeDebts(ledgerData.netBalances);
+      ledgerData.lastUpdatedAt = Timestamp.now();
+
+      transaction.set(eventLedgerRef, ledgerData, { merge: true });
+    });
   }
 };

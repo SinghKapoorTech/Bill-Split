@@ -97,9 +97,9 @@ The ledger is updated in three situations:
 
 | Trigger | What fires | When it runs |
 |---------|-----------|--------------|
-| **User enters the Review step** | `applyBillBalances()` | As soon as `currentStep === 3` in the wizard (even if the user never presses "Done") |
+| **User enters the Review step** | `applyBillBalancesIdempotent()` | As soon as `currentStep === 3` in the wizard (even if the user never presses "Done") |
 | **User presses "Done"** | `navigate('/dashboard')` only — balances already applied on step entry | Immediately after the Review step effect |
-| **Bill is deleted** | `reverseBillBalances()` | Before `deleteDoc()` in both `clearSession` and `deleteSession` |
+| **Bill is deleted** | `reverseBillBalancesIdempotent()` | Before `deleteDoc()` in both `clearSession` and `deleteSession` |
 
 > [!IMPORTANT]
 > The trigger is the **Review step entry**, not the "Done" button. This ensures balances update even when the user:
@@ -113,7 +113,7 @@ If balances only updated on "Done", any user who left the app to Venmo a friend 
 
 ### Idempotency
 
-`applyBillBalances` is safe to call multiple times. It compares the current `personTotals` against `processedBalances` on the bill document and only writes the **delta**. If nothing changed since the last call, delta = 0 for all friends and no Firestore writes happen.
+`applyBillBalancesIdempotent` uses a strictly transactional reverse-and-apply footprint engine. It compares the current `personTotals` against `processedBalances` on the bill document. It subtracts the mathematically old tracked footprint, and adds the new requested footprint during a single ACID transaction. If called multiple times with the same totals, the net effect on the math remains identical.
 
 ---
 
@@ -121,26 +121,27 @@ If balances only updated on "Done", any user who left the app to Venmo a friend 
 
 ### On Review Step Entry (Bill Creation / Edit)
 
-When the user navigates to the Review step, `applyBillBalances()` runs in the background via a `useEffect` in `BillWizard.tsx`:
+When the user navigates to the Review step, `applyBillBalancesIdempotent()` runs in the background via a `useEffect` in `BillWizard.tsx`:
 
 1. Reads the bill's `people` array and `processedBalances` from Firestore.
 2. Cross-references each person's `id` against the owner's `user.friends` list to resolve real Firebase UIDs.
 3. People added manually without a linked account are **skipped** (their IDs are local UUIDs).
-4. For each linked friend, computes the delta between the new total and the previously committed amount.
-5. Runs a Firestore transaction per friend: reads the `friend_balances` doc, computes exact new values, writes back.
-6. Updates the bill's `processedBalances` to reflect what was committed.
-7. Calls `recalculateAllFriendBalances()` to sync the cache into `user.friends[]`.
+4. Runs a Firestore transaction per friend.
+5. In the transaction, the engine computes reversing the old footprint (`processedBalances`) and applying the new total, arriving at an exact new value.
+6. Writes the new balance back to the `friend_balances` doc.
+7. Updates the bill's `processedBalances` to reflect the new committed footprint.
+8. Calls `recalculateAllFriendBalances()` to sync the cache into `user.friends[]`.
 
 ### On Bill Deletion
 
-`reverseBillBalances()` is called **before** `deleteDoc()`:
+`reverseBillBalancesIdempotent()` is called **before** `deleteDoc()`:
 
 1. Reads the bill's `processedBalances`.
-2. For each friend in the map, runs a transaction to apply the **inverse** delta.
+2. For each friend in the map, runs a transaction to completely substract the exact footprint they originally contributed to the ledger.
 3. Automatically triggers UI updates because the `getHydratedFriends` hook uses `onSnapshot` to re-fetch the new accurate balance live.
 
 > [!NOTE]
-> If the bill was never reviewed (no `processedBalances`), `reverseBillBalances` returns immediately — there is nothing to reverse.
+> If the bill was never reviewed (no `processedBalances`), `reverseBillBalancesIdempotent` returns immediately — there is nothing to reverse.
 
 ### Historical Ledger Sync (Self-Healing)
 

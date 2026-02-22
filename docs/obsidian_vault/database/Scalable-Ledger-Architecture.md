@@ -1,0 +1,148 @@
+---
+tags:
+  - architecture
+  - database
+  - firebase
+  - scaling
+---
+# Scalable Ledger Architecture (Idempotent Deltas)
+
+## Why We Are Making This Change
+
+There are two primary ways to calculate a user's running balance, and the previous architecture relied on problematic implementations of both, leading to critical flaws at scale:
+
+### 1. The $O(N)$ Recalculation Approach ("Burn the Database")
+When a user edits a single $10 bill, the easiest way to find the new balance is to delete the current balance, query the database for every single bill that user has ever been a part of in their life, and add them all up from scratch.
+- **The Problem:** This requires $O(N)$ document reads, where $N$ is the total number of bills.
+- **The Impact at Scale:** If an active user has 5 years of history and 2,000 bills, editing one coffee receipt requires loading 2,000 documents from Firebase. With 10,000 active users making edits, you instantly trigger millions of reads, bankrupting your Firebase quota limits and causing the app to freeze while it waits for the calculation to finish.
+
+### 2. The "Blind Delta" Approach ("Guessing the Math")
+To avoid reading 2,000 documents, developers often try to implement "Deltas". If a bill is edited from $50 to $100, the app calculates $+50$ in the browser, and blindly fires an instruction to the server: *"Merge +$50 to the ledger."* 
+This approach is fundamentally fragile for financial applications:
+- **Network Drops (Double Spending):** If a user saves a bill but their cellular connection stutters just as the request hits the server, their phone might automatically retry the network request. A blind delta API receives it twice and blindly executes `+$50` and then `+$50` again. The user now permanently owes $100 instead of $50, and the database is silently corrupted.
+- **"Ghost Debts" on Delete/Edit:** If the user completely removes Person A from a bill, the app has to somehow blindly guess what Person A's original balance was on that bill in order to subtract it. If the client guesses wrong (e.g. because of stale data), Person A gets subtracted by $3 instead of $5. Person A is now permanently stuck with a $2 "ghost debt" on the global dashboard that can never be tracked down or resolved.
+
+### The Solution: "Idempotent Deltas"
+In computer science, an operation is *idempotent* if executing it 1 time has exactly the same effect as executing it 100 times.
+Under this new architecture, every `Bill` permanently records a footprint of *exactly* what effect it had on the ledger. 
+
+When you edit a bill, the engine:
+1. Opens a strict ACID Database Transaction.
+2. Reads the footprint from the Bill.
+3. Exactly completely reverses the old footprint from the Ledger (Wiping the slate clean).
+4. Applies the new math to the Ledger.
+5. Saves the new footprint back onto the Bill.
+
+**Benefits:**
+- **Crash Proof:** If a network retry hits the server twice, the footprint is already up to date. The first transaction applies normally. The second transaction reverses the new math, and applies the exact same new math again. The ledger stays perfectly intact.
+- **Cost:** It requires exactly 2 Reads and 2 Writes per operation, costing an absolute flat fraction of a cent per edit regardless of how long the user has been active.
+
+---
+
+## Scenarios & Edge Cases
+
+### 1. Bill-Specific "Mark as Settled"
+**Scenario:** A user hands their friend $25 in cash right at the dinner table. We don't want this debt added to the running total, but we still want them recorded on the digital receipt.
+**Behavior:**
+- The UI saves the friend's `personId` into a new `settledPersonIds: string[]` array on the Bill document.
+- Our Delta Engine fires mathematically. It evaluates that friend's owed amount as `$0` because they are in the `settledPersonIds` array.
+- The Delta Engine reverses their old debt, applies the new `$0` debt, and their balance instantly vanishes from the global ledger without affecting anyone else on the receipt.
+
+### 2. Bills with Non-Friends (Shadow Users)
+**Scenario:** You go on a trip with Dave. Dave is not your friend in the app yet, but you split 10 bills with him via his phone number.
+**Behavior:**
+- The Delta Engine never checks the "Friends List" social graph.
+- Every time you create a bill, the engine happily creates a raw `friend_balances` document between your User ID and Dave's User ID, tracking the math in the background.
+- Because Dave isn't your friend, the UI simply hides this balance on your Dashboard.
+- Six months later, you add Dave as a friend. Because the engine was silently tracking the math the entire time, Dave instantly appears on your Dashboard with the perfectly calculated 6-month history.
+
+### 3. Global "Settle Up"
+**Scenario:** You and a friend decide to settle your entire global balance or event balance.
+**Behavior:**
+- The app creates a `Settlement` document (a new collection).
+- This triggers the exact same Idempotent Delta engine, treating the settlement as a simple negative transaction footprint.
+
+---
+
+## Data Schema modifications
+
+### `bills` Collection
+Every bill will permanently store exactly what it recently contributed to both ledgers, and track who has already settled up for that specific bill:
+```typescript
+interface Bill {
+  ...
+  // Users who have paid their share for this specific bill
+  settledPersonIds?: string[];
+
+  // Tracks exactly what was added to the global friend ledger
+  processedBalances?: Record<string, number>; 
+  
+  // Tracks exactly what was added to the local event ledger
+  eventBalancesApplied?: Record<string, number>; 
+}
+```
+
+### `settlements` Collection [NEW]
+We need a dedicated collection to record when a user "Settles Up" so they can pay each other back.
+```typescript
+interface Settlement {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  amount: number;
+  date: Timestamp;
+  eventId?: string; // If this settlement was made specifically inside an event
+}
+```
+
+---
+
+## Universal Ledger Logic Workflow
+
+Any time a Bill is Created, Edited, or Deleted, we execute this exact, strictly transactional workflow:
+
+### 1. `friendBalanceService.applyBillBalances(billId, newTotals)`
+1. **Transaction Start:** Read `Bill` and target `friend_balances`.
+2. Look at `bill.processedBalances`.
+3. Subtract the exact amounts in `processedBalances` from the `friend_balances` doc. (Reversing the old state).
+4. Add the `newTotals` to the `friend_balances` doc. (Applying the new state).
+5. Overwrite the `bill.processedBalances` with `newTotals`.
+6. **Transaction End.**
+
+### 2. `eventLedgerService.applyBillToEventLedger(eventId, billId, newTotals)`
+1. **Transaction Start:** Read `Bill` and target `event_balances`.
+2. Look at `bill.eventBalancesApplied`.
+3. Subtract the exact amounts in `eventBalancesApplied` from `event_balances.netBalances`.
+4. Add the `newTotals` to `event_balances.netBalances`.
+5. Run the debt optimization algorithm *in-memory* on the newly aggregated `netBalances`.
+6. Overwrite the `bill.eventBalancesApplied` with `newTotals`.
+7. **Transaction End.**
+
+---
+
+## Phased Execution Plan (Small, Safe Chunks)
+
+We will execute this change carefully, ensuring nothing breaks for existing users.
+
+### Phase 1: Data Infrastructure & Preparation (No logic changes)
+- [x] Add `settlements` collection rules to Firebase.
+- [x] Create `src/types/settlement.types.ts` interface.
+- [x] Update `src/types/bill.types.ts` to add optional `settledPersonIds`, `processedBalances`, and `eventBalancesApplied`.
+- [x] Create `src/services/settlementService.ts` for basic CRUD operations.
+
+### Phase 2: Building the O(1) Engine (In Isolation)
+- [x] Refactor `friendBalanceService.ts` to implement the new Transactional Reversed-Footprint method (`applyBillBalancesIdempotent`). Leave the old method intact temporarily.
+- [x] Refactor `eventLedgerService.ts` to implement the same Idempotent transaction logic for events.
+
+### Phase 3: Switching Over the Triggers
+- [x] Update `useBills.ts` Create/Update/Delete functions to point to the new Idempotent methods instead of the old delta methods.
+- [x] Update `useEventBills.ts` similarly.
+
+### Phase 4: Settle Up UI
+- [x] Build the UI component for capturing "Global Settle Up" (selecting friend, inputting amount, firing `createSettlement`).
+- [x] Add the "Settle Up" UI to `EventDetailView.tsx`.
+- [ ] Update Bill Creation UI to support checking off "Already Settled" to push to `settledPersonIds`.
+
+### Phase 5: Cleanup & Migration
+- [ ] Write a one-off utility function to rebuild existing ledgers using the new system (to fix any old broken "ghost debts").
+- [ ] Delete the old delta calculation functions safely.

@@ -414,8 +414,8 @@ export function BillWizard({
     // ── Auto-apply balances when the user reaches the Review step ───────────
     // This ensures balances update even if the user never presses "Done" —
     // for example, if they tap "Charge on Venmo" and close the app.
-    // The delta logic in applyBillBalances is idempotent: if nothing changed
-    // since the last call, it calculates delta=0 and skips all writes.
+    // The delta logic in applyBillBalancesIdempotent is mathematically idempotent: 
+    // if nothing changed since the last call, it calculates delta=0 and skips all writes.
     useEffect(() => {
         const REVIEW_STEP = 3; // 0-indexed; step 4 in the wizard
         if (wizard.currentStep !== REVIEW_STEP) return;
@@ -423,14 +423,14 @@ export function BillWizard({
 
         const currentBillId = billId || activeSession?.id;
 
-        friendBalanceService.applyBillBalances(
+        friendBalanceService.applyBillBalancesIdempotent(
             currentBillId,
             user.uid,
             bill.personTotals
         ).catch(err => console.error('Failed to auto-apply friend balances on review:', err));
 
         if (activeSession?.eventId) {
-            eventLedgerService.applyBillToEventLedger(
+            eventLedgerService.applyBillToEventLedgerIdempotent(
                 activeSession.eventId,
                 currentBillId,
                 user.uid,

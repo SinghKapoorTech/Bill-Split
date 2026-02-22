@@ -252,7 +252,7 @@ export function useBills() {
     try {
       // Reverse this bill's contribution to the shared ledger before deleting
       if (user) {
-        await friendBalanceService.reverseBillBalances(activeSession.id, user.uid)
+        await friendBalanceService.reverseBillBalancesIdempotent(activeSession.id, user.uid)
           .catch(err => console.error('Failed to reverse bill balances on clear:', err));
       }
 
@@ -262,8 +262,8 @@ export function useBills() {
       
       // We should recalculate the event ledger if it was an event bill
       if (activeSession.eventId) {
-          await eventLedgerService.recalculateEventLedger(activeSession.eventId)
-            .catch(err => console.error('Failed to recalculate event ledger on clear:', err));
+          await eventLedgerService.reverseBillFromEventLedgerIdempotent(activeSession.eventId, activeSession.id)
+            .catch(err => console.error('Failed to reverse from event ledger on clear:', err));
       }
 
       // Delete receipt image if it exists
@@ -294,7 +294,7 @@ export function useBills() {
     try {
       // Reverse this bill's contribution to the shared ledger before deleting
       if (user) {
-        await friendBalanceService.reverseBillBalances(sessionId, user.uid)
+        await friendBalanceService.reverseBillBalancesIdempotent(sessionId, user.uid)
           .catch(err => console.error('Failed to reverse bill balances on delete:', err));
       }
 
@@ -336,8 +336,8 @@ export function useBills() {
       
       // We should recalculate the event ledger if it was an event bill
       if (billSnap?.eventId) {
-          await eventLedgerService.recalculateEventLedger(billSnap.eventId)
-            .catch(err => console.error('Failed to recalculate event ledger on delete:', err));
+          await eventLedgerService.reverseBillFromEventLedgerIdempotent(billSnap.eventId, sessionId)
+            .catch(err => console.error('Failed to reverse from event ledger on delete:', err));
       }
 
       toast({ title: 'Success', description: 'Session deleted.' });

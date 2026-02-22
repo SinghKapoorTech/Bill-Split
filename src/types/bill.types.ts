@@ -40,6 +40,15 @@ export interface Bill {
   // Who's paying for what: {itemId: [personIds]}
   itemAssignments: Record<string, string[]>;
 
+  // Users who have paid their share for this specific bill
+  settledPersonIds?: string[];
+
+  // Tracks exactly what was added to the global friend ledger
+  processedBalances?: Record<string, number>; 
+  
+  // Tracks exactly what was added to the local event ledger
+  eventBalancesApplied?: Record<string, number>; 
+
   // Participants
   people: Person[];
 

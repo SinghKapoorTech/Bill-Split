@@ -27,16 +27,21 @@ export function useFriendsEditor() {
   const [editingVenmoId, setEditingVenmoId] = useState('');
   const [editingEmail, setEditingEmail] = useState('');
 
-  useEffect(() => {
-    if (profile?.uid) {
-      setIsLoadingFriends(true);
-      userService.getHydratedFriends(profile.uid)
-        .then(hydrated => {
-          setFriends(hydrated);
-        })
-        .catch(console.error)
-        .finally(() => setIsLoadingFriends(false));
+  const refreshFriends = async () => {
+    if (!profile?.uid) return;
+    setIsLoadingFriends(true);
+    try {
+      const hydrated = await userService.getHydratedFriends(profile.uid);
+      setFriends(hydrated);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingFriends(false);
     }
+  };
+
+  useEffect(() => {
+    refreshFriends();
   }, [profile?.uid, profile?.friends]);
 
   // Handle Search
@@ -231,5 +236,6 @@ export function useFriendsEditor() {
     handleEditFriend,
     handleSaveEdit,
     handleCancelEdit,
+    refreshFriends,
   };
 }
