@@ -17,6 +17,8 @@ import { userService } from '@/services/userService';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
 import { useBillContext } from '@/contexts/BillSessionContext';
+import { useEventLedger } from '@/hooks/useEventLedger';
+import { generateUserId } from '@/utils/billCalculations';
 
 // Firestore collection name
 const EVENTS_COLLECTION = 'events';
@@ -33,8 +35,28 @@ export default function EventDetailView() {
   const { user } = useAuth();
   const { toast } = useToast();
   
+  const { netBalances, optimizedDebts, loading: ledgerLoading } = useEventLedger(eventId || '');
+  const [memberProfiles, setMemberProfiles] = useState<Record<string, any>>({});
+
   // Need to bring in session methods to resume/delete from the list
   const { deleteSession, resumeSession, activeSession, isDeleting, isResuming } = useBillContext();
+
+  useEffect(() => {
+    if (!event?.memberIds) return;
+    
+    const fetchProfiles = async () => {
+      const profiles: Record<string, any> = {};
+      await Promise.all(event.memberIds.map(async (id) => {
+         const p = await userService.getUserProfile(id);
+         if (p) {
+           profiles[id] = p;
+         }
+      }));
+      setMemberProfiles(profiles);
+    };
+    
+    fetchProfiles();
+  }, [event?.memberIds]);
 
   useEffect(() => {
     if (!eventId) {
@@ -105,7 +127,7 @@ export default function EventDetailView() {
       const mappedPeople: Person[] = memberProfiles
         .filter(p => p !== null)
         .map(p => ({
-          id: p!.uid,
+          id: generateUserId(p!.uid),
           name: p!.displayName || p!.username || 'User'
         }));
 
@@ -156,7 +178,7 @@ export default function EventDetailView() {
   }
 
   return (
-    <>
+    <div className="container mx-auto px-4 py-8 max-w-4xl mb-20">
       <div className="mb-8">
         <Button
           variant="ghost"
@@ -168,10 +190,10 @@ export default function EventDetailView() {
         </Button>
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div className="space-y-2">
-            <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold">
               {event.name}
-            </h2>
+            </h1>
             {event.description && (
               <p className="text-lg text-muted-foreground">{event.description}</p>
             )}
@@ -202,6 +224,49 @@ export default function EventDetailView() {
         onOpenChange={setInviteDialogOpen}
         event={event}
       />
+
+      {/* Event Balances UI */}
+      {!ledgerLoading && (optimizedDebts.length > 0 || eventBills.length > 0) && (
+        <Card className="p-4 sm:p-6 mb-8 border-primary/20 bg-primary/5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold">Event Balances</h3>
+          </div>
+          
+          {optimizedDebts.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              You're all settled up for this event!
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {optimizedDebts.map((debt, idx) => {
+                const fromUser = memberProfiles[debt.fromUserId];
+                const toUser = memberProfiles[debt.toUserId];
+                const fromName = fromUser?.displayName || fromUser?.username || 'Unknown';
+                const toName = toUser?.displayName || toUser?.username || 'Unknown';
+                const isCurrentUserInvolved = user?.uid === debt.fromUserId || user?.uid === debt.toUserId;
+
+                return (
+                  <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded-lg bg-background border gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{fromName}</span>
+                      <span className="text-muted-foreground">owes</span>
+                      <span className="font-medium">{toName}</span>
+                      <span className="font-bold text-lg text-primary">${debt.amount.toFixed(2)}</span>
+                    </div>
+                    {isCurrentUserInvolved && (
+                      <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={() => {
+                          toast({ title: "Coming soon", description: "Settling up functionality will be added later." });
+                      }}>
+                        Settle Up
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      )}
 
       <div className="space-y-6">
         {eventBills.length === 0 ? (
@@ -274,6 +339,6 @@ export default function EventDetailView() {
           </>
         )}
       </div>
-    </>
+    </div>
   );
 }

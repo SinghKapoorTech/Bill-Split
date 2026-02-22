@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { billService } from '@/services/billService';
 import { friendBalanceService } from '@/services/friendBalanceService';
+import { eventLedgerService } from '@/services/eventLedgerService';
 import { useAuth } from '@/contexts/AuthContext';
 import { arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Stepper, StepContent } from '@/components/ui/stepper';
@@ -420,11 +421,22 @@ export function BillWizard({
         if (wizard.currentStep !== REVIEW_STEP) return;
         if (!user || !(billId || activeSession?.id)) return;
 
+        const currentBillId = billId || activeSession?.id;
+
         friendBalanceService.applyBillBalances(
-            billId || activeSession?.id,
+            currentBillId,
             user.uid,
             bill.personTotals
         ).catch(err => console.error('Failed to auto-apply friend balances on review:', err));
+
+        if (activeSession?.eventId) {
+            eventLedgerService.applyBillToEventLedger(
+                activeSession.eventId,
+                currentBillId,
+                user.uid,
+                bill.personTotals
+            ).catch(err => console.error('Failed to auto-apply event ledger balances on review:', err));
+        }
     }, [wizard.currentStep]); // intentionally only re-runs when the step changes
 
     const handleDone = async () => {

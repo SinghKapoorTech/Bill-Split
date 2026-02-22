@@ -76,41 +76,34 @@ export default function EventsView() {
   };
 
   return (
-    <>
-      <div className="text-center mb-4 md:mb-12 space-y-3 md:space-y-4">
-        <div className="space-y-2">
-          <h2 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
-            Your Events
-          </h2>
+    <div className="container mx-auto px-4 py-8 max-w-4xl mb-20">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Your Events</h1>
+          <p className="text-muted-foreground">Organize trips and group events</p>
         </div>
-        {events.length > 0 && (
-          <Button className="gap-2" onClick={() => setDialogOpen(true)}>
-            <Plus className="w-4 h-4" />
-            <span className="sm:inline">New Event</span>
-          </Button>
-        )}
+        <Button onClick={() => setDialogOpen(true)} size="icon" className="rounded-full h-10 w-10 shrink-0">
+          <Plus className="w-6 h-6" />
+        </Button>
       </div>
 
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Loading events...</div>
       ) : events.length === 0 ? (
-        <Card className="p-12 text-center space-y-6">
-          <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-            <CalendarDays className="w-10 h-10 text-primary" />
+        <Card className="p-8 text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+            <CalendarDays className="w-8 h-8 text-primary" />
           </div>
-          <div className="space-y-2">
-            <h3 className="text-xl font-semibold">No events yet</h3>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Create your first event to start organizing bills with friends for vacations, dinners, and more.
-            </p>
-          </div>
-          <Button className="gap-2" onClick={() => setDialogOpen(true)}>
-            <Plus className="w-4 h-4" />
-            Create First Event
+          <h3 className="text-lg font-semibold">No events yet</h3>
+          <p className="text-muted-foreground">
+            Create your first event to start organizing bills with friends for vacations, dinners, and more.
+          </p>
+          <Button onClick={() => setDialogOpen(true)}>
+            Create Event
           </Button>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {events.map((event) => (
             <EventCard
               key={event.id}
@@ -145,6 +138,6 @@ export default function EventsView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }
