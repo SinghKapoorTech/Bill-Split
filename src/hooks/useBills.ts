@@ -20,6 +20,7 @@ import { Bill, BillData } from '@/types/bill.types';
 import { useToast } from './use-toast';
 import { friendBalanceService } from '@/services/friendBalanceService';
 import { billService } from '@/services/billService';
+import { eventLedgerService } from '@/services/eventLedgerService';
 import { removeUndefinedFields } from '@/utils/firestoreHelpers';
 
 /**
@@ -258,6 +259,12 @@ export function useBills() {
       // Delete the active bill from Firestore
       const billRef = doc(db, 'bills', activeSession.id);
       await deleteDoc(billRef);
+      
+      // We should recalculate the event ledger if it was an event bill
+      if (activeSession.eventId) {
+          await eventLedgerService.recalculateEventLedger(activeSession.eventId)
+            .catch(err => console.error('Failed to recalculate event ledger on clear:', err));
+      }
 
       // Delete receipt image if it exists
       if (activeSession.receiptFileName) {
@@ -325,6 +332,12 @@ export function useBills() {
           } catch (e) {
               console.error("Failed to delete image via URL parsing", e);
           }
+      }
+      
+      // We should recalculate the event ledger if it was an event bill
+      if (billSnap?.eventId) {
+          await eventLedgerService.recalculateEventLedger(billSnap.eventId)
+            .catch(err => console.error('Failed to recalculate event ledger on delete:', err));
       }
 
       toast({ title: 'Success', description: 'Session deleted.' });

@@ -12,6 +12,7 @@ import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Bill } from '@/types/bill.types';
 import { billService } from '@/services/billService';
+import { eventLedgerService } from '@/services/eventLedgerService';
 
 export function useEventBills(eventId: string) {
   const { user } = useAuth();
@@ -80,7 +81,11 @@ export function useEventBills(eventId: string) {
   const deleteTransaction = useCallback(async (billId: string) => {
     const billRef = doc(db, 'bills', billId);
     await deleteDoc(billRef);
-  }, []);
+    if (eventId) {
+      await eventLedgerService.recalculateEventLedger(eventId)
+        .catch(err => console.error('Failed to recalculate event ledger on delete:', err));
+    }
+  }, [eventId]);
 
   return {
     transactions: bills,
