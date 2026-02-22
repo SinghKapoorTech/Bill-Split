@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { UserProfile, Friend, Squad } from '@/types/person.types';
+import { friendBalanceService } from './friendBalanceService';
 
 const USERS_COLLECTION = 'users';
 
@@ -99,6 +100,17 @@ export const userService = {
       }
 
       await updateDoc(userRef, updates);
+
+      // Self-healing: Check for and sync old bills if it's been > 24 hours since last login
+      const lastLoginTime = userSnap.data().lastLoginAt as Timestamp;
+      if (lastLoginTime) {
+        const hoursSinceLastLogin = (now.toMillis() - lastLoginTime.toMillis()) / (1000 * 60 * 60);
+        if (hoursSinceLastLogin > 24) {
+          friendBalanceService.syncOldBillsForUser(user.uid).catch(err => {
+            console.error('Failed to run periodic old bill sync:', err);
+          });
+        }
+      }
     }
   },
 
@@ -159,34 +171,60 @@ export const userService = {
   },
 
   /**
-   * Adds a friend to the user's friend list
+   * Gets a user's friends with full profiles hydrated.
+   * Reads balances directly from the `friend_balances` collection (source of truth).
    */
-  async addFriend(userId: string, friend: Friend): Promise<void> {
-    const userRef = doc(db, USERS_COLLECTION, userId);
-    await updateDoc(userRef, {
-      friends: arrayUnion(friend)
+  async getHydratedFriends(userId: string): Promise<Friend[]> {
+    const userProfile = await this.getUserProfile(userId);
+    if (!userProfile || !userProfile.friends || userProfile.friends.length === 0) return [];
+
+    // Handle legacy data: user.friends might be string[] OR legacy [{userId, balance}] objects.
+    const friendIds: string[] = (userProfile.friends as any[])
+      .map(f => typeof f === 'string' ? f : (f.userId || f.id))
+      .filter(Boolean);
+
+    // Fetch all balance documents for this user in one query
+    const balancesRef = collection(db, 'friend_balances');
+    const balanceSnap = await getDocs(query(balancesRef, where('participants', 'array-contains', userId)));
+
+    // Build a quick lookup: friendId -> balance (positive = they owe you)
+    const balanceMap: Record<string, number> = {};
+    balanceSnap.docs.forEach(docSnap => {
+      const data = docSnap.data();
+      const participants: string[] = data.participants || [];
+      const friendId = participants.find(p => p !== userId);
+      if (friendId && data.balances?.[userId] !== undefined) {
+        balanceMap[friendId] = data.balances[userId];
+      }
     });
+
+    const hydratedFriends: Friend[] = [];
+    for (const friendId of friendIds) {
+      if (!friendId) continue;
+      const friendProfile = await this.getUserProfile(friendId);
+      if (friendProfile) {
+        hydratedFriends.push({
+          id: friendProfile.uid,
+          name: friendProfile.displayName,
+          email: friendProfile.email,
+          username: friendProfile.username,
+          venmoId: friendProfile.venmoId,
+          balance: balanceMap[friendId] ?? 0,
+        });
+      }
+    }
+
+    return hydratedFriends;
   },
 
   /**
-   * Removes a friend from the user's friend list
+   * Calculates the balance between two users by traversing their shared bills.
+   * Positive means friendId owes userId. Negative means userId owes friendId.
    */
-  async removeFriend(userId: string, friend: Friend): Promise<void> {
-    const userRef = doc(db, USERS_COLLECTION, userId);
-    // Note: arrayRemove only works if the object is exactly the same
-    // If we need to remove by name only, we'd need to read, filter, and update
-    // For now assuming exact object match or we'll implement read-modify-write if needed
-    
-    // Actually, to be safe, let's do read-modify-write to ensure we remove by name/id
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) return;
-    
-    const userData = userSnap.data() as UserProfile;
-    const updatedFriends = userData.friends.filter(f => f.name !== friend.name || f.venmoId !== friend.venmoId);
-    
-    await updateDoc(userRef, {
-      friends: updatedFriends
-    });
+  async calculateFriendBalance(userId: string, friendId: string): Promise<number> {
+    // Stub implementation: later we will query 'bills' where both users participate
+    // and sum up who owes whom.
+    return 0; // Defaulting to $0 for now as requested.
   },
 
   /**

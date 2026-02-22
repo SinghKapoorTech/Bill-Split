@@ -24,6 +24,7 @@ import { billService } from '@/services/billService';
 import { useToast } from '@/hooks/use-toast';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
+import { FriendBalancePreviewCard } from '@/components/dashboard/FriendBalancePreviewCard';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -208,75 +209,82 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      {/* All Bills Section */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-semibold flex items-center gap-2">
-              <Receipt className="w-6 h-6" />
-              My Bills
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Your work is automatically saved as you go
-            </p>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Left Column: My Bills */}
+        <div className="lg:col-span-3">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-2xl font-semibold flex items-center gap-2">
+                <Receipt className="w-6 h-6" />
+                My Bills
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Your work is automatically saved as you go
+              </p>
+            </div>
           </div>
+
+          {allBills.length === 0 ? (
+            <Card className="p-12">
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+                  <Receipt className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-medium mb-2">No bills yet</h3>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Create your first bill to get started
+                </p>
+                <Button onClick={handleNewBill} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Create Your First Bill
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <>
+              {/* Mobile List View - compact, DoorDash-style */}
+              <div className="block md:hidden divide-y divide-border rounded-lg border bg-card">
+                {allBills.map((bill) => (
+                  <MobileBillCard
+                    key={bill.id}
+                    bill={bill}
+                    isLatest={bill.id === activeSession?.id}
+                    onView={handleViewBill}
+                    onResume={handleResumeBill}
+                    onDelete={handleDeleteBill}
+                    isResuming={isResuming}
+                    isDeleting={isDeleting}
+                    formatDate={formatDate}
+                    getBillTitle={getBillTitle}
+                  />
+                ))}
+              </div>
+
+              {/* Desktop Grid View - card layout */}
+              <div className="hidden md:grid md:grid-cols-1 lg:grid-cols-2 gap-4">
+                {allBills.map((bill) => (
+                  <DesktopBillCard
+                    key={bill.id}
+                    bill={bill}
+                    isLatest={bill.id === activeSession?.id}
+                    onView={handleViewBill}
+                    onResume={handleResumeBill}
+                    onDelete={handleDeleteBill}
+                    isResuming={isResuming}
+                    isDeleting={isDeleting}
+                    formatDate={formatDate}
+                    getBillTitle={getBillTitle}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
-        {allBills.length === 0 ? (
-          <Card className="p-12">
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                <Receipt className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">No bills yet</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Create your first bill to get started
-              </p>
-              <Button onClick={handleNewBill} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Create Your First Bill
-              </Button>
-            </div>
-          </Card>
-        ) : (
-          <>
-            {/* Mobile List View - compact, DoorDash-style */}
-            <div className="block md:hidden divide-y divide-border rounded-lg border bg-card">
-              {allBills.map((bill) => (
-                <MobileBillCard
-                  key={bill.id}
-                  bill={bill}
-                  isLatest={bill.id === activeSession?.id}
-                  onView={handleViewBill}
-                  onResume={handleResumeBill}
-                  onDelete={handleDeleteBill}
-                  isResuming={isResuming}
-                  isDeleting={isDeleting}
-                  formatDate={formatDate}
-                  getBillTitle={getBillTitle}
-                />
-              ))}
-            </div>
-
-            {/* Desktop Grid View - card layout */}
-            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {allBills.map((bill) => (
-                <DesktopBillCard
-                  key={bill.id}
-                  bill={bill}
-                  isLatest={bill.id === activeSession?.id}
-                  onView={handleViewBill}
-                  onResume={handleResumeBill}
-                  onDelete={handleDeleteBill}
-                  isResuming={isResuming}
-                  isDeleting={isDeleting}
-                  formatDate={formatDate}
-                  getBillTitle={getBillTitle}
-                />
-              ))}
-            </div>
-          </>
-        )}
+        {/* Right Column: Friend Balances */}
+        <div className="lg:col-span-1">
+           <FriendBalancePreviewCard />
+        </div>
       </div>
 
 

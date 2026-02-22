@@ -44,6 +44,7 @@ export function ManageFriends({ open, onOpenChange }: Props) {
     handleEditFriend,
     handleSaveEdit,
     handleCancelEdit,
+    isLoadingFriends,
   } = useFriendsEditor();
 
   return (
@@ -196,7 +197,11 @@ export function ManageFriends({ open, onOpenChange }: Props) {
 
           {/* Friends List */}
           <div className="space-y-2 max-h-[400px] overflow-y-auto">
-            {friends.length === 0 ? (
+            {isLoadingFriends ? (
+               <p className="text-sm text-muted-foreground text-center py-8 border border-dashed rounded-lg">
+                 Loading friends...
+               </p>
+            ) : friends.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8 border border-dashed rounded-lg">
                 No friends saved yet. Search or add friends above to build your list.
               </p>
@@ -260,6 +265,23 @@ export function ManageFriends({ open, onOpenChange }: Props) {
                             Venmo: @{friend.venmoId.replace(/^@+/, '')}
                           </p>
                         )}
+                      </div>
+                      <div className="flex flex-col items-end mr-4">
+                        <div className="flex items-baseline gap-1.5">
+                          {friend.balance && friend.balance !== 0 ? (
+                            <span className="text-[10px] uppercase font-bold text-foreground">
+                              {friend.balance > 0 ? 'Owes you' : 'You owe'}
+                            </span>
+                          ) : null}
+                          {!friend.balance ? (
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                              Settled
+                            </span>
+                          ) : null}
+                          <span className={`text-sm md:text-base font-semibold ${friend.balance && friend.balance > 0 ? 'text-green-500' : friend.balance && friend.balance < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                            ${Math.abs(friend.balance || 0).toFixed(2)}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex gap-1">
                         <Button

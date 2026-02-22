@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { UserProfile } from '@/types';
+import { UserProfile, Friend } from '@/types';
 import { useToast } from './use-toast';
 
 export function useUserProfile() {
@@ -18,38 +19,41 @@ export function useUserProfile() {
       return;
     }
 
-    loadProfile();
-  }, [user]);
+    const docRef = doc(db, 'users', user.uid);
 
-  const loadProfile = async () => {
-    if (!user) return;
-
-    try {
-      const docRef = doc(db, 'users', user.uid);
-      const docSnap = await getDoc(docRef);
-
+    // Use a real-time listener so any write to the user doc (e.g., updated
+    // friend balances after a bill is completed) is immediately reflected.
+    const unsubscribe = onSnapshot(docRef, async (docSnap) => {
       if (docSnap.exists()) {
         setProfile(docSnap.data() as UserProfile);
       } else {
+        // First login — create the profile
+        const now = Timestamp.now();
         const newProfile: UserProfile = {
           uid: user.uid,
           email: user.email || '',
           displayName: user.displayName || '',
+          friends: [],
+          squadIds: [],
+          createdAt: now,
+          lastLoginAt: now
         };
         await setDoc(docRef, newProfile);
-        setProfile(newProfile);
+        // The onSnapshot will fire again after the setDoc, no need to setState here
       }
-    } catch (error: any) {
-      console.error('Error loading profile:', error);
+      setLoading(false);
+    }, (error: any) => {
+      console.error('Error listening to profile:', error);
       toast({
         title: 'Error loading profile',
         description: error.message,
         variant: 'destructive',
       });
-    } finally {
       setLoading(false);
-    }
-  };
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const updateVenmoId = async (venmoId: string) => {
     if (!user || !profile) return;
@@ -78,12 +82,16 @@ export function useUserProfile() {
     }
   };
 
-  const updateFriends = async (friends: Array<{ name: string; venmoId?: string }>) => {
+  const updateFriends = async (friends: Friend[]) => {
     if (!user || !profile) return;
 
     try {
       const docRef = doc(db, 'users', user.uid);
-      const updatedProfile = { ...profile, friends };
+      
+      // Store only the Firebase UIDs — balances live in friend_balances collection
+      const friendIds: string[] = friends.map(f => f.id!).filter(Boolean);
+
+      const updatedProfile = { ...profile, friends: friendIds };
 
       await setDoc(docRef, updatedProfile, { merge: true });
       setProfile(updatedProfile);

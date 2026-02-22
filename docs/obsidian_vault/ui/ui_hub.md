@@ -17,10 +17,11 @@ The main user journey of the app follows a wizard-like sequence:
 5. **[[full_bill_view|Full Bill View]]**: A detailed, read-only view of a completed bill.
 
 ## Network & Connectivity
-How users find and connect with each other.
+How users find, connect with, and track balances with each other.
 - **[[search|User Search]]**: The underlying mechanism for finding users globally.
 - **[[settings|Settings Tab]]**: Profile configuration.
-- **[[manage_friends|Manage Friends]]**: Curating a personal list of friends and creating "Shadow Users" for easy access during the Add People step.
+- **[[manage_friends|Manage Friends]]**: Curating a personal list of friends, viewing balances, and creating "Shadow Users" for easy access during the Add People step.
+- **[[dashboard_friend_balances|Dashboard Balance Card]]**: At-a-glance balance summary on the dashboard, powered by the [[../database/friend_balances|friend_balances]] shared ledger.
 
 ## Navigating the Documentation
 Each link above points to a dedicated markdown file that breaks down the UI components, data flows, and specific feature capabilities of that interface.

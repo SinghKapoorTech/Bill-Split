@@ -1,53 +1,96 @@
 ---
-title: Friends Tab Search and Shadow Users
+title: Manage Friends Tab
 date: 2026-02-21
-tags: [ui, friends, settings, search]
+tags: [ui, friends, settings, search, balances]
 ---
 
-# Manage Friends Tab Documentation
+# Manage Friends Tab
 
-The "Friends" tab, typically accessed via the Settings page, allows users to manage their personal list of friends for easy access when splitting bills or forming squads.
+The "Friends" tab (accessed via Settings) allows users to manage their personal address book of friends for bill splitting. It also displays the **live balance** owed between you and each friend, powered by the **[[friend_balances]]** shared ledger.
 
 ## Overview
-Users can add friends using two distinct methods:
-1. **Global Search for App Users**
-2. **Manual Entry (Shadow Users)**
+
+Users can add friends two ways:
+1. **Global Search** — find existing app users by email or username.
+2. **Manual Entry** — add a friend who isn't on the app yet (creates a Shadow User).
+
 ![[Add_Friends.png]]
 
+---
+
+## Balance Display
+
+Each friend row shows:
+- **Owes you** (green amount) — the friend has a net debt to you.
+- **You owe** (red amount) — you have a net debt to the friend.
+- **Settled** (muted) — the balance is zero.
+
+These values are read from the `user.friends[].balance` cache field, which is kept in sync with the **[[friend_balances]]** shared ledger automatically whenever a bill is finalized or deleted.
+
+> [!NOTE]
+> The balance updates in real-time via Firestore's `onSnapshot` listener on the user profile document. No page reload is needed after completing a bill.
+
+---
+
 ## 1. Global User Search
-Users can search the application's global database to find existing users.
-- **Search Parameters**: Users can be searched by their exact **email address** or by a prefix match on their **username**.
-- **Suggestions**: As the user types (minimum 2 characters for usernames), a debounced request searches the database. A scrollable dropdown displays the matching results with their name, username, and an avatar.
-- **Adding from Search**: Clicking a user in the dropdown directly adds them to the saved friends list. The connection is made using their canonical unique `id`.
 
-## 2. Manual Entry and Shadow Users
-For friends who do not yet have an account on the application, a manual entry method is provided.
+Searches the application's user database for existing accounts.
 
-- **Required Fields**: 
-  - **Name**: The display name for the friend.
-  - **Email**: Required to create a "Shadow User". This ensures that if the friend signs up for the app later using this email, their newly created account is automatically linked to the friends list and bills they were a part of.
-- **Optional Fields**:
-  - **Venmo ID**: Useful for generating exact charge links.
+- **By email** (exact match): Enter a complete email to find a specific user.
+- **By username** (prefix): Type 2+ characters to search by username handle.
 
-When saved, a query is run to ensure a user with that email doesn't already exist. If it doesn't, a new user document is created with the `isShadow: true` flag in the Firestore database.
+Results display the user's name, username, and email. Clicking a result adds them to your friends list instantly using their real Firebase UID as the link.
+
+### Adding from Search
+
+When a user is added from search results, `recalculateSingleFriendBalance()` is called in the background to immediately pull any pre-existing balance from the **[[friend_balances]]** collection (e.g., if they already created bills involving you before you added them).
+
+---
+
+## 2. Manual Entry (Shadow Users)
+
+For friends who don't have an account yet.
+
+**Required fields:**
+- **Name** — display name.
+- **Email** — used to create or find a Shadow User document in Firestore.
+
+**Optional fields:**
+- **Venmo ID** — enables direct payment link generation.
+
+On save, `userService.resolveUser(email, name)` is called:
+1. If a `users` document with that email already exists → returns its UID.
+2. If not → creates a new Shadow User with `isShadow: true`.
+
+The resulting UID is stored in your `friends` list so that if the person ever signs up, their account inherits all linked bill history.
+
+---
 
 ## User Interface Breakdown
 
-### Search Users Input
-- Located at the top of the card.
-- A search icon is prominently displayed on the left of the input field.
-- Results appear in an absolute-positioned, visually distinct popover component overlapping the rest of the card safely using z-indexes.
+### Search Input
+- At the top of the card, with a search icon.
+- Results appear in a floating popover (z-indexed above card content).
+- Each result renders as a hoverable card showing name, username/email.
 
-### Add External Friend Manually
-- Standard input fields (Name, Email, Venmo URL).
-- Separated by an "OR" divider text label to clearly demarcate the two options.
-- Includes a primary button: "Save External Friend". The button remains disabled until BOTH the Name and Email fields have inputs.
+### Manual Add Section
+- Below an "OR" divider.
+- Name and Email fields (both required to enable the save button).
+- Optional Venmo ID field.
+- "Save External Friend" button (disabled until name + email filled).
 
 ### Saved Friends List
-Displays a list of previously saved friends in an elegant, scrollable list.
-- Each item displays the friend's name prominently.
-- It will also display either the `@username` or the email address, depending on what kind of friend link it is.
-- Actions: Users have the ability to click the pencil icon to **Edit** the details or the trash icon to **Delete** the friend entirely from the list.
+A scrollable list of all saved friends:
+- **Name** displayed prominently.
+- **Username** or **email** shown in smaller text below the name.
+- **Balance** shown on the right: "Owes you $X.XX" (green), "You owe $X.XX" (red), or "Settled" (muted).
+- **Edit** (pencil icon) — opens inline edit for name, email, Venmo ID.
+- **Delete** (trash icon) — removes the friend from your list. Does **not** delete the `friend_balances` document (outstanding balances are preserved).
 
+---
 
+## Related
 
+- [[friend_balances]] — Database schema for the shared ledger
+- [[settings]] — Parent settings page
+- [[search]] — Detailed search implementation docs

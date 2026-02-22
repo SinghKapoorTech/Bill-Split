@@ -21,7 +21,9 @@ export interface Friend {
   email?: string;
   username?: string;
   venmoId?: string;
+  balance?: number; // Added for hydrated friend profiles
 }
+
 
 export interface Squad {
   name: string;
@@ -37,8 +39,8 @@ export interface UserProfile {
   phoneNumber?: string;
   username?: string;
   
-  // Quick access for adding to bills
-  friends: Friend[];
+  // List of friend Firebase UIDs. Balances are stored in the separate `friend_balances` collection.
+  friends: string[];
   squadIds: string[];
   
   createdAt: Timestamp;

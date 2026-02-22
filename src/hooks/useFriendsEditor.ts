@@ -3,12 +3,14 @@ import { useUserProfile } from './useUserProfile';
 import { useToast } from './use-toast';
 import { ERROR_MESSAGES } from '@/utils/uiConstants';
 import { userService } from '@/services/userService';
+import { friendBalanceService } from '@/services/friendBalanceService';
 import { Friend } from '@/types/person.types';
 
 export function useFriendsEditor() {
   const { profile, updateFriends } = useUserProfile();
   const { toast } = useToast();
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [isLoadingFriends, setIsLoadingFriends] = useState(false);
 
   // Search State
   const [searchInput, setSearchInput] = useState('');
@@ -26,10 +28,16 @@ export function useFriendsEditor() {
   const [editingEmail, setEditingEmail] = useState('');
 
   useEffect(() => {
-    if (profile?.friends) {
-      setFriends(profile.friends);
+    if (profile?.uid) {
+      setIsLoadingFriends(true);
+      userService.getHydratedFriends(profile.uid)
+        .then(hydrated => {
+          setFriends(hydrated);
+        })
+        .catch(console.error)
+        .finally(() => setIsLoadingFriends(false));
     }
-  }, [profile]);
+  }, [profile?.uid, profile?.friends]);
 
   // Handle Search
   useEffect(() => {
@@ -65,7 +73,8 @@ export function useFriendsEditor() {
             name: u.displayName || 'App User',
             venmoId: u.venmoId,
             email: u.email || u.phoneNumber,
-            username: u.username
+            username: u.username,
+            balance: 0
           }));
 
         setFriendSuggestions(suggestions);
@@ -95,6 +104,12 @@ export function useFriendsEditor() {
     setNewFriendVenmoId('');
     setShowSuggestions(false);
     await updateFriends(updatedFriends);
+
+    // After adding, pull any historical balances they might have had
+    if (profile?.uid && suggestion.id) {
+       friendBalanceService.recalculateSingleFriendBalance(profile.uid, suggestion.id)
+         .catch(err => console.error("Failed to fetch historical balance for new friend", err));
+    }
   };
 
   const handleAddFriend = async () => {
@@ -125,6 +140,7 @@ export function useFriendsEditor() {
         name: newFriendName.trim(),
         email: newFriendEmail.trim(),
         venmoId: newFriendVenmoId.replace(/^@+/, '').trim() || undefined,
+        balance: 0,
       };
 
       const updatedFriends = [...friends, newFriend];
@@ -135,6 +151,12 @@ export function useFriendsEditor() {
       setNewFriendVenmoId('');
       setShowSuggestions(false);
       await updateFriends(updatedFriends);
+
+      // After adding, pull any historical balances they might have had
+      if (profile?.uid && userId) {
+         friendBalanceService.recalculateSingleFriendBalance(profile.uid, userId)
+           .catch(err => console.error("Failed to fetch historical balance for new friend", err));
+      }
     } catch (error: any) {
       toast({
         title: 'Error adding friend',
@@ -203,6 +225,7 @@ export function useFriendsEditor() {
     editingName,
     editingVenmoId,
     editingEmail,
+    isLoadingFriends,
 
     // Setters
     setSearchInput,

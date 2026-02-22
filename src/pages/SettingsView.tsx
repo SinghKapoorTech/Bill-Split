@@ -5,9 +5,12 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { ProfileSettingsCard } from '@/components/profile/ProfileSettingsCard';
 import { ManageFriendsCard } from '@/components/profile/ManageFriendsCard';
 
+import { useLocation } from 'react-router-dom';
+
 export default function SettingsView() {
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState('profile');
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(location.state?.defaultTab || 'profile');
 
   return (
     <div className="space-y-4 md:space-y-6">

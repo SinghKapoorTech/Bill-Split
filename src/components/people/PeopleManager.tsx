@@ -78,7 +78,7 @@ export function PeopleManager({
     if (searchInput.length > 0) {
       // 1. Filter local friends
       const filtered = friends.filter(friend =>
-        friend.name.toLowerCase().includes(searchInput.toLowerCase())
+        friend?.name?.toLowerCase().includes(searchInput.toLowerCase())
       );
       
       // 2. Global search if it looks like an email
@@ -115,17 +115,19 @@ export function PeopleManager({
                 continue;
               }
 
+              const potentialFriendId = globalUser.uid;
+              
               // Check if they are already in the friend suggestions
               const alreadyInFriends = newFiltered.some(f => 
                 f.email === globalUser.email || 
                 (f.id && f.id === globalUser.uid) ||
-                (f.id && f.id === generateUserId(globalUser.uid))
+                (f.id && f.id === potentialFriendId)
               );
               
               if (!alreadyInFriends) {
                 // Add to suggestion list with a special flag/email/username
                 newFiltered.push({
-                  id: generateUserId(globalUser.uid),
+                  id: potentialFriendId,
                   name: globalUser.displayName || 'App User',
                   venmoId: globalUser.venmoId,
                   email: globalUser.email,
@@ -204,7 +206,8 @@ export function PeopleManager({
   };
 
   const isPersonInFriends = (personName: string): boolean => {
-    return friends.some(friend => friend.name.toLowerCase() === personName.toLowerCase());
+    if (!personName) return false;
+    return friends.some(friend => friend?.name?.toLowerCase() === personName.toLowerCase());
   };
 
   const handleSaveAsFriend = async (person: Person) => {
@@ -256,7 +259,7 @@ export function PeopleManager({
         <>
           <div className="space-y-2 mb-4">
             {people.map((person) => {
-              const isCurrentUser = user && person.id === generateUserId(user.uid);
+              const isCurrentUser = user && (person.id === user.uid || (person as any).userId === user.uid);
               return (
                 <PersonCard
                   key={person.id}

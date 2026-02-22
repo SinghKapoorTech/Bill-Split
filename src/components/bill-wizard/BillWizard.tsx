@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { billService } from '@/services/billService';
+import { friendBalanceService } from '@/services/friendBalanceService';
+import { useAuth } from '@/contexts/AuthContext';
 import { arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Stepper, StepContent } from '@/components/ui/stepper';
 import { PillProgress } from '@/components/ui/pill-progress';
@@ -88,6 +90,7 @@ export function BillWizard({
     onShare
 }: BillWizardProps) {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const isMobile = useIsMobile();
 
     // State
@@ -382,6 +385,23 @@ export function BillWizard({
             upload.handleFileSelect(fileOrBase64);
         }
     };
+
+    // ── Auto-apply balances when the user reaches the Review step ───────────
+    // This ensures balances update even if the user never presses "Done" —
+    // for example, if they tap "Charge on Venmo" and close the app.
+    // The delta logic in applyBillBalances is idempotent: if nothing changed
+    // since the last call, it calculates delta=0 and skips all writes.
+    useEffect(() => {
+        const REVIEW_STEP = 3; // 0-indexed; step 4 in the wizard
+        if (wizard.currentStep !== REVIEW_STEP) return;
+        if (!user || !(billId || activeSession?.id)) return;
+
+        friendBalanceService.applyBillBalances(
+            billId || activeSession?.id,
+            user.uid,
+            bill.personTotals
+        ).catch(err => console.error('Failed to auto-apply friend balances on review:', err));
+    }, [wizard.currentStep]); // intentionally only re-runs when the step changes
 
     const handleDone = () => {
         navigate('/dashboard');

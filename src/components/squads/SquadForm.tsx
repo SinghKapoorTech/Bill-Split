@@ -10,6 +10,7 @@ import { sanitizeSquadMember } from '@/utils/squadUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { userService } from '@/services/userService';
 
 interface SquadFormProps {
   initialName?: string;
@@ -245,10 +246,11 @@ function ValidMemberUserSearch({ onSelect }: { onSelect: (user: any) => void }) 
     useEffect(() => {
         if (!user) return;
         const loadFriends = async () => {
-             const userDocRef = doc(db, 'users', user.uid);
-             const userDoc = await getDoc(userDocRef);
-             if (userDoc.exists()) {
-                 setFriends(userDoc.data().friends || []);
+             try {
+                const hydratedFriends = await userService.getHydratedFriends(user.uid);
+                setFriends(hydratedFriends);
+             } catch (error) {
+                console.error("Failed to load friends for squad form", error);
              }
         };
         loadFriends();

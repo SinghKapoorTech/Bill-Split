@@ -18,6 +18,7 @@ import { db, storage } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Bill, BillData } from '@/types/bill.types';
 import { useToast } from './use-toast';
+import { friendBalanceService } from '@/services/friendBalanceService';
 import { billService } from '@/services/billService';
 import { removeUndefinedFields } from '@/utils/firestoreHelpers';
 
@@ -234,6 +235,12 @@ export function useBills() {
     }
 
     try {
+      // Reverse this bill's contribution to the shared ledger before deleting
+      if (user) {
+        await friendBalanceService.reverseBillBalances(activeSession.id, user.uid)
+          .catch(err => console.error('Failed to reverse bill balances on clear:', err));
+      }
+
       // Delete the active bill from Firestore
       const billRef = doc(db, 'bills', activeSession.id);
       await deleteDoc(billRef);
@@ -264,6 +271,12 @@ export function useBills() {
   const deleteSession = useCallback(async (sessionId: string, receiptFileName?: string) => {
     setIsDeleting(true);
     try {
+      // Reverse this bill's contribution to the shared ledger before deleting
+      if (user) {
+        await friendBalanceService.reverseBillBalances(sessionId, user.uid)
+          .catch(err => console.error('Failed to reverse bill balances on delete:', err));
+      }
+
       const billRef = doc(db, 'bills', sessionId);
       await deleteDoc(billRef);
 

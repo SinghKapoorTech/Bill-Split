@@ -85,7 +85,7 @@ service cloud.firestore {
                        // For event bills, user must be a member of the event
                        (request.resource.data.billType == 'private' ||
                         (request.resource.data.billType == 'group' &&
-                         request.resource.data.eventId != null &&
+                         'eventId' in request.resource.data &&
                          request.auth.uid in get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.memberIds));
       
       // UPDATE: 
@@ -101,7 +101,7 @@ service cloud.firestore {
           request.auth.uid == resource.data.ownerId ||
           // Event members have full access to event bills
           (resource.data.billType == 'group' &&
-           resource.data.eventId != null &&
+           'eventId' in resource.data &&
            request.auth.uid in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.memberIds) ||
           // All authenticated members can update specific fields (assignments, people)
           (isBillMember(resource.data) && isGuestUpdate())
@@ -110,6 +110,33 @@ service cloud.firestore {
       // DELETE: Only owner can delete
       allow delete: if request.auth != null &&
                        request.auth.uid == resource.data.ownerId;
+    }
+
+    // ========== Friend Balances Collection ==========
+    match /friend_balances/{balanceId} {
+      // allow get: handles both existing docs and non-existent docs.
+      // resource == null is required so that runTransaction's transaction.get()
+      // on a brand-new (not-yet-created) document doesn't throw a null-ref error.
+      allow get: if request.auth != null &&
+                    (resource == null || request.auth.uid in resource.data.participants);
+
+      // allow list: handles getDocs() queries.
+      // For queries, resource is never null, so we just check participants directly.
+      // Firestore can verify this is safe because the query always filters by the
+      // same uid: where('participants', 'array-contains', request.auth.uid).
+      allow list: if request.auth != null &&
+                     request.auth.uid in resource.data.participants;
+
+      // Users can create if they list themselves as a participant
+      allow create: if request.auth != null &&
+                       request.auth.uid in request.resource.data.participants;
+
+      // Users can update if they are already a participant and remain one
+      allow update: if request.auth != null &&
+                       request.auth.uid in resource.data.participants &&
+                       request.auth.uid in request.resource.data.participants;
+
+      allow delete: if false;
     }
 
     // Receipt analysis cache (if you re-add the cache feature later)
