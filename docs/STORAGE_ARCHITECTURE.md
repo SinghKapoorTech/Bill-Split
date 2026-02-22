@@ -69,7 +69,7 @@ firestore/
 ├── bills/{billId}              # All bills (private & event)
 ├── events/{eventId}            # Event definitions
 ├── eventInvitations/{inviteId} # Pending event invitations
-└── receiptAnalysisCache/{id}   # AI analysis cache (optional)
+
 ```
 
 ### File Storage: Firebase Storage
@@ -436,10 +436,9 @@ sequenceDiagram
 ### Performance Optimizations
 
 1. **Indexing**: Composite indexes on frequently queried fields
-2. **Caching**: Receipt analysis results cached for 30 days
-3. **Pagination**: Bill lists paginated (20 per page)
-4. **Real-time**: Only active bills use real-time listeners
-5. **Image Optimization**: Compress images before upload
+2. **Pagination**: Bill lists paginated (20 per page)
+3. **Real-time**: Only active bills use real-time listeners
+4. **Image Optimization**: Compress images before upload
 
 ---
 
