@@ -52,11 +52,11 @@ export function useBills() {
     setIsLoading(true);
     const billsRef = collection(db, 'bills');
 
-    // Query for all private bills, ordered by updatedAt
+    // Query for all bills the user owns, ordered by updatedAt
     const q = query(
       billsRef,
       where('ownerId', '==', user.uid),
-      where('billType', '==', 'private'),
+      where('billType', 'in', ['private', 'event']),
       orderBy('updatedAt', 'desc')
     );
 
@@ -188,7 +188,7 @@ export function useBills() {
     if (!activeSession) return;
 
     try {
-      // Delete the image from Firebase Storage if it exists
+      // First try to delete using receiptFileName if it exists
       if (activeSession.receiptFileName) {
         const storageRef = getStorageRef(activeSession.receiptFileName);
         if (storageRef) {
@@ -196,14 +196,28 @@ export function useBills() {
             await deleteObject(storageRef);
           } catch (error: any) {
             if (error.code !== 'storage/object-not-found') {
-              console.error('Error deleting receipt image:', error);
+              console.error('Error deleting receipt image by filename:', error);
             }
           }
         }
+      } else if (activeSession.receiptImageUrl) {
+          // Fallback: try to extract the likely path from the URL
+          try {
+             const decodedUrl = decodeURIComponent(activeSession.receiptImageUrl);
+             const urlParts = decodedUrl.split('/o/');
+             if (urlParts.length > 1) {
+                 const fullPath = urlParts[1].split('?')[0]; // eg. "receipts/uid/receipt_123"
+                 if (fullPath.includes(user?.uid || '')) {
+                     const directRef = ref(storage, fullPath);
+                     await deleteObject(directRef);
+                 }
+             }
+          } catch (e) {
+              console.error("Failed to delete image via URL parsing", e);
+          }
       }
 
-      // Update the bill to remove image references using updateDoc directly
-      // (deleteField() requires updateDoc, not the typed billService.updateBill)
+      // Update the bill to remove image references
       const billRef = doc(db, 'bills', activeSession.id);
       await updateDoc(billRef, {
         receiptImageUrl: deleteField(),
@@ -219,7 +233,7 @@ export function useBills() {
         variant: 'destructive'
       });
     }
-  }, [activeSession, getStorageRef, toast]);
+  }, [activeSession, getStorageRef, toast, user]);
 
   const archiveAndStartNewSession = useCallback(async () => {
     // Just clear the active session locally if needed, or let the UI handle it.
@@ -264,11 +278,16 @@ export function useBills() {
   const deleteSession = useCallback(async (sessionId: string, receiptFileName?: string) => {
     setIsDeleting(true);
     try {
+      // Get the bill first so we can check if it has a receiptImageUrl
       const billRef = doc(db, 'bills', sessionId);
+      const billSnap = await billService.getBill(sessionId);
+
       await deleteDoc(billRef);
 
-      if (receiptFileName) {
-        const storageRef = getStorageRef(receiptFileName);
+      const fileNameToDelete = receiptFileName || billSnap?.receiptFileName;
+
+      if (fileNameToDelete) {
+        const storageRef = getStorageRef(fileNameToDelete);
         if (storageRef) {
           try {
             await deleteObject(storageRef);
@@ -278,6 +297,21 @@ export function useBills() {
             }
           }
         }
+      } else if (billSnap?.receiptImageUrl) {
+           // Fallback: try to extract the likely path from the URL
+          try {
+             const decodedUrl = decodeURIComponent(billSnap.receiptImageUrl);
+             const urlParts = decodedUrl.split('/o/');
+             if (urlParts.length > 1) {
+                 const fullPath = urlParts[1].split('?')[0]; // eg. "receipts/uid/receipt_123"
+                 if (fullPath.includes(user?.uid || '')) {
+                     const directRef = ref(storage, fullPath);
+                     await deleteObject(directRef);
+                 }
+             }
+          } catch (e) {
+              console.error("Failed to delete image via URL parsing", e);
+          }
       }
 
       toast({ title: 'Success', description: 'Session deleted.' });
@@ -291,7 +325,7 @@ export function useBills() {
     } finally {
       setIsDeleting(false);
     }
-  }, [getStorageRef, toast]);
+  }, [getStorageRef, toast, user]);
 
   const resumeSession = useCallback(async (sessionId: string, silentLoad = false) => {
     setIsResuming(true);

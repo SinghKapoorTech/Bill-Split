@@ -34,6 +34,7 @@ export default function AIScanView() {
     resumeSession,
     saveSession,
     removeReceiptImage,
+    deleteSession,
   } = useBillContext();
 
   // Local state for wizard initialization
@@ -210,6 +211,7 @@ export default function AIScanView() {
         uploadReceiptImage={uploadReceiptImage}
         saveSession={saveSession}
         removeReceiptImage={removeReceiptImage}
+        deleteSession={deleteSession}
         initialBillData={billData}
         initialPeople={people}
         initialItemAssignments={itemAssignments}

@@ -66,9 +66,9 @@ graph TB
 ```
 firestore/
 ├── users/{userId}              # User profiles and preferences
-├── bills/{billId}              # All bills (private & group)
-├── groups/{groupId}            # Group definitions
-├── groupInvitations/{inviteId} # Pending group invitations
+├── bills/{billId}              # All bills (private & event)
+├── events/{eventId}            # Event definitions
+├── eventInvitations/{inviteId} # Pending event invitations
 └── receiptAnalysisCache/{id}   # AI analysis cache (optional)
 ```
 
@@ -122,26 +122,28 @@ storage/
 
 ---
 
-### 2. Group Bills
+### 2. Event Bills
 
-**Purpose**: Shared expenses within a defined group of users
+**Purpose**: Shared expenses within a defined event of users
 
 **Characteristics**:
-- Created within a group context
-- All group members can access
-- All members have equal permissions
+- Created within an event context
+- All event members can access
+- All members can edit (add items, assign, modify tax/tip)
+- Only the bill creator (owner) can delete the bill
 - Never expires
 - Any member can generate share links
 
 **Access Control**:
-- **Group Members**: Full access (read, write)
-- **Group Owner**: Can delete group (which archives all bills)
+- **Event Members**: Full edit access (read, write)
+- **Bill Owner**: Can delete the specific bill
+- **Event Owner**: Can delete event (which archives all associated bills)
 - **Non-Members**: No access (unless via share link)
 
 **Use Cases**:
 - Roommate expenses
 - Club/organization bills
-- Regular group activities
+- Regular event activities
 
 ---
 
@@ -157,7 +159,7 @@ storage/
 
 **Who Can Create Share Links**:
 - **Private Bills**: Owner only
-- **Group Bills**: Any group member
+- **Event Bills**: Any event member
 
 **Share Link Lifecycle**:
 1. Owner/member generates share link → creates 6-character code
@@ -276,9 +278,9 @@ users/{userId}
 ```
 bills/{billId}
 ├── id: string                  # Auto-generated ID
-├── billType: enum              # 'private' | 'group'
+├── billType: enum              # 'private' | 'event'
 ├── ownerId: string             # Creator's user ID
-├── groupId: string             # If billType === 'group'
+├── eventId: string             # If billType === 'event'
 │
 ├── billData: object            # Bill details
 │   ├── items: Array
@@ -319,12 +321,12 @@ bills/{billId}
 
 ---
 
-### Group Document
+### Event Document
 
 ```
-groups/{groupId}
+events/{eventId}
 ├── id: string                  # Auto-generated ID
-├── name: string                # Group name
+├── name: string                # Event name
 ├── description: string         # Optional description
 ├── ownerId: string             # Creator's user ID
 ├── memberIds: Array<string>    # Array of user IDs
@@ -335,12 +337,12 @@ groups/{groupId}
 
 ---
 
-### Group Invitation Document
+### Event Invitation Document
 
 ```
-groupInvitations/{invitationId}
+eventInvitations/{invitationId}
 ├── id: string                  # Auto-generated ID
-├── groupId: string             # Group being invited to
+├── eventId: string             # Event being invited to
 ├── email: string               # Invitee's email
 ├── invitedBy: string           # User ID who sent invite
 ├── status: enum                # 'pending' | 'accepted' | 'declined'
@@ -402,10 +404,10 @@ sequenceDiagram
 | Resource | Owner | Group Member | Guest (Share Link) | Public |
 |----------|-------|--------------|-------------------|--------|
 | **Private Bill** | Full | None | Read + Self-Assign | None |
-| **Group Bill** | Full | Full | Read + Self-Assign | None |
+| **Event Bill** | Full | Full | Read + Self-Assign | None |
 | **User Profile** | Full | None | None | None |
-| **Group** | Full | Read + Limited Update | None | None |
-| **Receipt Image** | Full | Full (if group) | Read (if share link) | None |
+| **Event** | Full | Read + Limited Update | None | None |
+| **Receipt Image** | Full | Full (if event) | Read (if share link) | None |
 
 ### Data Validation
 

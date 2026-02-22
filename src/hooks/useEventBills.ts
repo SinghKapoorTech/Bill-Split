@@ -54,7 +54,7 @@ export function useEventBills(eventId: string) {
     const billId = await billService.createBill(
       user.uid,
       user.displayName || 'Anonymous',
-      'group',
+      'event',
       data.billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 },
       data.people || [],
       eventId

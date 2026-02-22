@@ -29,7 +29,7 @@ export const billService = {
     billType: BillType,
     billData: BillData,
     people: Person[],
-    groupId?: string,
+    eventId?: string,
     squadId?: string
   ): Promise<string> {
     const newBillRef = doc(collection(db, BILLS_COLLECTION));
@@ -47,7 +47,7 @@ export const billService = {
       billType,
       status: 'active',
       ownerId,
-      ...(groupId && { groupId }), // Only include groupId if it's defined
+      ...(eventId && { eventId }), // Only include eventId if it's defined
       ...(squadId && { squadId }), // Only include squadId if it's defined
       billData,
       itemAssignments: {},
@@ -75,6 +75,19 @@ export const billService = {
     }
 
     return billSnap.data() as Bill;
+  },
+
+  /**
+   * Gets all bills associated with an event
+   */
+  async getBillsByEvent(eventId: string): Promise<Bill[]> {
+    const q = query(
+      collection(db, BILLS_COLLECTION),
+      where('eventId', '==', eventId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as Bill);
   },
 
   /**

@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 import { Person } from './person.types';
 
-export type BillType = 'private' | 'group';
+export type BillType = 'private' | 'event';
 export type BillStatus = 'active' | 'archived';
 
 export interface BillItem {
@@ -32,7 +32,7 @@ export interface Bill {
   billType: BillType;
   status: BillStatus;
   ownerId: string;
-  eventId?: string; // If billType === 'group'
+  eventId?: string; // If billType === 'event'
   squadId?: string; // Optional squad ID
 
   billData: BillData;

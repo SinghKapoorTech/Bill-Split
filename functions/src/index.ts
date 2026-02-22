@@ -190,7 +190,7 @@ Rules:
 );
 
 /**
- * Request data for inviteMemberToGroup function
+ * Request data for inviteMemberToEvent function
  */
 interface InviteMemberRequest {
   eventId: string;
@@ -198,10 +198,10 @@ interface InviteMemberRequest {
 }
 
 /**
- * Cloud Function: Invite a member to a group by email
+ * Cloud Function: Invite a member to an event by email
  *
  * This function checks if a user with the given email exists:
- * - If yes: Adds them directly to the group's memberIds
+ * - If yes: Adds them directly to the event's memberIds
  * - If no: Adds email to pendingInvites for when they sign up
  */
 export const inviteMemberToEvent = onCall<InviteMemberRequest>(

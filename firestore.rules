@@ -72,8 +72,7 @@ service cloud.firestore {
           // Owner can always read
           request.auth.uid == resource.data.ownerId ||
           // Event members can read event bills
-          (resource.data.billType == 'group' && 
-           resource.data.eventId != null &&
+          (resource.data.eventId != null &&
            request.auth.uid in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.memberIds) ||
           // Authenticated members can read (includes guests who joined via share link)
           isBillMember(resource.data)
@@ -83,9 +82,8 @@ service cloud.firestore {
       allow create: if request.auth != null &&
                        request.resource.data.ownerId == request.auth.uid &&
                        // For event bills, user must be a member of the event
-                       (request.resource.data.billType == 'private' ||
-                        (request.resource.data.billType == 'group' &&
-                         request.resource.data.eventId != null &&
+                       (request.resource.data.eventId == null ||
+                        (request.resource.data.eventId != null &&
                          request.auth.uid in get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.memberIds));
       
       // UPDATE: 
@@ -100,8 +98,7 @@ service cloud.firestore {
           // Owner has full access
           request.auth.uid == resource.data.ownerId ||
           // Event members have full access to event bills
-          (resource.data.billType == 'group' &&
-           resource.data.eventId != null &&
+          (resource.data.eventId != null &&
            request.auth.uid in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.memberIds) ||
           // All authenticated members can update specific fields (assignments, people)
           (isBillMember(resource.data) && isGuestUpdate())

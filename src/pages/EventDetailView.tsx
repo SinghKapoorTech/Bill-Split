@@ -1,30 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Edit, Receipt, UserPlus } from 'lucide-react';
+import { ArrowLeft, Receipt, UserPlus, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
-import { PeopleManager } from '@/components/people/PeopleManager';
-import { BillItems } from '@/components/bill/BillItems';
-import { BillSummary } from '@/components/bill/BillSummary';
-import { SplitSummary } from '@/components/people/SplitSummary';
-
 import { InviteMembersDialog } from '@/components/events/InviteMembersDialog';
-import { useBillSplitter } from '@/hooks/useBillSplitter';
-import { usePeopleManager } from '@/hooks/usePeopleManager';
-import { useFileUpload } from '@/hooks/useFileUpload';
-import { useReceiptAnalyzer } from '@/hooks/useReceiptAnalyzer';
-import { useItemEditor } from '@/hooks/useItemEditor';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { TripEvent } from '@/types/event.types';
-import { Person, BillData, ItemAssignment } from '@/types';
-import { UI_TEXT, NAVIGATION } from '@/utils/uiConstants';
-import { ensureUserInPeople } from '@/utils/billCalculations';
+import { Person, Bill } from '@/types';
+import { NAVIGATION } from '@/utils/uiConstants';
 import { useAuth } from '@/contexts/AuthContext';
-import { useUserProfile } from '@/hooks/useUserProfile';
+import { useToast } from '@/hooks/use-toast';
+import { billService } from '@/services/billService';
+import { userService } from '@/services/userService';
+import MobileBillCard from '@/components/dashboard/MobileBillCard';
+import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
+import { useBillContext } from '@/contexts/BillSessionContext';
 
 // Firestore collection name
 const EVENTS_COLLECTION = 'events';
@@ -35,34 +27,14 @@ export default function EventDetailView() {
   const isMobile = useIsMobile();
   const [event, setEvent] = useState<TripEvent | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('ai-scan');
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [isCreatingBill, setIsCreatingBill] = useState(false);
+  const [eventBills, setEventBills] = useState<Bill[]>([]);
   const { user } = useAuth();
-  const { profile } = useUserProfile();
-
-  // Bill splitting state
-  const [people, setPeople] = useState<Person[]>([]);
-  const [billData, setBillData] = useState<BillData | null>(null);
-  const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
-  const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
-
-  const peopleManager = usePeopleManager(people, setPeople);
-  const bill = useBillSplitter({
-    people,
-    billData,
-    setBillData,
-    itemAssignments,
-    setItemAssignments,
-    splitEvenly,
-    setSplitEvenly,
-  });
-  const upload = useFileUpload();
-  const analyzer = useReceiptAnalyzer(setBillData, setPeople, billData);
-  const editor = useItemEditor(
-    billData,
-    setBillData,
-    bill.removeItemAssignments
-  );
+  const { toast } = useToast();
+  
+  // Need to bring in session methods to resume/delete from the list
+  const { deleteSession, resumeSession, activeSession, isDeleting, isResuming } = useBillContext();
 
   useEffect(() => {
     if (!eventId) {
@@ -96,39 +68,78 @@ export default function EventDetailView() {
       }
     );
 
+    const fetchBills = async () => {
+      try {
+        const bills = await billService.getBillsByEvent(eventId);
+        setEventBills(bills);
+      } catch (err) {
+        console.error('Failed to load event bills', err);
+      }
+    };
+
+    fetchBills();
+
     return () => unsubscribe();
   }, [eventId]);
 
-  const handleRemovePerson = (personId: string) => {
-    peopleManager.removePerson(personId);
-    bill.removePersonFromAssignments(personId);
-  };
 
-  const handleStartOver = () => {
-    setBillData(null);
-    setItemAssignments({});
-    setPeople(ensureUserInPeople([], user, profile));
-    setSplitEvenly(false);
-    if (activeTab === 'ai-scan') {
-      upload.handleRemoveImage();
+
+  const handleCreateEventBill = async () => {
+    if (!user || !event) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to create a bill',
+        variant: 'destructive'
+      });
+      return;
     }
-  };
 
-  const handleImageSelected = async (base64Image: string) => {
+    setIsCreatingBill(true);
     try {
-      upload.setImagePreview(base64Image);
-      const response = await fetch(base64Image);
-      const blob = await response.blob();
-      const file = new File([blob], 'receipt.jpg', { type: blob.type });
-      upload.setSelectedFile(file);
-    } catch (error) {
-      console.error('Error processing selected image:', error);
-    }
-  };
+      // 1. Fetch user profiles for all members
+      const memberProfiles = await Promise.all(
+        event.memberIds.map(id => userService.getUserProfile(id))
+      );
+      
+      // 2. Map to Person objects (filter out nulls just in case)
+      const mappedPeople: Person[] = memberProfiles
+        .filter(p => p !== null)
+        .map(p => ({
+          id: p!.uid,
+          name: p!.displayName || p!.username || 'User'
+        }));
 
-  const handleAnalyzeReceipt = async () => {
-    if (!upload.imagePreview || !upload.selectedFile) return;
-    await analyzer.analyzeReceipt(upload.selectedFile, upload.imagePreview);
+      // 3. Create default empty bill data
+      const defaultBillData = {
+        items: [],
+        subtotal: 0,
+        tax: 0,
+        tip: 0,
+        total: 0
+      };
+
+      // 4. Create the bill with 'event' type and pass eventId
+      const billId = await billService.createBill(
+        user.uid,
+        user.displayName || 'Anonymous',
+        'event',
+        defaultBillData,
+        mappedPeople,
+        event.id
+      );
+
+      // 5. Navigate to the new bill session
+      navigate(`/bill/${billId}`);
+    } catch (error: any) {
+      console.error('Error creating event bill:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to create bill. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsCreatingBill(false);
+    }
   };
 
   if (loading) {
@@ -165,10 +176,24 @@ export default function EventDetailView() {
               <p className="text-lg text-muted-foreground">{event.description}</p>
             )}
           </div>
-          <Button onClick={() => setInviteDialogOpen(true)} className="gap-2 shrink-0">
-            <UserPlus className="w-4 h-4" />
-            Invite Members
-          </Button>
+          <div className="flex flex-col sm:flex-row items-center gap-2 shrink-0">
+            <Button onClick={() => setInviteDialogOpen(true)} variant="outline" className="gap-2 w-full sm:w-auto">
+              <UserPlus className="w-4 h-4" />
+              Invite Members
+            </Button>
+            <Button 
+              onClick={handleCreateEventBill} 
+              disabled={isCreatingBill}
+              className="gap-2 w-full sm:w-auto"
+            >
+              {isCreatingBill ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+              Add Bill
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -178,206 +203,77 @@ export default function EventDetailView() {
         event={event}
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="ai-scan" className="gap-2">
-            <Upload className="w-4 h-4" />
-            {NAVIGATION.AI_SCAN}
-          </TabsTrigger>
-          <TabsTrigger value="manual" className="gap-2">
-            <Edit className="w-4 h-4" />
-            Manual Entry
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="ai-scan" className="space-y-6">
-          {billData && (
-            <div className="flex justify-end">
-              <button
-                onClick={handleStartOver}
-                className="text-sm text-muted-foreground hover:text-foreground underline"
-              >
-{UI_TEXT.START_OVER}
-              </button>
-            </div>
-          )}
-
-          <ReceiptUploader
-            selectedFile={upload.selectedFile}
-            imagePreview={upload.imagePreview}
-            isDragging={upload.isDragging}
-            isAnalyzing={analyzer.isAnalyzing}
-            isUploading={false}
-            onFileInput={upload.handleFileInput}
-            onDragOver={upload.handleDragOver}
-            onDragLeave={upload.handleDragLeave}
-            onDrop={upload.handleDrop}
-            onRemove={upload.handleRemoveImage}
-            onAnalyze={handleAnalyzeReceipt}
-            onImageSelected={handleImageSelected}
-            fileInputRef={upload.fileInputRef}
-          />
-
-          {billData && (
-            <div className="space-y-6">
-              <PeopleManager
-                people={people}
-                newPersonName={peopleManager.newPersonName}
-                newPersonVenmoId={peopleManager.newPersonVenmoId}
-                onNameChange={peopleManager.setNewPersonName}
-                onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                onAdd={peopleManager.addPerson}
-                onAddFromFriend={peopleManager.addFromFriend}
-                onRemove={handleRemovePerson}
-                onUpdate={async () => {}}
-                onSaveAsFriend={peopleManager.savePersonAsFriend}
-                setPeople={setPeople}
-              />
-
-              <Card className="p-4 md:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Receipt className="w-5 h-5 text-primary" />
-                    <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
-                  </div>
-                </div>
-
-                <BillItems
-                  billData={billData}
-                  people={people}
-                  itemAssignments={itemAssignments}
-                  editingItemId={editor.editingItemId}
-                  editingItemName={editor.editingItemName}
-                  editingItemPrice={editor.editingItemPrice}
-                  onAssign={bill.handleItemAssignment}
-                  onEdit={editor.editItem}
-                  onSave={editor.saveEdit}
-                  onCancel={editor.cancelEdit}
-                  onDelete={editor.deleteItem}
-                  setEditingName={editor.setEditingItemName}
-                  setEditingPrice={editor.setEditingItemPrice}
-                  isAdding={editor.isAdding}
-                  newItemName={editor.newItemName}
-                  newItemPrice={editor.newItemPrice}
-                  setNewItemName={editor.setNewItemName}
-                  setNewItemPrice={editor.setNewItemPrice}
-                  onStartAdding={editor.startAdding}
-                  onAddItem={editor.addItem}
-                  onCancelAdding={editor.cancelAdding}
-                  splitEvenly={splitEvenly}
-                  onToggleSplitEvenly={bill.toggleSplitEvenly}
-                />
-
-                {people.length === 0 && !isMobile && billData && (
-                  <p className="text-sm text-muted-foreground text-center py-4 mt-4">
-{UI_TEXT.ADD_PEOPLE_TO_ASSIGN}
-                  </p>
-                )}
-
-                <BillSummary
-                  billData={billData}
-                  onUpdate={(updates) => setBillData({ ...billData, ...updates })}
-                />
-              </Card>
-
-              <SplitSummary
-                personTotals={bill.personTotals}
-                allItemsAssigned={bill.allItemsAssigned}
-                people={people}
-                billData={billData}
-                itemAssignments={itemAssignments}
-              />
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="manual" className="space-y-6">
-          {billData && (
-            <div className="flex justify-end">
-              <button
-                onClick={handleStartOver}
-                className="text-sm text-muted-foreground hover:text-foreground underline"
-              >
-{UI_TEXT.START_OVER}
-              </button>
-            </div>
-          )}
-
-          <div className="space-y-6">
-            <PeopleManager
-              people={people}
-              newPersonName={peopleManager.newPersonName}
-              newPersonVenmoId={peopleManager.newPersonVenmoId}
-              onNameChange={peopleManager.setNewPersonName}
-              onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-              onAdd={peopleManager.addPerson}
-              onAddFromFriend={peopleManager.addFromFriend}
-              onRemove={handleRemovePerson}
-              onUpdate={async () => {}}
-              onSaveAsFriend={peopleManager.savePersonAsFriend}
-              setPeople={setPeople}
-            />
-
-            <Card className="p-4 md:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                <div className="flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-primary" />
-                  <h3 className="text-xl font-semibold">Bill Items</h3>
-                </div>
+      <div className="space-y-6">
+        {eventBills.length === 0 ? (
+          <Card className="p-12">
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+                <Receipt className="w-8 h-8 text-muted-foreground" />
               </div>
-
-              <BillItems
-                billData={billData}
-                people={people}
-                itemAssignments={itemAssignments}
-                editingItemId={editor.editingItemId}
-                editingItemName={editor.editingItemName}
-                editingItemPrice={editor.editingItemPrice}
-                onAssign={bill.handleItemAssignment}
-                onEdit={editor.editItem}
-                onSave={editor.saveEdit}
-                onCancel={editor.cancelEdit}
-                onDelete={editor.deleteItem}
-                setEditingName={editor.setEditingItemName}
-                setEditingPrice={editor.setEditingItemPrice}
-                isAdding={editor.isAdding}
-                newItemName={editor.newItemName}
-                newItemPrice={editor.newItemPrice}
-                setNewItemName={editor.setNewItemName}
-                setNewItemPrice={editor.setNewItemPrice}
-                onStartAdding={editor.startAdding}
-                onAddItem={editor.addItem}
-                onCancelAdding={editor.cancelAdding}
-                splitEvenly={splitEvenly}
-                onToggleSplitEvenly={bill.toggleSplitEvenly}
-              />
-
-              {people.length === 0 && !isMobile && billData && (
-                <p className="text-sm text-muted-foreground text-center py-4 mt-4">
-                  Add people above to assign items
-                </p>
-              )}
-
-              {billData && (
-                <BillSummary
-                  billData={billData}
-                  onUpdate={(updates) => setBillData({ ...billData, ...updates })}
+              <h3 className="text-lg font-medium mb-2">No bills yet</h3>
+              <p className="text-sm text-muted-foreground mb-6">
+                Click 'Add Bill' to create the first bill for this event.
+              </p>
+              <Button onClick={handleCreateEventBill} disabled={isCreatingBill} className="gap-2" variant="outline">
+                {isCreatingBill ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Add Bill
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          <>
+            {/* Mobile List View */}
+            <div className="block md:hidden divide-y divide-border rounded-lg border bg-card">
+              {eventBills.map((b) => (
+                <MobileBillCard
+                  key={b.id}
+                  bill={b}
+                  isLatest={b.id === activeSession?.id}
+                  onView={(id) => navigate(`/bill/${id}`)}
+                  onResume={async (id) => {
+                    await resumeSession(id);
+                    navigate(`/bill/${id}`);
+                  }}
+                  onDelete={(bill) => deleteSession(bill.id, bill.receiptFileName)}
+                  isResuming={isResuming}
+                  isDeleting={isDeleting}
+                  formatDate={(timestamp) => {
+                     if (!timestamp) return 'Unknown date';
+                     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                  }}
+                  getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
                 />
-              )}
-            </Card>
+              ))}
+            </div>
 
-            {billData && (
-              <SplitSummary
-                personTotals={bill.personTotals}
-                allItemsAssigned={bill.allItemsAssigned}
-                people={people}
-                billData={billData}
-                itemAssignments={itemAssignments}
-              />
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
+            {/* Desktop Grid View */}
+            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {eventBills.map((b) => (
+                <DesktopBillCard
+                  key={b.id}
+                  bill={b}
+                  isLatest={b.id === activeSession?.id}
+                  onView={(id) => navigate(`/bill/${id}`)}
+                  onResume={async (id) => {
+                    await resumeSession(id);
+                    navigate(`/bill/${id}`);
+                  }}
+                  onDelete={(bill) => deleteSession(bill.id, bill.receiptFileName)}
+                  isResuming={isResuming}
+                  isDeleting={isDeleting}
+                  formatDate={(timestamp) => {
+                     if (!timestamp) return 'Unknown date';
+                     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                  }}
+                  getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </>
   );
 }
