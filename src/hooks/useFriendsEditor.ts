@@ -104,12 +104,6 @@ export function useFriendsEditor() {
     setNewFriendVenmoId('');
     setShowSuggestions(false);
     await updateFriends(updatedFriends);
-
-    // After adding, pull any historical balances they might have had
-    if (profile?.uid && suggestion.id) {
-       friendBalanceService.recalculateSingleFriendBalance(profile.uid, suggestion.id)
-         .catch(err => console.error("Failed to fetch historical balance for new friend", err));
-    }
   };
 
   const handleAddFriend = async () => {
@@ -151,12 +145,6 @@ export function useFriendsEditor() {
       setNewFriendVenmoId('');
       setShowSuggestions(false);
       await updateFriends(updatedFriends);
-
-      // After adding, pull any historical balances they might have had
-      if (profile?.uid && userId) {
-         friendBalanceService.recalculateSingleFriendBalance(profile.uid, userId)
-           .catch(err => console.error("Failed to fetch historical balance for new friend", err));
-      }
     } catch (error: any) {
       toast({
         title: 'Error adding friend',

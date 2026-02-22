@@ -127,18 +127,6 @@ export const friendBalanceService = {
     // ── Step 5: Save processed balances on the bill ──────────────────────────
     // Note: no write-back to user.friends[] needed — balances live in friend_balances.
     // The UI reads balances via getHydratedFriends() which queries friend_balances directly.
-    await updateDoc(billRef, { processedBalances: newProcessedBalances });
-  },
-
-  /**
-   * Fetches a single friend's balance from friend_balances.
-   * Called after adding a new friend to pull any pre-existing balance.
-   */
-  async recalculateSingleFriendBalance(userId: string, friendId: string): Promise<void> {
-    // This function is a no-op now that getHydratedFriends reads from friend_balances directly.
-    // Kept for backwards compatibility with call sites in useFriendsEditor.
-    // The next call to getHydratedFriends will automatically reflect the latest balance.
-    return;
   },
 
   /**

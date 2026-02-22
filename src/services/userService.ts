@@ -218,16 +218,6 @@ export const userService = {
   },
 
   /**
-   * Calculates the balance between two users by traversing their shared bills.
-   * Positive means friendId owes userId. Negative means userId owes friendId.
-   */
-  async calculateFriendBalance(userId: string, friendId: string): Promise<number> {
-    // Stub implementation: later we will query 'bills' where both users participate
-    // and sum up who owes whom.
-    return 0; // Defaulting to $0 for now as requested.
-  },
-
-  /**
    * Creates a shadow user for an invited member
    */
   async createShadowUser(contact: string, name?: string): Promise<string> {
