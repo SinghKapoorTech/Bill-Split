@@ -11,15 +11,21 @@ export function FriendBalancePreviewCard() {
   const previewFriends = friends.slice(0, 5);
 
   return (
-    <Card className="p-4 md:p-6 h-full flex flex-col">
+    <div className="flex flex-col h-full w-full">
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Users className="w-5 h-5 text-primary" />
-          <h2 className="text-xl font-semibold">Friend Balances</h2>
+        <div>
+          <h2 className="text-2xl font-semibold flex items-center gap-2">
+            <Users className="w-6 h-6" />
+            Friend Balances
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Keep track of who owes who
+          </p>
         </div>
       </div>
 
-      <div className="flex-1 space-y-3 mb-4">
+      <Card className="p-4 md:p-6 flex-1 flex flex-col">
+        <div className="flex-1 space-y-1 mb-4">
         {isLoadingFriends ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             Loading friends...
@@ -73,6 +79,7 @@ export function FriendBalancePreviewCard() {
         <span>Manage Friends</span>
         <ChevronRight className="w-4 h-4 ml-1" />
       </Button>
-    </Card>
+      </Card>
+    </div>
   );
 }

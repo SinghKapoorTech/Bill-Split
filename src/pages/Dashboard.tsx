@@ -188,31 +188,14 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* New Bill Button */}
-      <div className="mb-8">
-        <Button
-          onClick={handleNewBill}
-          disabled={isCreatingBill}
-          size="lg"
-          className="gap-2 w-full md:w-auto"
-        >
-          {isCreatingBill ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Creating...
-            </>
-          ) : (
-            <>
-              <Plus className="w-5 h-5" />
-              Create New Bill
-            </>
-          )}
-        </Button>
-      </div>
+      <div className="flex flex-col gap-10">
+        {/* Top Section: Friend Balances */}
+        <div>
+           <FriendBalancePreviewCard />
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Left Column: My Bills */}
-        <div className="lg:col-span-3">
+        {/* Bottom Section: My Bills */}
+        <div>
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-2xl font-semibold flex items-center gap-2">
@@ -263,7 +246,7 @@ export default function Dashboard() {
               </div>
 
               {/* Desktop Grid View - card layout */}
-              <div className="hidden md:grid md:grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {allBills.map((bill) => (
                   <DesktopBillCard
                     key={bill.id}
@@ -284,10 +267,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Right Column: Friend Balances */}
-        <div className="lg:col-span-1">
-           <FriendBalancePreviewCard />
-        </div>
       </div>
 
 

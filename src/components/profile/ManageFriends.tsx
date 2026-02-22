@@ -196,7 +196,7 @@ export function ManageFriends({ open, onOpenChange }: Props) {
           </div>
 
           {/* Friends List */}
-          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+          <div className="space-y-1 max-h-[400px] overflow-y-auto">
             {isLoadingFriends ? (
                <p className="text-sm text-muted-foreground text-center py-8 border border-dashed rounded-lg">
                  Loading friends...
