@@ -582,6 +582,7 @@ export function BillWizard({
                     onNext={wizard.handleNextStep}
                     onComplete={handleDone}
                     onExit={handleDone}
+                    exitLabel={activeSession?.eventId ? 'Event' : 'Dashboard'}
                     nextDisabled={!wizard.canProceedFromStep(wizard.currentStep)}
                     hasBillData={hasBillData}
                     onShare={onShare}
