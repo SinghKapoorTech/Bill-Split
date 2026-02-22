@@ -62,8 +62,11 @@ service cloud.firestore {
       }
 
       function hasEventIdAndMember(data) {
-        return 'eventId' in data && data.eventId != null &&
-               request.auth.uid in get(/databases/$(database)/documents/events/$(data.eventId)).data.memberIds;
+        // Safe check for eventId existence and mapping
+        let eId = 'eventId' in data ? data.eventId : ('eventId' in resource.data ? resource.data.eventId : null);
+        return eId != null &&
+               exists(/databases/$(database)/documents/events/$(eId)) &&
+               request.auth.uid in get(/databases/$(database)/documents/events/$(eId)).data.memberIds;
       }
       
       // READ: 
