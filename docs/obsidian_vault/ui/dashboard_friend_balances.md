@@ -25,11 +25,12 @@ Because `useUserProfile` uses a Firestore `onSnapshot` real-time listener, this 
 
 Each friend with a non-zero balance is shown as a row:
 
-| State | Display |
-|-------|---------|
+| State           | Display                                                       |
+| --------------- | ------------------------------------------------------------- |
 | Friend owes you | Friend's name + **"Owes you"** in black + amount in **green** |
-| You owe friend  | Friend's name + **"You owe"** in black + amount in **red** |
-| Settled (zero)  | Friend's name + **"Settled"** in muted text |
+| You owe friend  | Friend's name + **"You owe"** in black + amount in **red**    |
+| Settled (zero)  | Friend's name + **"Settled"** in muted text                   |
+|                 |                                                               |
 
 Friends with a zero balance may be shown or hidden depending on the display configuration.
 

@@ -165,13 +165,8 @@ export function PeopleManager({
     if (!user) return;
 
     try {
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        setFriends(data.friends || []);
-      }
+      const hydratedFriends = await userService.getHydratedFriends(user.uid, false);
+      setFriends(hydratedFriends);
     } catch (error) {
       console.error('Error loading friends:', error);
     }
@@ -205,9 +200,13 @@ export function PeopleManager({
     setPeople([...people, ...uniqueNewPeople]);
   };
 
-  const isPersonInFriends = (personName: string): boolean => {
-    if (!personName) return false;
-    return friends.some(friend => friend?.name?.toLowerCase() === personName.toLowerCase());
+  const isPersonInFriends = (person: Person): boolean => {
+    if (!person) return false;
+    return friends.some(friend => {
+      if (person.id && friend.id && person.id === friend.id) return true;
+      if (friend.name && person.name && friend.name.toLowerCase() === person.name.toLowerCase()) return true;
+      return false;
+    });
   };
 
   const handleSaveAsFriend = async (person: Person) => {
@@ -265,7 +264,7 @@ export function PeopleManager({
                   key={person.id}
                   person={person}
                   isCurrentUser={!!isCurrentUser}
-                  isInFriends={isPersonInFriends(person.name)}
+                  isInFriends={isPersonInFriends(person)}
                   onRemove={onRemove}
                   onUpdate={onUpdate}
                   onSaveAsFriend={handleSaveAsFriend}

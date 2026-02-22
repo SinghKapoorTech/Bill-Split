@@ -5,8 +5,10 @@ import { Person } from '@/types';
 import { useToast } from './use-toast';
 import { generatePersonId, generateUserId, ensureUserInPeople } from '@/utils/billCalculations';
 import { validatePersonInput } from '@/utils/validation';
-import { saveFriendToFirestore, createPersonObject } from '@/utils/firestore';
+import { createPersonObject } from '@/utils/firestore';
 import { userService } from '@/services/userService';
+import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 
 /**
  * Hook for managing people on a bill
@@ -161,23 +163,35 @@ export function usePeopleManager(
       return;
     }
 
-    const personData = {
-      name: person.name,
-      venmoId: person.venmoId,
-    };
+    try {
+      let friendId = person.id;
+      
+      // If it's a manually created person during the bill session
+      if (friendId.startsWith('person-')) {
+        // Create a shadow user to obtain a real UID for the friends array
+        friendId = await userService.createShadowUser(person.name, person.name);
+      }
 
-    const result = await saveFriendToFirestore(user.uid, personData);
+      // If they have a Venmo ID, ensure the friend's profile is updated
+      if (person.venmoId) {
+        const cleanVenmoId = person.venmoId.replace(/^@+/, '').trim();
+        await updateDoc(doc(db, 'users', friendId), { venmoId: cleanVenmoId });
+      }
 
-    if (result.success) {
+      // Append Friend ID to the user's friends list
+      await updateDoc(doc(db, 'users', user.uid), {
+        friends: arrayUnion(friendId)
+      });
+
       toast({
         title: 'Saved to friends',
         description: `${person.name} has been saved to your friends list.`,
         duration: 1000,
       });
-    } else if (result.error) {
+    } catch (error: any) {
       toast({
-        title: result.error.title,
-        description: result.error.description,
+        title: 'Error saving friend',
+        description: error.message || 'Could not save to friends list.',
         variant: 'destructive',
       });
     }

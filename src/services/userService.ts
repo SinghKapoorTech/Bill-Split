@@ -172,9 +172,9 @@ export const userService = {
 
   /**
    * Gets a user's friends with full profiles hydrated.
-   * Reads balances directly from the `friend_balances` collection (source of truth).
+   * Reads balances directly from the `friend_balances` collection (source of truth) if includeBalances is true.
    */
-  async getHydratedFriends(userId: string): Promise<Friend[]> {
+  async getHydratedFriends(userId: string, includeBalances: boolean = true): Promise<Friend[]> {
     const userProfile = await this.getUserProfile(userId);
     if (!userProfile || !userProfile.friends || userProfile.friends.length === 0) return [];
 
@@ -183,20 +183,23 @@ export const userService = {
       .map(f => typeof f === 'string' ? f : (f.userId || f.id))
       .filter(Boolean);
 
-    // Fetch all balance documents for this user in one query
-    const balancesRef = collection(db, 'friend_balances');
-    const balanceSnap = await getDocs(query(balancesRef, where('participants', 'array-contains', userId)));
-
-    // Build a quick lookup: friendId -> balance (positive = they owe you)
     const balanceMap: Record<string, number> = {};
-    balanceSnap.docs.forEach(docSnap => {
-      const data = docSnap.data();
-      const participants: string[] = data.participants || [];
-      const friendId = participants.find(p => p !== userId);
-      if (friendId && data.balances?.[userId] !== undefined) {
-        balanceMap[friendId] = data.balances[userId];
-      }
-    });
+    
+    if (includeBalances) {
+      // Fetch all balance documents for this user in one query
+      const balancesRef = collection(db, 'friend_balances');
+      const balanceSnap = await getDocs(query(balancesRef, where('participants', 'array-contains', userId)));
+
+      // Build a quick lookup: friendId -> balance (positive = they owe you)
+      balanceSnap.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        const participants: string[] = data.participants || [];
+        const friendId = participants.find(p => p !== userId);
+        if (friendId && data.balances?.[userId] !== undefined) {
+          balanceMap[friendId] = data.balances[userId];
+        }
+      });
+    }
 
     const hydratedFriends: Friend[] = [];
     for (const friendId of friendIds) {
@@ -209,7 +212,7 @@ export const userService = {
           email: friendProfile.email,
           username: friendProfile.username,
           venmoId: friendProfile.venmoId,
-          balance: balanceMap[friendId] ?? 0,
+          balance: includeBalances ? (balanceMap[friendId] ?? 0) : 0,
         });
       }
     }

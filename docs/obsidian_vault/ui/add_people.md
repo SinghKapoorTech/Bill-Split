@@ -40,7 +40,7 @@ Below the buttons, the active list of selected people is rendered using `PersonC
 ### Method 2: The "Friends" Dialog
 *Handled by `AddFromFriendsDialog.tsx`*
 - **Purpose**: Quick access to frequently split-with people.
-- **Data Source**: Fetches the `friends` array directly from the current user's Firestore document.
+- **Data Source**: Fetches hydrated friend profiles via `userService.getHydratedFriends(user.uid, false)`. This retrieves the user's saved friend IDs and joins them with their full user profiles from the `users` collection. It intentionally skips fetching outstanding balances from the `friend_balances` collection to keep the UI snappy.
 - **UI**: Presents a clean list of saved friends. Each row has the friend's name, Venmo handle, and an "Add" button. If the user has no friends saved, it provides an empty state encouraging them to save people.
 
 ### Method 3: The "Squads" Dialog
@@ -56,5 +56,7 @@ Below the buttons, the active list of selected people is rendered using `PersonC
 
 Once people are added to the list:
 - **`PersonCard.tsx`**: Each person is displayed in a card. The current user is highlighted as "You". Users can click to edit details, remove them, or click "Save as Friend" if they aren't already in the friends list.
+  - **Friend Status**: The app correctly identifies if an added person is already a friend by matching their User ID or name against the user's hydrated friend list, displaying a highlighted Heart icon.
+  - **Shadow Users**: When saving a manually added guest as a friend, `usePeopleManager.ts` leverages `userService.createShadowUser` to generate a real User ID for them in the database before saving them to the user's `friends` array.
 - **`SaveAsSquadButton.tsx`**: Located at the bottom of the list. If multiple people are present, this convenient button allows the user to take the current lineup and instantly save it as a new reusable Squad.
 - **Deduplication**: The system ensures (via ID checking) that the same person/friend/squad member isn't added twice. The logged-in user is always guaranteed to be on the bill.

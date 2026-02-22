@@ -9,12 +9,14 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { userService } from '@/services/userService';
 
 interface Friend {
+  id?: string;
   name: string;
   venmoId?: string;
+  email?: string;
+  username?: string;
 }
 
 interface Props {
@@ -39,13 +41,8 @@ export function AddFromFriendsDialog({ open, onOpenChange, onAddPerson }: Props)
 
     setLoading(true);
     try {
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        setFriends(data.friends || []);
-      }
+      const hydratedFriends = await userService.getHydratedFriends(user.uid, false);
+      setFriends(hydratedFriends);
     } catch (error) {
       console.error('Error loading friends:', error);
     } finally {
@@ -94,11 +91,6 @@ export function AddFromFriendsDialog({ open, onOpenChange, onAddPerson }: Props)
                 >
                   <div>
                     <p className="font-medium">{friend.name}</p>
-                    {friend.venmoId && (
-                      <p className="text-xs text-muted-foreground">
-                        @{friend.venmoId}
-                      </p>
-                    )}
                   </div>
                   <Button
                     size="sm"
