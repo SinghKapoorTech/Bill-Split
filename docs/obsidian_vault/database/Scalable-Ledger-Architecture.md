@@ -59,8 +59,25 @@ When you edit a bill, the engine:
 ### 3. Global "Settle Up"
 **Scenario:** You and a friend decide to settle your entire global balance or event balance.
 **Behavior:**
-- The app creates a `Settlement` document (a new collection).
-- This triggers the exact same Idempotent Delta engine, treating the settlement as a simple negative transaction footprint.
+- The app logs a historical `Settlement` document (a receipt of the payment).
+- Wait, does it just do a blind delta? No! We implemented **Cascading Settlements**.
+- The `billService` queries your oldest unsettled bills where you owe that specific friend.
+- It calculates the exact amount you owe on each bill, and deducts it from your payment amount until it runs out.
+- For each fully-covered bill, it pushes your `personId` into the `settledPersonIds` array. 
+- Because marking a bill as settled triggers the same Delta Engine (bringing your debt on that bill to $0), it automatically zeroes out the global ledger balance safely.
+- Any remaining partial payment left over is then applied mathematically to the ledger using an idempotent deduction.
+
+---
+
+## Architectural Challenges & Fixes
+
+### 1. The Firestore Read-After-Write Trap
+**The Problem:** Firestore strictly mandates that within an atomic `runTransaction` block, **all** document reads (`transaction.get`) must execute before **any** document writes (`transaction.set` or `update`). If we looped through 5 friends on a bill and tried to read Friend A, update Friend A, then read Friend B... Firestore would instantly crash.
+**The Fix:** Our Delta Engine groups these phases strictly. Phase 1 iterates through all involved friends and banks the `get()` promises. Phase 2 unrolls the collected delta math and executes all the `set()` writes safely.
+
+### 2. The Deletion Race Condition
+**The Problem:** If a user deletes a bill, the frontend would call the Delta Engine to reverse the bill's footprint on the ledger, and then instantly call `deleteDoc` to wipe the bill itself. Because Firestore transactions retry under contention, the Delta Engine might spin up a fraction of a second *after* `deleteDoc` finished. The Delta Engine would try to read the bill to see what its old footprint was, but the bill would already be gone, causing a silent failure where the ledger was never updated.
+**The Fix:** The frontend explicitly reads the bill's `processedBalances` footprint *before* triggering deletion, and passes it directly to the Delta Engine as `providedPreviousBalances`. The Delta Engine skips the document read entirely and safely executes the reversal regardless of when `deleteDoc` executes.
 
 ---
 
