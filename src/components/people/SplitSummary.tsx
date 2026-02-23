@@ -18,15 +18,18 @@ interface Props {
   billData: BillData;
   itemAssignments: ItemAssignment;
   billName?: string;
+  settledPersonIds?: string[];
+  onMarkAsSettled?: (personId: string, isSettled: boolean) => void;
 }
 
-export function SplitSummary({ personTotals, allItemsAssigned, people, billData, itemAssignments, billName = 'Divit' }: Props) {
+export function SplitSummary({ personTotals, allItemsAssigned, people, billData, itemAssignments, billName = 'Divit', settledPersonIds = [], onMarkAsSettled }: Props) {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { toast } = useToast();
   const [chargeDialogOpen, setChargeDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [currentCharge, setCurrentCharge] = useState<VenmoCharge | null>(null);
+  const [isSettling, setIsSettling] = useState<Record<string, boolean>>({});
 
   // Get abbreviated display names
   const displayNames = useMemo(() => getAbbreviatedNames(people), [people]);
@@ -120,9 +123,19 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
           {personTotals.map((pt) => (
             <div
               key={pt.personId}
-              className="p-3 md:p-4 bg-secondary/30 rounded-lg border border-primary/10"
+              className={`p-3 md:p-4 bg-secondary/30 rounded-lg border transition-colors ${settledPersonIds.includes(pt.personId) ? 'border-green-500/50 dark:border-green-500/30 bg-green-50/10 dark:bg-green-900/5' : 'border-primary/10'}`}
             >
-              <div className="font-semibold text-base md:text-lg mb-2 md:mb-3">{displayNames[pt.personId] || pt.name}</div>
+              <div className="font-semibold text-base md:text-lg mb-2 md:mb-3 flex justify-between items-center">
+                <span>{displayNames[pt.personId] || pt.name}</span>
+                {settledPersonIds.includes(pt.personId) && (
+                  <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-500/10 px-2 py-0.5 rounded flex items-center gap-1">
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                    Settled
+                  </span>
+                )}
+              </div>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Items:</span>
@@ -142,20 +155,61 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                 </div>
               </div>
 
-              {user && !isCurrentUser(pt) && (() => {
+              {user && (() => {
                 const person = people.find(p => p.id === pt.personId);
+                const isSettled = settledPersonIds.includes(pt.personId);
+                const isMe = isCurrentUser(pt);
+
                 return (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full mt-3 gap-2"
-                    onClick={() => handleChargeOnVenmo(pt, person?.venmoId)}
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z" />
-                    </svg>
-                    {UI_TEXT.CHARGE_ON_VENMO}
-                  </Button>
+                  <div className="mt-3 space-y-2">
+                    {!isSettled && !isMe && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-2"
+                        onClick={() => handleChargeOnVenmo(pt, person?.venmoId)}
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z" />
+                        </svg>
+                        {UI_TEXT.CHARGE_ON_VENMO}
+                      </Button>
+                    )}
+
+                    {onMarkAsSettled && (
+                      <Button
+                        variant={isSettled ? "outline" : "ghost"}
+                        size="sm"
+                        className={`w-full gap-2 ${isSettled ? 'text-green-600 dark:text-green-400 border-green-500/20 hover:bg-green-500/10 hover:text-green-700' : 'text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10'}`}
+                        disabled={isSettling[pt.personId]}
+                        onClick={async () => {
+                          setIsSettling(prev => ({ ...prev, [pt.personId]: true }));
+                          try {
+                            await onMarkAsSettled(pt.personId, !isSettled);
+                          } finally {
+                            setIsSettling(prev => ({ ...prev, [pt.personId]: false }));
+                          }
+                        }}
+                      >
+                        {isSettled ? (
+                          <>
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M18 6 6 18" />
+                              <path d="m6 6 12 12" />
+                            </svg>
+                            Undo Settled
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 6 9 17l-5-5" />
+                            </svg>
+                            Mark as Settled
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 );
               })()}
             </div>

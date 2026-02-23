@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { arrayUnion } from 'firebase/firestore'; 
+import { arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
 import { PeopleManager } from '@/components/people/PeopleManager';
 import { BillItems } from '@/components/bill/BillItems';
@@ -28,6 +28,9 @@ import { Button } from '@/components/ui/button';
 import { ensureUserInPeople } from '@/utils/billCalculations';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useToast } from '@/hooks/use-toast';
+import { friendBalanceService } from '@/services/friendBalanceService';
+import { eventLedgerService } from '@/services/eventLedgerService';
 
 export default function CollaborativeSessionView() {
   const isMobile = useIsMobile();
@@ -94,13 +97,13 @@ export default function CollaborativeSessionView() {
         billData,
         splitEvenly,
       };
-      
+
       // If split evenly is active, assignments are deterministic (all people)
       // so we can safely auto-save them without worrying about race conditions.
       if (splitEvenly) {
         updates.itemAssignments = itemAssignments;
       }
-      
+
       updateSession(updates);
     }, 1500);
 
@@ -124,12 +127,12 @@ export default function CollaborativeSessionView() {
   const handleClaimItem = (itemId: string, personId: string, claimed: boolean) => {
     // 1. Optimistic update (for UI responsiveness)
     bill.handleItemAssignment(itemId, personId, claimed);
-    
+
     if (splitEvenly) {
       setSplitEvenly(false);
       updateSession({ splitEvenly: false });
     }
-    
+
     // 2. Atomic update (for real-time sync)
     toggleAssignment(itemId, personId, claimed);
   };
@@ -138,7 +141,7 @@ export default function CollaborativeSessionView() {
     // 1. Optimistic update
     peopleManager.removePerson(personId);
     bill.removePersonFromAssignments(personId);
-    
+
     // 2. Atomic update via service
     const updatedPeople = people.filter(p => p.id !== personId);
     updateSession({ people: updatedPeople });
@@ -147,17 +150,17 @@ export default function CollaborativeSessionView() {
   const handleToggleSplitEvenly = () => {
     // 1. Optimistic update
     bill.toggleSplitEvenly();
-    
+
     // 2. Atomic update to Firebase
     const newSplitEvenly = !splitEvenly;
     const newAssignments: ItemAssignment = {};
-    
+
     if (newSplitEvenly && billData && people.length > 0) {
       billData.items.forEach(item => {
         newAssignments[item.id] = people.map(p => p.id);
       });
     }
-    
+
     if (session) {
       updateSession({
         splitEvenly: newSplitEvenly,
@@ -208,11 +211,11 @@ export default function CollaborativeSessionView() {
 
   const handleUpdatePerson = async (personId: string, updates: Partial<Person>) => {
     // 1. Optimistic update
-    const updatedPeople = people.map(p => 
+    const updatedPeople = people.map(p =>
       p.id === personId ? { ...p, ...updates } : p
     );
     setPeople(updatedPeople);
-    
+
     // 2. Atomic update via service
     if (session) {
       // We need to import billService to use its static method
@@ -223,6 +226,45 @@ export default function CollaborativeSessionView() {
       // Importing billService directly is easier for now as per plan.
       const { billService } = await import('@/services/billService');
       await billService.updatePersonDetails(session.id, personId, updates);
+    }
+  };
+
+  const { toast } = useToast();
+  const handleMarkAsSettled = async (personId: string, isSettled: boolean) => {
+    if (!user || !session || !session.id || !billData) return;
+
+    try {
+      const { billService } = await import('@/services/billService');
+      await billService.updateBill(session.id, {
+        settledPersonIds: (isSettled ? arrayUnion(personId) : arrayRemove(personId)) as unknown as string[]
+      });
+
+      toast({
+        title: isSettled ? "Marked as Settled" : "Undo Settled",
+        description: isSettled ? "Their balance has been updated to $0 for this bill." : "Their balance has been restored for this bill.",
+      });
+
+      await friendBalanceService.applyBillBalancesIdempotent(
+        session.id,
+        user.uid,
+        bill.personTotals
+      );
+
+      if (session.eventId) {
+        await eventLedgerService.applyBillToEventLedgerIdempotent(
+          session.eventId,
+          session.id,
+          user.uid,
+          bill.personTotals
+        );
+      }
+    } catch (error) {
+      console.error("Failed to mark as settled", error);
+      toast({
+        title: "Error",
+        description: "Failed to mark as settled. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -358,13 +400,13 @@ export default function CollaborativeSessionView() {
                 onAddFromFriend={(f) => {
                   const newPerson = peopleManager.addFromFriend(f);
                   if (newPerson) {
-                     updateSession({ people: arrayUnion(newPerson) as unknown as Person[] });
+                    updateSession({ people: arrayUnion(newPerson) as unknown as Person[] });
                   }
                 }}
                 onRemove={(id) => {
-                   handleRemovePerson(id);
-                   const newPeople = people.filter(p => p.id !== id);
-                   updateSession({ people: newPeople });
+                  handleRemovePerson(id);
+                  const newPeople = people.filter(p => p.id !== id);
+                  updateSession({ people: newPeople });
                 }}
                 onUpdate={handleUpdatePerson}
                 onSaveAsFriend={peopleManager.savePersonAsFriend}
@@ -425,6 +467,8 @@ export default function CollaborativeSessionView() {
                 people={people}
                 billData={billData}
                 itemAssignments={itemAssignments}
+                settledPersonIds={session?.settledPersonIds || []}
+                onMarkAsSettled={handleMarkAsSettled}
               />
             </div>
           )}
@@ -497,6 +541,8 @@ export default function CollaborativeSessionView() {
               people={people}
               billData={billData}
               itemAssignments={itemAssignments}
+              settledPersonIds={session?.settledPersonIds || []}
+              onMarkAsSettled={handleMarkAsSettled}
             />
           )}
         </TabsContent>

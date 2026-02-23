@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { settlementService } from '@/services/settlementService';
 import { friendBalanceService } from '@/services/friendBalanceService';
 import { eventLedgerService } from '@/services/eventLedgerService';
+import { billService } from '@/services/billService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
@@ -61,7 +62,7 @@ export function SettleUpModal({
   const handleSettleUp = async () => {
     if (!user) return;
     const settleAmt = parseFloat(amount);
-    
+
     if (isNaN(settleAmt) || settleAmt <= 0) {
       toast({
         title: 'Invalid amount',
@@ -76,7 +77,7 @@ export function SettleUpModal({
       const fromUserId = isPaying ? user.uid : targetUserId;
       const toUserId = isPaying ? targetUserId : user.uid;
 
-      // Create the settlement record
+      // Create the settlement record (this is just the historical log, it has no math impact)
       await settlementService.createSettlement(
         fromUserId,
         toUserId,
@@ -84,18 +85,26 @@ export function SettleUpModal({
         eventId
       );
 
-      // Apply the mathematical adjustment to the appropriate ledger
-      if (eventId) {
-        await eventLedgerService.applySettlement(eventId, fromUserId, toUserId, settleAmt);
-      } else {
-        await friendBalanceService.applySettlement(fromUserId, toUserId, settleAmt);
+      // 1. Mark underlying bills as settled sequentially.
+      // Since marking a bill as settled intrinsically zeroes out its debt footprint
+      // in the mathematical ledger, doing this automatically reduces the global debt.
+      const remainingAmt = await billService.markBillsAsSettledForUser(fromUserId, toUserId, settleAmt, eventId);
+
+      // 2. If there's any remaining amount (a partial payment or overpayment that didn't clear a full bill),
+      // we must mathematically apply it to the ledger ourselves.
+      if (remainingAmt > 0) {
+        if (eventId) {
+          await eventLedgerService.applySettlement(eventId, fromUserId, toUserId, remainingAmt);
+        } else {
+          await friendBalanceService.applySettlement(fromUserId, toUserId, remainingAmt);
+        }
       }
 
       toast({
         title: 'Settled up!',
         description: `You paid ${targetUserName} $${settleAmt.toFixed(2)}.`,
       });
-      
+
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
@@ -146,9 +155,9 @@ export function SettleUpModal({
         <DialogHeader>
           <DialogTitle>{isPaying ? 'Pay' : 'Receive Payment'}</DialogTitle>
           <DialogDescription>
-            {isPaying 
-               ? `Record a payment you made to ${targetUserName}`
-               : `Record a payment you received from ${targetUserName}`}
+            {isPaying
+              ? `Record a payment you made to ${targetUserName}`
+              : `Record a payment you received from ${targetUserName}`}
             {eventId ? ' for this event' : ''}.
           </DialogDescription>
         </DialogHeader>
@@ -181,7 +190,7 @@ export function SettleUpModal({
             disabled={isSubmitting || !amount}
           >
             <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
-               <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z"/>
+              <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z" />
             </svg>
             {isPaying ? 'Pay on Venmo' : 'Charge on Venmo'}
           </Button>

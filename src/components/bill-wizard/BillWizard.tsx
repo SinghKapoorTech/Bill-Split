@@ -165,16 +165,16 @@ export function BillWizard({
     const handleAtomicAssignment = (itemId: string, personId: string, checked: boolean) => {
         // Optimistic UI update
         bill.handleItemAssignment(itemId, personId, checked);
-        
+
         const id = billId || activeSession?.id;
-        
+
         if (splitEvenly) {
             setSplitEvenly(false);
             if (id) {
                 billService.updateBill(id, { splitEvenly: false }).catch(console.error);
             }
         }
-        
+
         // Atomic Firestore update
         if (id) {
             billService.toggleItemAssignment(id, itemId, personId, checked).catch(console.error);
@@ -184,17 +184,17 @@ export function BillWizard({
     const handleToggleSplitEvenly = () => {
         // Optimistic UI update
         bill.toggleSplitEvenly();
-        
+
         // Atomic Firestore update
         const newSplitEvenly = !splitEvenly;
         const newAssignments: ItemAssignment = {};
-        
+
         if (newSplitEvenly && billData && people.length > 0) {
             billData.items.forEach(item => {
                 newAssignments[item.id] = people.map(p => p.id);
             });
         }
-        
+
         const id = billId || activeSession?.id;
         if (id) {
             billService.updateBill(id, {
@@ -206,26 +206,26 @@ export function BillWizard({
 
     const handleAtomicAddPerson = async () => {
         const newPerson = await peopleManager.addPerson();
-         if (newPerson) {
+        if (newPerson) {
             const id = billId || activeSession?.id;
             if (id) {
-                 billService.updateBill(id, { 
-                     people: arrayUnion(newPerson) as unknown as Person[] 
-                 }).catch(console.error);
+                billService.updateBill(id, {
+                    people: arrayUnion(newPerson) as unknown as Person[]
+                }).catch(console.error);
             }
-         }
+        }
     };
 
     const handleAtomicAddFromFriend = (friend: any) => {
-         const newPerson = peopleManager.addFromFriend(friend);
-         if (newPerson) {
+        const newPerson = peopleManager.addFromFriend(friend);
+        if (newPerson) {
             const id = billId || activeSession?.id;
             if (id) {
-                 billService.updateBill(id, { 
-                     people: arrayUnion(newPerson) as unknown as Person[] 
-                 }).catch(console.error);
+                billService.updateBill(id, {
+                    people: arrayUnion(newPerson) as unknown as Person[]
+                }).catch(console.error);
             }
-         }
+        }
     };
 
     // Event handlers
@@ -237,38 +237,38 @@ export function BillWizard({
         // 2. Atomic Firestore update
         const id = billId || activeSession?.id;
         if (id) {
-             // We need to find the person object to remove it from the array
-             // Since firestore arrayRemove requires the exact object, this is tricky if we don't have it.
-             // However, we can read the current state or just filter and update the whole array.
-             // Given we want to be safe, let's filter and update the people array.
-             // But wait, arrayRemove is better for concurrency. 
-             // THE PROBLEM: Person objects might have changed properties? No, usually not in this flow.
-             // actually, peopleManager.removePerson updates local state.
-             // To be safe and simple: Filter the local 'people' (before removal) and update the whole array.
-             // Although arrayRemove is atomic, we'd need the exact object instance.
-             // Let's use the 'update whole array' approach for people list as it's small and safer for now,
-             // creating a read-modify-write pattern (or just write if we trust local state, but local state is now updated).
-             // Actually, we should use the `people` state *before* it was updated? Or just filter it here.
-             
-             const personToRemove = people.find(p => p.id === personId);
-             if (personToRemove) {
-                 try {
-                     const updatedPeople = people.filter(p => p.id !== personId);
-                     await billService.updateBill(id, { people: updatedPeople });
-                 } catch (e) {
-                     console.error("Failed to remove person", e);
-                 }
-             }
+            // We need to find the person object to remove it from the array
+            // Since firestore arrayRemove requires the exact object, this is tricky if we don't have it.
+            // However, we can read the current state or just filter and update the whole array.
+            // Given we want to be safe, let's filter and update the people array.
+            // But wait, arrayRemove is better for concurrency. 
+            // THE PROBLEM: Person objects might have changed properties? No, usually not in this flow.
+            // actually, peopleManager.removePerson updates local state.
+            // To be safe and simple: Filter the local 'people' (before removal) and update the whole array.
+            // Although arrayRemove is atomic, we'd need the exact object instance.
+            // Let's use the 'update whole array' approach for people list as it's small and safer for now,
+            // creating a read-modify-write pattern (or just write if we trust local state, but local state is now updated).
+            // Actually, we should use the `people` state *before* it was updated? Or just filter it here.
+
+            const personToRemove = people.find(p => p.id === personId);
+            if (personToRemove) {
+                try {
+                    const updatedPeople = people.filter(p => p.id !== personId);
+                    await billService.updateBill(id, { people: updatedPeople });
+                } catch (e) {
+                    console.error("Failed to remove person", e);
+                }
+            }
         }
     };
 
     const handleUpdatePerson = async (personId: string, updates: Partial<Person>) => {
         // Optimistic update
-        const updatedPeople = people.map(p => 
+        const updatedPeople = people.map(p =>
             p.id === personId ? { ...p, ...updates } : p
         );
         setPeople(updatedPeople);
-        
+
         // Atomic update via service
         const id = billId || activeSession?.id;
         if (id) {
@@ -325,9 +325,9 @@ export function BillWizard({
         const uploadPromise = !activeSession?.receiptImageUrl
             ? uploadReceiptImage(upload.selectedFile)
             : Promise.resolve({
-                  downloadURL: activeSession.receiptImageUrl,
-                  fileName: activeSession.receiptFileName
-              });
+                downloadURL: activeSession.receiptImageUrl,
+                fileName: activeSession.receiptFileName
+            });
 
         // Wait for both to complete (no early navigation)
         try {
@@ -394,7 +394,7 @@ export function BillWizard({
             upload.handleFileSelect(fileOrBase64);
             fileToUpload = fileOrBase64;
         }
-        
+
         // Auto-upload in background so it's not lost on exit
         const id = billId || activeSession?.id;
         if (id) {
@@ -581,11 +581,14 @@ export function BillWizard({
 
                     {wizard.currentStep === 3 && (
                         <ReviewStep
+                            billId={billId || activeSession?.id}
+                            eventId={activeSession?.eventId}
                             billData={billData}
                             people={people}
                             itemAssignments={itemAssignments}
                             personTotals={bill.personTotals}
                             allItemsAssigned={bill.allItemsAssigned}
+                            settledPersonIds={activeSession?.settledPersonIds || []}
                             imagePreview={upload.imagePreview}
                             selectedFile={upload.selectedFile}
                             isUploading={isUploading}
