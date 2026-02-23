@@ -40,7 +40,7 @@ export function ManageFriendsCard() {
     refreshFriends,
   } = useFriendsEditor();
 
-  const [settleTarget, setSettleTarget] = useState<{ userId: string; name: string; amount: number } | null>(null);
+  const [settleTarget, setSettleTarget] = useState<{ userId: string; name: string; amount: number; isPaying: boolean; venmoId?: string } | null>(null);
 
   // Fallback for ID if the raw friend doesn't have it mapped consistently
   const getFriendId = (f: any) => f.id || f.userId || '';
@@ -283,14 +283,16 @@ export function ManageFriendsCard() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    {friend.balance && friend.balance < 0 ? (
+                    {friend.balance && friend.balance !== 0 ? (
                       <Button
                         variant="default"
                         size="sm"
                         onClick={() => setSettleTarget({
                           userId: getFriendId(friend),
                           name: friend.name,
-                          amount: Math.abs(friend.balance as number)
+                          amount: Math.abs(friend.balance as number),
+                          isPaying: friend.balance! < 0,
+                          venmoId: friend.venmoId
                         })}
                       >
                         Settle Up
@@ -324,6 +326,8 @@ export function ManageFriendsCard() {
           onOpenChange={(open) => !open && setSettleTarget(null)}
           targetUserId={settleTarget.userId}
           targetUserName={settleTarget.name}
+          targetVenmoId={settleTarget.venmoId}
+          isPaying={settleTarget.isPaying}
           recommendedAmount={settleTarget.amount}
           onSuccess={() => {
             setSettleTarget(null);

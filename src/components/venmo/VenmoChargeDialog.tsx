@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { openVenmoApp, isVenmoInstalled, getVenmoWebUrl } from '@/utils/venmo';
+import { openVenmoApp } from '@/utils/venmo';
 
 interface Props {
   charge: VenmoCharge | null;
@@ -47,11 +47,7 @@ export function VenmoChargeDialog({ charge, open, onOpenChange }: Props) {
       note: description.trim() || 'Divit',
     };
 
-    if (isVenmoInstalled()) {
-      openVenmoApp(updatedCharge);
-    } else {
-      window.open(getVenmoWebUrl(updatedCharge), '_blank');
-    }
+    openVenmoApp(updatedCharge);
     onOpenChange(false);
   };
 
@@ -59,7 +55,7 @@ export function VenmoChargeDialog({ charge, open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Charge on Venmo</DialogTitle>
+          <DialogTitle>{charge.type === 'pay' ? 'Pay on Venmo' : 'Charge on Venmo'}</DialogTitle>
           <DialogDescription>
             Review the charge details before opening Venmo
           </DialogDescription>
@@ -68,7 +64,7 @@ export function VenmoChargeDialog({ charge, open, onOpenChange }: Props) {
         <div className="space-y-4 py-4">
           <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Charging:</span>
+              <span className="text-sm text-muted-foreground">{charge.type === 'pay' ? 'Paying:' : 'Charging:'}</span>
               <span className="font-semibold">{charge.recipientName}</span>
             </div>
 
@@ -102,12 +98,6 @@ export function VenmoChargeDialog({ charge, open, onOpenChange }: Props) {
               />
             </div>
           </div>
-
-          {!isVenmoInstalled() && (
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              Venmo app not detected. Opening in browser instead.
-            </p>
-          )}
         </div>
 
         <DialogFooter className="gap-2">
