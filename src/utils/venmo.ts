@@ -23,25 +23,22 @@ export function openVenmoApp(charge: VenmoCharge): void {
   const isMobileOS = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   if (isMobileOS) {
-    // Universal Links (https://...) are great, but programmatic triggers 
-    // (window.location.href) often fail to launch the app on iOS Safari due to security/UX rules.
-    // 
-    // The most robust solution for mobile web browsers is the "Hybrid Hacker" approach:
-    // 1. Try to fiercely force the app open via the custom scheme.
-    // 2. If it fails, the browser will likely swallow the error or show a brief alert, 
-    //    but we catch them with a timeout and redirect them to the universal web link.
-    
+    const startTime = Date.now();
     window.location.href = nativeScheme;
 
     setTimeout(() => {
-      // If the app opened natively, the browser is usually put in the background.
-      // If it's still visible, the app wasn't installed (or it failed), so fall back to web.
-      if (document.visibilityState !== 'hidden') {
-        window.location.href = universalLink;
+      const timeElapsed = Date.now() - startTime;
+      
+      // If the app successfully opened, the browser was likely suspended/backgrounded.
+      // In that case, the setTimeout will be delayed significantly more than 2500ms when they return.
+      // If it fired right on time (~2500ms), the app didn't open and the user is still staring at the browser.
+      // We add a 500ms buffer to account for normal browser execution delays.
+      
+      if (timeElapsed < 3000 && document.visibilityState !== 'hidden') {
+         window.location.href = universalLink;
       }
     }, 2500);
   } else {
-    // On desktop, simply open the web link in a new tab.
     window.open(universalLink, '_blank');
   }
 }
