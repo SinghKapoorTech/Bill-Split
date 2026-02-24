@@ -4,6 +4,8 @@ import { ArrowLeft, Receipt, UserPlus, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { InviteMembersDialog } from '@/components/events/InviteMembersDialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -40,27 +42,45 @@ export default function EventDetailView() {
   const [memberProfiles, setMemberProfiles] = useState<Record<string, any>>({});
   
   // Settlement state
-  const [settleTarget, setSettleTarget] = useState<{ userId: string; name: string; amount: number } | null>(null);
+  const [settleTarget, setSettleTarget] = useState<{ userId: string; name: string; amount: number; isPaying: boolean; venmoId?: string } | null>(null);
 
   // Need to bring in session methods to resume/delete from the list
   const { deleteSession, resumeSession, activeSession, isDeleting, isResuming } = useBillContext();
 
   useEffect(() => {
-    if (!event?.memberIds) return;
+    const userIdsToFetch = new Set<string>();
+    
+    if (event?.memberIds) {
+      event.memberIds.forEach(id => userIdsToFetch.add(id));
+    }
+    
+    // Also try fetching profiles for anyone involved in a debt
+    optimizedDebts.forEach(debt => {
+      // Basic check to see if it looks like a Firebase UID (typically 28 chars long alphanumeric)
+      if (debt.fromUserId.length >= 20) userIdsToFetch.add(debt.fromUserId);
+      if (debt.toUserId.length >= 20) userIdsToFetch.add(debt.toUserId);
+    });
+
+    if (userIdsToFetch.size === 0) return;
     
     const fetchProfiles = async () => {
       const profiles: Record<string, any> = {};
-      await Promise.all(event.memberIds.map(async (id) => {
-         const p = await userService.getUserProfile(id);
-         if (p) {
-           profiles[id] = p;
+      await Promise.all(Array.from(userIdsToFetch).map(async (id) => {
+         try {
+           const p = await userService.getUserProfile(id);
+           if (p) {
+             profiles[id] = p;
+           }
+         } catch (e) {
+           // Skip guest IDs that fail to fetch
+           console.warn(`Could not fetch profile for ${id}`);
          }
       }));
-      setMemberProfiles(profiles);
+      setMemberProfiles(prev => ({ ...prev, ...profiles }));
     };
     
     fetchProfiles();
-  }, [event?.memberIds]);
+  }, [event?.memberIds, optimizedDebts]);
 
   useEffect(() => {
     if (!eventId) {
@@ -183,45 +203,42 @@ export default function EventDetailView() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl mb-20">
-      <div className="mb-8">
-        <Button
-          variant="ghost"
-          className="mb-4 gap-2"
-          onClick={() => navigate('/events')}
-        >
-          <ArrowLeft className="w-4 h-4" />
-          {NAVIGATION.BACK_TO_EVENTS}
-        </Button>
-
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => navigate('/events')}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <h1 className="text-2xl font-bold tracking-tight">
               {event.name}
             </h1>
-            {event.description && (
-              <p className="text-lg text-muted-foreground">{event.description}</p>
-            )}
           </div>
-          <div className="flex flex-col sm:flex-row items-center gap-2 shrink-0">
-            <Button onClick={() => setInviteDialogOpen(true)} variant="outline" className="gap-2 w-full sm:w-auto">
-              <UserPlus className="w-4 h-4" />
-              Invite Members
+          
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setInviteDialogOpen(true)} variant="ghost" size="icon" className="h-8 w-8">
+              <UserPlus className="w-4 h-4 text-muted-foreground" />
             </Button>
             <Button 
               onClick={handleCreateEventBill} 
               disabled={isCreatingBill}
-              className="gap-2 w-full sm:w-auto"
+              size="icon"
+              className="h-8 w-8 rounded-full"
             >
               {isCreatingBill ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Plus className="w-4 h-4" />
               )}
-              Add Bill
             </Button>
           </div>
         </div>
-      </div>
+        {event.description && (
+          <p className="text-sm text-muted-foreground pl-11 mb-6">{event.description}</p>
+        )}
 
       <InviteMembersDialog
         open={inviteDialogOpen}
@@ -229,131 +246,176 @@ export default function EventDetailView() {
         event={event}
       />
 
-      {/* Event Balances UI */}
-      {!ledgerLoading && (optimizedDebts.length > 0 || eventBills.length > 0) && (
-        <Card className="p-4 sm:p-6 mb-8 border-primary/20 bg-primary/5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-semibold">Event Balances</h3>
-          </div>
-          
-          {optimizedDebts.length === 0 ? (
-            <div className="text-center py-6 text-muted-foreground">
-              You're all settled up for this event!
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {optimizedDebts.map((debt, idx) => {
-                const fromUser = memberProfiles[debt.fromUserId];
-                const toUser = memberProfiles[debt.toUserId];
-                const fromName = fromUser?.displayName || fromUser?.username || 'Unknown';
-                const toName = toUser?.displayName || toUser?.username || 'Unknown';
-                const isCurrentUserInvolved = user?.uid === debt.fromUserId || user?.uid === debt.toUserId;
-
-                return (
-                  <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded-lg bg-background border gap-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{fromName}</span>
-                      <span className="text-muted-foreground">owes</span>
-                      <span className="font-medium">{toName}</span>
-                      <span className="font-bold text-lg text-primary">${debt.amount.toFixed(2)}</span>
-                    </div>
-                    {isCurrentUserInvolved && (
-                      <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={() => {
-                          const isCurrentUserPaying = user?.uid === debt.fromUserId;
-                          // If current user is paying, they settle with 'toUser'. 
-                          // If current user is receiving, they can't 'settle up' the other person's debt right now, 
-                          // but usually "settling up" implies recording a payment YOU made.
-                          if (isCurrentUserPaying) {
-                            setSettleTarget({
-                              userId: debt.toUserId,
-                              name: toName,
-                              amount: debt.amount
-                            });
-                          } else {
-                            toast({ title: 'Notice', description: 'Only the person who owes money can record a settlement.' });
-                          }
-                      }}>
-                        Settle Up
-                      </Button>
-                    )}
+      <div className="space-y-8">
+        {/* Balances Section */}
+        {!ledgerLoading && (
+          <div className="space-y-3">
+            <h3 className="font-semibold text-lg tracking-tight px-1">Balances</h3>
+            <Card className="p-0 overflow-hidden border-border bg-card shadow-sm">
+              {optimizedDebts.length === 0 ? (
+                <div className="text-center py-10 px-4">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <Receipt className="w-6 h-6 text-green-600" />
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-      )}
+                  <h3 className="text-base font-medium mb-1">You're all settled up!</h3>
+                  <p className="text-xs text-muted-foreground">
+                    There are no outstanding debts.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {optimizedDebts.map((debt, idx) => {
+                    const fromProfile = memberProfiles[debt.fromUserId];
+                    const toProfile = memberProfiles[debt.toUserId];
+                    
+                    let fromName = fromProfile?.displayName || fromProfile?.username;
+                    let toName = toProfile?.displayName || toProfile?.username;
+                    let fromVenmoId = fromProfile?.venmoId;
+                    let toVenmoId = toProfile?.venmoId;
+                    let fromPhoto = fromProfile?.photoURL;
+                    let toPhoto = toProfile?.photoURL;
 
-      <div className="space-y-6">
-        {eventBills.length === 0 ? (
-          <Card className="p-12">
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                <Receipt className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">No bills yet</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Click 'Add Bill' to create the first bill for this event.
-              </p>
-              <Button onClick={handleCreateEventBill} disabled={isCreatingBill} className="gap-2" variant="outline">
-                {isCreatingBill ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Add Bill
-              </Button>
-            </div>
-          </Card>
-        ) : (
-          <>
-            {/* Mobile List View */}
-            <div className="block md:hidden divide-y divide-border rounded-lg border bg-card">
-              {eventBills.map((b) => (
-                <MobileBillCard
-                  key={b.id}
-                  bill={b}
-                  isLatest={b.id === activeSession?.id}
-                  onView={(id) => navigate(`/bill/${id}`)}
-                  onResume={async (id) => {
-                    await resumeSession(id);
-                    navigate(`/bill/${id}`);
-                  }}
-                  onDelete={(bill) => deleteSession(bill.id, bill.receiptFileName)}
-                  isResuming={isResuming}
-                  isDeleting={isDeleting}
-                  formatDate={(timestamp) => {
-                     if (!timestamp) return 'Unknown date';
-                     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-                     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                  }}
-                  getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
-                />
-              ))}
-            </div>
+                    if (!fromName || !toName) {
+                      for (const bill of eventBills) {
+                        if (!fromName) {
+                          const p = bill.people.find(person => person.id === debt.fromUserId);
+                          if (p) fromName = p.name;
+                        }
+                        if (!toName) {
+                          const p = bill.people.find(person => person.id === debt.toUserId);
+                          if (p) toName = p.name;
+                        }
+                        if (fromName && toName) break;
+                      }
+                    }
 
-            {/* Desktop Grid View */}
-            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {eventBills.map((b) => (
-                <DesktopBillCard
-                  key={b.id}
-                  bill={b}
-                  isLatest={b.id === activeSession?.id}
-                  onView={(id) => navigate(`/bill/${id}`)}
-                  onResume={async (id) => {
-                    await resumeSession(id);
-                    navigate(`/bill/${id}`);
-                  }}
-                  onDelete={(bill) => deleteSession(bill.id, bill.receiptFileName)}
-                  isResuming={isResuming}
-                  isDeleting={isDeleting}
-                  formatDate={(timestamp) => {
-                     if (!timestamp) return 'Unknown date';
-                     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-                     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                  }}
-                  getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
-                />
-              ))}
-            </div>
-          </>
+                    fromName = fromName || 'Unknown';
+                    toName = toName || 'Unknown';
+
+                    const isCurrentUserInvolved = user?.uid === debt.fromUserId || user?.uid === debt.toUserId;
+                    const amountFormatted = `$${debt.amount.toFixed(2)}`;
+
+                    return (
+                      <div key={idx} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="flex -space-x-3">
+                            <Avatar className="border-2 border-background w-10 h-10 shadow-sm z-10">
+                              <AvatarImage src={fromPhoto} />
+                              <AvatarFallback className="bg-destructive/10 text-destructive text-sm">{fromName.substring(0,2).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <Avatar className="border-2 border-background w-10 h-10 shadow-sm z-0">
+                              <AvatarImage src={toPhoto} />
+                              <AvatarFallback className="bg-green-500/10 text-green-600 text-sm">{toName.substring(0,2).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm">
+                              <span className="font-semibold text-foreground">{fromName}</span> owes <span className="font-semibold text-foreground">{toName}</span>
+                            </span>
+                            <span className="text-xs text-muted-foreground font-medium">{amountFormatted}</span>
+                          </div>
+                        </div>
+                        
+                        {isCurrentUserInvolved && (
+                          <div className="shrink-0 pl-4">
+                            <Button 
+                              variant={user?.uid === debt.fromUserId ? "default" : "outline"} 
+                              size="sm" 
+                              className={user?.uid === debt.fromUserId ? "bg-primary" : ""}
+                              onClick={() => {
+                                const isCurrentUserPaying = user?.uid === debt.fromUserId;
+                                setSettleTarget({
+                                  userId: isCurrentUserPaying ? debt.toUserId : debt.fromUserId,
+                                  name: isCurrentUserPaying ? toName : fromName,
+                                  amount: debt.amount,
+                                  isPaying: isCurrentUserPaying,
+                                  venmoId: isCurrentUserPaying ? toVenmoId : fromVenmoId
+                                });
+                            }}>
+                              Settle Up
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </div>
         )}
+
+        {/* Bills Section */}
+        <div className="space-y-3">
+          <h3 className="font-semibold text-lg tracking-tight px-1">Bills</h3>
+          <div className="space-y-4">
+            {eventBills.length === 0 ? (
+              <Card className="p-12 border-dashed">
+                <div className="text-center">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Receipt className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="text-base font-medium mb-1">No bills yet</h3>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Tap the + icon above to start.
+                  </p>
+                </div>
+              </Card>
+            ) : (
+              <>
+                {/* Mobile List View */}
+                <div className="block md:hidden divide-y divide-border rounded-lg border bg-card shadow-sm overflow-hidden">
+                  {eventBills.map((b) => (
+                    <MobileBillCard
+                      key={b.id}
+                      bill={b}
+                      isLatest={b.id === activeSession?.id}
+                      onView={(id) => navigate(`/bill/${id}`)}
+                      onResume={async (id) => {
+                        await resumeSession(id);
+                        navigate(`/bill/${id}`);
+                      }}
+                      onDelete={(bill) => deleteSession(bill.id, bill.receiptFileName)}
+                      isResuming={isResuming}
+                      isDeleting={isDeleting}
+                      formatDate={(timestamp) => {
+                        if (!timestamp) return 'Unknown date';
+                        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                      }}
+                      getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
+                    />
+                  ))}
+                </div>
+
+                {/* Desktop Grid View */}
+                <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {eventBills.map((b) => (
+                    <DesktopBillCard
+                      key={b.id}
+                      bill={b}
+                      isLatest={b.id === activeSession?.id}
+                      onView={(id) => navigate(`/bill/${id}`)}
+                      onResume={async (id) => {
+                        await resumeSession(id);
+                        navigate(`/bill/${id}`);
+                      }}
+                      onDelete={(bill) => deleteSession(bill.id, bill.receiptFileName)}
+                      isResuming={isResuming}
+                      isDeleting={isDeleting}
+                      formatDate={(timestamp) => {
+                        if (!timestamp) return 'Unknown date';
+                        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                      }}
+                      getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {settleTarget && user && (
@@ -362,8 +424,11 @@ export default function EventDetailView() {
           onOpenChange={(open) => !open && setSettleTarget(null)}
           targetUserId={settleTarget.userId}
           targetUserName={settleTarget.name}
+          targetVenmoId={settleTarget.venmoId}
+          isPaying={settleTarget.isPaying}
           recommendedAmount={settleTarget.amount}
           eventId={event.id}
+          eventName={event.name}
           onSuccess={() => {
             // Ledger automatically refreshes because of real-time listener in useEventLedger
             setSettleTarget(null);

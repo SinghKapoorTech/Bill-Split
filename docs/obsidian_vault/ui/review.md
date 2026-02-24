@@ -80,3 +80,19 @@ Calling it multiple times with the same data is safe. The engine strictly revers
 - `VenmoChargeDialog.tsx`: The modal that facilitates the deep link or API call to Venmo.
 - `ProfileSettings.tsx`: Invoked dynamically if the user is missing prerequisite profile data.
 - `friendBalanceService.ts → applyBillBalancesIdempotent()`: Commits new idempotent footprints to the **[[../database/friend_balances|friend_balances]]** collection.
+
+## 6. Mark as Settled Flow
+
+On the review page or the collaborative session view, the person who created the bill can manually check off users to mark their portion of the bill as "Settled".
+
+### User Interface Interaction
+- **Active State:** When marked as settled, the user's card background turns green and displays a checkmark.
+- **Toggle Action:** Tapping the card triggers `handleMarkAsSettled(personId, isSettled)`.
+
+### Mathematical Impact
+- Marking a person as settled pushes their `personId` into the `settledPersonIds` array on the Firestore bill document.
+- It then inherently re-triggers the Idempotent Delta Engines:
+  - `friendBalanceService.applyBillBalancesIdempotent`
+  - `eventLedgerService.applyBillToEventLedgerIdempotent` (if it's an event bill)
+- Because they are now in the `settledPersonIds` array, their calculated debt on the bill evaluates to `$0`.
+- The engines reverse their old footprint and apply the new `$0` footprint, instantly reducing the overarching global user balance or event ledger balance safely.

@@ -44,10 +44,10 @@ export interface Bill {
   settledPersonIds?: string[];
 
   // Tracks exactly what was added to the global friend ledger
-  processedBalances?: Record<string, number>; 
-  
+  processedBalances?: Record<string, number>;
+
   // Tracks exactly what was added to the local event ledger
-  eventBalancesApplied?: Record<string, number>; 
+  eventBalancesApplied?: Record<string, number>;
 
   // Participants
   people: Person[];

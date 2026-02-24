@@ -13,17 +13,23 @@ import { Label } from '@/components/ui/label';
 import { settlementService } from '@/services/settlementService';
 import { friendBalanceService } from '@/services/friendBalanceService';
 import { eventLedgerService } from '@/services/eventLedgerService';
+import { billService } from '@/services/billService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { VenmoChargeDialog } from '@/components/venmo/VenmoChargeDialog';
+import { VenmoCharge } from '@/types';
 
 interface SettleUpModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   targetUserId: string;
   targetUserName: string;
+  targetVenmoId?: string | null;
+  isPaying: boolean;
   recommendedAmount: number;
   eventId?: string; // If provided, settles event balance, otherwise global
+  eventName?: string;
   onSuccess?: () => void;
 }
 
@@ -32,14 +38,19 @@ export function SettleUpModal({
   onOpenChange,
   targetUserId,
   targetUserName,
+  targetVenmoId,
+  isPaying,
   recommendedAmount,
   eventId,
+  eventName,
   onSuccess
 }: SettleUpModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [amount, setAmount] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [venmoDialogOpen, setVenmoDialogOpen] = useState(false);
+  const [currentCharge, setCurrentCharge] = useState<VenmoCharge | null>(null);
 
   // Auto-fill amount when dialog opens
   useEffect(() => {
@@ -51,7 +62,7 @@ export function SettleUpModal({
   const handleSettleUp = async () => {
     if (!user) return;
     const settleAmt = parseFloat(amount);
-    
+
     if (isNaN(settleAmt) || settleAmt <= 0) {
       toast({
         title: 'Invalid amount',
@@ -63,26 +74,37 @@ export function SettleUpModal({
 
     setIsSubmitting(true);
     try {
-      // Create the settlement record
+      const fromUserId = isPaying ? user.uid : targetUserId;
+      const toUserId = isPaying ? targetUserId : user.uid;
+
+      // Create the settlement record (this is just the historical log, it has no math impact)
       await settlementService.createSettlement(
-        user.uid,
-        targetUserId,
+        fromUserId,
+        toUserId,
         settleAmt,
         eventId
       );
 
-      // Apply the mathematical adjustment to the appropriate ledger
-      if (eventId) {
-        await eventLedgerService.applySettlement(eventId, user.uid, targetUserId, settleAmt);
-      } else {
-        await friendBalanceService.applySettlement(user.uid, targetUserId, settleAmt);
+      // 1. Mark underlying bills as settled sequentially.
+      // Since marking a bill as settled intrinsically zeroes out its debt footprint
+      // in the mathematical ledger, doing this automatically reduces the global debt.
+      const remainingAmt = await billService.markBillsAsSettledForUser(fromUserId, toUserId, settleAmt, eventId);
+
+      // 2. If there's any remaining amount (a partial payment or overpayment that didn't clear a full bill),
+      // we must mathematically apply it to the ledger ourselves.
+      if (remainingAmt > 0) {
+        if (eventId) {
+          await eventLedgerService.applySettlement(eventId, fromUserId, toUserId, remainingAmt);
+        } else {
+          await friendBalanceService.applySettlement(fromUserId, toUserId, remainingAmt);
+        }
       }
 
       toast({
         title: 'Settled up!',
         description: `You paid ${targetUserName} $${settleAmt.toFixed(2)}.`,
       });
-      
+
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
@@ -97,13 +119,45 @@ export function SettleUpModal({
     }
   };
 
+  const handleVenmoClick = () => {
+    const settleAmt = parseFloat(amount);
+    if (isNaN(settleAmt) || settleAmt <= 0) {
+      toast({
+        title: 'Invalid amount',
+        description: 'Please enter a valid amount greater than 0',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    let note = 'Settle up';
+    if (eventName) {
+      note = `Settling up for ${eventName}`;
+    } else if (eventId) {
+      note = 'Event settlement';
+    }
+
+    const charge: VenmoCharge = {
+      recipientId: targetVenmoId || '',
+      recipientName: targetUserName,
+      amount: settleAmt,
+      note,
+      type: isPaying ? 'pay' : 'charge'
+    };
+    setCurrentCharge(charge);
+    setVenmoDialogOpen(true);
+  };
+
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Settle Up</DialogTitle>
+          <DialogTitle>{isPaying ? 'Pay' : 'Receive Payment'}</DialogTitle>
           <DialogDescription>
-            Record a payment you made to {targetUserName} 
+            {isPaying
+              ? `Record a payment you made to ${targetUserName}`
+              : `Record a payment you received from ${targetUserName}`}
             {eventId ? ' for this event' : ''}.
           </DialogDescription>
         </DialogHeader>
@@ -127,28 +181,37 @@ export function SettleUpModal({
             </div>
           </div>
         </div>
-        <DialogFooter className="sm:justify-between items-center flex-row gap-2">
+        <DialogFooter className="sm:justify-end flex-col sm:flex-row gap-2 mt-4">
           <Button
             type="button"
             variant="outline"
-            className="flex-1"
-            onClick={() => onOpenChange(false)}
+            className="w-full sm:w-auto"
+            onClick={handleVenmoClick}
+            disabled={isSubmitting || !amount}
           >
-            Cancel
+            <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z" />
+            </svg>
+            {isPaying ? 'Pay on Venmo' : 'Charge on Venmo'}
           </Button>
           <Button
             type="button"
-            className="flex-1"
+            className="w-full sm:w-auto"
             onClick={handleSettleUp}
             disabled={isSubmitting || !amount}
           >
             {isSubmitting ? (
               <Loader2 className="w-4 h-4 animate-spin mr-2" />
             ) : null}
-            Pay {targetUserName}
+            Record Cash Payment
           </Button>
         </DialogFooter>
       </DialogContent>
+      <VenmoChargeDialog
+        charge={currentCharge}
+        open={venmoDialogOpen}
+        onOpenChange={setVenmoDialogOpen}
+      />
     </Dialog>
   );
 }

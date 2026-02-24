@@ -124,7 +124,7 @@ export const friendBalanceService = {
       }
     }
 
-  // ── Step 5: Save processed balances on the bill ──────────────────────────
+    // ── Step 5: Save processed balances on the bill ──────────────────────────
     // Note: no write-back to user.friends[] needed — balances live in friend_balances.
     // The UI reads balances via getHydratedFriends() which queries friend_balances directly.
     if (Object.keys(newProcessedBalances).length > 0 || Object.keys(previousBalances).length > 0) {
@@ -142,7 +142,7 @@ export const friendBalanceService = {
     personTotals: PersonTotal[]
   ): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
-    
+
     // Resolve bill person IDs → Firebase user IDs
     const userProfile = await userService.getUserProfile(currentUserId);
     const rawFriends: any[] = userProfile?.friends || [];
@@ -160,14 +160,14 @@ export const friendBalanceService = {
       const settledPersonIds = billData.settledPersonIds || [];
       const previousBalances = billData.processedBalances || {};
       const personIdToUserId: Record<string, string | null> = {};
-      
+
       for (const person of (billData.people || [])) {
         personIdToUserId[person.id] = friendUserIds.has(person.id) ? person.id : null;
       }
 
       // Calculate the NEW exact debts each friend owes for this bill
       const newDeltasInside: Record<string, number> = {};
-      
+
       for (const total of personTotals) {
         if (total.personId === currentUserId) continue; // skip self
         const friendUserId = personIdToUserId[total.personId] ?? null;
@@ -186,37 +186,55 @@ export const friendBalanceService = {
 
       const newProcessedBalances: Record<string, number> = {};
 
+      // 1. Gather all reads
+      const balanceRefs: Record<string, any> = {};
+      const balanceSnaps: Record<string, any> = {};
+      const deltas: Record<string, number> = {};
+
       for (const friendUserId of allInvolvedFriendIds) {
         const prevAmount = previousBalances[friendUserId] || 0;
         const newAmount = newDeltasInside[friendUserId] || 0;
         const delta = newAmount - prevAmount;
 
         if (delta !== 0) {
+          deltas[friendUserId] = delta;
           const balanceId = friendBalanceService.getFriendBalanceId(currentUserId, friendUserId);
           const balanceRef = doc(db, FRIEND_BALANCES_COLLECTION, balanceId);
-          
-          const snap = await transaction.get(balanceRef);
-          const existing = snap.exists() ? snap.data() : null;
-
-          const currentOwnerBal: number = existing?.balances?.[currentUserId] ?? 0;
-          const currentFriendBal: number = existing?.balances?.[friendUserId] ?? 0;
-
-          transaction.set(
-            balanceRef,
-            {
-              id: balanceId,
-              participants: [currentUserId, friendUserId],
-              balances: {
-                [currentUserId]: currentOwnerBal + delta,
-                [friendUserId]: currentFriendBal - delta,
-              },
-              lastUpdatedAt: Timestamp.now(),
-              lastBillId: billId,
-            },
-            { merge: true }
-          );
+          balanceRefs[friendUserId] = balanceRef;
+          balanceSnaps[friendUserId] = await transaction.get(balanceRef);
         }
+      }
 
+      // 2. Perform all writes
+      for (const friendUserId of Object.keys(deltas)) {
+        const delta = deltas[friendUserId];
+        const balanceRef = balanceRefs[friendUserId];
+        const snap = balanceSnaps[friendUserId];
+        const existing = snap.exists() ? snap.data() : null;
+
+        const currentOwnerBal: number = existing?.balances?.[currentUserId] ?? 0;
+        const currentFriendBal: number = existing?.balances?.[friendUserId] ?? 0;
+        const balanceId = balanceRef.id;
+
+        transaction.set(
+          balanceRef,
+          {
+            id: balanceId,
+            participants: [currentUserId, friendUserId],
+            balances: {
+              [currentUserId]: currentOwnerBal + delta,
+              [friendUserId]: currentFriendBal - delta,
+            },
+            lastUpdatedAt: Timestamp.now(),
+            lastBillId: billId,
+          },
+          { merge: true }
+        );
+      }
+
+      // We still need to populate newProcessedBalances for ALL involved friends, even if delta is 0
+      for (const friendUserId of allInvolvedFriendIds) {
+        const newAmount = newDeltasInside[friendUserId] || 0;
         if (newAmount !== 0) {
           newProcessedBalances[friendUserId] = newAmount;
         }
@@ -240,13 +258,13 @@ export const friendBalanceService = {
 
       for (const docSnap of snap.docs) {
         const bill = docSnap.data() as Bill & { processedBalances?: Record<string, number> };
-        
+
         // Skip bills that have already been processed into the new ledger
         if (bill.processedBalances && Object.keys(bill.processedBalances).length > 0) continue;
-        
+
         // Skip empty drafts or bills without items
         if (!bill.billData || !bill.billData.items || bill.billData.items.length === 0) continue;
-        
+
         // Skip bills that haven't been assigned at all (unless split evenly)
         const hasAssignments = bill.itemAssignments && Object.keys(bill.itemAssignments).length > 0;
         if (!hasAssignments && !bill.splitEvenly) continue;
@@ -322,32 +340,58 @@ export const friendBalanceService = {
 
   /**
    * Reverses an idempotent footprint before a bill is deleted.
+   * Accepts optional providedPreviousBalances (read before deletion) to avoid
+   * race conditions with deleteDoc.
    */
-  async reverseBillBalancesIdempotent(billId: string, currentUserId: string): Promise<void> {
+  async reverseBillBalancesIdempotent(
+    billId: string,
+    currentUserId: string,
+    providedPreviousBalances?: Record<string, number>
+  ): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
 
     await runTransaction(db, async (transaction) => {
-      const billSnap = await transaction.get(billRef);
-      if (!billSnap.exists()) return;
+      let previousBalances = providedPreviousBalances;
 
-      const billData = billSnap.data() as Bill;
-      if (billData.ownerId !== currentUserId) return;
+      if (!previousBalances) {
+        const billSnap = await transaction.get(billRef);
+        if (!billSnap.exists()) return;
 
-      const previousBalances = billData.processedBalances;
+        const billData = billSnap.data() as Bill;
+        if (billData.ownerId !== currentUserId) return;
+
+        previousBalances = billData.processedBalances;
+      }
+
       if (!previousBalances || Object.keys(previousBalances).length === 0) return;
+
+      // 1. Gather all reads
+      const friendsToReverse: string[] = [];
+      const balanceRefs: Record<string, any> = {};
+      const balanceSnaps: Record<string, any> = {};
 
       for (const [friendId, amount] of Object.entries(previousBalances)) {
         if (amount === 0) continue;
+        friendsToReverse.push(friendId);
 
         const balanceId = friendBalanceService.getFriendBalanceId(currentUserId, friendId);
         const balanceRef = doc(db, FRIEND_BALANCES_COLLECTION, balanceId);
+        balanceRefs[friendId] = balanceRef;
+        balanceSnaps[friendId] = await transaction.get(balanceRef);
+      }
 
-        const snap = await transaction.get(balanceRef);
+      // 2. Perform all writes
+      for (const friendId of friendsToReverse) {
+        const amount = previousBalances[friendId];
+        const balanceRef = balanceRefs[friendId];
+        const snap = balanceSnaps[friendId];
+
         if (!snap.exists()) continue;
 
         const existing = snap.data();
         const currentOwnerBal: number = existing?.balances?.[currentUserId] ?? 0;
         const currentFriendBal: number = existing?.balances?.[friendId] ?? 0;
+        const balanceId = balanceRef.id;
 
         transaction.set(
           balanceRef,
@@ -364,8 +408,10 @@ export const friendBalanceService = {
           { merge: true }
         );
       }
-      
-      transaction.update(billRef, { processedBalances: {} });
+
+      if (!providedPreviousBalances) {
+        transaction.update(billRef, { processedBalances: {} });
+      }
     });
   },
 

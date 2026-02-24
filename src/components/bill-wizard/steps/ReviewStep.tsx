@@ -5,14 +5,23 @@ import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
 import { StepFooter } from '@/components/shared/StepFooter';
 import { StepHeader } from '@/components/shared/StepHeader';
 import { Person, BillData, ItemAssignment, PersonTotal } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { billService } from '@/services/billService';
+import { friendBalanceService } from '@/services/friendBalanceService';
+import { eventLedgerService } from '@/services/eventLedgerService';
+import { arrayUnion, arrayRemove } from 'firebase/firestore';
 
 interface ReviewStepProps {
     // Data
+    billId?: string;
+    eventId?: string;
     billData: BillData | null;
     people: Person[];
     itemAssignments: ItemAssignment;
     personTotals: PersonTotal[];
     allItemsAssigned: boolean;
+    settledPersonIds?: string[];
 
     // Receipt state (for mobile thumbnail)
     imagePreview: string | null;
@@ -41,11 +50,14 @@ interface ReviewStepProps {
  * Extracted from AIScanView lines 958-1006
  */
 export function ReviewStep({
+    billId,
+    eventId,
     billData,
     people,
     itemAssignments,
     personTotals,
     allItemsAssigned,
+    settledPersonIds,
     imagePreview,
     selectedFile,
     isUploading,
@@ -63,6 +75,55 @@ export function ReviewStep({
 }: ReviewStepProps) {
     const hasReceipt = imagePreview || receiptImageUrl;
     const hasItems = billData?.items && billData.items.length > 0;
+    const { user } = useAuth();
+    const { toast } = useToast();
+
+    const handleMarkAsSettled = async (personId: string, isSettled: boolean) => {
+        if (!user || !billId || !billData) return;
+
+        try {
+            // Update Firestore bill document
+            // If isSettled is true, they want to mark as settled (arrayUnion)
+            // If isSettled is false, they want to undo (arrayRemove)
+            await billService.updateBill(billId, {
+                settledPersonIds: (isSettled ? arrayUnion(personId) : arrayRemove(personId)) as unknown as string[]
+            });
+
+            // Need to update the active session's local state too - this happens naturally 
+            // if we're listening to snapshot, but we explicitly force recalculate ledger
+            toast({
+                title: isSettled ? "Marked as Settled" : "Undo Settled",
+                description: isSettled ? "Their balance has been updated to $0 for this bill." : "Their balance has been restored for this bill.",
+            });
+
+            // Because onSnapshot updates billData, the effect in BillWizard that watches 
+            // wizard.currentStep handles applying balances on review step.
+            // But we might want to manually trigger it here just in case.
+            await friendBalanceService.applyBillBalancesIdempotent(
+                billId,
+                user.uid,
+                personTotals
+            );
+
+            if (eventId) {
+                await eventLedgerService.applyBillToEventLedgerIdempotent(
+                    eventId,
+                    billId,
+                    user.uid,
+                    personTotals
+                );
+            }
+
+        } catch (error) {
+            console.error("Failed to mark as settled", error);
+            toast({
+                title: "Error",
+                description: "Failed to mark as settled. Please try again.",
+                variant: "destructive"
+            });
+            throw error;
+        }
+    };
 
     return (
         <div>
@@ -92,6 +153,8 @@ export function ReviewStep({
                     people={people}
                     billData={billData}
                     itemAssignments={itemAssignments}
+                    settledPersonIds={settledPersonIds}
+                    onMarkAsSettled={handleMarkAsSettled}
                 />
             </Card>
 

@@ -52,4 +52,5 @@ export interface VenmoCharge {
   recipientName: string;
   amount: number;
   note: string;
+  type?: 'charge' | 'pay';
 }

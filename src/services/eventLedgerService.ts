@@ -37,7 +37,7 @@ export const eventLedgerService = {
     // 1. Pre-calculate the deltas (who paid vs who owes what)
     // Positive balance means they are owed money. Negative means they owe money.
     const deltas: Record<string, number> = {};
-    
+
     // Resolve Person IDs to Firebase User IDs to maintain ledger integrity
     const userProfile = await userService.getUserProfile(ownerId);
     const rawFriends: any[] = userProfile?.friends || [];
@@ -48,30 +48,30 @@ export const eventLedgerService = {
 
     let totalBillAmount = 0;
     for (const total of personTotals) {
-        totalBillAmount += total.total;
+      totalBillAmount += total.total;
     }
 
     for (const total of personTotals) {
       const isOwner = total.personId === ownerId;
       const firebaseUserId = friendUserIds.has(total.personId) ? total.personId : null;
-      
+
       if (!firebaseUserId) continue;
 
       if (!deltas[firebaseUserId]) {
         deltas[firebaseUserId] = 0;
       }
-      
+
       // If this is not the owner, they owe their share
       if (!isOwner) {
-         deltas[firebaseUserId] -= total.total;
+        deltas[firebaseUserId] -= total.total;
       }
     }
-    
+
     // The owner paid for the whole bill, so they are owed everything except their own share
     if (!deltas[ownerId]) {
-        deltas[ownerId] = 0;
+      deltas[ownerId] = 0;
     }
-    
+
     const ownerShare = personTotals.find(t => t.personId === ownerId)?.total || 0;
     deltas[ownerId] += (totalBillAmount - ownerShare);
 
@@ -85,7 +85,7 @@ export const eventLedgerService = {
       }
 
       const billData = billSnap.data() as Bill & { eventLedgerProcessed?: boolean };
-      
+
       // Prevent double counting
       if (billData.eventLedgerProcessed) {
         return;
@@ -106,21 +106,21 @@ export const eventLedgerService = {
 
       // If bill was already processed but the flag wasn't set on the bill somehow
       if (ledgerData.processedBillIds.includes(billId)) {
-          // just update the bill flag and return
-          transaction.update(billRef, { eventLedgerProcessed: true });
-          return;
+        // just update the bill flag and return
+        transaction.update(billRef, { eventLedgerProcessed: true });
+        return;
       }
 
       // Apply deltas to net balances
       for (const [userId, delta] of Object.entries(deltas)) {
         if (!ledgerData.netBalances[userId]) {
-            ledgerData.netBalances[userId] = 0;
+          ledgerData.netBalances[userId] = 0;
         }
         ledgerData.netBalances[userId] += delta;
-        
+
         // clean up tiny float errors
         if (Math.abs(ledgerData.netBalances[userId]) < 0.01) {
-            ledgerData.netBalances[userId] = 0;
+          ledgerData.netBalances[userId] = 0;
         }
       }
 
@@ -167,12 +167,12 @@ export const eventLedgerService = {
       // 2. Pre-calculate the NEW exact debts each friend owes for this bill
       const newDeltasInside: Record<string, number> = {};
       let totalBillAmount = 0;
-      
+
       for (const total of personTotals) {
         totalBillAmount += total.total;
         const isOwner = total.personId === ownerId;
         const firebaseUserId = friendUserIds.has(total.personId) ? total.personId : null;
-        
+
         if (!firebaseUserId) continue;
 
         if (!newDeltasInside[firebaseUserId]) {
@@ -181,21 +181,21 @@ export const eventLedgerService = {
 
         // If this is not the owner, they owe their share unless settled
         if (!isOwner) {
-           const owesAmount = settledPersonIds.includes(total.personId) ? 0 : total.total;
-           newDeltasInside[firebaseUserId] -= owesAmount;
+          const owesAmount = settledPersonIds.includes(total.personId) ? 0 : total.total;
+          newDeltasInside[firebaseUserId] -= owesAmount;
         }
       }
-      
+
       // The owner is owed the exact sum of what everyone else owes
       if (!newDeltasInside[ownerId]) {
-          newDeltasInside[ownerId] = 0;
+        newDeltasInside[ownerId] = 0;
       }
-      
+
       let ownerIsOwed = 0;
       for (const [uid, amt] of Object.entries(newDeltasInside)) {
-         if (uid !== ownerId) {
-             ownerIsOwed += Math.abs(amt);
-         }
+        if (uid !== ownerId) {
+          ownerIsOwed += Math.abs(amt);
+        }
       }
       newDeltasInside[ownerId] = ownerIsOwed;
 
@@ -216,18 +216,18 @@ export const eventLedgerService = {
 
       // 4. Reverse previous footprint
       for (const [uid, prevAmount] of Object.entries(previousBalances)) {
-         if (!ledgerData.netBalances[uid]) ledgerData.netBalances[uid] = 0;
-         ledgerData.netBalances[uid] -= prevAmount;
+        if (!ledgerData.netBalances[uid]) ledgerData.netBalances[uid] = 0;
+        ledgerData.netBalances[uid] -= prevAmount;
       }
 
       // 5. Apply new footprint
       for (const [uid, newAmount] of Object.entries(newDeltasInside)) {
-         if (!ledgerData.netBalances[uid]) ledgerData.netBalances[uid] = 0;
-         ledgerData.netBalances[uid] += newAmount;
+        if (!ledgerData.netBalances[uid]) ledgerData.netBalances[uid] = 0;
+        ledgerData.netBalances[uid] += newAmount;
 
-         if (Math.abs(ledgerData.netBalances[uid]) < 0.01) {
-             ledgerData.netBalances[uid] = 0;
-         }
+        if (Math.abs(ledgerData.netBalances[uid]) < 0.01) {
+          ledgerData.netBalances[uid] = 0;
+        }
       }
 
       // 6. Re-optimize debts
@@ -235,7 +235,7 @@ export const eventLedgerService = {
       ledgerData.lastUpdatedAt = Timestamp.now();
 
       if (!ledgerData.processedBillIds.includes(billId)) {
-          ledgerData.processedBillIds.push(billId);
+        ledgerData.processedBillIds.push(billId);
       }
 
       // 7. Write updates
@@ -246,21 +246,28 @@ export const eventLedgerService = {
 
   /**
    * Reverses an idempotent footprint before an event bill is deleted.
+   * If previousBalances is provided directly (e.g. read before deletion),
+   * it avoids race conditions with deleteDoc.
    */
   async reverseBillFromEventLedgerIdempotent(
     eventId: string,
-    billId: string
+    billId: string,
+    providedPreviousBalances?: Record<string, number>
   ): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
     const eventLedgerRef = doc(db, EVENT_BALANCES_COLLECTION, eventId);
 
     await runTransaction(db, async (transaction) => {
-      const billSnap = await transaction.get(billRef);
-      if (!billSnap.exists()) return;
+      let previousBalances = providedPreviousBalances;
 
-      const billData = billSnap.data() as Bill;
-      const previousBalances = billData.eventBalancesApplied;
-      
+      if (!previousBalances) {
+        const billSnap = await transaction.get(billRef);
+        if (!billSnap.exists()) return;
+
+        const billData = billSnap.data() as Bill;
+        previousBalances = billData.eventBalancesApplied;
+      }
+
       if (!previousBalances || Object.keys(previousBalances).length === 0) return;
 
       const ledgerSnap = await transaction.get(eventLedgerRef);
@@ -270,20 +277,23 @@ export const eventLedgerService = {
 
       // Reverse footprint
       for (const [uid, prevAmount] of Object.entries(previousBalances)) {
-         if (!ledgerData.netBalances[uid]) ledgerData.netBalances[uid] = 0;
-         ledgerData.netBalances[uid] -= prevAmount;
-         if (Math.abs(ledgerData.netBalances[uid]) < 0.01) {
-             ledgerData.netBalances[uid] = 0;
-         }
+        if (!ledgerData.netBalances[uid]) ledgerData.netBalances[uid] = 0;
+        ledgerData.netBalances[uid] -= prevAmount;
+        if (Math.abs(ledgerData.netBalances[uid]) < 0.01) {
+          ledgerData.netBalances[uid] = 0;
+        }
       }
 
       // Re-optimize
       ledgerData.optimizedDebts = eventLedgerService.optimizeDebts(ledgerData.netBalances);
       ledgerData.lastUpdatedAt = Timestamp.now();
+      ledgerData.processedBillIds = ledgerData.processedBillIds.filter(id => id !== billId);
 
       // Write updates
       transaction.set(eventLedgerRef, ledgerData, { merge: true });
-      transaction.update(billRef, { eventBalancesApplied: {} });
+      if (!providedPreviousBalances) {
+        transaction.update(billRef, { eventBalancesApplied: {} });
+      }
     });
   },
 
@@ -298,14 +308,14 @@ export const eventLedgerService = {
 
     const snapshot = await getDocs(q);
     const bills = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bill));
-    
+
     // We recreate the deltas for all bills
     const aggregatedBalances: Record<string, number> = {};
     const processedBillIds: string[] = [];
 
     for (const bill of bills) {
       if (!bill.people || !bill.billData || !bill.billData.items || bill.billData.items.length === 0) continue;
-      
+
       const { calculatePersonTotals } = await import('@/utils/calculations');
       const personTotals = calculatePersonTotals(
         bill.billData,
@@ -326,24 +336,24 @@ export const eventLedgerService = {
       const deltas: Record<string, number> = {};
       let totalBillAmount = 0;
       for (const total of personTotals) {
-          totalBillAmount += total.total;
+        totalBillAmount += total.total;
       }
 
       for (const total of personTotals) {
         const isOwner = total.personId === bill.ownerId;
         const firebaseUserId = friendUserIds.has(total.personId) ? total.personId : null;
-        
+
         if (!firebaseUserId) continue;
 
         if (!deltas[firebaseUserId]) deltas[firebaseUserId] = 0;
-        
+
         if (!isOwner) {
-           deltas[firebaseUserId] -= total.total;
+          deltas[firebaseUserId] -= total.total;
         }
       }
-      
+
       if (!deltas[bill.ownerId]) deltas[bill.ownerId] = 0;
-      
+
       const ownerShare = personTotals.find(t => t.personId === bill.ownerId)?.total || 0;
       deltas[bill.ownerId] += (totalBillAmount - ownerShare);
 
@@ -352,7 +362,7 @@ export const eventLedgerService = {
         if (!aggregatedBalances[userId]) aggregatedBalances[userId] = 0;
         aggregatedBalances[userId] += delta;
         if (Math.abs(aggregatedBalances[userId]) < 0.01) {
-            aggregatedBalances[userId] = 0;
+          aggregatedBalances[userId] = 0;
         }
       }
 
@@ -362,7 +372,7 @@ export const eventLedgerService = {
     const optimizedDebts = eventLedgerService.optimizeDebts(aggregatedBalances);
 
     const eventLedgerRef = doc(db, EVENT_BALANCES_COLLECTION, eventId);
-    
+
     // Write new state
     await runTransaction(db, async (transaction) => {
       transaction.set(eventLedgerRef, {
@@ -409,9 +419,9 @@ export const eventLedgerService = {
     while (i < debtors.length && j < creditors.length) {
       const debtor = debtors[i];
       const creditor = creditors[j];
-      
+
       const settleAmount = Math.min(debtor.amount, creditor.amount);
-      
+
       if (settleAmount > 0.01) {
         optimizedDebts.push({
           fromUserId: debtor.userId,
@@ -444,7 +454,7 @@ export const eventLedgerService = {
     await runTransaction(db, async (transaction) => {
       const ledgerSnap = await transaction.get(eventLedgerRef);
       let ledgerData: EventLedger;
-      
+
       if (ledgerSnap.exists()) {
         ledgerData = ledgerSnap.data() as EventLedger;
       } else {

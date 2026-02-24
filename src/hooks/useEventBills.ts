@@ -29,8 +29,8 @@ export function useEventBills(eventId: string) {
     setLoading(true);
     const billsRef = collection(db, 'bills');
     const q = query(
-      billsRef, 
-      where('eventId', '==', eventId), 
+      billsRef,
+      where('eventId', '==', eventId),
       orderBy('createdAt', 'desc')
     );
 
@@ -60,14 +60,14 @@ export function useEventBills(eventId: string) {
       data.people || [],
       eventId
     );
-    
+
     if (data.itemAssignments || data.splitEvenly || data.receiptImageUrl || data.receiptFileName) {
       const updates: any = {};
       if (data.itemAssignments) updates.itemAssignments = data.itemAssignments;
       if (data.splitEvenly !== undefined) updates.splitEvenly = data.splitEvenly;
       if (data.receiptImageUrl) updates.receiptImageUrl = data.receiptImageUrl;
       if (data.receiptFileName) updates.receiptFileName = data.receiptFileName;
-      
+
       await billService.updateBill(billId, updates);
     }
 
@@ -79,16 +79,26 @@ export function useEventBills(eventId: string) {
   }, []);
 
   const deleteTransaction = useCallback(async (billId: string) => {
+    // Read the bill first to get footprints before the document is deleted
+    const billSnap = await billService.getBill(billId);
+    if (!billSnap) return;
+
     if (eventId) {
-      await eventLedgerService.reverseBillFromEventLedgerIdempotent(eventId, billId)
-        .catch(err => console.error('Failed to reverse from event ledger on delete:', err));
+      await eventLedgerService.reverseBillFromEventLedgerIdempotent(
+        eventId,
+        billId,
+        billSnap.eventBalancesApplied
+      ).catch(err => console.error('Failed to reverse from event ledger on delete:', err));
     }
-    
+
     if (user) {
       // Event bills also contribute to global friend balances, reverse them!
       const { friendBalanceService } = await import('@/services/friendBalanceService');
-      await friendBalanceService.reverseBillBalancesIdempotent(billId, user.uid)
-        .catch(err => console.error('Failed to reverse bill balances on delete:', err));
+      await friendBalanceService.reverseBillBalancesIdempotent(
+        billId,
+        user.uid,
+        billSnap.processedBalances
+      ).catch(err => console.error('Failed to reverse bill balances on delete:', err));
     }
 
     const billRef = doc(db, 'bills', billId);

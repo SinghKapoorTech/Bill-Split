@@ -97,9 +97,10 @@ When the user enters the Review step (step 4), a `useEffect` in `BillWizard.tsx`
 
 `reverseBillBalancesIdempotent()` is called **before** `deleteDoc()` in both `clearSession` and `deleteSession`:
 
-1. Reads `processedBalances` from the bill.
-2. For each friend in that map, runs a Firestore transaction to completely subtract that specific footprint from **[[friend_balances]]**.
-3. Automatically triggers UI updates because `getHydratedFriends` uses `onSnapshot` to re-fetch live balances.
+1. Reads `processedBalances` and `eventBalancesApplied` from the bill BEFORE triggering Firestore deletion.
+2. Passes those explicit footprints into the Delta Engine as `providedPreviousBalances`. This prevents a race condition where the Delta Engine spins up after the bill is already deleted.
+3. For each footprint, the Delta Engine subtracts that specific footprint from **[[friend_balances]]** and `event_balances`.
+4. Automatically triggers UI updates because `getHydratedFriends` and Event ledgers use `onSnapshot` to re-fetch live balances.
 
 > [!NOTE]
 > If the bill was never reviewed (`processedBalances` absent or empty), `reverseBillBalancesIdempotent` returns immediately — nothing to undo.

@@ -203,20 +203,20 @@ export function useBills() {
           }
         }
       } else if (activeSession.receiptImageUrl) {
-          // Fallback: try to extract the likely path from the URL
-          try {
-             const decodedUrl = decodeURIComponent(activeSession.receiptImageUrl);
-             const urlParts = decodedUrl.split('/o/');
-             if (urlParts.length > 1) {
-                 const fullPath = urlParts[1].split('?')[0]; // eg. "receipts/uid/receipt_123"
-                 if (fullPath.includes(user?.uid || '')) {
-                     const directRef = ref(storage, fullPath);
-                     await deleteObject(directRef);
-                 }
-             }
-          } catch (e) {
-              console.error("Failed to delete image via URL parsing", e);
+        // Fallback: try to extract the likely path from the URL
+        try {
+          const decodedUrl = decodeURIComponent(activeSession.receiptImageUrl);
+          const urlParts = decodedUrl.split('/o/');
+          if (urlParts.length > 1) {
+            const fullPath = urlParts[1].split('?')[0]; // eg. "receipts/uid/receipt_123"
+            if (fullPath.includes(user?.uid || '')) {
+              const directRef = ref(storage, fullPath);
+              await deleteObject(directRef);
+            }
           }
+        } catch (e) {
+          console.error("Failed to delete image via URL parsing", e);
+        }
       }
 
       // Update the bill to remove image references
@@ -252,18 +252,24 @@ export function useBills() {
     try {
       // Reverse this bill's contribution to the shared ledger before deleting
       if (user) {
-        await friendBalanceService.reverseBillBalancesIdempotent(activeSession.id, user.uid)
-          .catch(err => console.error('Failed to reverse bill balances on clear:', err));
+        await friendBalanceService.reverseBillBalancesIdempotent(
+          activeSession.id,
+          user.uid,
+          activeSession.processedBalances
+        ).catch(err => console.error('Failed to reverse bill balances on clear:', err));
       }
 
       // Delete the active bill from Firestore
       const billRef = doc(db, 'bills', activeSession.id);
       await deleteDoc(billRef);
-      
+
       // We should recalculate the event ledger if it was an event bill
       if (activeSession.eventId) {
-          await eventLedgerService.reverseBillFromEventLedgerIdempotent(activeSession.eventId, activeSession.id)
-            .catch(err => console.error('Failed to reverse from event ledger on clear:', err));
+        await eventLedgerService.reverseBillFromEventLedgerIdempotent(
+          activeSession.eventId,
+          activeSession.id,
+          activeSession.eventBalancesApplied
+        ).catch(err => console.error('Failed to reverse from event ledger on clear:', err));
       }
 
       // Delete receipt image if it exists
@@ -292,15 +298,18 @@ export function useBills() {
   const deleteSession = useCallback(async (sessionId: string, receiptFileName?: string) => {
     setIsDeleting(true);
     try {
-      // Reverse this bill's contribution to the shared ledger before deleting
-      if (user) {
-        await friendBalanceService.reverseBillBalancesIdempotent(sessionId, user.uid)
-          .catch(err => console.error('Failed to reverse bill balances on delete:', err));
-      }
-
-      // Get the bill first so we can check if it has a receiptImageUrl
+      // Get the bill first so we can check if it has a receiptImageUrl and balances
       const billRef = doc(db, 'bills', sessionId);
       const billSnap = await billService.getBill(sessionId);
+
+      // Reverse this bill's contribution to the shared ledger before deleting
+      if (user) {
+        await friendBalanceService.reverseBillBalancesIdempotent(
+          sessionId,
+          user.uid,
+          billSnap?.processedBalances
+        ).catch(err => console.error('Failed to reverse bill balances on delete:', err));
+      }
 
       await deleteDoc(billRef);
 
@@ -318,26 +327,29 @@ export function useBills() {
           }
         }
       } else if (billSnap?.receiptImageUrl) {
-           // Fallback: try to extract the likely path from the URL
-          try {
-             const decodedUrl = decodeURIComponent(billSnap.receiptImageUrl);
-             const urlParts = decodedUrl.split('/o/');
-             if (urlParts.length > 1) {
-                 const fullPath = urlParts[1].split('?')[0]; // eg. "receipts/uid/receipt_123"
-                 if (fullPath.includes(user?.uid || '')) {
-                     const directRef = ref(storage, fullPath);
-                     await deleteObject(directRef);
-                 }
-             }
-          } catch (e) {
-              console.error("Failed to delete image via URL parsing", e);
+        // Fallback: try to extract the likely path from the URL
+        try {
+          const decodedUrl = decodeURIComponent(billSnap.receiptImageUrl);
+          const urlParts = decodedUrl.split('/o/');
+          if (urlParts.length > 1) {
+            const fullPath = urlParts[1].split('?')[0]; // eg. "receipts/uid/receipt_123"
+            if (fullPath.includes(user?.uid || '')) {
+              const directRef = ref(storage, fullPath);
+              await deleteObject(directRef);
+            }
           }
+        } catch (e) {
+          console.error("Failed to delete image via URL parsing", e);
+        }
       }
-      
+
       // We should recalculate the event ledger if it was an event bill
       if (billSnap?.eventId) {
-          await eventLedgerService.reverseBillFromEventLedgerIdempotent(billSnap.eventId, sessionId)
-            .catch(err => console.error('Failed to reverse from event ledger on delete:', err));
+        await eventLedgerService.reverseBillFromEventLedgerIdempotent(
+          billSnap.eventId,
+          sessionId,
+          billSnap.eventBalancesApplied
+        ).catch(err => console.error('Failed to reverse from event ledger on delete:', err));
       }
 
       toast({ title: 'Success', description: 'Session deleted.' });
