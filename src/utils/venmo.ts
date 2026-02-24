@@ -10,14 +10,16 @@ export function constructVenmoDeepLink(charge: VenmoCharge): string {
 }
 
 export function openVenmoApp(charge: VenmoCharge): void {
-  const isNative = Capacitor.isNativePlatform();
+  // Use user-agent check so that BOTH the native Capacitor app AND 
+  // regular mobile browser users (Safari/Chrome on phone) get the native deep link
+  const isMobileOS = isVenmoInstalled();
 
-  if (isNative) {
-    // Native App: Use strict deep link
+  if (isMobileOS) {
+    // Native Mobile OS: Use strict deep link
     const deepLink = constructVenmoDeepLink(charge);
-    window.open(deepLink, '_system');
+    window.location.href = deepLink;
   } else {
-    // Web Browser: Use universal web link (Venmo's site handles redirecting to the app if installed)
+    // Desktop Browser: Use universal web link
     const webLink = getVenmoWebUrl(charge);
     window.open(webLink, '_blank');
   }
@@ -32,5 +34,7 @@ export function getVenmoWebUrl(charge: VenmoCharge): string {
   const formattedAmount = charge.amount.toFixed(2);
   const txnType = charge.type || 'charge';
 
-  return `https://account.venmo.com/pay?txn=${txnType}&amount=${formattedAmount}&note=${encodedNote}&audience=friends`;
+  const url = `https://account.venmo.com/pay?txn=${txnType}&recipients=${charge.recipientId}&amount=${formattedAmount}&note=${encodedNote}&audience=friends`;
+
+  return url;
 }
