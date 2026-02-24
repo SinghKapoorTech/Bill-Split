@@ -19,10 +19,11 @@ Custom ID generated via `generateSquadId()` (e.g., UUID).
 | `name` | String | Display name of the squad. |
 | `description` | String (Optional) | Context for the squad. |
 | `memberIds` | Array of String | Array of UID references to the **[Users](users.md)** collection. |
-| `bills` | Array of String (Optional) | Array of Bill IDs associated with this squad. |
-| `events` | Array of String (Optional) | Array of Event IDs associated with this squad. |
 | `createdAt` | Timestamp | Creation time. |
 | `updatedAt` | Timestamp | Last modification time. |
+
+> [!NOTE] Design Pattern
+> Squads do **not** store an array of associated Bill IDs or Event IDs. Doing so would cause write contention when multiple users upload receipts simultaneously. Instead, **[Bills](bills.md)** and **[Events](events.md)** optionally store a `squadId` field. We then query for associated data using `where('squadId', '==', id)` and `orderBy('createdAt', 'desc')`.
 
 ## Hydration Architecture
 Notice that the database *only* stores `memberIds`. It does not store names, emails, or Venmo IDs in the squad document itself. 

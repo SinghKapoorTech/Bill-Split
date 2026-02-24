@@ -91,6 +91,19 @@ export const billService = {
   },
 
   /**
+   * Gets all bills associated with a squad
+   */
+  async getBillsBySquad(squadId: string): Promise<Bill[]> {
+    const q = query(
+      collection(db, BILLS_COLLECTION),
+      where('squadId', '==', squadId)
+    );
+
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as Bill);
+  },
+
+  /**
    * Updates a bill
    */
   async updateBill(billId: string, updates: Partial<Bill>): Promise<void> {

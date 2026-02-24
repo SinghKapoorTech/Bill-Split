@@ -6,7 +6,9 @@ service cloud.firestore {
     // User's private data: only owner can write, but others can read basic profile info for search
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create, delete: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && 
+                    (request.auth.uid == userId || onlyUpdating(['squadIds']));
     }
 
     // Events collection - users can read events they own or are members of
@@ -28,6 +30,22 @@ service cloud.firestore {
                          onlyUpdating(['memberIds', 'pendingInvites', 'updatedAt'])));
       allow delete: if request.auth != null &&
                        request.auth.uid == resource.data.ownerId;
+    }
+
+    // ========== Squads Collection ==========
+    match /squads/{squadId} {
+      // Any authenticated user can read squads they have the ID for.
+      // Access control is enforced at app level via user.squadIds.
+      allow read: if request.auth != null;
+      
+      allow create: if request.auth != null &&
+                    request.auth.uid in request.resource.data.memberIds;
+                    
+      allow update: if request.auth != null &&
+                    request.auth.uid in resource.data.memberIds;
+                    
+      allow delete: if request.auth != null &&
+                    request.auth.uid in resource.data.memberIds;
     }
 
     // Helper function to check if only specific fields are being updated
@@ -71,6 +89,14 @@ service cloud.firestore {
            request.auth.uid in get(/databases/$(database)/documents/events/$(eId)).data.memberIds)
         );
       }
+
+      // Helper: Check if user is a member of the squad attached to this bill
+      function hasSquadIdAndMember(data) {
+        let sId = 'squadId' in data ? data.squadId : null;
+        return sId != null && 
+          exists(/databases/$(database)/documents/squads/$(sId)) &&
+          request.auth.uid in get(/databases/$(database)/documents/squads/$(sId)).data.memberIds;
+      }
       
       // READ: 
       // - Authenticated: Owner, event members, or bill members
@@ -84,6 +110,8 @@ service cloud.firestore {
           request.auth.uid == resource.data.ownerId ||
           // Event members can read event bills
           hasEventIdAndMember(resource.data) ||
+          // Squad members can read squad bills
+          hasSquadIdAndMember(resource.data) ||
           // Authenticated members can read (includes guests who joined via share link)
           isBillMember(resource.data)
         ));
@@ -109,6 +137,8 @@ service cloud.firestore {
           request.auth.uid == resource.data.ownerId ||
           // Event members have full access to event bills
           hasEventIdAndMember(resource.data) ||
+          // Squad members have full access to squad bills
+          hasSquadIdAndMember(resource.data) ||
           // All authenticated members can update specific fields (assignments, people)
           (isBillMember(resource.data) && isGuestUpdate())
         ));

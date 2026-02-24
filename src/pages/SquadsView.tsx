@@ -12,11 +12,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useState } from 'react';
 
 export default function SquadsView() {
   const navigate = useNavigate();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [squadToDelete, setSquadToDelete] = useState<{ id: string; name: string } | null>(null);
   const {
     squads,
     loading,
@@ -29,31 +41,26 @@ export default function SquadsView() {
   } = useSquadEditor();
 
   const onEditSquad = (squad: any) => {
-    // We can use the same dialog for editing if better, 
-    // or just navigate to a detail view if that existed.
-    // For now, let's open the create dialog in 'edit' mode or similar, 
-    // but SquadForm handles editing if we pass initial data. 
-    // Simplified: Just use the hook's handleEdit to set state, and maybe open a dialog?
-    // The useSquadEditor hook seems to be designed for the tabs view. 
-    // Let's adapt it.
     handleEdit(squad);
     setCreateDialogOpen(true);
   };
 
-  const onUpdateSquad = async (name: string, description: string, members: any[]) => {
-      // The hook's handleUpdate relies on 'editingSquad' state.
-      // We need to confirm if useSquadEditor exposes handleUpdate directly or we need to wrap it.
-      // Checking usage in ManageSquadsCard... it imports handleUpdate.
-      // So we can assume it's available.
-      // We'll need to pass this to SquadForm.
-      // However, managing the "Edit" state vs "Create" state in one dialog might be tricky if the hook doesn't support it cleanly.
-      
-      // Actually, looking at ManageSquadsCard, it switches tabs.
-      // Here we want a list view and a dialog for create/edit.
+  const onDeleteSquad = (squadId: string) => {
+    const squad = squads.find(s => s.id === squadId);
+    if (!squad) return;
+    setSquadToDelete({ id: squadId, name: squad.name });
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!squadToDelete) return;
+    await handleDelete(squadToDelete.id);
+    setDeleteDialogOpen(false);
+    setSquadToDelete(null);
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-lg mb-20">
+    <div className="container mx-auto px-4 py-8 max-w-4xl mb-20">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">My Squads</h1>
@@ -61,7 +68,7 @@ export default function SquadsView() {
         </div>
         <Dialog open={createDialogOpen} onOpenChange={(open) => {
             setCreateDialogOpen(open);
-            if (!open) handleTabChange('list'); // Clear editing state on close
+            if (!open) handleTabChange('list');
         }}>
           <DialogTrigger asChild>
             <Button size="icon" className="rounded-full h-10 w-10">
@@ -109,9 +116,29 @@ export default function SquadsView() {
         <SquadList 
             squads={squads} 
             onEdit={onEditSquad} 
-            onDelete={handleDelete} 
+            onDelete={onDeleteSquad} 
         />
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Squad</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{squadToDelete?.name}"? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

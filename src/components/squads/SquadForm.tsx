@@ -11,6 +11,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { userService } from '@/services/userService';
+import { useFriendSearch } from '@/hooks/useFriendSearch';
+import { Search, User } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface SquadFormProps {
   initialName?: string;
@@ -38,6 +41,8 @@ export function SquadForm({
   const [newMemberVenmoId, setNewMemberVenmoId] = useState('');
   
   const [showExtraFields, setShowExtraFields] = useState(false);
+  
+  const { filteredFriends, showSuggestions, setShowSuggestions } = useFriendSearch(newMemberName);
 
   const handleAddMember = () => {
     if (!newMemberName.trim()) return;
@@ -89,12 +94,59 @@ export function SquadForm({
         <div className="border border-border rounded-md p-3 space-y-3 bg-card">
           <div className="space-y-3">
              <div className="flex gap-2">
-                <Input
-                  placeholder="Name"
-                  value={newMemberName}
-                  onChange={(e) => setNewMemberName(e.target.value)}
-                  className="flex-1"
-                />
+                <div className="relative flex-1">
+                  <Input
+                    placeholder="Search for users or type guest name..."
+                    value={newMemberName}
+                    onChange={(e) => setNewMemberName(e.target.value)}
+                    className="w-full"
+                  />
+                  {showSuggestions && filteredFriends.length > 0 && (
+                     <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-md shadow-md flex flex-col overflow-hidden z-50">
+                       <div className="px-3 py-2 bg-muted/50 border-b border-border">
+                         <Label className="text-xs text-muted-foreground uppercase tracking-wider">Search Results</Label>
+                       </div>
+                       <ScrollArea className="max-h-[200px] w-full">
+                         <div className="p-2">
+                           {filteredFriends.map((friend, idx) => (
+                             <button
+                               key={idx}
+                               type="button"
+                               onClick={() => {
+                                 const newMember: SquadMember = {
+                                    id: friend.id,
+                                    name: friend.name,
+                                    email: friend.email,
+                                    venmoId: friend.venmoId
+                                 };
+                                 const isDuplicate = members.some(m => (m.id && m.id === newMember.id) || m.name.toLowerCase() === newMember.name.toLowerCase());
+                                 if (!isDuplicate) setMembers([...members, newMember]);
+                                 setNewMemberName('');
+                                 setNewMemberEmail('');
+                                 setNewMemberPhone('');
+                                 setNewMemberVenmoId('');
+                                 setShowSuggestions(false);
+                               }}
+                               className="w-full text-left flex items-center p-2 rounded-md border border-border/40 bg-card hover:border-primary/30 hover:bg-accent/50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all mb-1.5 cursor-pointer h-12"
+                             >
+                               <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 mr-3 flex-shrink-0">
+                                 <User className="h-4 w-4 text-primary" />
+                               </div>
+                               <div className="flex flex-col flex-1 overflow-hidden">
+                                 <span className="text-sm font-medium truncate">{friend.name}</span>
+                                 {friend.username && (
+                                   <span className="text-xs text-muted-foreground truncate">
+                                     @{friend.username}
+                                   </span>
+                                 )}
+                               </div>
+                             </button>
+                           ))}
+                         </div>
+                       </ScrollArea>
+                     </div>
+                  )}
+                </div>
                 <Button onClick={handleAddMember} variant="secondary" size="icon" type="button" disabled={!newMemberName.trim()}>
                   <UserPlus className="w-4 h-4" />
                 </Button>
@@ -103,7 +155,7 @@ export function SquadForm({
              {!showExtraFields ? (
                 <div className="flex gap-2">
                     <Button variant="ghost" size="sm" onClick={() => setShowExtraFields(true)} className="text-xs text-muted-foreground h-auto py-1">
-                        + Add Contact Info (Email/Phone/Venmo)
+                        + Add Guest Contact Info (Email/Phone/Venmo)
                     </Button>
                 </div>
              ) : (
@@ -138,19 +190,6 @@ export function SquadForm({
                 </div>
              )}
           </div>
-
-          <ValidMemberUserSearch 
-            onSelect={(user) => {
-                 setNewMemberName(user.displayName);
-                 setNewMemberEmail(user.email || '');
-                 setNewMemberPhone(user.phoneNumber || '');
-                 setNewMemberVenmoId(user.venmoId || '');
-                 // Auto add? Or just populate fields? Populating fields is safer to review.
-                 // Actually, if selected from existing friend/user, we should attach the ID directly if possible?
-                 // SquadMember has optional `id`.
-                 // Let's populate fields and let user click add.
-            }}
-          />
 
           {members.length > 0 && (
             <div className="space-y-1 pt-2 max-h-[200px] overflow-y-auto">
@@ -238,36 +277,3 @@ function SquadDescriptionField({ value, onChange }: SquadDescriptionFieldProps) 
   );
 }
 
-// Simplified version of the friend search just to populate name/contact
-function ValidMemberUserSearch({ onSelect }: { onSelect: (user: any) => void }) {
-    const { user } = useAuth();
-    const [friends, setFriends] = useState<any[]>([]);
-    
-    useEffect(() => {
-        if (!user) return;
-        const loadFriends = async () => {
-             try {
-                const hydratedFriends = await userService.getHydratedFriends(user.uid);
-                setFriends(hydratedFriends);
-             } catch (error) {
-                console.error("Failed to load friends for squad form", error);
-             }
-        };
-        loadFriends();
-    }, [user]);
-    
-    if (friends.length === 0) return null;
-
-    return (
-        <div className="pt-2">
-             <Label className="text-xs text-muted-foreground mb-1 block">Quick Add Friend</Label>
-             <div className="flex gap-1 flex-wrap">
-                 {friends.slice(0, 5).map((f, i) => (
-                     <Badge key={i} variant="outline" className="cursor-pointer hover:bg-secondary" onClick={() => onSelect({ displayName: f.name, venmoId: f.venmoId })}>
-                        {f.name}
-                     </Badge>
-                 ))}
-             </div>
-        </div>
-    );
-}

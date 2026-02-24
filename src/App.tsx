@@ -23,6 +23,7 @@ import JoinSession from "./pages/JoinSession";
 import CollaborativeSessionView from "./pages/CollaborativeSessionView";
 import NotFound from "./pages/NotFound";
 import SquadsView from "./pages/SquadsView";
+import SquadDetailView from "./pages/SquadDetailView";
 
 const queryClient = new QueryClient();
 
@@ -106,6 +107,7 @@ const App = () => (
                 <Route path="events" element={<EventsView />} />
                 <Route path="events/:eventId" element={<EventDetailView />} />
                 <Route path="squads" element={<SquadsView />} />
+                <Route path="squads/:squadId" element={<SquadDetailView />} />
                 <Route path="settings" element={<SettingsView />} />
               </Route>
 

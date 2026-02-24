@@ -15,7 +15,7 @@ import { db } from '@/config/firebase';
 import { convertSquadMembersToPeople } from '@/utils/squadUtils';
 import { SquadMember } from '@/types/squad.types';
 import { generateUserId } from '@/utils/billCalculations';
-import { userService } from '@/services/userService';
+import { useFriendSearch } from '@/hooks/useFriendSearch';
 
 interface Friend {
   id?: string;
@@ -61,116 +61,8 @@ export function PeopleManager({
   const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
   const [friendsDialogOpen, setFriendsDialogOpen] = useState(false);
   const [squadDialogOpen, setSquadDialogOpen] = useState(false);
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [filteredFriends, setFilteredFriends] = useState<Friend[]>([]);
-
-  // Load friends list
-  useEffect(() => {
-    if (user) {
-      loadFriends();
-    }
-  }, [user]);
-
-  // Filter friends based on input and search global users if email or username prefix
-  useEffect(() => {
-    const searchInput = newPersonName.trim();
-    if (searchInput.length > 0) {
-      // 1. Filter local friends
-      const filtered = friends.filter(friend =>
-        friend?.name?.toLowerCase().includes(searchInput.toLowerCase())
-      );
-      
-      // 2. Global search if it looks like an email
-      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(searchInput);
-      
-      // 3. Or if it's at least 2 chars, do a global username search
-      const shouldSearchGlobal = isEmail || searchInput.length >= 2;
-
-      if (shouldSearchGlobal) {
-        // We use a small debounce effect implicitly by tracking the active request
-        let isActive = true;
-
-        const performSearch = async () => {
-          try {
-            let globalUsers = [];
-            
-            if (isEmail) {
-              const userByEmail = await userService.getUserByContact(searchInput);
-              if (userByEmail) {
-                globalUsers.push(userByEmail);
-              }
-            } else {
-              // Not an email, so we do a prefix search on username
-              globalUsers = await userService.searchUsersByUsername(searchInput);
-            }
-
-            if (!isActive) return;
-
-            const newFiltered = [...filtered];
-
-            for (const globalUser of globalUsers) {
-              // Skip if this is the currently logged-in user
-              if (user && globalUser.uid === user.uid) {
-                continue;
-              }
-
-              const potentialFriendId = globalUser.uid;
-              
-              // Check if they are already in the friend suggestions
-              const alreadyInFriends = newFiltered.some(f => 
-                f.email === globalUser.email || 
-                (f.id && f.id === globalUser.uid) ||
-                (f.id && f.id === potentialFriendId)
-              );
-              
-              if (!alreadyInFriends) {
-                // Add to suggestion list with a special flag/email/username
-                newFiltered.push({
-                  id: potentialFriendId,
-                  name: globalUser.displayName || 'App User',
-                  venmoId: globalUser.venmoId,
-                  email: globalUser.email,
-                  username: globalUser.username
-                });
-              }
-            }
-            
-            setFilteredFriends(newFiltered);
-            setShowSuggestions(newFiltered.length > 0);
-          } catch (err) {
-            console.error("Global search failed", err);
-            if (isActive) {
-              setFilteredFriends(filtered);
-              setShowSuggestions(filtered.length > 0);
-            }
-          }
-        };
-
-        performSearch();
-
-        return () => {
-          isActive = false;
-        };
-      } else {
-        setFilteredFriends(filtered);
-        setShowSuggestions(filtered.length > 0);
-      }
-    } else {
-      setShowSuggestions(false);
-    }
-  }, [newPersonName, friends]);
-
-  const loadFriends = async () => {
-    if (!user) return;
-
-    try {
-      const hydratedFriends = await userService.getHydratedFriends(user.uid, false);
-      setFriends(hydratedFriends);
-    } catch (error) {
-      console.error('Error loading friends:', error);
-    }
-  };
+  
+  const { friends, filteredFriends, setShowSuggestions, loadFriends } = useFriendSearch(newPersonName);
 
   const handleAdd = () => {
     onAdd();

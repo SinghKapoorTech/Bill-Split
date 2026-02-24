@@ -106,7 +106,7 @@ export function AddPersonDialog({
             />
 
             {/* SUGGESTIONS DROPDOWN */}
-            {searchInput.trim().length > 0 && friendSuggestions.length > 0 ? (
+            {searchInput.trim().length >= 2 && friendSuggestions.length > 0 ? (
               <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-md shadow-md flex flex-col overflow-hidden">
                 <div className="px-3 py-2 bg-muted/50 border-b border-border">
                   <Label className="text-xs text-muted-foreground uppercase tracking-wider">Search Results</Label>
@@ -137,7 +137,7 @@ export function AddPersonDialog({
                   </div>
                 </ScrollArea>
               </div>
-            ) : searchInput.trim().length > 0 ? (
+            ) : searchInput.trim().length >= 2 ? (
                <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-md shadow-md flex flex-col items-center justify-center p-6 text-center text-muted-foreground">
                   <User className="h-8 w-8 mb-2 opacity-50" />
                   <p className="text-sm">No users found.</p>

@@ -33,10 +33,7 @@ export function useSquadEditor() {
   };
 
   const handleDelete = async (squadId: string) => {
-    const confirmed = window.confirm('Are you sure you want to delete this squad?');
-    if (confirmed) {
-      await deleteSquad(squadId);
-    }
+    await deleteSquad(squadId);
   };
 
   const handleTabChange = (value: string) => {

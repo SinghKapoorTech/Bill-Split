@@ -3,8 +3,6 @@ export interface Squad {
   name: string;
   description?: string;
   memberIds: string[];
-  bills?: string[];
-  events?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
