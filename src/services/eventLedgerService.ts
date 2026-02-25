@@ -21,6 +21,14 @@ export interface EventLedger {
   lastUpdatedAt: Timestamp;
 }
 
+/**
+ * Bill people use the `user-{uid}` format from generateUserId.
+ * Firebase UIDs are the raw uid string. This helper converts between the two.
+ */
+function personIdToFirebaseUid(personId: string): string {
+  return personId.startsWith('user-') ? personId.slice(5) : personId;
+}
+
 export const eventLedgerService = {
   /**
    * Applies a bill to the event's ledger using runTransaction.
@@ -52,18 +60,19 @@ export const eventLedgerService = {
     }
 
     for (const total of personTotals) {
-      const isOwner = total.personId === ownerId;
-      const firebaseUserId = friendUserIds.has(total.personId) ? total.personId : null;
+      const firebaseUserId = personIdToFirebaseUid(total.personId);
+      const isOwner = firebaseUserId === ownerId;
+      const mappedFirebaseUserId = friendUserIds.has(firebaseUserId) ? firebaseUserId : null;
 
-      if (!firebaseUserId) continue;
+      if (!mappedFirebaseUserId) continue;
 
-      if (!deltas[firebaseUserId]) {
-        deltas[firebaseUserId] = 0;
+      if (!deltas[mappedFirebaseUserId]) {
+        deltas[mappedFirebaseUserId] = 0;
       }
 
       // If this is not the owner, they owe their share
       if (!isOwner) {
-        deltas[firebaseUserId] -= total.total;
+        deltas[mappedFirebaseUserId] -= total.total;
       }
     }
 
@@ -170,19 +179,20 @@ export const eventLedgerService = {
 
       for (const total of personTotals) {
         totalBillAmount += total.total;
-        const isOwner = total.personId === ownerId;
-        const firebaseUserId = friendUserIds.has(total.personId) ? total.personId : null;
+        const firebaseUserId = personIdToFirebaseUid(total.personId);
+        const isOwner = firebaseUserId === ownerId;
+        const mappedFirebaseUserId = friendUserIds.has(firebaseUserId) ? firebaseUserId : null;
 
-        if (!firebaseUserId) continue;
+        if (!mappedFirebaseUserId) continue;
 
-        if (!newDeltasInside[firebaseUserId]) {
-          newDeltasInside[firebaseUserId] = 0;
+        if (!newDeltasInside[mappedFirebaseUserId]) {
+          newDeltasInside[mappedFirebaseUserId] = 0;
         }
 
         // If this is not the owner, they owe their share unless settled
         if (!isOwner) {
           const owesAmount = settledPersonIds.includes(total.personId) ? 0 : total.total;
-          newDeltasInside[firebaseUserId] -= owesAmount;
+          newDeltasInside[mappedFirebaseUserId] -= owesAmount;
         }
       }
 

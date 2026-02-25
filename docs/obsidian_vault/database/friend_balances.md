@@ -124,13 +124,12 @@ If balances only updated on "Done", any user who left the app to Venmo a friend 
 When the user navigates to the Review step, `applyBillBalancesIdempotent()` runs in the background via a `useEffect` in `BillWizard.tsx`:
 
 1. Reads the bill's `people` array and `processedBalances` from Firestore.
-2. Cross-references each person's `id` against the owner's `user.friends` list to resolve real Firebase UIDs.
-3. People added manually without a linked account are **skipped** (their IDs are local UUIDs).
-4. Runs a Firestore transaction per friend.
-5. In the transaction, the engine computes reversing the old footprint (`processedBalances`) and applying the new total, arriving at an exact new value.
+2. Person IDs in the `people` array use the **`user-{uid}`** format. The service strips the `user-` prefix from each `person.id` to recover the raw Firebase UID before looking it up against the owner's `user.friends` list.
+3. People whose resolved Firebase UID is **not** in the owner's friends list are skipped (e.g. manually-added-by-name guests whose ID is a plain UUID with no `user-` prefix).
+4. Runs a Firestore transaction per linked friend.
+5. In the transaction, the engine reverses the old footprint (`processedBalances`) and applies the new total, arriving at an exact new value.
 6. Writes the new balance back to the `friend_balances` doc.
 7. Updates the bill's `processedBalances` to reflect the new committed footprint.
-8. Calls `recalculateAllFriendBalances()` to sync the cache into `user.friends[]`.
 
 ### On Bill Deletion
 

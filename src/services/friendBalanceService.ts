@@ -8,6 +8,14 @@ const USERS_COLLECTION = 'users';
 const BILLS_COLLECTION = 'bills';
 const FRIEND_BALANCES_COLLECTION = 'friend_balances';
 
+/**
+ * Bill people use the `user-{uid}` format from generateUserId.
+ * Firebase UIDs are the raw uid string. This helper converts between the two.
+ */
+function personIdToFirebaseUid(personId: string): string {
+  return personId.startsWith('user-') ? personId.slice(5) : personId;
+}
+
 export const friendBalanceService = {
   // Helper to generate the unique document ID for a friend balance pair
   getFriendBalanceId(userId1: string, userId2: string): string {
@@ -159,17 +167,20 @@ export const friendBalanceService = {
 
       const settledPersonIds = billData.settledPersonIds || [];
       const previousBalances = billData.processedBalances || {};
+      // Map bill-local person ID (user-{uid}) → raw Firebase UID (or null if not a linked user)
       const personIdToUserId: Record<string, string | null> = {};
 
       for (const person of (billData.people || [])) {
-        personIdToUserId[person.id] = friendUserIds.has(person.id) ? person.id : null;
+        const firebaseUid = personIdToFirebaseUid(person.id);
+        personIdToUserId[person.id] = friendUserIds.has(firebaseUid) ? firebaseUid : null;
       }
 
       // Calculate the NEW exact debts each friend owes for this bill
       const newDeltasInside: Record<string, number> = {};
 
       for (const total of personTotals) {
-        if (total.personId === currentUserId) continue; // skip self
+        const firebaseUid = personIdToFirebaseUid(total.personId);
+        if (firebaseUid === currentUserId) continue; // skip self
         const friendUserId = personIdToUserId[total.personId] ?? null;
         if (!friendUserId) continue; // skip unlinked people
 
@@ -179,6 +190,7 @@ export const friendBalanceService = {
 
       // Now we have the old footprint (previousBalances) and the new footprint (newDeltasInside)
       // For each friend involved in either footprint, we must run a delta update.
+      // previousBalances keys are raw Firebase UIDs; newDeltasInside keys are also raw Firebase UIDs
       const allInvolvedFriendIds = new Set([
         ...Object.keys(previousBalances),
         ...Object.keys(newDeltasInside)

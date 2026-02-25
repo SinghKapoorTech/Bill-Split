@@ -411,6 +411,9 @@ export function BillWizard({
         }
     };
 
+    const { state: routerState } = useLocation();
+    const targetEventId = activeSession?.eventId || routerState?.targetEventId;
+
     // ── Auto-apply balances when the user reaches the Review step ───────────
     // This ensures balances update even if the user never presses "Done" —
     // for example, if they tap "Charge on Venmo" and close the app.
@@ -429,18 +432,16 @@ export function BillWizard({
             bill.personTotals
         ).catch(err => console.error('Failed to auto-apply friend balances on review:', err));
 
-        if (activeSession?.eventId) {
+        if (targetEventId) {
             eventLedgerService.applyBillToEventLedgerIdempotent(
-                activeSession.eventId,
+                targetEventId,
                 currentBillId,
                 user.uid,
                 bill.personTotals
             ).catch(err => console.error('Failed to auto-apply event ledger balances on review:', err));
         }
-    }, [wizard.currentStep]); // intentionally only re-runs when the step changes
+    }, [wizard.currentStep, targetEventId]); // re-runs when step changes OR when eventId resolves from async session load
 
-    const { state: routerState } = useLocation();
-    const targetEventId = activeSession?.eventId || routerState?.targetEventId;
 
     const handleDone = async () => {
         if (targetEventId) {
