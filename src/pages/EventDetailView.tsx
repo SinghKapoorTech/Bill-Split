@@ -47,6 +47,11 @@ export default function EventDetailView() {
   // Need to bring in session methods to resume/delete from the list
   const { deleteSession, resumeSession, activeSession, isDeleting, isResuming } = useBillContext();
 
+  const handleDeleteBill = async (bill: Bill) => {
+    await deleteSession(bill.id, bill.receiptFileName);
+    setEventBills(prev => prev.filter(b => b.id !== bill.id));
+  };
+
   useEffect(() => {
     const userIdsToFetch = new Set<string>();
 
@@ -339,7 +344,7 @@ export default function EventDetailView() {
                         await resumeSession(id);
                         navigate(`/bill/${id}`);
                       }}
-                      onDelete={(bill) => deleteSession(bill.id, bill.receiptFileName)}
+                      onDelete={handleDeleteBill}
                       isResuming={isResuming}
                       isDeleting={isDeleting}
                       formatDate={(timestamp) => {
@@ -364,7 +369,7 @@ export default function EventDetailView() {
                         await resumeSession(id);
                         navigate(`/bill/${id}`);
                       }}
-                      onDelete={(bill) => deleteSession(bill.id, bill.receiptFileName)}
+                      onDelete={handleDeleteBill}
                       isResuming={isResuming}
                       isDeleting={isDeleting}
                       formatDate={(timestamp) => {

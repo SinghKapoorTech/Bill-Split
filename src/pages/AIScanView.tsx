@@ -8,10 +8,12 @@ import { useBillContext } from '@/contexts/BillSessionContext';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { ensureUserInPeople } from '@/utils/billCalculations';
+import { ensureUserInPeople, generateUserId } from '@/utils/billCalculations';
 import { billService } from '@/services/billService';
+import { userService } from '@/services/userService';
 import { Person, BillData, ItemAssignment, Bill } from '@/types';
-import { deleteField } from 'firebase/firestore';
+import { deleteField, doc, getDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 
 /**
  * AIScanView - Simplified Bill Creation Page
@@ -53,6 +55,28 @@ export default function AIScanView() {
   // Initialize data from session - track which session we've loaded to prevent auto-save loops
   const loadedSessionId = useRef<string | null>(null);
 
+  // Helper: fetch all event members and return them as Person[]
+  const fetchEventMembers = async (eventId: string): Promise<Person[]> => {
+    try {
+      const eventSnap = await getDoc(doc(db, 'events', eventId));
+      if (!eventSnap.exists()) return [];
+      const memberIds: string[] = eventSnap.data().memberIds || [];
+      const profiles = await Promise.all(
+        memberIds.map(uid => userService.getUserProfile(uid).catch(() => null))
+      );
+      return profiles
+        .filter((p): p is NonNullable<typeof p> => p !== null)
+        .map(p => ({
+          id: generateUserId(p.uid),
+          name: p.displayName,
+          venmoId: p.venmoId,
+        }));
+    } catch (err) {
+      console.error('Failed to fetch event members:', err);
+      return [];
+    }
+  };
+
   useEffect(() => {
     // 1. If billId is undefined (route is /bill/new), this is a CLIENT-SIDE DRAFT.
     // We completely ignore activeSession to prevent the listener from forcing an existing
@@ -61,12 +85,21 @@ export default function AIScanView() {
       if (loadedSessionId.current !== 'draft') {
         setBillData(null);
         setItemAssignments({});
-        setPeople(ensureUserInPeople([], user, profile));
         setSplitEvenly(false);
         setTitle('');
         setCurrentStep(0);
         removeReceiptImage(); // Clear any stale image from previous sessions
         loadedSessionId.current = 'draft';
+
+        // Pre-populate people with all event members if coming from an event
+        const { targetEventId } = location.state || {};
+        if (targetEventId) {
+          fetchEventMembers(targetEventId).then(eventPeople => {
+            setPeople(ensureUserInPeople(eventPeople, user, profile));
+          });
+        } else {
+          setPeople(ensureUserInPeople([], user, profile));
+        }
       }
       return; // Exit early, ignore activeSession
     }
