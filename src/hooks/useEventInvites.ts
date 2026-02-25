@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/config/firebase';
+import { doc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { functions, db } from '@/config/firebase';
 import { useToast } from './use-toast';
 
 interface InviteMemberResponse {
@@ -12,6 +13,32 @@ interface InviteMemberResponse {
 export function useEventInvites(eventId: string) {
   const [isInviting, setIsInviting] = useState(false);
   const { toast } = useToast();
+
+  const addExistingMember = async (uid: string): Promise<boolean> => {
+    setIsInviting(true);
+    try {
+      const eventRef = doc(db, 'events', eventId);
+      await updateDoc(eventRef, {
+        memberIds: arrayUnion(uid),
+        updatedAt: serverTimestamp()
+      });
+      toast({
+        title: 'Member added',
+        description: 'User has been successfully added to the event.',
+      });
+      return true;
+    } catch (error: any) {
+      console.error('Error adding existing member:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add member to the event. Please try again.',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setIsInviting(false);
+    }
+  };
 
   const inviteMember = async (email: string): Promise<boolean> => {
     setIsInviting(true);
@@ -62,6 +89,7 @@ export function useEventInvites(eventId: string) {
 
   return {
     inviteMember,
+    addExistingMember,
     isInviting,
   };
 }

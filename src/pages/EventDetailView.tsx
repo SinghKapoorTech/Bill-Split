@@ -244,6 +244,7 @@ export default function EventDetailView() {
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
         event={event}
+        memberProfiles={memberProfiles}
       />
 
       <div className="space-y-8">
