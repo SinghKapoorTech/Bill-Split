@@ -21,7 +21,8 @@ import { deleteField } from 'firebase/firestore';
 export default function AIScanView() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { billId } = useParams<{ billId: string }>();
+  const { billId: routeBillId } = useParams<{ billId: string }>();
+  const billId = routeBillId === 'new' ? undefined : routeBillId;
   const { user } = useAuth();
   const { profile } = useUserProfile();
 
@@ -53,19 +54,30 @@ export default function AIScanView() {
   const loadedSessionId = useRef<string | null>(null);
 
   useEffect(() => {
-    // Load session data only if:
-    // 1. We have a session AND
-    // 2. We haven't loaded this specific session yet (prevents auto-save loop)
-    if (activeSession && (!billId || activeSession.id === billId)) {
+    // 1. If billId is undefined (route is /bill/new), this is a CLIENT-SIDE DRAFT.
+    // We completely ignore activeSession to prevent the listener from forcing an existing
+    // bill into the UI. We stay in local memory until JIT creation swaps the URL.
+    if (!billId) {
+      if (loadedSessionId.current !== 'draft') {
+        setBillData(null);
+        setItemAssignments({});
+        setPeople(ensureUserInPeople([], user, profile));
+        setSplitEvenly(false);
+        setTitle('');
+        setCurrentStep(0);
+        removeReceiptImage(); // Clear any stale image from previous sessions
+        loadedSessionId.current = 'draft';
+      }
+      return; // Exit early, ignore activeSession
+    }
+
+    // 2. We have a target billId AND an activeSession that matches it
+    if (activeSession && activeSession.id === billId) {
       // Always sync real-time fields (assignments, people)
-      // This ensures we see what others are doing
       setItemAssignments(activeSession.itemAssignments || {});
-      // Only update people if the length changed or we want to be strict?
-      // Let's just sync it. People list is small.
       setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
 
-      // Only update static/editor fields if this is a different session load
-      // preventing cursor jumps or overwrite of local edits
+      // Only update static/editor fields if this is the initial load for this session
       if (loadedSessionId.current !== activeSession.id) {
         setBillData(activeSession.billData || null);
         setSplitEvenly(activeSession.splitEvenly || false);
@@ -73,16 +85,7 @@ export default function AIScanView() {
         setCurrentStep(activeSession.currentStep || 0);
         loadedSessionId.current = activeSession.id;
       }
-    } else if (!activeSession && !billId && loadedSessionId.current === null) {
-      // Fresh start - only initialize once
-      setBillData(null);
-      setItemAssignments({});
-      setPeople(ensureUserInPeople([], user, profile));
-      setSplitEvenly(false);
-      setCurrentStep(0);
-      loadedSessionId.current = 'empty';
     }
-    // Including activeSession but with session ID check to prevent loop
   }, [activeSession, billId, user, profile]);
 
   // Load bill when billId URL parameter changes
@@ -194,6 +197,11 @@ export default function AIScanView() {
     );
   }
 
+  // Prevent data bleed: ensure new drafts pass `null` to the wizard
+  // instead of the real-time activeSession from useBills (which might be the last viewed bill)
+  const isDraft = !billId;
+  const effectiveSession = isDraft ? null : activeSession;
+
   return (
     <>
       <HeroSection
@@ -201,11 +209,11 @@ export default function AIScanView() {
         onShare={handleGenerateShareLink}
         title={title}
         onTitleChange={setTitle}
-        titlePlaceholder={formatDate(activeSession?.createdAt)}
+        titlePlaceholder={formatDate(effectiveSession?.createdAt)}
       />
 
       <BillWizard
-        activeSession={activeSession}
+        activeSession={effectiveSession}
         billId={billId}
         isUploading={isUploading}
         uploadReceiptImage={uploadReceiptImage}
@@ -225,11 +233,11 @@ export default function AIScanView() {
       />
 
       {/* Share Link Dialog */}
-      {activeSession && (
+      {effectiveSession && (
         <ShareLinkDialog
-          billId={activeSession.id}
-          shareCode={activeSession.shareCode}
-          shareCodeExpiresAt={activeSession.shareCodeExpiresAt}
+          billId={effectiveSession.id}
+          shareCode={effectiveSession.shareCode}
+          shareCodeExpiresAt={effectiveSession.shareCodeExpiresAt}
           onRegenerate={handleRegenerateShareLink}
           isRegenerating={isGeneratingShareCode}
           open={showShareLinkDialog}

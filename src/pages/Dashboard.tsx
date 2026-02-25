@@ -168,6 +168,8 @@ export default function Dashboard() {
     return hasItems || hasReceipt;
   });
 
+  console.log("MY BILLS INFO:", allBills.map(b => ({ id: b.id, title: getBillTitle(b), people: b.people, assignments: b.itemAssignments })));
+
   if (isLoadingSessions) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-200px)]">
@@ -191,7 +193,7 @@ export default function Dashboard() {
       <div className="flex flex-col gap-10">
         {/* Top Section: Friend Balances */}
         <div>
-           <FriendBalancePreviewCard />
+          <FriendBalancePreviewCard />
         </div>
 
         {/* Bottom Section: My Bills */}

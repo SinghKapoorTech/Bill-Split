@@ -61,6 +61,15 @@ Stores the actual money values involved.
   *Example:* `{ "item_abc": ["uid_alice", "uid_bob"] }`
 - **`splitEvenly`**: Boolean. If `true`, `itemAssignments` is overridden so every `personId` is on every item.
 
+### Creation Lifecycle (Lazy Drafts)
+
+To prevent database bloat, new bills utilize a **Client-Side Draft (Just-In-Time) Creation** flow rather than eager creation.
+
+1.  **`/bill/new` Memory State**: When a user clicks "New Bill", the router navigates to `/bill/new`. At this stage, **no document exists in Firestore**. The `AIScanView` and `useBillSession` hook initialize empty temporary state in local React memory.
+2.  **Smart Saving (JIT Creation)**: The `useBillSession` hook monitors the draft data. It refuses to call `billService.createBill` until the user performs a meaningful action (adding an item, taking a photo, or typing a title).
+3.  **Step-Change/Unmount Saves**: Background saves do *not* fire on every keystroke to protect Firebase quotas. They exclusively fire when a user clicks 'Next' between wizard steps or actively navigates away from the page (unmounting).
+4.  **Silent URL Swap**: Once meaningul data is entered and a save is triggered (e.g., clicking 'Next' after editing the title), the document is created yielding a Firestore ID. The client silently swamps the URL to `/bill/{new_id}` without refreshing the page, seamlessly transitioning from memory to realtime syncing.
+
 ### Session & Sharing
 
 | Field                 | Type              | Description                                  |

@@ -47,7 +47,7 @@ interface BillWizardProps {
     billId?: string;
     isUploading: boolean;
     uploadReceiptImage: (file: File) => Promise<any>;
-    saveSession: (data: any, id?: string) => void;
+    saveSession: (data: any, id?: string) => Promise<string | null | void>;
     removeReceiptImage: () => Promise<void>;
     deleteSession?: (id: string, receiptFileName?: string) => Promise<void>;
 
@@ -440,13 +440,6 @@ export function BillWizard({
     }, [wizard.currentStep]); // intentionally only re-runs when the step changes
 
     const handleDone = async () => {
-        const isEmpty = !billData?.items || billData.items.length === 0;
-        const hasNoReceiptFile = !activeSession?.receiptFileName && !upload.selectedFile && !upload.imagePreview;
-
-        if (isEmpty && hasNoReceiptFile && activeSession?.id && deleteSession) {
-            await deleteSession(activeSession.id, activeSession.receiptFileName);
-        }
-
         if (activeSession?.eventId) {
             navigate(`/events/${activeSession.eventId}`);
         } else {

@@ -94,7 +94,7 @@ export function useBills() {
   }, [user, toast]);
 
   const saveSession = useCallback(async (sessionData: Partial<Bill>, billId?: string) => {
-    if (!user) return;
+    if (!user) return null;
 
     try {
       // Clean all data to remove undefined values (Firestore doesn't accept them)
@@ -103,6 +103,7 @@ export function useBills() {
       if (billId) {
         // Update existing bill with cleaned data
         await billService.updateBill(billId, cleanedData as Partial<Bill>);
+        return billId;
       } else {
         // Create new bill
         const defaultBillData: BillData = {
@@ -115,6 +116,11 @@ export function useBills() {
 
         const billDataToUse = cleanedData.billData || defaultBillData;
         const peopleToUse = cleanedData.people || [];
+
+        console.log("JIT SAVE INITIATED");
+        console.log("1. Original Session Data:", sessionData);
+        console.log("2. Cleaned Data:", cleanedData);
+        console.log("3. People To Use:", peopleToUse);
 
         const newBillId = await billService.createBill(
           user.uid,
@@ -136,6 +142,7 @@ export function useBills() {
         if (Object.keys(additionalUpdates).length > 0) {
           await billService.updateBill(newBillId, additionalUpdates);
         }
+        return newBillId;
       }
     } catch (error) {
       console.error('Error saving session:', error);
@@ -144,6 +151,7 @@ export function useBills() {
         description: 'Could not save session.',
         variant: 'destructive'
       });
+      return null;
     }
   }, [user, toast]);
 
