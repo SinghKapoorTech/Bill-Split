@@ -37,10 +37,10 @@ export default function EventDetailView() {
   const [eventBills, setEventBills] = useState<Bill[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const { netBalances, optimizedDebts, loading: ledgerLoading } = useEventLedger(eventId || '');
   const [memberProfiles, setMemberProfiles] = useState<Record<string, any>>({});
-  
+
   // Settlement state
   const [settleTarget, setSettleTarget] = useState<{ userId: string; name: string; amount: number; isPaying: boolean; venmoId?: string } | null>(null);
 
@@ -49,11 +49,11 @@ export default function EventDetailView() {
 
   useEffect(() => {
     const userIdsToFetch = new Set<string>();
-    
+
     if (event?.memberIds) {
       event.memberIds.forEach(id => userIdsToFetch.add(id));
     }
-    
+
     // Also try fetching profiles for anyone involved in a debt
     optimizedDebts.forEach(debt => {
       // Basic check to see if it looks like a Firebase UID (typically 28 chars long alphanumeric)
@@ -62,23 +62,23 @@ export default function EventDetailView() {
     });
 
     if (userIdsToFetch.size === 0) return;
-    
+
     const fetchProfiles = async () => {
       const profiles: Record<string, any> = {};
       await Promise.all(Array.from(userIdsToFetch).map(async (id) => {
-         try {
-           const p = await userService.getUserProfile(id);
-           if (p) {
-             profiles[id] = p;
-           }
-         } catch (e) {
-           // Skip guest IDs that fail to fetch
-           console.warn(`Could not fetch profile for ${id}`);
-         }
+        try {
+          const p = await userService.getUserProfile(id);
+          if (p) {
+            profiles[id] = p;
+          }
+        } catch (e) {
+          // Skip guest IDs that fail to fetch
+          console.warn(`Could not fetch profile for ${id}`);
+        }
       }));
       setMemberProfiles(prev => ({ ...prev, ...profiles }));
     };
-    
+
     fetchProfiles();
   }, [event?.memberIds, optimizedDebts]);
 
@@ -140,52 +140,15 @@ export default function EventDetailView() {
       return;
     }
 
-    setIsCreatingBill(true);
-    try {
-      // 1. Fetch user profiles for all members
-      const memberProfiles = await Promise.all(
-        event.memberIds.map(id => userService.getUserProfile(id))
-      );
-      
-      // 2. Map to Person objects (filter out nulls just in case)
-      const mappedPeople: Person[] = memberProfiles
-        .filter(p => p !== null)
-        .map(p => ({
-          id: generateUserId(p!.uid),
-          name: p!.displayName || p!.username || 'User'
-        }));
-
-      // 3. Create default empty bill data
-      const defaultBillData = {
-        items: [],
-        subtotal: 0,
-        tax: 0,
-        tip: 0,
-        total: 0
-      };
-
-      // 4. Create the bill with 'event' type and pass eventId
-      const billId = await billService.createBill(
-        user.uid,
-        user.displayName || 'Anonymous',
-        'event',
-        defaultBillData,
-        mappedPeople,
-        event.id
-      );
-
-      // 5. Navigate to the new bill session
-      navigate(`/bill/${billId}`);
-    } catch (error: any) {
-      console.error('Error creating event bill:', error);
-      toast({
-        title: 'Error',
-        description: error?.message || 'Failed to create bill. Please try again.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsCreatingBill(false);
-    }
+    // Instead of eager creation, we navigate to the draft view.
+    // We pass the eventId in navigation state so the bill session knows 
+    // to attach this event context when it finally JIT creates the document.
+    navigate('/bill/new', {
+      state: {
+        targetEventId: event.id,
+        targetEventName: event.name
+      }
+    });
   };
 
   if (loading) {
@@ -203,42 +166,42 @@ export default function EventDetailView() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl mb-20">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              onClick={() => navigate('/events')}
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <h1 className="text-2xl font-bold tracking-tight">
-              {event.name}
-            </h1>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setInviteDialogOpen(true)} variant="ghost" size="icon" className="h-8 w-8">
-              <UserPlus className="w-4 h-4 text-muted-foreground" />
-            </Button>
-            <Button 
-              onClick={handleCreateEventBill} 
-              disabled={isCreatingBill}
-              size="icon"
-              className="h-8 w-8 rounded-full"
-            >
-              {isCreatingBill ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Plus className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => navigate('/events')}
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {event.name}
+          </h1>
         </div>
-        {event.description && (
-          <p className="text-sm text-muted-foreground pl-11 mb-6">{event.description}</p>
-        )}
+
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setInviteDialogOpen(true)} variant="ghost" size="icon" className="h-8 w-8">
+            <UserPlus className="w-4 h-4 text-muted-foreground" />
+          </Button>
+          <Button
+            onClick={handleCreateEventBill}
+            disabled={isCreatingBill}
+            size="icon"
+            className="h-8 w-8 rounded-full"
+          >
+            {isCreatingBill ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+      {event.description && (
+        <p className="text-sm text-muted-foreground pl-11 mb-6">{event.description}</p>
+      )}
 
       <InviteMembersDialog
         open={inviteDialogOpen}
@@ -268,7 +231,7 @@ export default function EventDetailView() {
                   {optimizedDebts.map((debt, idx) => {
                     const fromProfile = memberProfiles[debt.fromUserId];
                     const toProfile = memberProfiles[debt.toUserId];
-                    
+
                     let fromName = fromProfile?.displayName || fromProfile?.username;
                     let toName = toProfile?.displayName || toProfile?.username;
                     let fromVenmoId = fromProfile?.venmoId;
@@ -302,11 +265,11 @@ export default function EventDetailView() {
                           <div className="flex -space-x-3">
                             <Avatar className="border-2 border-background w-10 h-10 shadow-sm z-10">
                               <AvatarImage src={fromPhoto} />
-                              <AvatarFallback className="bg-destructive/10 text-destructive text-sm">{fromName.substring(0,2).toUpperCase()}</AvatarFallback>
+                              <AvatarFallback className="bg-destructive/10 text-destructive text-sm">{fromName.substring(0, 2).toUpperCase()}</AvatarFallback>
                             </Avatar>
                             <Avatar className="border-2 border-background w-10 h-10 shadow-sm z-0">
                               <AvatarImage src={toPhoto} />
-                              <AvatarFallback className="bg-green-500/10 text-green-600 text-sm">{toName.substring(0,2).toUpperCase()}</AvatarFallback>
+                              <AvatarFallback className="bg-green-500/10 text-green-600 text-sm">{toName.substring(0, 2).toUpperCase()}</AvatarFallback>
                             </Avatar>
                           </div>
                           <div className="flex flex-col">
@@ -316,12 +279,12 @@ export default function EventDetailView() {
                             <span className="text-xs text-muted-foreground font-medium">{amountFormatted}</span>
                           </div>
                         </div>
-                        
+
                         {isCurrentUserInvolved && (
                           <div className="shrink-0 pl-4">
-                            <Button 
-                              variant={user?.uid === debt.fromUserId ? "default" : "outline"} 
-                              size="sm" 
+                            <Button
+                              variant={user?.uid === debt.fromUserId ? "default" : "outline"}
+                              size="sm"
                               className={user?.uid === debt.fromUserId ? "bg-primary" : ""}
                               onClick={() => {
                                 const isCurrentUserPaying = user?.uid === debt.fromUserId;
@@ -332,7 +295,7 @@ export default function EventDetailView() {
                                   isPaying: isCurrentUserPaying,
                                   venmoId: isCurrentUserPaying ? toVenmoId : fromVenmoId
                                 });
-                            }}>
+                              }}>
                               Settle Up
                             </Button>
                           </div>

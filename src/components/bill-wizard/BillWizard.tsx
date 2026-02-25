@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { billService } from '@/services/billService';
 import { friendBalanceService } from '@/services/friendBalanceService';
 import { eventLedgerService } from '@/services/eventLedgerService';
@@ -439,9 +439,12 @@ export function BillWizard({
         }
     }, [wizard.currentStep]); // intentionally only re-runs when the step changes
 
+    const { state: routerState } = useLocation();
+    const targetEventId = activeSession?.eventId || routerState?.targetEventId;
+
     const handleDone = async () => {
-        if (activeSession?.eventId) {
-            navigate(`/events/${activeSession.eventId}`);
+        if (targetEventId) {
+            navigate(`/events/${targetEventId}`);
         } else {
             navigate('/dashboard');
         }
@@ -610,7 +613,7 @@ export function BillWizard({
                     onNext={wizard.handleNextStep}
                     onComplete={handleDone}
                     onExit={handleDone}
-                    exitLabel={activeSession?.eventId ? 'Event' : 'Dashboard'}
+                    exitLabel={targetEventId ? 'Event' : 'Dashboard'}
                     nextDisabled={!wizard.canProceedFromStep(wizard.currentStep)}
                     hasBillData={hasBillData}
                     onShare={onShare}

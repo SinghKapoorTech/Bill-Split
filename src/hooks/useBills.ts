@@ -125,9 +125,10 @@ export function useBills() {
         const newBillId = await billService.createBill(
           user.uid,
           user.displayName || 'Anonymous',
-          'private',
+          cleanedData.billType || 'private', // Use injected billType if provided
           billDataToUse,
-          peopleToUse
+          peopleToUse,
+          cleanedData.eventId // Pass the injected eventId if provided
         );
 
         // Update with additional fields if provided

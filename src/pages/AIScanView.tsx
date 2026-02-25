@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { ensureUserInPeople } from '@/utils/billCalculations';
 import { billService } from '@/services/billService';
-import { Person, BillData, ItemAssignment } from '@/types';
+import { Person, BillData, ItemAssignment, Bill } from '@/types';
 import { deleteField } from 'firebase/firestore';
 
 /**
@@ -202,6 +202,19 @@ export default function AIScanView() {
   const isDraft = !billId;
   const effectiveSession = isDraft ? null : activeSession;
 
+  // Enhance saveSession for JIT event creation
+  const handleSaveSession = async (sessionData: Partial<Bill>, id?: string) => {
+    const { targetEventId } = location.state || {};
+
+    // If we're creating a draft AND we came from an event page, inject the event metadata
+    if (isDraft && targetEventId && !sessionData.eventId) {
+      sessionData.eventId = targetEventId;
+      sessionData.billType = 'event';
+    }
+
+    return saveSession(sessionData, id);
+  };
+
   return (
     <>
       <HeroSection
@@ -217,7 +230,7 @@ export default function AIScanView() {
         billId={billId}
         isUploading={isUploading}
         uploadReceiptImage={uploadReceiptImage}
-        saveSession={saveSession}
+        saveSession={handleSaveSession}
         removeReceiptImage={removeReceiptImage}
         deleteSession={deleteSession}
         initialBillData={billData}
