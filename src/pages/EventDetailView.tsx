@@ -266,37 +266,68 @@ export default function EventDetailView() {
                     toName = toName || 'Unknown';
 
                     const isCurrentUserInvolved = user?.uid === debt.fromUserId || user?.uid === debt.toUserId;
+                    const isCurrentUserPaying = user?.uid === debt.fromUserId;
+                    const isCurrentUserReceiving = user?.uid === debt.toUserId;
                     const amountFormatted = `$${debt.amount.toFixed(2)}`;
 
+                    let owesText = (
+                      <>
+                        <span className="font-medium text-foreground">{fromName}</span>
+                        <span className="text-muted-foreground text-[13px] mx-1">owes</span>
+                        <span className="font-medium text-foreground">{toName}</span>
+                      </>
+                    );
+
+                    let amountColor = "text-muted-foreground";
+
+                    if (isCurrentUserPaying) {
+                      owesText = (
+                        <>
+                          <span className="font-medium text-foreground">You</span>
+                          <span className="text-muted-foreground text-[13px] mx-1">owe</span>
+                          <span className="font-medium text-foreground">{toName}</span>
+                        </>
+                      );
+                      amountColor = "text-destructive font-semibold";
+                    } else if (isCurrentUserReceiving) {
+                      owesText = (
+                        <>
+                          <span className="font-medium text-foreground">{fromName}</span>
+                          <span className="text-muted-foreground text-[13px] mx-1">owes</span>
+                          <span className="font-medium text-foreground">you</span>
+                        </>
+                      );
+                      amountColor = "text-green-600 font-semibold";
+                    }
+
                     return (
-                      <div key={idx} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="flex -space-x-3">
-                            <Avatar className="border-2 border-background w-10 h-10 shadow-sm z-10">
+                      <div key={idx} className="flex items-center justify-between py-2.5 px-3 hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex -space-x-2">
+                            <Avatar className="w-8 h-8 border-2 border-background shadow-sm z-10">
                               <AvatarImage src={fromPhoto} />
-                              <AvatarFallback className="bg-destructive/10 text-destructive text-sm">{fromName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                              <AvatarFallback className="bg-destructive/10 text-destructive text-xs">{fromName.substring(0, 2).toUpperCase()}</AvatarFallback>
                             </Avatar>
-                            <Avatar className="border-2 border-background w-10 h-10 shadow-sm z-0">
+                            <Avatar className="w-8 h-8 border-2 border-background shadow-sm z-0">
                               <AvatarImage src={toPhoto} />
-                              <AvatarFallback className="bg-green-500/10 text-green-600 text-sm">{toName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                              <AvatarFallback className="bg-green-500/10 text-green-600 text-xs">{toName.substring(0, 2).toUpperCase()}</AvatarFallback>
                             </Avatar>
                           </div>
                           <div className="flex flex-col">
                             <span className="text-sm">
-                              <span className="font-semibold text-foreground">{fromName}</span> owes <span className="font-semibold text-foreground">{toName}</span>
+                              {owesText}
                             </span>
-                            <span className="text-xs text-muted-foreground font-medium">{amountFormatted}</span>
+                            <span className={`text-xs ${amountColor}`}>{amountFormatted}</span>
                           </div>
                         </div>
 
                         {isCurrentUserInvolved && (
-                          <div className="shrink-0 pl-4">
+                          <div className="shrink-0 pl-2">
                             <Button
-                              variant={user?.uid === debt.fromUserId ? "default" : "outline"}
+                              variant={isCurrentUserPaying ? "default" : "secondary"}
                               size="sm"
-                              className={user?.uid === debt.fromUserId ? "bg-primary" : ""}
+                              className={`h-7 px-3 text-xs w-[68px] rounded-full ${isCurrentUserPaying ? "bg-primary text-primary-foreground" : ""}`}
                               onClick={() => {
-                                const isCurrentUserPaying = user?.uid === debt.fromUserId;
                                 setSettleTarget({
                                   userId: isCurrentUserPaying ? debt.toUserId : debt.fromUserId,
                                   name: isCurrentUserPaying ? toName : fromName,
@@ -305,7 +336,7 @@ export default function EventDetailView() {
                                   venmoId: isCurrentUserPaying ? toVenmoId : fromVenmoId
                                 });
                               }}>
-                              Settle Up
+                              {isCurrentUserPaying ? 'Pay' : 'Settle'}
                             </Button>
                           </div>
                         )}

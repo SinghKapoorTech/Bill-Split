@@ -129,11 +129,20 @@ export function SimpleTransactionWizard() {
           itemAssignments: {
             [dummyItemId]: people.map(p => p.id)
           }
-      }).then(() => {
+      }).then(async () => {
          const personTotals = getPersonTotals(numAmount, people);
-         friendBalanceService.applyBillBalancesIdempotent(billId, user.uid, personTotals).catch(console.error);
+         try {
+           await friendBalanceService.applyBillBalancesIdempotent(billId, user.uid, personTotals);
+         } catch (e) {
+           console.error("friendBalance error in autosave:", e);
+         }
+         
          if (targetEventId) {
-            eventLedgerService.applyBillToEventLedgerIdempotent(targetEventId, billId, user.uid, personTotals).catch(console.error);
+            try {
+              await eventLedgerService.applyBillToEventLedgerIdempotent(targetEventId, billId, user.uid, personTotals);
+            } catch (e) {
+              console.error("eventLedger error in autosave:", e);
+            }
          }
       }).catch(console.error);
       
