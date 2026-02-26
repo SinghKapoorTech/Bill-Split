@@ -9,6 +9,7 @@ import { useFriendsEditor } from '@/hooks/useFriendsEditor';
 import { useToast } from '@/hooks/use-toast';
 import { UI_TEXT, SUCCESS_MESSAGES } from '@/utils/uiConstants';
 import { SettleUpModal } from '@/components/settlements/SettleUpModal';
+import { AddPersonDialog } from '@/components/people/AddPersonDialog';
 
 export function ManageFriendsCard() {
   const {
@@ -43,6 +44,7 @@ export function ManageFriendsCard() {
   const [settleTarget, setSettleTarget] = useState<{ userId: string; name: string; amount: number; isPaying: boolean; venmoId?: string } | null>(null);
   const [showAllFriends, setShowAllFriends] = useState(false);
   const [expandedFriends, setExpandedFriends] = useState<Record<number, boolean>>({});
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
   // Sort friends: those with balances first, then by name
   const sortedFriends = useMemo(() => {
@@ -79,6 +81,28 @@ export function ManageFriendsCard() {
             <Users className="w-5 h-5 md:w-6 md:h-6 text-primary" />
             <h2 className="text-xl md:text-2xl font-semibold">Manage Friends</h2>
           </div>
+          <AddPersonDialog
+            isOpen={isAddDialogOpen}
+            setIsOpen={setIsAddDialogOpen}
+            friendSuggestions={friendSuggestions}
+            onSearchChange={setSearchInput}
+            onSelectSuggestion={handleAddFromSearch}
+            onAddManual={(name, venmoId, email) => handleAddFriend(name, email, venmoId)}
+            title="Add a Friend"
+            description="Search for an app user or add an external friend by email."
+            submitLabel="Save Friend"
+            showEmailField={true}
+            trigger={
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="gap-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span className="hidden sm:inline">Add Friend</span>
+              </Button>
+            }
+          />
         </div>
 
         <div className="relative py-2 z-0 mb-4">
@@ -272,148 +296,7 @@ export function ManageFriendsCard() {
         </div>
       </Card>
 
-      {/* CARD 2: ADD A FRIEND */}
-      <Card className="p-4 md:p-6">
-        <div className="flex items-center gap-2 mb-4 md:mb-6">
-          <UserPlus className="w-5 h-5 md:w-6 md:h-6 text-primary" />
-          <h2 className="text-xl md:text-2xl font-semibold">Add a Friend</h2>
-        </div>
-
-        <p className="text-sm text-muted-foreground mb-6">
-          Add friends to quickly add them to bills
-        </p>
-
-        <div className="relative py-2 z-0 mb-4">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">Search Users</span>
-          </div>
-        </div>
-
-        {/* SEARCH AREA */}
-        <div className="relative z-50 space-y-2 mb-6">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, @username, or email..."
-              className="pl-9"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-            />
-
-            {/* SUGGESTIONS DROPDOWN */}
-            {showSuggestions && friendSuggestions.length > 0 ? (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-md shadow-md flex flex-col overflow-hidden">
-                <div className="px-3 py-2 bg-muted/50 border-b border-border">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Search Results</Label>
-                </div>
-                <ScrollArea className="max-h-[250px] w-full">
-                  <div className="p-2">
-                    {friendSuggestions.map((friend, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handleAddFromSearch(friend)}
-                        className="w-full text-left flex items-center p-2 rounded-md border border-border/40 bg-card hover:border-primary/30 hover:bg-accent/50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all mb-1.5 cursor-pointer h-12"
-                      >
-                        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 mr-3 flex-shrink-0">
-                          <User className="h-4 w-4 text-primary" />
-                        </div>
-                        
-                        <div className="flex flex-col flex-1 overflow-hidden">
-                          <span className="text-sm font-medium truncate">{friend.name}</span>
-                          
-                          {friend.username && (
-                            <span className="text-xs text-muted-foreground truncate">
-                              @{friend.username}
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </div>
-            ) : searchInput.trim().length > 0 && showSuggestions === false ? (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-md shadow-md flex flex-col items-center justify-center p-6 text-center text-muted-foreground">
-                  <User className="h-8 w-8 mb-2 opacity-50" />
-                  <p className="text-sm">No users found.</p>
-                </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="relative py-2 z-0 mb-4">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">Add Manually</span>
-          </div>
-        </div>
-
-        {/* MANUAL ADD AREA */}
-        <div className="flex flex-col gap-3 z-0">
-            <div className="space-y-2">
-              <Label htmlFor="manual-name">Name</Label>
-              <div className="relative">
-                <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="manual-name"
-                  placeholder="Friend's Name"
-                  className="pl-9 text-base md:text-sm"
-                  value={newFriendName}
-                  onChange={(e) => setNewFriendName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newFriendEmail) {
-                      handleAddFriend();
-                    }
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="manual-email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="manual-email"
-                  type="email"
-                  placeholder="Friend's Email"
-                  className="pl-9 text-base md:text-sm"
-                  value={newFriendEmail}
-                  onChange={(e) => setNewFriendEmail(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newFriendEmail) {
-                      handleAddFriend();
-                    }
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="manual-venmo-id">Venmo ID (optional)</Label>
-              <div className="relative">
-                <AtSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="manual-venmo-id"
-                  placeholder="Venmo ID"
-                  className="pl-9 text-base md:text-sm"
-                  value={newFriendVenmoId}
-                  onChange={(e) => setNewFriendVenmoId(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddFriend()}
-                />
-              </div>
-            </div>
-
-            <Button onClick={handleAddFriend} variant="default" disabled={!newFriendName.trim() || !newFriendEmail.trim()} className="mt-2 text-sm">
-              Save External Friend
-            </Button>
-        </div>
-      </Card>
+      {/* Inline Add Friend UI removed and replaced by dialog above */}
 
       {settleTarget && (
         <SettleUpModal

@@ -97,7 +97,7 @@ tags: [backlog, bugs, features, ui, obsidian]
 
 ## 🎛️ P1 — UX / UI Changes
 
-- [ ] **(P1) Add a friend should be a dialog (not inline UI)**  
+- [x] **(P1) Add a friend should be a dialog (not inline UI)**  
   **Acceptance:** reduces clutter; dialog has validation + clear actions.
 
 - [ ] **(P1) Friend balances list behavior**  

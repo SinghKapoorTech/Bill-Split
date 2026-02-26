@@ -27,9 +27,14 @@ interface AddPersonDialogProps {
   friendSuggestions: Friend[];
   onSearchChange: (value: string) => void;
   onSelectSuggestion: (friend: Friend) => void;
-  onAddManual: (name: string, venmoId: string) => void;
+  onAddManual: (name: string, venmoId: string, email?: string) => void;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  title?: string;
+  description?: string;
+  submitLabel?: string;
+  showEmailField?: boolean;
+  trigger?: React.ReactNode;
 }
 
 export function AddPersonDialog({
@@ -39,12 +44,18 @@ export function AddPersonDialog({
   onAddManual,
   isOpen,
   setIsOpen,
+  title = "Add Person",
+  description = "Search for an app user, find a friend, or manually add a guest to the bill.",
+  submitLabel = "Add Guest to Bill",
+  showEmailField = false,
+  trigger,
 }: AddPersonDialogProps) {
   const [searchInput, setSearchInput] = useState('');
   
   // Manual Entry State
   const [manualName, setManualName] = useState('');
   const [manualVenmoId, setManualVenmoId] = useState('');
+  const [manualEmail, setManualEmail] = useState('');
 
   // Focus ref for search input
   const inputRef = useRef<HTMLInputElement>(null);
@@ -54,6 +65,7 @@ export function AddPersonDialog({
       setSearchInput('');
       setManualName('');
       setManualVenmoId('');
+      setManualEmail('');
       onSearchChange('');
     }
   }, [isOpen]);
@@ -72,24 +84,31 @@ export function AddPersonDialog({
 
   const handleManualSubmit = () => {
     if (!manualName.trim()) return;
-    onAddManual(manualName, manualVenmoId);
+    if (showEmailField && !manualEmail.trim()) return;
+    onAddManual(manualName, manualVenmoId, manualEmail);
     setIsOpen(false);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className="w-full gap-2">
-          <UserPlus className="w-4 h-4" />
-          Add Person
-        </Button>
-      </DialogTrigger>
+      {trigger ? (
+        <DialogTrigger asChild>
+          {trigger}
+        </DialogTrigger>
+      ) : (
+        <DialogTrigger asChild>
+          <Button className="w-full gap-2">
+            <UserPlus className="w-4 h-4" />
+            Add Person
+          </Button>
+        </DialogTrigger>
+      )}
       
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add Person</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Search for an app user, find a friend, or manually add a guest to the bill.
+            {description}
           </DialogDescription>
         </DialogHeader>
 
@@ -157,21 +176,51 @@ export function AddPersonDialog({
 
           {/* MANUAL ADD AREA (Always shown at the bottom) */}
           <div className="flex flex-col gap-3 z-0">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Add Guest Manually</Label>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Manual Entry</Label>
               
-              <Input
-                  placeholder="Guest Name"
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !manualVenmoId) {
-                      handleManualSubmit();
-                    }
-                  }}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="manual-name" className="sr-only">Name</Label>
+                <div className="relative">
+                  <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                      id="manual-name"
+                      placeholder="Name"
+                      className="pl-9"
+                      value={manualName}
+                      onChange={(e) => setManualName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !manualVenmoId && (!showEmailField || !manualEmail)) {
+                          handleManualSubmit();
+                        }
+                      }}
+                  />
+                </div>
+              </div>
+
+              {showEmailField && (
+                <div className="space-y-2">
+                  <Label htmlFor="manual-email" className="sr-only">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="manual-email"
+                      type="email"
+                      placeholder="Email Address"
+                      className="pl-9"
+                      value={manualEmail}
+                      onChange={(e) => setManualEmail(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !manualVenmoId) {
+                          handleManualSubmit();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
-                <Label htmlFor="manual-venmo-id">Venmo ID (optional)</Label>
+                <Label htmlFor="manual-venmo-id" className="sr-only">Venmo ID (optional)</Label>
                 <div className="relative">
                   <AtSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -191,8 +240,8 @@ export function AddPersonDialog({
                 </div>
               </div>
 
-              <Button onClick={handleManualSubmit} variant="default" disabled={!manualName.trim()} className="mt-2">
-                Add Guest to Bill
+              <Button onClick={handleManualSubmit} variant="default" disabled={!manualName.trim() || (showEmailField && !manualEmail.trim())} className="mt-2 text-sm">
+                {submitLabel}
               </Button>
           </div>
 

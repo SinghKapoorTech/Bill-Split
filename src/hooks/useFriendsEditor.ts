@@ -110,8 +110,12 @@ export function useFriendsEditor() {
     await updateFriends(updatedFriends);
   };
 
-  const handleAddFriend = async () => {
-    if (!newFriendName.trim()) {
+  const handleAddFriend = async (name?: string, email?: string, venmoId?: string) => {
+    const finalName = name ?? newFriendName;
+    const finalEmail = email ?? newFriendEmail;
+    const finalVenmoId = venmoId ?? newFriendVenmoId;
+
+    if (!finalName.trim()) {
       toast({
         title: ERROR_MESSAGES.NAME_REQUIRED,
         description: ERROR_MESSAGES.NAME_REQUIRED_DESC,
@@ -120,7 +124,7 @@ export function useFriendsEditor() {
       return;
     }
 
-    if (!newFriendEmail.trim()) {
+    if (!finalEmail.trim()) {
       toast({
         title: 'Email Required',
         description: 'An email is required to add an external friend so they can access the app later.',
@@ -131,13 +135,13 @@ export function useFriendsEditor() {
 
     try {
       // Create or resolve shadow user
-      const userId = await userService.resolveUser(newFriendEmail.trim(), newFriendName.trim());
+      const userId = await userService.resolveUser(finalEmail.trim(), finalName.trim());
 
       const newFriend: Friend = {
         id: userId,
-        name: newFriendName.trim(),
-        email: newFriendEmail.trim(),
-        venmoId: newFriendVenmoId.replace(/^@+/, '').trim() || undefined,
+        name: finalName.trim(),
+        email: finalEmail.trim(),
+        venmoId: finalVenmoId.replace(/^@+/, '').trim() || undefined,
         balance: 0,
       };
 

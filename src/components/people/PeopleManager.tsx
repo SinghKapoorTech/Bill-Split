@@ -79,7 +79,7 @@ export function PeopleManager({
     // Dialog handles its own close state now
   };
 
-  const handleManualAdd = (name: string, venmoId: string) => {
+  const handleManualAdd = (name: string, venmoId: string, email?: string) => {
     onNameChange(name);
     onVenmoIdChange(venmoId);
     // Directly pass the name and venmoId to bypass async state update race condition
