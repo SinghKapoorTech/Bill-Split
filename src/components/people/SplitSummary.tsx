@@ -58,6 +58,19 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
     return `${billName}: ${assignedItems.join(', ')}`;
   };
 
+  // Helper function to check if a person is the current user
+  const isCurrentUser = (pt: PersonTotal): boolean => {
+    const person = people.find(p => p.id === pt.personId);
+    if (!user) return false;
+    if (person?.id === user.uid || (person as any)?.userId === user.uid || person?.id === `user-${user.uid}`) return true;
+    if (person?.name === user.displayName) return true;
+    if (person?.venmoId && profile?.venmoId && person.venmoId === profile.venmoId) return true;
+    return false;
+  };
+
+  const myTotalAmount = personTotals.find(isCurrentUser)?.total || 0;
+  const myPersonId = personTotals.find(isCurrentUser)?.personId || '';
+
   const handleChargeOnVenmo = (personTotal: PersonTotal, personVenmoId?: string, type: 'charge' | 'pay' = 'charge') => {
     if (!user) {
       toast({
@@ -82,8 +95,8 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
     const charge: VenmoCharge = {
       recipientId: personVenmoId || '',
       recipientName: personTotal.name,
-      amount: personTotal.total,
-      note: generateItemDescription(personTotal.personId),
+      amount: type === 'pay' ? myTotalAmount : personTotal.total,
+      note: type === 'pay' ? generateItemDescription(myPersonId) : generateItemDescription(personTotal.personId),
       type,
     };
 
@@ -104,15 +117,6 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
   if (personTotals.length === 0) {
     return null;
   }
-
-  // Helper function to check if a person is the current user
-  const isCurrentUser = (pt: PersonTotal): boolean => {
-    const person = people.find(p => p.id === pt.personId);
-    if (!user) return false;
-    if (person?.name === user.displayName) return true;
-    if (person?.venmoId && profile?.venmoId && person.venmoId === profile.venmoId) return true;
-    return false;
-  };
 
   return (
     <>
@@ -168,7 +172,9 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                 const isMe = isCurrentUser(pt);
                 const creditorId = paidById || ownerId;
                 const didIPay = creditorId && creditorId === user.uid;
-                const didTheyPay = creditorId && (creditorId === pt.personId || creditorId === (person as any)?.userId);
+                
+                // We check if the card we are rendering is the creditor.
+                const isThisPersonTheCreditor = creditorId && (creditorId === pt.personId || creditorId === (person as any)?.userId || creditorId === `user-${(person as any)?.userId}`);
                 
                 let showVenmoButton = false;
                 let venmoType: 'charge' | 'pay' = 'charge';
@@ -176,7 +182,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                 if (didIPay && !isMe) {
                   showVenmoButton = true;
                   venmoType = 'charge';
-                } else if (!didIPay && didTheyPay && !isMe) {
+                } else if (!didIPay && isThisPersonTheCreditor && !isMe) {
                   showVenmoButton = true;
                   venmoType = 'pay';
                 }

@@ -19,6 +19,9 @@ interface UseBillSessionProps {
 
     // Save function from context
     saveSession: (data: any, id?: string) => Promise<string | null | void>;
+
+    // Payment info
+    paidById?: string;
 }
 
 /**
@@ -37,7 +40,8 @@ export function useBillSession({
     billId,
     receiptImageUrl,
     receiptFileName,
-    saveSession
+    saveSession,
+    paidById
 }: UseBillSessionProps) {
     const navigate = useNavigate();
     const isInitializing = useRef(true);
@@ -46,12 +50,12 @@ export function useBillSession({
 
     // Keep track of latest props for unmount saving
     const latestProps = useRef({
-        billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession
+        billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession, paidById
     });
 
     useEffect(() => {
         latestProps.current = {
-            billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession
+            billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession, paidById
         };
     });
 
@@ -84,6 +88,7 @@ export function useBillSession({
             splitEvenly: props.splitEvenly,
             currentStep: props.currentStep,
             title: props.title,
+            paidById: props.paidById,
             ...(props.splitEvenly ? { itemAssignments: props.itemAssignments } : {})
         });
 
@@ -112,6 +117,7 @@ export function useBillSession({
             if (props.receiptImageUrl) savePayload.receiptImageUrl = props.receiptImageUrl;
             if (props.receiptFileName) savePayload.receiptFileName = props.receiptFileName;
             if (props.title) savePayload.title = props.title;
+            if (props.paidById) savePayload.paidById = props.paidById;
 
             const targetId = targetBillId || targetActiveId;
 

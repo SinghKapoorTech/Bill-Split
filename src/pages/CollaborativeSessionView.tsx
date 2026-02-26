@@ -24,6 +24,14 @@ import { Receipt, Upload, Edit, Loader2, AlertCircle } from 'lucide-react';
 import { UI_TEXT } from '@/utils/uiConstants';
 import { Person, BillData, ItemAssignment } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { ensureUserInPeople } from '@/utils/billCalculations';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,7 +56,8 @@ export default function CollaborativeSessionView() {
   const [people, setPeople] = useState<Person[]>([]);
   const [billData, setBillData] = useState<BillData | null>(null);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
-
+  
+  const [paidById, setPaidById] = useState<string | undefined>(undefined);
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
 
   const peopleManager = usePeopleManager(people, setPeople);
@@ -76,6 +85,9 @@ export default function CollaborativeSessionView() {
       // Ensure logged-in user is always in the people list
       setPeople(ensureUserInPeople(session.people || [], user, profile));
       setSplitEvenly(session.splitEvenly || false);
+      if (session.paidById) {
+        setPaidById(session.paidById);
+      }
       if (session.receiptImageUrl) {
         upload.setImagePreview(session.receiptImageUrl);
         upload.setSelectedFile(new File([], session.receiptFileName || 'receipt.jpg'));
@@ -144,6 +156,11 @@ export default function CollaborativeSessionView() {
     // 2. Atomic update via service
     const updatedPeople = people.filter(p => p.id !== personId);
     updateSession({ people: updatedPeople });
+  };
+
+  const handlePaidByChange = (newPaidById: string) => {
+    setPaidById(newPaidById);
+    updateSession({ paidById: newPaidById });
   };
 
   const handleToggleSplitEvenly = () => {
@@ -402,7 +419,34 @@ export default function CollaborativeSessionView() {
                 onUpdate={handleUpdatePerson}
                 onSaveAsFriend={peopleManager.savePersonAsFriend}
                 setPeople={setPeople}
-              />
+              >
+                {people.length > 0 && billData && (
+                  <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground pt-4 mb-2">
+                    <span>Paid by</span>
+                    <Select value={paidById || user?.uid} onValueChange={handlePaidByChange}>
+                      <SelectTrigger className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground w-auto min-w-[3rem] shadow-sm [&>svg]:hidden">
+                        <SelectValue placeholder="you" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {people.map((person: Person) => {
+                          const isMe = person.id === user?.uid || (person as any).userId === user?.uid || person.id === `user-${user?.uid}`;
+                          const optionValue = isMe && user ? user.uid : person.id;
+                          
+                          return (
+                            <SelectItem key={person.id} value={optionValue}>
+                              {isMe ? 'you' : person.name.split(' ')[0]}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <span>and split</span>
+                    <button className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground shadow-sm">
+                      equally
+                    </button>
+                  </div>
+                )}
+              </PeopleManager>
 
               <Card className="p-4 md:p-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
@@ -459,6 +503,8 @@ export default function CollaborativeSessionView() {
                 billData={billData}
                 itemAssignments={itemAssignments}
                 settledPersonIds={session?.settledPersonIds || []}
+                paidById={paidById}
+                ownerId={session?.ownerId || user?.uid}
                 onMarkAsSettled={handleMarkAsSettled}
               />
             </div>
@@ -479,7 +525,34 @@ export default function CollaborativeSessionView() {
             onUpdate={handleUpdatePerson}
             onSaveAsFriend={peopleManager.savePersonAsFriend}
             setPeople={setPeople}
-          />
+          >
+            {people.length > 0 && billData && (
+              <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground pt-4 mb-2">
+                <span>Paid by</span>
+                <Select value={paidById || user?.uid} onValueChange={handlePaidByChange}>
+                  <SelectTrigger className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground w-auto min-w-[3rem] shadow-sm [&>svg]:hidden">
+                    <SelectValue placeholder="you" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {people.map((person: Person) => {
+                      const isMe = person.id === user?.uid || (person as any).userId === user?.uid || person.id === `user-${user?.uid}`;
+                      const optionValue = isMe && user ? user.uid : person.id;
+                      
+                      return (
+                        <SelectItem key={person.id} value={optionValue}>
+                          {isMe ? 'you' : person.name.split(' ')[0]}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <span>and split</span>
+                <button className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground shadow-sm">
+                  equally
+                </button>
+              </div>
+            )}
+          </PeopleManager>
 
           <Card className="p-4 md:p-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
@@ -533,6 +606,8 @@ export default function CollaborativeSessionView() {
               billData={billData}
               itemAssignments={itemAssignments}
               settledPersonIds={session?.settledPersonIds || []}
+              paidById={paidById}
+              ownerId={session?.ownerId || user?.uid}
               onMarkAsSettled={handleMarkAsSettled}
             />
           )}

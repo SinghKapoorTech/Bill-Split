@@ -62,6 +62,9 @@ interface BillWizardProps {
     title: string;
     onTitleChange: (title: string) => void;
 
+    // Payment info
+    initialPaidById?: string;
+
     // Share functionality (for mobile navigation)
     hasBillData: boolean;
     onShare?: () => void;
@@ -88,6 +91,7 @@ export function BillWizard({
     initialStep = 0,
     title,
     onTitleChange,
+    initialPaidById,
     hasBillData,
     onShare
 }: BillWizardProps) {
@@ -100,6 +104,7 @@ export function BillWizard({
     const [billData, setBillData] = useState<BillData | null>(initialBillData);
     const [itemAssignments, setItemAssignments] = useState<ItemAssignment>(initialItemAssignments);
     const [splitEvenly, setSplitEvenly] = useState<boolean>(initialSplitEvenly);
+    const [paidById, setPaidById] = useState<string | undefined>(initialPaidById || activeSession?.paidById);
     const [showClearItemsDialog, setShowClearItemsDialog] = useState(false);
     const [isAIProcessing, setIsAIProcessing] = useState(false);
     const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
@@ -139,6 +144,12 @@ export function BillWizard({
         }
     }, [activeSession?.receiptImageUrl]);
 
+    useEffect(() => {
+        if (activeSession?.paidById && paidById !== activeSession.paidById) {
+            setPaidById(activeSession.paidById);
+        }
+    }, [activeSession?.paidById]);
+
     const wizard = useBillWizard({
         billData,
         people,
@@ -158,7 +169,8 @@ export function BillWizard({
         billId,
         receiptImageUrl: activeSession?.receiptImageUrl,
         receiptFileName: activeSession?.receiptFileName,
-        saveSession
+        saveSession,
+        paidById
     });
 
     const handleAtomicAssignment = (itemId: string, personId: string, checked: boolean) => {
@@ -212,6 +224,14 @@ export function BillWizard({
                     people: arrayUnion(newPerson) as unknown as Person[]
                 }).catch(console.error);
             }
+        }
+    };
+
+    const handleAtomicPaidByChange = async (newPaidById: string) => {
+        setPaidById(newPaidById);
+        const id = billId || activeSession?.id;
+        if (id) {
+            billService.updateBill(id, { paidById: newPaidById }).catch(console.error);
         }
     };
 
@@ -296,6 +316,7 @@ export function BillWizard({
                 splitEvenly,
                 currentStep: 0,
                 title: title || undefined,
+                paidById,
             }, billId || activeSession?.id);
         } else {
             await saveSession({
@@ -305,6 +326,7 @@ export function BillWizard({
                 splitEvenly,
                 currentStep: 0,
                 title: title || undefined,
+                paidById,
             }, billId || activeSession?.id);
         }
 
@@ -351,6 +373,7 @@ export function BillWizard({
                 people,
                 itemAssignments,
                 splitEvenly,
+                paidById,
             };
 
             if (uploadResult?.downloadURL) {
@@ -470,9 +493,6 @@ export function BillWizard({
                 )}
             </div>
 
-            {/* Bottom padding spacer for fixed mobile navigation */}
-            {isMobile && <div className="h-4" />}
-
             {/* Step Content - with bottom padding for fixed navigation on mobile */}
             {/* Wrap in SwipeableStepContainer on mobile for gesture navigation */}
             <SwipeableStepContainer
@@ -517,6 +537,8 @@ export function BillWizard({
                             upload={upload}
                             // Atomic handlers
                             onAdd={handleAtomicAddPerson}
+                            paidById={paidById}
+                            onPaidByChange={handleAtomicPaidByChange}
                             onAddFromFriend={handleAtomicAddFromFriend}
                             onRemove={handleRemovePerson}
                             onUpdate={handleUpdatePerson}
@@ -578,6 +600,8 @@ export function BillWizard({
                             personTotals={bill.personTotals}
                             allItemsAssigned={bill.allItemsAssigned}
                             settledPersonIds={activeSession?.settledPersonIds || []}
+                            paidById={paidById}
+                            ownerId={activeSession?.ownerId || user?.uid}
                             imagePreview={upload.imagePreview}
                             selectedFile={upload.selectedFile}
                             isUploading={isUploading}

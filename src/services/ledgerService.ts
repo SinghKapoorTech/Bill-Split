@@ -28,17 +28,11 @@ export const ledgerService = {
     personTotals: PersonTotal[],
     eventId?: string
   ): Promise<void> {
-    const tasks: Promise<void>[] = [
-      friendBalanceService.applyBillBalancesIdempotent(billId, ownerId, personTotals),
-    ];
+    await friendBalanceService.applyBillBalancesIdempotent(billId, ownerId, personTotals);
 
     if (eventId) {
-      tasks.push(
-        eventLedgerService.applyBillToEventLedgerIdempotent(eventId, billId, ownerId, personTotals)
-      );
+      await eventLedgerService.applyBillToEventLedgerIdempotent(eventId, billId, ownerId, personTotals);
     }
-
-    await Promise.all(tasks);
   },
 
   /**
@@ -58,16 +52,10 @@ export const ledgerService = {
     prevFriendBalances?: Record<string, number>,
     prevEventBalances?: Record<string, number>
   ): Promise<void> {
-    const tasks: Promise<void>[] = [
-      friendBalanceService.reverseBillBalancesIdempotent(billId, ownerId, prevFriendBalances),
-    ];
+    await friendBalanceService.reverseBillBalancesIdempotent(billId, ownerId, prevFriendBalances);
 
     if (eventId) {
-      tasks.push(
-        eventLedgerService.reverseBillFromEventLedgerIdempotent(eventId, billId, prevEventBalances)
-      );
+      await eventLedgerService.reverseBillFromEventLedgerIdempotent(eventId, billId, prevEventBalances);
     }
-
-    await Promise.all(tasks);
   },
 };

@@ -113,7 +113,7 @@
   }
 
   .wizard-stepper {
-    @apply mb-6 md:mb-8;
+    @apply mb-2 md:mb-8;
   }
 
   /* ==============================================
@@ -204,8 +204,8 @@
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-                background-color 0.15s ease;
+      box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 0.15s ease;
   }
 
   /* Active/pressed state - scale down slightly */
@@ -216,6 +216,7 @@
 
   /* Hover state - subtle lift */
   @media (hover: hover) {
+
     button:not(:disabled):hover,
     [role="button"]:not(:disabled):hover {
       transform: translateY(-1px);
@@ -247,9 +248,17 @@
   }
 
   @keyframes badge-bounce {
-    0% { transform: scale(0.8); }
-    50% { transform: scale(1.15); }
-    100% { transform: scale(1); }
+    0% {
+      transform: scale(0.8);
+    }
+
+    50% {
+      transform: scale(1.15);
+    }
+
+    100% {
+      transform: scale(1);
+    }
   }
 
   /* Glow pulse animation */
@@ -258,8 +267,15 @@
   }
 
   @keyframes glow-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); }
-    50% { box-shadow: 0 0 20px 4px hsl(var(--primary) / 0.4); }
+
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4);
+    }
+
+    50% {
+      box-shadow: 0 0 20px 4px hsl(var(--primary) / 0.4);
+    }
   }
 
   /* Slide in animation for list items */
@@ -272,6 +288,7 @@
       opacity: 0;
       transform: translateY(10px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
@@ -284,8 +301,18 @@
   }
 
   @keyframes success-pop {
-    0% { transform: scale(0); opacity: 0; }
-    50% { transform: scale(1.2); }
-    100% { transform: scale(1); opacity: 1; }
+    0% {
+      transform: scale(0);
+      opacity: 0;
+    }
+
+    50% {
+      transform: scale(1.2);
+    }
+
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
   }
 }

@@ -103,15 +103,6 @@ export function PillProgress({
                 </div>
             </div>
 
-            {/* Current step description */}
-            <motion.p
-                key={currentStep}
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center text-xs text-muted-foreground mt-2"
-            >
-                {steps[currentStep]?.description}
-            </motion.p>
         </div>
     );
 }

@@ -21,6 +21,8 @@ interface ReviewStepProps {
     personTotals: PersonTotal[];
     allItemsAssigned: boolean;
     settledPersonIds?: string[];
+    paidById?: string;
+    ownerId?: string;
 
     // Receipt state (for mobile thumbnail)
     imagePreview: string | null;
@@ -57,6 +59,8 @@ export function ReviewStep({
     personTotals,
     allItemsAssigned,
     settledPersonIds,
+    paidById,
+    ownerId,
     imagePreview,
     selectedFile,
     isUploading,
@@ -144,8 +148,8 @@ export function ReviewStep({
                     billData={billData!}
                     itemAssignments={itemAssignments}
                     settledPersonIds={settledPersonIds}
-                    paidById={(billData as any)?.paidById}
-                    ownerId={(billData as any)?.ownerId}
+                    paidById={paidById}
+                    ownerId={ownerId}
                     onMarkAsSettled={handleMarkAsSettled}
                 />
             </Card>

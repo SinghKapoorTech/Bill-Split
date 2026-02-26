@@ -49,30 +49,33 @@ export function PeopleStep({
             onUpdate={peopleManager.updatePerson}
             onSaveAsFriend={peopleManager.savePersonAsFriend}
             setPeople={setPeople}
-          />
+          >
+            <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground pt-4 mb-2">
+              <span>Paid by</span>
+              <Select value={paidById || user?.uid} onValueChange={setPaidById}>
+                <SelectTrigger className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground w-auto min-w-[3rem] shadow-sm [&>svg]:hidden">
+                  <SelectValue placeholder="you" />
+                </SelectTrigger>
+                <SelectContent>
+                  {people.map((person: Person) => {
+                    const isMe = person.id === user?.uid || (person as any).userId === user?.uid || person.id === `user-${user?.uid}`;
+                    const optionValue = isMe && user ? user.uid : person.id;
+                    
+                    return (
+                      <SelectItem key={person.id} value={optionValue}>
+                        {isMe ? 'you' : person.name.split(' ')[0]}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <span>and split</span>
+              <button className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground shadow-sm">
+                equally
+              </button>
+            </div>
+          </PeopleManager>
         </div>
-      </Card>
-      
-      {/* Who Paid Dropdown */}
-      <Card className="p-4 border-muted">
-        <Label htmlFor="paidBy" className="text-sm font-medium mb-2 block">Who paid?</Label>
-        <Select value={paidById || user?.uid} onValueChange={setPaidById}>
-          <SelectTrigger className="w-full h-12 bg-background">
-            <SelectValue placeholder="Select who paid" />
-          </SelectTrigger>
-          <SelectContent>
-            {people.map((person: Person) => {
-              const isMe = person.id === user?.uid || (person as any).userId === user?.uid || person.id === `user-${user?.uid}`;
-              const optionValue = isMe && user ? user.uid : person.id;
-              
-              return (
-                <SelectItem key={person.id} value={optionValue}>
-                  {person.name} {isMe ? '(me)' : ''}
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
       </Card>
       
       {people.length === 1 && (

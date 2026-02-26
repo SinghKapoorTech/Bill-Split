@@ -8,7 +8,6 @@ import { AddFromFriendsDialog } from './AddFromFriendsDialog';
 import { UserPlus, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AddFromSquadDialog } from '@/components/squads/AddFromSquadDialog';
-import { SaveAsSquadButton } from '@/components/squads/SaveAsSquadButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -38,6 +37,7 @@ interface Props {
   onSaveAsFriend: (person: Person, contactInfo?: string) => void;
   onRemoveFriend?: (friendId: string) => void;
   setPeople: React.Dispatch<React.SetStateAction<Person[]>>;
+  children?: React.ReactNode;
 }
 
 /**
@@ -57,7 +57,8 @@ export function PeopleManager({
   onUpdate,
   onSaveAsFriend,
   onRemoveFriend,
-  setPeople
+  setPeople,
+  children
 }: Props) {
   const { user } = useAuth();
   const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
@@ -179,9 +180,6 @@ export function PeopleManager({
               );
             })}
           </div>
-          <div className="flex justify-end">
-            <SaveAsSquadButton people={people} />
-          </div>
         </>
       )}
 
@@ -202,6 +200,8 @@ export function PeopleManager({
         onOpenChange={setSquadDialogOpen}
         onAddSquad={handleAddSquad}
       />
+
+      {children}
     </Card>
   );
 }

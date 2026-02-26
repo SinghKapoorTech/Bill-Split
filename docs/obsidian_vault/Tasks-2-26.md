@@ -29,7 +29,7 @@ tags: [backlog, bugs, features, ui, obsidian]
   _Bug:_ “insufficient permission” error.  
   **Acceptance:** heart save works; correct permissions + error handling.
 
-- [ ] **(P0) Simple transaction UI resets back to normal bill UI**  
+- [ ] **(P0) Simple transaction UI resets back to normal bill UI EVENT**  
   _Bug:_ created correctly, but returning to UI shows normal bill UI.  
   **Acceptance:** simple transaction stays in simple transaction UI state on revisit.
 
@@ -52,9 +52,14 @@ tags: [backlog, bugs, features, ui, obsidian]
 - [ ] **(P0) Users should NOT see “Mark as Settle” on their own UI**  
   _Bug:_ button visibility rules wrong.  
   **Acceptance:** shown only when user owes someone or someone owes user (correct side only).
+  
 - [ ] **(P0) Fix UI Adding a person background white stuff**  
   _Bug:_ background white stuff shouldn't be there.  
   **Acceptance:** should be similar to bill wizard UI.
+  
+- [ ] **(P0) Auto Focus happening in places
+  _Bug:_ Shouldn't happen anywhere
+  **Acceptance:** no auto focus in the app
   
 
 ---
@@ -72,7 +77,10 @@ tags: [backlog, bugs, features, ui, obsidian]
 
 - [ ] **(P1) “Create your first bill” should give options**  
   **Acceptance:** first-time CTA offers choices (e.g., Bill / Simple Transaction / Event Bill).
-
+  
+- [ ] **(P1) Website view should have all 4 options l**  
+  **Acceptance:** first-time CTA offers choices (e.g., Bill / Simple Transaction / Event Bill).
+  
 - [ ] **(P1) When creating an event, prompt to add users + add “first bill” buttons**  
   **Acceptance:** event wizard includes user add step; post-create shows quick actions.
 
