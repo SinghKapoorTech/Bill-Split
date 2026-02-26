@@ -19,10 +19,12 @@ interface Props {
   itemAssignments: ItemAssignment;
   billName?: string;
   settledPersonIds?: string[];
+  paidById?: string;
+  ownerId?: string;
   onMarkAsSettled?: (personId: string, isSettled: boolean) => void;
 }
 
-export function SplitSummary({ personTotals, allItemsAssigned, people, billData, itemAssignments, billName = 'Divit', settledPersonIds = [], onMarkAsSettled }: Props) {
+export function SplitSummary({ personTotals, allItemsAssigned, people, billData, itemAssignments, billName = 'Divit', settledPersonIds = [], paidById, ownerId, onMarkAsSettled }: Props) {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { toast } = useToast();
@@ -56,7 +58,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
     return `${billName}: ${assignedItems.join(', ')}`;
   };
 
-  const handleChargeOnVenmo = (personTotal: PersonTotal, personVenmoId?: string) => {
+  const handleChargeOnVenmo = (personTotal: PersonTotal, personVenmoId?: string, type: 'charge' | 'pay' = 'charge') => {
     if (!user) {
       toast({
         title: UI_TEXT.SIGN_IN_REQUIRED,
@@ -82,6 +84,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
       recipientName: personTotal.name,
       amount: personTotal.total,
       note: generateItemDescription(personTotal.personId),
+      type,
     };
 
     setCurrentCharge(charge);
@@ -141,14 +144,18 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                   <span className="text-muted-foreground">Items:</span>
                   <span>${pt.itemsSubtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tax:</span>
-                  <span>${pt.tax.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground font-semibold">Tip:</span>
-                  <span className="font-semibold">${pt.tip.toFixed(2)}</span>
-                </div>
+                {pt.tax > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tax:</span>
+                    <span>${pt.tax.toFixed(2)}</span>
+                  </div>
+                )}
+                {pt.tip > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground font-semibold">Tip:</span>
+                    <span className="font-semibold">${pt.tip.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
                   <span>Total:</span>
                   <span className="text-primary">${pt.total.toFixed(2)}</span>
@@ -159,20 +166,34 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                 const person = people.find(p => p.id === pt.personId);
                 const isSettled = settledPersonIds.includes(pt.personId);
                 const isMe = isCurrentUser(pt);
+                const creditorId = paidById || ownerId;
+                const didIPay = creditorId && creditorId === user.uid;
+                const didTheyPay = creditorId && (creditorId === pt.personId || creditorId === (person as any)?.userId);
+                
+                let showVenmoButton = false;
+                let venmoType: 'charge' | 'pay' = 'charge';
+                
+                if (didIPay && !isMe) {
+                  showVenmoButton = true;
+                  venmoType = 'charge';
+                } else if (!didIPay && didTheyPay && !isMe) {
+                  showVenmoButton = true;
+                  venmoType = 'pay';
+                }
 
                 return (
                   <div className="mt-3 space-y-2">
-                    {!isSettled && !isMe && (
+                    {!isSettled && showVenmoButton && (
                       <Button
                         variant="outline"
                         size="sm"
                         className="w-full gap-2"
-                        onClick={() => handleChargeOnVenmo(pt, person?.venmoId)}
+                        onClick={() => handleChargeOnVenmo(pt, person?.venmoId, venmoType)}
                       >
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z" />
                         </svg>
-                        {UI_TEXT.CHARGE_ON_VENMO}
+                        {venmoType === 'charge' ? UI_TEXT.CHARGE_ON_VENMO : 'Pay on Venmo'}
                       </Button>
                     )}
 

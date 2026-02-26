@@ -151,9 +151,11 @@ export function ReviewStep({
                     personTotals={personTotals}
                     allItemsAssigned={allItemsAssigned}
                     people={people}
-                    billData={billData}
+                    billData={billData!}
                     itemAssignments={itemAssignments}
                     settledPersonIds={settledPersonIds}
+                    paidById={(billData as any)?.paidById}
+                    ownerId={(billData as any)?.ownerId}
                     onMarkAsSettled={handleMarkAsSettled}
                 />
             </Card>

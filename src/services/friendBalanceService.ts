@@ -75,7 +75,24 @@ export const friendBalanceService = {
       if (!friendUserId) continue; // skip unlinked people
 
       const prevAmount = previousBalances[friendUserId] || 0;
-      const newAmount = total.total;
+      let newAmount = 0;
+      const creditorId = billData.paidById || billData.ownerId;
+      const isOwnerCreditor = creditorId === currentUserId;
+      const creditorFirebaseUid = personIdToFirebaseUid(creditorId);
+
+      if (isOwnerCreditor) {
+        newAmount = total.total;
+      } else {
+        if (friendUserId === creditorFirebaseUid) {
+          // This friend paid. The owner owes them the owner's share.
+          const ownerTotalRecord = personTotals.find(pt => personIdToFirebaseUid(pt.personId) === currentUserId);
+          newAmount = -(ownerTotalRecord ? ownerTotalRecord.total : 0);
+        } else {
+          // Another friend. They owe the creditor, not the owner.
+          newAmount = 0;
+        }
+      }
+
       const delta = newAmount - prevAmount;
 
       if (delta === 0) {
@@ -178,14 +195,33 @@ export const friendBalanceService = {
       // Calculate the NEW exact debts each friend owes for this bill
       const newDeltasInside: Record<string, number> = {};
 
+      const creditorId = billData.paidById || billData.ownerId;
+      const isOwnerCreditor = creditorId === currentUserId;
+      const creditorFirebaseUid = personIdToFirebaseUid(creditorId);
+      
+      const ownerTotalRecord = personTotals.find(pt => personIdToFirebaseUid(pt.personId) === currentUserId);
+      const ownerAmountOwed = ownerTotalRecord && !settledPersonIds.includes(ownerTotalRecord.personId) 
+        ? ownerTotalRecord.total 
+        : 0;
+
       for (const total of personTotals) {
         const firebaseUid = personIdToFirebaseUid(total.personId);
-        if (firebaseUid === currentUserId) continue; // skip self
         const friendUserId = personIdToUserId[total.personId] ?? null;
         if (!friendUserId) continue; // skip unlinked people
 
-        const amountOwed = settledPersonIds.includes(total.personId) ? 0 : total.total;
-        newDeltasInside[friendUserId] = amountOwed;
+        if (isOwnerCreditor) {
+          if (firebaseUid === currentUserId) continue; // skip self
+          const amountOwed = settledPersonIds.includes(total.personId) ? 0 : total.total;
+          newDeltasInside[friendUserId] = amountOwed;
+        } else {
+          if (firebaseUid === creditorFirebaseUid) {
+             // This friend paid. The owner owes them the owner's share.
+             newDeltasInside[friendUserId] = -ownerAmountOwed;
+          } else if (firebaseUid !== currentUserId) {
+             // Another friend. They owe the creditor, not the owner.
+             newDeltasInside[friendUserId] = 0;
+          }
+        }
       }
 
       // Now we have the old footprint (previousBalances) and the new footprint (newDeltasInside)

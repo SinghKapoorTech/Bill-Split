@@ -65,6 +65,75 @@ export const billService = {
   },
 
   /**
+   * Creates a new simple transaction
+   */
+  async createSimpleTransaction(
+    ownerId: string,
+    ownerName: string,
+    amount: number,
+    title: string,
+    paidById: string,
+    people: Person[],
+    eventId?: string,
+    squadId?: string
+  ): Promise<string> {
+    const newBillRef = doc(collection(db, BILLS_COLLECTION));
+    const now = Timestamp.now();
+
+    const ownerMember: BillMember = {
+      userId: ownerId,
+      name: ownerName,
+      joinedAt: now,
+      isAnonymous: false
+    };
+
+    // A simple transaction has exactly one dummy item
+    const dummyItemId = `item-${Date.now()}`;
+    const billData: BillData = {
+      items: [
+        {
+          id: dummyItemId,
+          name: title,
+          price: amount
+        }
+      ],
+      subtotal: amount,
+      tax: 0,
+      tip: 0,
+      total: amount,
+      restaurantName: title
+    };
+
+    // Assign to everyone by default
+    const itemAssignments = {
+      [dummyItemId]: people.map(p => p.id)
+    };
+
+    const newBill: Bill = {
+      id: newBillRef.id,
+      billType: eventId ? 'event' : 'private',
+      status: 'active',
+      ownerId,
+      ...(eventId && { eventId }),
+      ...(squadId && { squadId }),
+      isSimpleTransaction: true,
+      paidById,
+      title,
+      billData,
+      itemAssignments,
+      people,
+      splitEvenly: true,
+      members: [ownerMember],
+      createdAt: now,
+      updatedAt: now,
+      lastActivity: now
+    };
+
+    await setDoc(newBillRef, newBill);
+    return newBillRef.id;
+  },
+
+  /**
    * Gets a bill by ID
    */
   async getBill(billId: string): Promise<Bill | null> {

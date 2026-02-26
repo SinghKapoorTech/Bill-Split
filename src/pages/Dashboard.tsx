@@ -121,9 +121,13 @@ export default function Dashboard() {
     }
   };
 
-  const handleResumeBill = async (billId: string) => {
+  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean) => {
     await resumeSession(billId);
-    navigate(`/bill/${billId}`);
+    if (isSimpleTransaction) {
+      navigate(`/transaction/${billId}`);
+    } else {
+      navigate(`/bill/${billId}`);
+    }
   };
 
   const handleDeleteBill = (bill: Bill) => {
@@ -141,8 +145,12 @@ export default function Dashboard() {
     setBillToDelete(null);
   };
 
-  const handleViewBill = (billId: string) => {
-    navigate(`/bill/${billId}`);
+  const handleViewBill = (billId: string, isSimpleTransaction?: boolean) => {
+    if (isSimpleTransaction) {
+      navigate(`/transaction/${billId}`);
+    } else {
+      navigate(`/bill/${billId}`);
+    }
   };
 
   const formatDate = (timestamp: any) => {
@@ -235,8 +243,8 @@ export default function Dashboard() {
                     key={bill.id}
                     bill={bill}
                     isLatest={bill.id === activeSession?.id}
-                    onView={handleViewBill}
-                    onResume={handleResumeBill}
+                    onView={(id) => handleViewBill(id, bill.isSimpleTransaction)}
+                    onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction)}
                     onDelete={handleDeleteBill}
                     isResuming={isResuming}
                     isDeleting={isDeleting}
@@ -254,8 +262,8 @@ export default function Dashboard() {
                     key={bill.id}
                     bill={bill}
                     isLatest={bill.id === activeSession?.id}
-                    onView={handleViewBill}
-                    onResume={handleResumeBill}
+                    onView={(id) => handleViewBill(id, bill.isSimpleTransaction)}
+                    onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction)}
                     onDelete={handleDeleteBill}
                     isResuming={isResuming}
                     isDeleting={isDeleting}

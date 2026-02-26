@@ -8,7 +8,8 @@ import {
   Loader2,
   Trash2,
   Play,
-  ShoppingBag
+  ShoppingBag,
+  Zap
 } from 'lucide-react';
 
 interface DesktopBillCardProps {
@@ -47,14 +48,18 @@ export default function DesktopBillCard({
     >
       <CardHeader className="pb-3">
         <div className="flex items-start gap-3 mb-2">
-          {bill.receiptImageUrl ? (
+          {bill.isSimpleTransaction ? (
+            <div className="w-12 h-12 bg-amber-100 rounded-md flex items-center justify-center shrink-0">
+              <Zap className="w-6 h-6 text-amber-600" />
+            </div>
+          ) : bill.receiptImageUrl ? (
             <img
               src={bill.receiptImageUrl}
               alt="Receipt"
-              className="w-12 h-12 object-cover rounded-md"
+              className="w-12 h-12 object-cover rounded-md shrink-0"
             />
           ) : (
-            <div className="w-12 h-12 bg-muted rounded-md flex items-center justify-center">
+            <div className="w-12 h-12 bg-muted rounded-md flex items-center justify-center shrink-0">
               <Receipt className="w-6 h-6 text-muted-foreground" />
             </div>
           )}

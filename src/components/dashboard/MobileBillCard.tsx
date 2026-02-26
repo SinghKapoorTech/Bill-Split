@@ -1,6 +1,6 @@
 import { Bill } from '@/types/bill.types';
 import { formatCurrency } from '@/utils/format';
-import { ChevronRight, Loader2, Play, Trash2 } from 'lucide-react';
+import { ChevronRight, Loader2, Play, Trash2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 /**
@@ -80,6 +80,9 @@ export default function MobileBillCard({
       <div className="flex-1 min-w-0 py-3">
         {/* Row 1: Title + Latest badge */}
         <div className="flex items-center gap-2 mb-0.5">
+          {bill.isSimpleTransaction && (
+            <Zap className="w-4 h-4 text-amber-500 shrink-0" />
+          )}
           <span className="font-medium text-foreground truncate">
             {getBillTitle(bill)}
           </span>

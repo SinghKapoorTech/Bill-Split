@@ -71,6 +71,10 @@ export interface Bill {
   shareCodeExpiresAt?: Timestamp;
   shareCodeCreatedBy?: string;
 
+  // Simple Transactions
+  isSimpleTransaction?: boolean;
+  paidById?: string;
+
   // History
   members: BillMember[];
 
