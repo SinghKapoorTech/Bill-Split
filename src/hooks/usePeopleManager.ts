@@ -7,7 +7,7 @@ import { generatePersonId, generateUserId, ensureUserInPeople } from '@/utils/bi
 import { validatePersonInput } from '@/utils/validation';
 import { createPersonObject } from '@/utils/firestore';
 import { userService } from '@/services/userService';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
 /**
@@ -156,7 +156,7 @@ export function usePeopleManager(
     return newPerson;
   };
 
-  const savePersonAsFriend = async (person: Person) => {
+  const savePersonAsFriend = async (person: Person, contactInfo?: string) => {
     if (!user) {
       toast({
         title: 'Not logged in',
@@ -171,14 +171,27 @@ export function usePeopleManager(
       
       // If it's a manually created person during the bill session
       if (friendId.startsWith('person-')) {
-        // Create a shadow user to obtain a real UID for the friends array
-        friendId = await userService.createShadowUser(person.name, person.name);
+        if (!contactInfo) {
+          toast({
+            title: 'Contact info required',
+            description: 'Cannot save a manually added person without contact info.',
+            variant: 'destructive'
+          });
+          return;
+        }
+        
+        // Resolve user via email/phone (finds existing or creates shadow)
+        friendId = await userService.resolveUser(contactInfo, person.name);
       }
 
       // If they have a Venmo ID, ensure the friend's profile is updated
       if (person.venmoId) {
-        const cleanVenmoId = person.venmoId.replace(/^@+/, '').trim();
-        await updateDoc(doc(db, 'users', friendId), { venmoId: cleanVenmoId });
+        try {
+          const cleanVenmoId = person.venmoId.replace(/^@+/, '').trim();
+          await updateDoc(doc(db, 'users', friendId), { venmoId: cleanVenmoId });
+        } catch (e) {
+          // Ignore permission errors if we can't update a non-shadow user's profile
+        }
       }
 
       // Append Friend ID to the user's friends list
@@ -200,6 +213,30 @@ export function usePeopleManager(
     }
   };
 
+  const removePersonFromFriends = async (friendId: string) => {
+    if (!user) return;
+    try {
+      if (friendId.startsWith('person-')) {
+          console.warn('Cannot directly remove a person- ID from friends without resolving. Pass the resolved friend ID.');
+          return;
+      }
+      await updateDoc(doc(db, 'users', user.uid), {
+        friends: arrayRemove(friendId)
+      });
+      toast({
+        title: 'Removed from friends',
+        description: 'Successfully removed from your friends list.',
+        duration: 1000,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error removing friend',
+        description: error.message || 'Could not remove from friends list.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return {
     people,
     newPersonName,
@@ -210,6 +247,7 @@ export function usePeopleManager(
     addFromFriend,
     removePerson,
     savePersonAsFriend,
+    removePersonFromFriends,
     setPeople,
   };
 }

@@ -201,13 +201,11 @@ export function WizardNavigation({
             initial={false}
             animate={{
               scale: index === currentStep ? 1.2 : 1,
-              backgroundColor: index <= currentStep
-                ? 'hsl(var(--primary))'
-                : 'hsl(var(--muted-foreground) / 0.3)',
             }}
             transition={{ type: 'spring', stiffness: 500, damping: 30 }}
             className={cn(
               'w-2 h-2 rounded-full',
+              index <= currentStep ? 'bg-primary' : 'bg-muted-foreground/30',
               'transition-colors duration-300'
             )}
           />

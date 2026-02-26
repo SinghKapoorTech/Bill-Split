@@ -35,7 +35,8 @@ interface Props {
   onAddFromFriend: (friend: Friend) => void;
   onRemove: (personId: string) => void;
   onUpdate: (personId: string, updates: Partial<Person>) => Promise<void>;
-  onSaveAsFriend: (person: Person) => void;
+  onSaveAsFriend: (person: Person, contactInfo?: string) => void;
+  onRemoveFriend?: (friendId: string) => void;
   setPeople: React.Dispatch<React.SetStateAction<Person[]>>;
 }
 
@@ -55,6 +56,7 @@ export function PeopleManager({
   onRemove,
   onUpdate,
   onSaveAsFriend,
+  onRemoveFriend,
   setPeople
 }: Props) {
   const { user } = useAuth();
@@ -99,9 +101,22 @@ export function PeopleManager({
     });
   };
 
-  const handleSaveAsFriend = async (person: Person) => {
-    await onSaveAsFriend(person);
+  const handleSaveAsFriend = async (person: Person, contactInfo?: string) => {
+    await onSaveAsFriend(person, contactInfo);
     await loadFriends();
+  };
+
+  const handleRemoveFriend = async (person: Person) => {
+    if (!onRemoveFriend) return;
+    const friend = friends.find(f => {
+      if (person.id && f.id && person.id === f.id) return true;
+      if (f.name && person.name && f.name.toLowerCase() === person.name.toLowerCase()) return true;
+      return false;
+    });
+    if (friend?.id) {
+       await onRemoveFriend(friend.id);
+       await loadFriends();
+    }
   };
 
   const existingNames = people.map(p => p.name);
@@ -148,7 +163,7 @@ export function PeopleManager({
         <>
           <div className="space-y-2 mb-4">
             {people.map((person) => {
-              const isCurrentUser = user && (person.id === user.uid || (person as any).userId === user.uid);
+              const isCurrentUser = Boolean(user && (person.id === user.uid || person.id === generateUserId(user.uid) || (person as any).userId === user.uid));
               return (
                 <PersonCard
                   key={person.id}
@@ -158,6 +173,7 @@ export function PeopleManager({
                   onRemove={onRemove}
                   onUpdate={onUpdate}
                   onSaveAsFriend={handleSaveAsFriend}
+                  onRemoveFriend={handleRemoveFriend}
                   existingNames={existingNames}
                 />
               );

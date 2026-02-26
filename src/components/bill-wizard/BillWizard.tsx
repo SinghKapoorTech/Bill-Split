@@ -521,6 +521,7 @@ export function BillWizard({
                             onRemove={handleRemovePerson}
                             onUpdate={handleUpdatePerson}
                             onSaveAsFriend={peopleManager.savePersonAsFriend}
+                            onRemoveFriend={peopleManager.removePersonFromFriends}
                             imagePreview={upload.imagePreview}
                             selectedFile={upload.selectedFile}
                             isUploading={isUploading}

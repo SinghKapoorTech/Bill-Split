@@ -26,8 +26,8 @@ export function ScanSuccessAnimation({
         scale: 0.4 + Math.random() * 0.4,
         delay: Math.random() * 0.15,
         color: [
-            'var(--primary)',
-            'var(--primary-glow)',
+            '#3b82f6', // blue
+            '#ec4899', // pink
             '#10b981', // emerald
             '#f59e0b', // amber
             '#8b5cf6', // violet

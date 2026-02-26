@@ -23,6 +23,7 @@ interface PeopleStepProps {
     onRemove: (personId: string) => void;
     onUpdate: (personId: string, updates: Partial<Person>) => Promise<void>;
     onSaveAsFriend: (person: Person) => void;
+    onRemoveFriend?: (friendId: string) => void;
 
     // Receipt state (for mobile thumbnail)
     imagePreview: string | null;
@@ -64,6 +65,7 @@ export function PeopleStep({
     onRemove,
     onUpdate,
     onSaveAsFriend,
+    onRemoveFriend,
     imagePreview,
     selectedFile,
     isUploading,
@@ -117,6 +119,7 @@ export function PeopleStep({
                             onRemove={onRemove}
                             onUpdate={onUpdate}
                             onSaveAsFriend={onSaveAsFriend}
+                            onRemoveFriend={onRemoveFriend}
                             setPeople={setPeople}
                         />
                     </div>
@@ -158,6 +161,7 @@ export function PeopleStep({
                         onRemove={onRemove}
                         onUpdate={onUpdate}
                         onSaveAsFriend={onSaveAsFriend}
+                        onRemoveFriend={onRemoveFriend}
                         setPeople={setPeople}
                     />
                 }

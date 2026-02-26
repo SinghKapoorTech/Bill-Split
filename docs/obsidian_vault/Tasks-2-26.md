@@ -25,7 +25,7 @@ tags: [backlog, bugs, features, ui, obsidian]
   _Bug:_ shows “need name” even when a name exists.  
   **Acceptance:** user can add person with name reliably; no false validation errors.
 
-- [ ] **(P0) Saving a friend (heart icon) fails**  
+- [x] **(P0) Saving a friend (heart icon) fails**  
   _Bug:_ “insufficient permission” error.  
   **Acceptance:** heart save works; correct permissions + error handling.
 
@@ -52,6 +52,10 @@ tags: [backlog, bugs, features, ui, obsidian]
 - [ ] **(P0) Users should NOT see “Mark as Settle” on their own UI**  
   _Bug:_ button visibility rules wrong.  
   **Acceptance:** shown only when user owes someone or someone owes user (correct side only).
+- [ ] **(P0) Fix UI Adding a person background white stuff**  
+  _Bug:_ background white stuff shouldn't be there.  
+  **Acceptance:** should be similar to bill wizard UI.
+  
 
 ---
 

@@ -39,9 +39,9 @@ export function SuccessCelebration({
                 x: Math.random() * 100,
                 delay: Math.random() * 0.3,
                 color: [
-                    'hsl(var(--primary))',
-                    'hsl(var(--success))',
-                    'hsl(var(--warning))',
+                    '#3b82f6', // blue
+                    '#10b981', // emerald
+                    '#f59e0b', // amber
                     '#FFD700',
                     '#FF69B4',
                 ][Math.floor(Math.random() * 5)],
