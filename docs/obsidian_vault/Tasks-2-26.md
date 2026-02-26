@@ -21,7 +21,7 @@ tags: [backlog, bugs, features, ui, obsidian]
 
 ## 🔥 P0 — Critical Bugs / Core Functionality
 
-- [ ] **(P0) Add person manually is not working**  
+- [x] **(P0) Add person manually is not working**  
   _Bug:_ shows “need name” even when a name exists.  
   **Acceptance:** user can add person with name reliably; no false validation errors.
 
