@@ -275,6 +275,11 @@ export function SimpleTransactionWizard() {
               isMobile={isMobile}
               paidById={paidById}
               setPaidById={setPaidById}
+              onNext={handleNextStep}
+              onPrev={handlePrevStep}
+              canProceed={canProceed()}
+              currentStep={currentStep}
+              totalSteps={STEPS.length}
             />
           )}
 

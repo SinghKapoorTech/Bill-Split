@@ -53,7 +53,7 @@ tags: [backlog, bugs, features, ui, obsidian]
   _Bug:_ button visibility rules wrong.  
   **Acceptance:** shown only when user owes someone or someone owes user (correct side only).
   
-- [ ] **(P0) Fix UI Adding a person background white stuff**  
+- [x] **(P0) Fix UI Adding a person background white stuff**  
   _Bug:_ background white stuff shouldn't be there.  
   **Acceptance:** should be similar to bill wizard UI.
   
