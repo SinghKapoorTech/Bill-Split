@@ -18,7 +18,7 @@ interface PeopleStepProps {
     newPersonVenmoId: string;
     onNameChange: (name: string) => void;
     onVenmoIdChange: (id: string) => void;
-    onAdd: () => void;
+    onAdd: (name?: string, venmoId?: string) => void;
     onAddFromFriend: (friend: any) => void;
     onRemove: (personId: string) => void;
     onUpdate: (personId: string, updates: Partial<Person>) => Promise<void>;

@@ -203,8 +203,8 @@ export function BillWizard({
         }
     };
 
-    const handleAtomicAddPerson = async () => {
-        const newPerson = await peopleManager.addPerson();
+    const handleAtomicAddPerson = async (name?: string, venmoId?: string) => {
+        const newPerson = await peopleManager.addPerson(name, venmoId);
         if (newPerson) {
             const id = billId || activeSession?.id;
             if (id) {

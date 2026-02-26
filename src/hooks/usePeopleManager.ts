@@ -34,9 +34,12 @@ export function usePeopleManager(
     }
   }, [user, profile?.venmoId, people.length]);
 
-  const addPerson = async (): Promise<Person | null> => {
+  const addPerson = async (overrideName?: string, overrideVenmoId?: string): Promise<Person | null> => {
+    const nameToUse = overrideName !== undefined ? overrideName : newPersonName;
+    const venmoIdToUse = overrideVenmoId !== undefined ? overrideVenmoId : newPersonVenmoId;
+
     // Check if it's an email search
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newPersonName.trim());
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nameToUse.trim());
     
     if (isEmail) {
       toast({
@@ -44,12 +47,12 @@ export function usePeopleManager(
         description: `Looking up user by email...`,
         duration: 1500,
       });
-      const globalUser = await userService.getUserByContact(newPersonName.trim());
+      const globalUser = await userService.getUserByContact(nameToUse.trim());
       
       if (!globalUser) {
         toast({
           title: 'User Not Found',
-          description: `No user found with the email ${newPersonName.trim()}.`,
+          description: `No user found with the email ${nameToUse.trim()}.`,
           variant: 'destructive',
         });
         return null;
@@ -74,7 +77,7 @@ export function usePeopleManager(
     }
 
     // Validate input
-    const validation = validatePersonInput(newPersonName);
+    const validation = validatePersonInput(nameToUse);
     if (!validation.isValid && validation.error) {
       toast({
         title: validation.error.title,
@@ -85,7 +88,7 @@ export function usePeopleManager(
     }
 
     // Create person object with proper venmoId handling
-    const personData = createPersonObject(newPersonName, newPersonVenmoId);
+    const personData = createPersonObject(nameToUse, venmoIdToUse);
 
     const newPerson: Person = {
       id: generatePersonId(),

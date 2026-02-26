@@ -31,7 +31,7 @@ interface Props {
   newPersonVenmoId: string;
   onNameChange: (name: string) => void;
   onVenmoIdChange: (venmoId: string) => void;
-  onAdd: () => void;
+  onAdd: (name?: string, venmoId?: string) => void;
   onAddFromFriend: (friend: Friend) => void;
   onRemove: (personId: string) => void;
   onUpdate: (personId: string, updates: Partial<Person>) => Promise<void>;
@@ -79,10 +79,8 @@ export function PeopleManager({
   const handleManualAdd = (name: string, venmoId: string) => {
     onNameChange(name);
     onVenmoIdChange(venmoId);
-    // Use timeout to ensure state is set before onAdd is called, since useState is async
-    setTimeout(() => {
-        onAdd();
-    }, 0);
+    // Directly pass the name and venmoId to bypass async state update race condition
+    onAdd(name, venmoId);
   };
 
   const handleAddSquad = (members: SquadMember[]) => {

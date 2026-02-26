@@ -381,8 +381,8 @@ export default function CollaborativeSessionView() {
                 newPersonVenmoId={peopleManager.newPersonVenmoId}
                 onNameChange={peopleManager.setNewPersonName}
                 onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                onAdd={async () => {
-                  const newPerson = await peopleManager.addPerson();
+                onAdd={async (name, venmoId) => {
+                  const newPerson = await peopleManager.addPerson(name, venmoId);
                   if (newPerson) {
                     // Atomic add
                     updateSession({ people: arrayUnion(newPerson) as unknown as Person[] });
