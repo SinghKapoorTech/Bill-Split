@@ -3,7 +3,6 @@ import { useUserProfile } from './useUserProfile';
 import { useToast } from './use-toast';
 import { ERROR_MESSAGES } from '@/utils/uiConstants';
 import { userService } from '@/services/userService';
-import { friendBalanceService } from '@/services/friendBalanceService';
 import { Friend } from '@/types/person.types';
 
 export function useFriendsEditor() {

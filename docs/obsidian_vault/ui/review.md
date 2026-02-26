@@ -57,7 +57,7 @@ Entering the Review step automatically commits the bill's balances to the **[[..
 
 ### When it fires
 
-A `useEffect` in `BillWizard.tsx` watches `currentStep`. As soon as it equals `3` (the Review step, 0-indexed), `friendBalanceService.applyBillBalancesIdempotent()` is called in the background.
+A `useEffect` in `BillWizard.tsx` watches `currentStep`. As soon as it equals `3` (the Review step, 0-indexed), `ledgerService.applyBillToLedgers()` is called in the background.
 
 ### Why not on "Done"?
 
@@ -69,7 +69,7 @@ Users frequently leave from the Review screen without pressing Done — most com
 2. Only people with linked Firebase UIDs are written (manually-added people without accounts are skipped).
 3. The Idempotent Engine retrieves `processedBalances` (previously committed totals) and reverses the exact math footprint in the ledger, then applies the new total.
 4. Runs one ACID Firestore transaction per affected friend to safely perform the overwrite.
-5. Writes the new footprint back to `processedBalances` on the bill, then calls `recalculateAllFriendBalances()` to update the dashboard.
+5. Writes the new footprint back to `processedBalances` on the bill.
 
 ### Idempotency
 
@@ -79,7 +79,7 @@ Calling it multiple times with the same data is safe. The engine strictly revers
 
 - `VenmoChargeDialog.tsx`: The modal that facilitates the deep link or API call to Venmo.
 - `ProfileSettings.tsx`: Invoked dynamically if the user is missing prerequisite profile data.
-- `friendBalanceService.ts → applyBillBalancesIdempotent()`: Commits new idempotent footprints to the **[[../database/friend_balances|friend_balances]]** collection.
+- `ledgerService.ts → applyBillToLedgers()`: Unified entry point that commits idempotent footprints to both the **[[../database/friend_balances|friend_balances]]** and `event_balances` collections in parallel.
 
 ## 6. Mark as Settled Flow
 
@@ -91,7 +91,7 @@ On the review page or the collaborative session view, the person who created the
 
 ### Mathematical Impact
 - Marking a person as settled pushes their `personId` into the `settledPersonIds` array on the Firestore bill document.
-- It then inherently re-triggers the Idempotent Delta Engines:
+- It then re-triggers the unified `ledgerService.applyBillToLedgers()`, which internally calls:
   - `friendBalanceService.applyBillBalancesIdempotent`
   - `eventLedgerService.applyBillToEventLedgerIdempotent` (if it's an event bill)
 - Because they are now in the `settledPersonIds` array, their calculated debt on the bill evaluates to `$0`.

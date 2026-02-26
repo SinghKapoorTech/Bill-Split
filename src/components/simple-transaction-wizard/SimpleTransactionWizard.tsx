@@ -5,8 +5,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
 import { Person, PersonTotal } from '@/types';
 import { billService } from '@/services/billService';
-import { friendBalanceService } from '@/services/friendBalanceService';
-import { eventLedgerService } from '@/services/eventLedgerService';
+import { ledgerService } from '@/services/ledgerService';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { Stepper, StepContent } from '@/components/ui/stepper';
 import { PillProgress } from '@/components/ui/pill-progress';
@@ -132,17 +131,9 @@ export function SimpleTransactionWizard() {
       }).then(async () => {
          const personTotals = getPersonTotals(numAmount, people);
          try {
-           await friendBalanceService.applyBillBalancesIdempotent(billId, user.uid, personTotals);
+           await ledgerService.applyBillToLedgers(billId, user.uid, personTotals, targetEventId || undefined);
          } catch (e) {
-           console.error("friendBalance error in autosave:", e);
-         }
-         
-         if (targetEventId) {
-            try {
-              await eventLedgerService.applyBillToEventLedgerIdempotent(targetEventId, billId, user.uid, personTotals);
-            } catch (e) {
-              console.error("eventLedger error in autosave:", e);
-            }
+           console.error("ledger error in autosave:", e);
          }
       }).catch(console.error);
       
@@ -197,20 +188,12 @@ export function SimpleTransactionWizard() {
 
         // Apply balances only AFTER successfully writing the bill to database
         const personTotals = getPersonTotals(numAmount, people);
-        await friendBalanceService.applyBillBalancesIdempotent(
+        await ledgerService.applyBillToLedgers(
           billId,
           user.uid,
-          personTotals
+          personTotals,
+          targetEventId || undefined
         ).catch(console.error);
-
-        if (targetEventId) {
-          await eventLedgerService.applyBillToEventLedgerIdempotent(
-            targetEventId,
-            billId,
-            user.uid,
-            personTotals
-          ).catch(console.error);
-        }
       } else {
         const newBillId = await billService.createSimpleTransaction(
           user.uid,
@@ -222,20 +205,12 @@ export function SimpleTransactionWizard() {
           targetEventId
         );
         const personTotals = getPersonTotals(numAmount, people);
-        await friendBalanceService.applyBillBalancesIdempotent(
+        await ledgerService.applyBillToLedgers(
           newBillId,
           user.uid,
-          personTotals
+          personTotals,
+          targetEventId || undefined
         ).catch(console.error);
-
-        if (targetEventId) {
-          await eventLedgerService.applyBillToEventLedgerIdempotent(
-            targetEventId,
-            newBillId,
-            user.uid,
-            personTotals
-          ).catch(console.error);
-        }
       }
 
       if (targetEventId) {

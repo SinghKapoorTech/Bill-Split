@@ -332,3 +332,23 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
     }
   }
 );
+
+/**
+ * Cloud Function: Process a settlement between two users.
+ *
+ * Atomically marks shared bills as settled, updates friend and event ledgers,
+ * and writes an immutable settlement record — all in a single admin transaction.
+ *
+ * The client calls this instead of doing any Firestore writes directly.
+ */
+export const processSettlement = onCall<import('./settlementProcessor.js').SettlementRequest>(
+  { timeoutSeconds: 60, memory: '256MiB' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { processSettlementCore } = await import('./settlementProcessor.js');
+    return processSettlementCore(request.auth.uid, request.data);
+  }
+);

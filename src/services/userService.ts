@@ -15,7 +15,6 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { UserProfile, Friend, Squad } from '@/types/person.types';
-import { friendBalanceService } from './friendBalanceService';
 
 const USERS_COLLECTION = 'users';
 
@@ -100,17 +99,6 @@ export const userService = {
       }
 
       await updateDoc(userRef, updates);
-
-      // Self-healing: Check for and sync old bills if it's been > 24 hours since last login
-      const lastLoginTime = userSnap.data().lastLoginAt as Timestamp;
-      if (lastLoginTime) {
-        const hoursSinceLastLogin = (now.toMillis() - lastLoginTime.toMillis()) / (1000 * 60 * 60);
-        if (hoursSinceLastLogin > 24) {
-          friendBalanceService.syncOldBillsForUser(user.uid).catch(err => {
-            console.error('Failed to run periodic old bill sync:', err);
-          });
-        }
-      }
     }
   },
 

@@ -110,9 +110,17 @@ service cloud.firestore {
           exists(/databases/$(database)/documents/squads/$(sId)) &&
           request.auth.uid in get(/databases/$(database)/documents/squads/$(sId)).data.memberIds;
       }
+
+
+      // Helper: Only settlement-related fields are being changed.
+      // Covers the fields the Cloud Function writes on settle.
+      function isSettlementUpdate() {
+        return onlyUpdating(['settledPersonIds', 'processedBalances', 'eventBalancesApplied']);
+      }
       
+
       // READ: 
-      // - Authenticated: Owner, event members, or bill members
+      // - Authenticated: Owner, event members, squad members, linked participants, or bill members
       // - Anonymous: Bills with valid share code (for join flow)
       allow read: if 
         // Anonymous users can read bills with valid share codes
@@ -121,11 +129,13 @@ service cloud.firestore {
         (request.auth != null && (
           // Owner can always read
           request.auth.uid == resource.data.ownerId ||
+          // Linked participant via participantIds (null-safe for pre-migration bills)
+          ('participantIds' in resource.data && request.auth.uid in resource.data.participantIds) ||
           // Event members can read event bills
           hasEventIdAndMember(resource.data) ||
           // Squad members can read squad bills
           hasSquadIdAndMember(resource.data) ||
-          // Authenticated members can read (includes guests who joined via share link)
+          // Legacy: authenticated members can read (includes guests who joined via share link)
           isBillMember(resource.data)
         ));
       
@@ -141,6 +151,7 @@ service cloud.firestore {
       // - Owner and event members have full access
       // - Authenticated members can update limited fields
       // - Anonymous users with valid share code can update limited fields (for claiming items)
+      // - Linked participants can update settlement fields only (bidirectional settle-up)
       allow update: if 
         // Anonymous users with valid share code can update assignments/people
         (hasValidShareCode() && isGuestUpdate()) ||
@@ -152,8 +163,12 @@ service cloud.firestore {
           hasEventIdAndMember(resource.data) ||
           // Squad members have full access to squad bills
           hasSquadIdAndMember(resource.data) ||
-          // All authenticated members can update specific fields (assignments, people)
-          (isBillMember(resource.data) && isGuestUpdate())
+          // Legacy: authenticated members can update specific fields
+          (isBillMember(resource.data) && isGuestUpdate()) ||
+          // Linked participant can mark settlement (null-safe for pre-migration bills)
+          ('participantIds' in resource.data &&
+           request.auth.uid in resource.data.participantIds &&
+           isSettlementUpdate())
         ));
       
       // DELETE: Only owner can delete

@@ -114,11 +114,14 @@ interface Settlement {
 
 ---
 
-## Universal Ledger Logic Workflow
+## Unified Ledger Write Path
 
-Any time a Bill is Created, Edited, or Deleted, we execute this exact, strictly transactional workflow:
+Any time a Bill is Created, Edited, or Deleted, all ledger mutations are orchestrated through a single entry point:
 
-### 1. `friendBalanceService.applyBillBalances(billId, newTotals)`
+### `ledgerService.applyBillToLedgers(billId, ownerId, personTotals, eventId?)`
+This calls both underlying services in parallel via `Promise.all`:
+
+#### Step A — `friendBalanceService.applyBillBalancesIdempotent()`
 1. **Transaction Start:** Read `Bill` and target `friend_balances`.
 2. Look at `bill.processedBalances`.
 3. Subtract the exact amounts in `processedBalances` from the `friend_balances` doc. (Reversing the old state).
@@ -126,7 +129,7 @@ Any time a Bill is Created, Edited, or Deleted, we execute this exact, strictly 
 5. Overwrite the `bill.processedBalances` with `newTotals`.
 6. **Transaction End.**
 
-### 2. `eventLedgerService.applyBillToEventLedger(eventId, billId, newTotals)`
+#### Step B — `eventLedgerService.applyBillToEventLedgerIdempotent()` (if `eventId` provided)
 1. **Transaction Start:** Read `Bill` and target `event_balances`.
 2. Look at `bill.eventBalancesApplied`.
 3. Subtract the exact amounts in `eventBalancesApplied` from `event_balances.netBalances`.
@@ -134,6 +137,9 @@ Any time a Bill is Created, Edited, or Deleted, we execute this exact, strictly 
 5. Run the debt optimization algorithm *in-memory* on the newly aggregated `netBalances`.
 6. Overwrite the `bill.eventBalancesApplied` with `newTotals`.
 7. **Transaction End.**
+
+> [!IMPORTANT]
+> UI code should **never** import `friendBalanceService` or `eventLedgerService` directly. All mutations go through `ledgerService`, which guarantees both ledgers are always updated atomically.
 
 ---
 
@@ -160,6 +166,8 @@ We will execute this change carefully, ensuring nothing breaks for existing user
 - [x] Add the "Settle Up" UI to `EventDetailView.tsx`.
 - [ ] Update Bill Creation UI to support checking off "Already Settled" to push to `settledPersonIds`.
 
-### Phase 5: Cleanup & Migration
-- [ ] Write a one-off utility function to rebuild existing ledgers using the new system (to fix any old broken "ghost debts").
-- [ ] Delete the old delta calculation functions safely.
+### Phase 5: Cleanup & Unification ✅
+- [x] Delete the old non-idempotent delta functions (`applyBillBalances`, `reverseBillBalances`, `applyBillToEventLedger`).
+- [x] Delete the self-healing sync jobs (`syncOldBillsForUser`, `recalculateEventLedger`).
+- [x] Create unified `ledgerService.ts` that orchestrates both ledger services via `Promise.all`.
+- [x] Update all UI call sites to use `ledgerService` instead of calling individual services directly.

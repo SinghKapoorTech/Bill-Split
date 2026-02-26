@@ -1,12 +1,22 @@
-import { Users, User, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { Users, ChevronRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useFriendsEditor } from '@/hooks/useFriendsEditor';
+import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
+import { SettleUpModal } from '@/components/settlements/SettleUpModal';
 
 export function FriendBalancePreviewCard() {
   const navigate = useNavigate();
-  const { friends, isLoadingFriends } = useFriendsEditor();
+  const { friends, isLoadingFriends, refreshFriends } = useFriendsEditor();
+  const [settleTarget, setSettleTarget] = useState<{
+    userId: string;
+    name: string;
+    amount: number;
+    isPaying: boolean;
+    venmoId?: string;
+  } | null>(null);
 
   const previewFriends = friends.slice(0, 5);
 
@@ -24,62 +34,82 @@ export function FriendBalancePreviewCard() {
         </div>
       </div>
 
-      <Card className="p-4 md:p-6 flex-1 flex flex-col">
-        <div className="flex-1 space-y-1 mb-4">
-        {isLoadingFriends ? (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            Loading friends...
-          </p>
-        ) : friends.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            No friends saved yet.
-          </p>
-        ) : (
-          previewFriends.map((friend, index) => (
-            <div
-              key={index}
-              className="flex items-center justify-between p-2 rounded-lg hover:bg-secondary/30 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 flex-shrink-0">
-                  <User className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{friend.name}</p>
-                </div>
-              </div>
-              
-              <div className="flex flex-col items-end">
-                <div className="flex items-baseline gap-1.5">
-                  {friend.balance && friend.balance !== 0 ? (
-                    <span className="text-[10px] uppercase font-bold text-foreground">
-                      {friend.balance > 0 ? 'Owes you' : 'You owe'}
-                    </span>
-                  ) : null}
-                  {!friend.balance ? (
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground">
-                      Settled
-                    </span>
-                  ) : null}
-                  <span className={`text-sm font-semibold ${friend.balance && friend.balance > 0 ? 'text-green-500' : friend.balance && friend.balance < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                    ${Math.abs(friend.balance || 0).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <Card className="p-0 overflow-hidden flex-1 flex flex-col border-border bg-card shadow-sm">
+        <div className="flex-1 mb-0">
+          {isLoadingFriends ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Loading friends...
+            </p>
+          ) : friends.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No friends saved yet.
+            </p>
+          ) : (
+            <div className="divide-y divide-border">
+              {previewFriends.map((friend, index) => {
+                const owesYou = friend.balance && friend.balance > 0;
+                const youOwe = friend.balance && friend.balance < 0;
+                const hasBalance = friend.balance && friend.balance !== 0;
 
-      <Button 
-        variant="outline" 
-        className="w-full mt-auto"
-        onClick={() => navigate('/settings', { state: { defaultTab: 'friends' } })}
-      >
-        <span>Manage Friends</span>
-        <ChevronRight className="w-4 h-4 ml-1" />
-      </Button>
+                const direction: BalanceDirection = owesYou
+                  ? 'owes-you'
+                  : youOwe
+                  ? 'you-owe'
+                  : 'neutral';
+
+                const fromLabel = owesYou ? friend.name : 'You';
+                const toLabel = owesYou ? 'you' : friend.name;
+                const amount = Math.abs(friend.balance || 0);
+
+                return (
+                  <BalanceListRow
+                    key={index}
+                    fromLabel={fromLabel}
+                    toLabel={toLabel}
+                    amount={amount}
+                    direction={direction}
+                    action={hasBalance && friend.id ? {
+                      label: youOwe ? 'Pay' : 'Settle',
+                      variant: youOwe ? 'default' : 'secondary',
+                      onClick: () => setSettleTarget({
+                        userId: friend.id!,
+                        name: friend.name,
+                        amount,
+                        isPaying: !!youOwe,
+                        venmoId: friend.venmoId,
+                      }),
+                    } : undefined}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="p-3 border-t border-border">
+          <Button
+            variant="ghost"
+            className="w-full text-sm text-muted-foreground justify-between"
+            onClick={() => navigate('/settings', { state: { defaultTab: 'friends' } })}
+          >
+            <span>Manage Friends</span>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
       </Card>
+
+      {settleTarget && (
+        <SettleUpModal
+          open={!!settleTarget}
+          onOpenChange={(open) => !open && setSettleTarget(null)}
+          targetUserId={settleTarget.userId}
+          targetUserName={settleTarget.name}
+          targetVenmoId={settleTarget.venmoId}
+          isPaying={settleTarget.isPaying}
+          recommendedAmount={settleTarget.amount}
+          onSuccess={() => { setSettleTarget(null); refreshFriends(); }}
+        />
+      )}
     </div>
   );
 }

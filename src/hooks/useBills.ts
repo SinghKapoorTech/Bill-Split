@@ -18,9 +18,8 @@ import { db, storage } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Bill, BillData } from '@/types/bill.types';
 import { useToast } from './use-toast';
-import { friendBalanceService } from '@/services/friendBalanceService';
 import { billService } from '@/services/billService';
-import { eventLedgerService } from '@/services/eventLedgerService';
+import { ledgerService } from '@/services/ledgerService';
 import { removeUndefinedFields } from '@/utils/firestoreHelpers';
 
 /**
@@ -259,27 +258,20 @@ export function useBills() {
     }
 
     try {
-      // Reverse this bill's contribution to the shared ledger before deleting
+      // Reverse this bill's contribution to both ledgers before deleting
       if (user) {
-        await friendBalanceService.reverseBillBalancesIdempotent(
+        await ledgerService.reverseBillFromLedgers(
           activeSession.id,
           user.uid,
-          activeSession.processedBalances
-        ).catch(err => console.error('Failed to reverse bill balances on clear:', err));
+          activeSession.eventId || undefined,
+          activeSession.processedBalances,
+          activeSession.eventBalancesApplied
+        ).catch(err => console.error('Failed to reverse ledger balances on clear:', err));
       }
 
       // Delete the active bill from Firestore
       const billRef = doc(db, 'bills', activeSession.id);
       await deleteDoc(billRef);
-
-      // We should recalculate the event ledger if it was an event bill
-      if (activeSession.eventId) {
-        await eventLedgerService.reverseBillFromEventLedgerIdempotent(
-          activeSession.eventId,
-          activeSession.id,
-          activeSession.eventBalancesApplied
-        ).catch(err => console.error('Failed to reverse from event ledger on clear:', err));
-      }
 
       // Delete receipt image if it exists
       if (activeSession.receiptFileName) {
@@ -311,13 +303,15 @@ export function useBills() {
       const billRef = doc(db, 'bills', sessionId);
       const billSnap = await billService.getBill(sessionId);
 
-      // Reverse this bill's contribution to the shared ledger before deleting
+      // Reverse this bill's contribution to both ledgers before deleting
       if (user) {
-        await friendBalanceService.reverseBillBalancesIdempotent(
+        await ledgerService.reverseBillFromLedgers(
           sessionId,
           user.uid,
-          billSnap?.processedBalances
-        ).catch(err => console.error('Failed to reverse bill balances on delete:', err));
+          billSnap?.eventId || undefined,
+          billSnap?.processedBalances,
+          billSnap?.eventBalancesApplied
+        ).catch(err => console.error('Failed to reverse ledger balances on delete:', err));
       }
 
       await deleteDoc(billRef);
@@ -352,14 +346,8 @@ export function useBills() {
         }
       }
 
-      // We should recalculate the event ledger if it was an event bill
-      if (billSnap?.eventId) {
-        await eventLedgerService.reverseBillFromEventLedgerIdempotent(
-          billSnap.eventId,
-          sessionId,
-          billSnap.eventBalancesApplied
-        ).catch(err => console.error('Failed to reverse from event ledger on delete:', err));
-      }
+      // No longer a separate event ledger reversal needed —
+      // reverseBillFromLedgers above handled both friend_balances and event_balances.
 
       toast({ title: 'Success', description: 'Session deleted.' });
     } catch (error) {

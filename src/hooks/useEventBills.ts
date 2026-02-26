@@ -12,7 +12,7 @@ import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Bill } from '@/types/bill.types';
 import { billService } from '@/services/billService';
-import { eventLedgerService } from '@/services/eventLedgerService';
+import { ledgerService } from '@/services/ledgerService';
 
 export function useEventBills(eventId: string) {
   const { user } = useAuth();
@@ -83,22 +83,14 @@ export function useEventBills(eventId: string) {
     const billSnap = await billService.getBill(billId);
     if (!billSnap) return;
 
-    if (eventId) {
-      await eventLedgerService.reverseBillFromEventLedgerIdempotent(
-        eventId,
-        billId,
-        billSnap.eventBalancesApplied
-      ).catch(err => console.error('Failed to reverse from event ledger on delete:', err));
-    }
-
     if (user) {
-      // Event bills also contribute to global friend balances, reverse them!
-      const { friendBalanceService } = await import('@/services/friendBalanceService');
-      await friendBalanceService.reverseBillBalancesIdempotent(
+      await ledgerService.reverseBillFromLedgers(
         billId,
         user.uid,
-        billSnap.processedBalances
-      ).catch(err => console.error('Failed to reverse bill balances on delete:', err));
+        billSnap.eventId || undefined,
+        billSnap.processedBalances,
+        billSnap.eventBalancesApplied
+      ).catch(err => console.error('Failed to reverse ledger balances on delete:', err));
     }
 
     const billRef = doc(db, 'bills', billId);

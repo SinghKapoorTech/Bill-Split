@@ -1,40 +1,44 @@
 import {
   collection,
   doc,
-  setDoc,
   getDocs,
   query,
   where,
   deleteDoc,
-  Timestamp
 } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '@/config/firebase';
 import { Settlement } from '@/types/settlement.types';
 
 const SETTLEMENTS_COLLECTION = 'settlements';
 
+export interface SettlementResult {
+  settlementId: string;
+  billsSettled: number;
+  amountApplied: number;
+  remainingAmount: number;
+}
+
+
 export const settlementService = {
   /**
-   * Creates a new settlement record between two users
+   * Requests a settlement via the Cloud Function.
+   * The function atomically marks bills as settled and updates all ledgers.
+   * This is the primary entry point for settling between two users.
    */
-  async createSettlement(
+  async requestSettlement(
     fromUserId: string,
     toUserId: string,
     amount: number,
     eventId?: string
-  ): Promise<string> {
-    const settlementRef = doc(collection(db, SETTLEMENTS_COLLECTION));
-    const settlement: Settlement = {
-      id: settlementRef.id,
-      fromUserId,
-      toUserId,
-      amount,
-      date: Timestamp.now(),
-      eventId
-    };
-    
-    await setDoc(settlementRef, settlement);
-    return settlement.id;
+  ): Promise<SettlementResult> {
+    const fn = httpsCallable<
+      { fromUserId: string; toUserId: string; amount: number; eventId?: string },
+      SettlementResult
+    >(functions, 'processSettlement');
+
+    const result = await fn({ fromUserId, toUserId, amount, ...(eventId ? { eventId } : {}) });
+    return result.data;
   },
 
   /**

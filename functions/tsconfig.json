@@ -4,6 +4,7 @@
     "moduleResolution": "bundler",
     "noImplicitReturns": true,
     "noUnusedLocals": true,
+    "rootDir": "..",
     "outDir": "lib",
     "sourceMap": true,
     "strict": true,
@@ -14,6 +15,7 @@
   },
   "compileOnSave": true,
   "include": [
-    "src"
+    "src",
+    "../shared"
   ]
 }

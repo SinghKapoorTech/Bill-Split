@@ -8,8 +8,7 @@ import { Person, BillData, ItemAssignment, PersonTotal } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { billService } from '@/services/billService';
-import { friendBalanceService } from '@/services/friendBalanceService';
-import { eventLedgerService } from '@/services/eventLedgerService';
+import { ledgerService } from '@/services/ledgerService';
 import { arrayUnion, arrayRemove } from 'firebase/firestore';
 
 interface ReviewStepProps {
@@ -96,23 +95,14 @@ export function ReviewStep({
                 description: isSettled ? "Their balance has been updated to $0 for this bill." : "Their balance has been restored for this bill.",
             });
 
-            // Because onSnapshot updates billData, the effect in BillWizard that watches 
-            // wizard.currentStep handles applying balances on review step.
-            // But we might want to manually trigger it here just in case.
-            await friendBalanceService.applyBillBalancesIdempotent(
+            // Reapply both ledgers atomically. The idempotent logic reads
+            // settledPersonIds from the bill and automatically zeroes out the settled person's share.
+            await ledgerService.applyBillToLedgers(
                 billId,
                 user.uid,
-                personTotals
+                personTotals,
+                eventId || undefined
             );
-
-            if (eventId) {
-                await eventLedgerService.applyBillToEventLedgerIdempotent(
-                    eventId,
-                    billId,
-                    user.uid,
-                    personTotals
-                );
-            }
 
         } catch (error) {
             console.error("Failed to mark as settled", error);

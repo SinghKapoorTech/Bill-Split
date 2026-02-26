@@ -89,7 +89,7 @@ To prevent database bloat, new bills utilize a **Client-Side Draft (Just-In-Time
 
 ### On Review Step Entry
 
-When the user enters the Review step (step 4), a `useEffect` in `BillWizard.tsx` automatically fires `applyBillBalancesIdempotent()` in the background:
+When the user enters the Review step (step 4), a `useEffect` in `BillWizard.tsx` automatically fires `ledgerService.applyBillToLedgers()` in the background:
 
 1. Cross-references the bill's `people` IDs against the owner's friends list to resolve Firebase UIDs. Person IDs in the `user-{uid}` format have the prefix stripped to recover the raw Firebase UID before the comparison.
 2. The Idempotent Delta engine reads `processedBalances`, strictly reverses that exact math from the ledger, then applies the new totals.
@@ -106,30 +106,25 @@ When the user enters the Review step (step 4), a `useEffect` in `BillWizard.tsx`
 > - Navigates away via back button after reviewing
 > - Closes the browser tab from the Review screen
 >
-> `applyBillBalancesIdempotent` is **idempotent** — pressing Done after already viewing the review executes the same math, yielding the exact same ledger numbers without double-spending.
+> `ledgerService.applyBillToLedgers` is **idempotent** — pressing Done after already viewing the review executes the same math, yielding the exact same ledger numbers without double-spending.
 
 #### Simple Transaction Balance Exception
 For `isSimpleTransaction === true`, balances are applied **upon successful save** (when clicking "Done" or during the debounced auto-save on the Review step). They do *not* automatically apply instantly upon merely entering the Review step, ensuring that drafts of edited quick expenses do not corrupt the ledger before being finalized.
 
 ### On Bill Deletion
 
-`reverseBillBalancesIdempotent()` is called **before** `deleteDoc()` in both `clearSession` and `deleteSession`:
+`ledgerService.reverseBillFromLedgers()` is called **before** `deleteDoc()` in both `clearSession` and `deleteSession`:
 
 1. Reads `processedBalances` and `eventBalancesApplied` from the bill BEFORE triggering Firestore deletion.
-2. Passes those explicit footprints into the Delta Engine as `providedPreviousBalances`. This prevents a race condition where the Delta Engine spins up after the bill is already deleted.
-3. For each footprint, the Delta Engine subtracts that specific footprint from **[[friend_balances]]** and `event_balances`.
+2. Passes those explicit footprints into `ledgerService.reverseBillFromLedgers()` as `providedPreviousBalances`. This prevents a race condition where the Delta Engine spins up after the bill is already deleted.
+3. The service calls both `reverseBillBalancesIdempotent` and `reverseBillFromEventLedgerIdempotent` in parallel via `Promise.all`.
 4. Automatically triggers UI updates because `getHydratedFriends` and Event ledgers use `onSnapshot` to re-fetch live balances.
 
 > [!NOTE]
 > If the bill was never reviewed (`processedBalances` absent or empty), `reverseBillBalancesIdempotent` returns immediately — nothing to undo.
 
-### Historical Ledger Sync (Self-Healing)
-
-`syncOldBillsForUser(userId)` is an automated background job that runs once every 24 hours when a user logs in. It fixes the ledger for legacy bills created before `friend_balances` existed:
-
-1. Scans the user's past bills for any that lack `processedBalances`.
-2. If the old bill has items and assignments, it calculates what the split *would have been*.
-3. Runs `applyBillBalances` to seamlessly push the missing historical data into the new ledger.
+> [!NOTE]
+> The Historical Ledger Sync / Self-Healing job (`syncOldBillsForUser`) has been **removed** as part of the ledger unification refactor. The unified `ledgerService` write path now guarantees consistency between both ledgers, eliminating the need for background reconciliation.
 
 ## Concurrency
 

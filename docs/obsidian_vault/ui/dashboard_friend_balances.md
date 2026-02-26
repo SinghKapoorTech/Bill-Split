@@ -42,11 +42,11 @@ If the user has no friends with outstanding balances (or no friends at all), the
 
 ```
 Bill finalized
-    └── applyBillBalances()
-            └── runTransaction on friend_balances doc
-                    └── recalculateAllFriendBalances()
-                            └── updateDoc(userRef, { friends: [...] })
-                                    └── onSnapshot fires on useUserProfile
+    └── ledgerService.applyBillToLedgers()
+            └── friendBalanceService.applyBillBalancesIdempotent()
+                    └── runTransaction on friend_balances doc
+                            └── onSnapshot fires on friend_balances collection
+                                    └── getHydratedFriends() re-fetches
                                             └── FriendBalancePreviewCard re-renders ✓
 ```
 

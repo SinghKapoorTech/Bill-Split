@@ -23,6 +23,7 @@ import { useBillContext } from '@/contexts/BillSessionContext';
 import { useEventLedger } from '@/hooks/useEventLedger';
 import { generateUserId } from '@/utils/billCalculations';
 import { SettleUpModal } from '@/components/settlements/SettleUpModal';
+import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
 
 // Firestore collection name
 const EVENTS_COLLECTION = 'events';
@@ -245,8 +246,6 @@ export default function EventDetailView() {
                     let toName = toProfile?.displayName || toProfile?.username;
                     let fromVenmoId = fromProfile?.venmoId;
                     let toVenmoId = toProfile?.venmoId;
-                    let fromPhoto = fromProfile?.photoURL;
-                    let toPhoto = toProfile?.photoURL;
 
                     if (!fromName || !toName) {
                       for (const bill of eventBills) {
@@ -265,82 +264,37 @@ export default function EventDetailView() {
                     fromName = fromName || 'Unknown';
                     toName = toName || 'Unknown';
 
-                    const isCurrentUserInvolved = user?.uid === debt.fromUserId || user?.uid === debt.toUserId;
                     const isCurrentUserPaying = user?.uid === debt.fromUserId;
                     const isCurrentUserReceiving = user?.uid === debt.toUserId;
-                    const amountFormatted = `$${debt.amount.toFixed(2)}`;
+                    const isCurrentUserInvolved = isCurrentUserPaying || isCurrentUserReceiving;
 
-                    let owesText = (
-                      <>
-                        <span className="font-medium text-foreground">{fromName}</span>
-                        <span className="text-muted-foreground text-[13px] mx-1">owes</span>
-                        <span className="font-medium text-foreground">{toName}</span>
-                      </>
-                    );
-
-                    let amountColor = "text-muted-foreground";
-
-                    if (isCurrentUserPaying) {
-                      owesText = (
-                        <>
-                          <span className="font-medium text-foreground">You</span>
-                          <span className="text-muted-foreground text-[13px] mx-1">owe</span>
-                          <span className="font-medium text-foreground">{toName}</span>
-                        </>
-                      );
-                      amountColor = "text-destructive font-semibold";
-                    } else if (isCurrentUserReceiving) {
-                      owesText = (
-                        <>
-                          <span className="font-medium text-foreground">{fromName}</span>
-                          <span className="text-muted-foreground text-[13px] mx-1">owes</span>
-                          <span className="font-medium text-foreground">you</span>
-                        </>
-                      );
-                      amountColor = "text-green-600 font-semibold";
-                    }
+                    const direction: BalanceDirection = isCurrentUserPaying
+                      ? 'you-owe'
+                      : isCurrentUserReceiving
+                      ? 'owes-you'
+                      : 'neutral';
 
                     return (
-                      <div key={idx} className="flex items-center justify-between py-2.5 px-3 hover:bg-muted/30 transition-colors">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex -space-x-2">
-                            <Avatar className="w-8 h-8 border-2 border-background shadow-sm z-10">
-                              <AvatarImage src={fromPhoto} />
-                              <AvatarFallback className="bg-destructive/10 text-destructive text-xs">{fromName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                            <Avatar className="w-8 h-8 border-2 border-background shadow-sm z-0">
-                              <AvatarImage src={toPhoto} />
-                              <AvatarFallback className="bg-green-500/10 text-green-600 text-xs">{toName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-sm">
-                              {owesText}
-                            </span>
-                            <span className={`text-xs ${amountColor}`}>{amountFormatted}</span>
-                          </div>
-                        </div>
-
-                        {isCurrentUserInvolved && (
-                          <div className="shrink-0 pl-2">
-                            <Button
-                              variant={isCurrentUserPaying ? "default" : "secondary"}
-                              size="sm"
-                              className={`h-7 px-3 text-xs w-[68px] rounded-full ${isCurrentUserPaying ? "bg-primary text-primary-foreground" : ""}`}
-                              onClick={() => {
-                                setSettleTarget({
-                                  userId: isCurrentUserPaying ? debt.toUserId : debt.fromUserId,
-                                  name: isCurrentUserPaying ? toName : fromName,
-                                  amount: debt.amount,
-                                  isPaying: isCurrentUserPaying,
-                                  venmoId: isCurrentUserPaying ? toVenmoId : fromVenmoId
-                                });
-                              }}>
-                              {isCurrentUserPaying ? 'Pay' : 'Settle'}
-                            </Button>
-                          </div>
-                        )}
-                      </div>
+                      <BalanceListRow
+                        key={idx}
+                        fromLabel={fromName}
+                        toLabel={toName}
+                        amount={debt.amount}
+                        direction={direction}
+                        action={isCurrentUserInvolved ? {
+                          label: isCurrentUserPaying ? 'Pay' : 'Settle',
+                          variant: isCurrentUserPaying ? 'default' : 'secondary',
+                          onClick: () => {
+                            setSettleTarget({
+                              userId: isCurrentUserPaying ? debt.toUserId : debt.fromUserId,
+                              name: isCurrentUserPaying ? toName! : fromName!,
+                              amount: debt.amount,
+                              isPaying: isCurrentUserPaying,
+                              venmoId: isCurrentUserPaying ? toVenmoId : fromVenmoId
+                            });
+                          }
+                        } : undefined}
+                      />
                     );
                   })}
                 </div>

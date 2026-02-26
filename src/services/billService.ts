@@ -17,9 +17,28 @@ import { db } from '@/config/firebase';
 import { Bill, BillData, BillType, BillMember } from '@/types/bill.types';
 import { Person } from '@/types/person.types';
 import { removeUndefinedFields } from '@/utils/firestoreHelpers';
-import { calculatePersonTotals } from '@/utils/calculations';
+
 
 const BILLS_COLLECTION = 'bills';
+
+/**
+ * Derives a flat array of Firebase UIDs from a bill's people array + owner.
+ * Normalizes "user-{uid}" format to raw Firebase UIDs.
+ * Deduplicates and always includes the owner.
+ * This is the single source of truth for participantIds computation.
+ */
+function extractParticipantIds(ownerId: string, people: Person[]): string[] {
+  const ids = new Set<string>();
+  ids.add(ownerId);
+  for (const person of people) {
+    const uid = person.id.startsWith('user-') ? person.id.slice(5) : person.id;
+    // Only include if it looks like a real Firebase UID (not a guest/anon ID)
+    if (uid && !uid.startsWith('guest-') && uid !== 'anonymous') {
+      ids.add(uid);
+    }
+  }
+  return Array.from(ids);
+}
 
 export const billService = {
   /**
@@ -44,16 +63,19 @@ export const billService = {
       isAnonymous: false
     };
 
+    const participantIds = extractParticipantIds(ownerId, people);
     const newBill: Bill = {
       id: newBillRef.id,
       billType,
       status: 'active',
       ownerId,
-      ...(eventId && { eventId }), // Only include eventId if it's defined
-      ...(squadId && { squadId }), // Only include squadId if it's defined
+      ...(eventId && { eventId }),
+      ...(squadId && { squadId }),
       billData,
       itemAssignments: {},
       people,
+      participantIds,
+      unsettledParticipantIds: participantIds,
       splitEvenly: false,
       members: [ownerMember],
       createdAt: now,
@@ -123,6 +145,8 @@ export const billService = {
       billData,
       itemAssignments,
       people,
+      participantIds: extractParticipantIds(ownerId, people),
+      unsettledParticipantIds: extractParticipantIds(ownerId, people),
       splitEvenly: true,
       members: [ownerMember],
       createdAt: now,
@@ -182,7 +206,27 @@ export const billService = {
   async updateBill(billId: string, updates: Partial<Bill>): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
 
-    // Remove undefined fields to prevent Firestore errors
+    // If people is being updated, automatically re-derive participantIds.
+    // Callers never need to think about keeping participantIds in sync.
+    if (updates.people && Array.isArray(updates.people)) {
+      const billSnap = await getDoc(billRef);
+      const billData = billSnap.data();
+      const ownerId = updates.ownerId ?? billData?.ownerId;
+      if (ownerId) {
+        const derived = extractParticipantIds(ownerId, updates.people);
+        // Compute unsettledParticipantIds preserving settled users.
+        // The Cloud Function removes UIDs from this array via arrayRemove as people settle.
+        const settledPersonIds = new Set<string>(billData?.settledPersonIds || []);
+        const settledUids = new Set<string>(
+          (billData?.people || [])
+            .filter((p: any) => settledPersonIds.has(p.id))
+            .map((p: any) => p.id.startsWith('user-') ? p.id.slice(5) : p.id)
+        );
+        const unsettledDerived = derived.filter(uid => !settledUids.has(uid));
+        updates = { ...updates, participantIds: derived, unsettledParticipantIds: unsettledDerived };
+      }
+    }
+
     const cleanedUpdates = removeUndefinedFields({
       ...updates,
       updatedAt: serverTimestamp(),
@@ -195,7 +239,6 @@ export const billService = {
       console.error('FAILED TO SAVE BILL:', error);
       console.error('Bill ID:', billId);
       console.error('Update Payload Keys:', Object.keys(cleanedUpdates));
-      // console.error('Full Payload:', cleanedUpdates); // Uncomment for deep debugging
       throw error;
     }
   },
@@ -251,9 +294,16 @@ export const billService = {
       name: userName,
     };
 
+    // Normalize UID (joinBill may be called with guest- IDs; skip those for participantIds)
+    const isLinkedUser = !userId.startsWith('guest-') && userId !== 'anonymous';
+
     await updateDoc(billRef, {
       members: arrayUnion(newMember),
       people: arrayUnion(newPerson),
+      ...(isLinkedUser && {
+        participantIds: arrayUnion(userId),
+        unsettledParticipantIds: arrayUnion(userId),
+      }),
       updatedAt: serverTimestamp(),
       lastActivity: serverTimestamp()
     });
@@ -383,112 +433,6 @@ export const billService = {
 
     await updateDoc(billRef, updatePayload);
   },
-
-  /**
-   * Distributes a settlement amount across the oldest outstanding bills between two users.
-   * Modifies each bill's settledPersonIds and registers the transaction footprints
-   * via friendBalanceService and eventLedgerService (if applicable).
-   * Returns the remaining unapplied settlement amount (for partial payments or overpayments).
-   */
-  async markBillsAsSettledForUser(
-    fromUserId: string, // the person paying
-    toUserId: string,   // the person receiving
-    amountToSettle: number,
-    eventId?: string    // restrict to event if provided
-  ): Promise<number> {
-    if (amountToSettle <= 0) return 0;
-
-    // 1. Fetch all bills where toUserId is the owner
-    const billsRef = collection(db, BILLS_COLLECTION);
-    const q = eventId
-      ? query(billsRef, where('eventId', '==', eventId), where('ownerId', '==', toUserId))
-      : query(billsRef, where('ownerId', '==', toUserId));
-
-    const snap = await getDocs(q);
-    const bills = snap.docs.map(d => ({ id: d.id, ...d.data() } as Bill))
-      .sort((a, b) => {
-        const timeA = a.createdAt?.toMillis?.() || 0;
-        const timeB = b.createdAt?.toMillis?.() || 0;
-        return timeA - timeB; // Oldest first
-      });
-
-    // We will need friendBalanceService and eventLedgerService
-    const { friendBalanceService } = await import('@/services/friendBalanceService');
-    const { eventLedgerService } = await import('@/services/eventLedgerService');
-    const { userService } = await import('@/services/userService');
-
-    const ownerProfile = await userService.getUserProfile(toUserId);
-    const ownerFriends = new Set((ownerProfile?.friends || []).map((f: any) => typeof f === 'string' ? f : (f.userId || f.id)).filter(Boolean));
-
-    let remainingAmount = amountToSettle;
-
-    for (const bill of bills) {
-      if (remainingAmount <= 0) break;
-      if (!bill.billData || !bill.billData.items) continue;
-
-      const settledPersonIds = bill.settledPersonIds || [];
-
-      // We must check if fromUserId is actually participating in this bill under any persona mapped to them
-      let internalPersonId: string | null = null;
-      for (const p of (bill.people || [])) {
-        if (p.id === fromUserId || (ownerFriends.has(p.id) && p.id === fromUserId)) {
-          internalPersonId = p.id;
-          break;
-        }
-      }
-
-      if (!internalPersonId || settledPersonIds.includes(internalPersonId)) {
-        continue; // They are not in the bill or already settled
-      }
-
-      // Calculate what they owe
-      const personTotals = calculatePersonTotals(
-        bill.billData,
-        bill.people || [],
-        bill.itemAssignments || {},
-        bill.billData.tip || 0,
-        bill.billData.tax || 0
-      );
-
-      const toPayTotal = personTotals.find(pt => pt.personId === internalPersonId)?.total || 0;
-      if (toPayTotal <= 0) continue;
-
-      // Decide if we have enough to fully settle this bill
-      if (remainingAmount >= toPayTotal - 0.01) { // 1 cent grace margin for floating points
-        // Full settlement of this bill!
-        const billRef = doc(db, BILLS_COLLECTION, bill.id);
-
-        // 1. Mark as settled in Firestore
-        await updateDoc(billRef, {
-          settledPersonIds: arrayUnion(internalPersonId)
-        });
-
-        // 2. Re-apply footprints
-        await friendBalanceService.applyBillBalancesIdempotent(
-          bill.id,
-          toUserId,
-          personTotals
-        );
-
-        if (bill.eventId) {
-          await eventLedgerService.applyBillToEventLedgerIdempotent(
-            bill.eventId,
-            bill.id,
-            toUserId,
-            personTotals
-          );
-        }
-
-        remainingAmount -= toPayTotal;
-      } else {
-        // Partial settlement logic chosen (Option B): Wait for full settlement of the individual bill.
-        // We will just consume the remainingAmount (meaning they made a partial dent in the overarching ledger)
-        // but we don't modify the bill itself so it remains in their "Unsettled" view.
-        remainingAmount = 0;
-        break;
-      }
-    }
-
-    return remainingAmount;
-  }
 };
+
+

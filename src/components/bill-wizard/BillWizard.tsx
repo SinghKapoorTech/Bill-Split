@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { billService } from '@/services/billService';
-import { friendBalanceService } from '@/services/friendBalanceService';
-import { eventLedgerService } from '@/services/eventLedgerService';
+import { ledgerService } from '@/services/ledgerService';
 import { useAuth } from '@/contexts/AuthContext';
 import { arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Stepper, StepContent } from '@/components/ui/stepper';
@@ -417,8 +416,8 @@ export function BillWizard({
     // ── Auto-apply balances when the user reaches the Review step ───────────
     // This ensures balances update even if the user never presses "Done" —
     // for example, if they tap "Charge on Venmo" and close the app.
-    // The delta logic in applyBillBalancesIdempotent is mathematically idempotent: 
-    // if nothing changed since the last call, it calculates delta=0 and skips all writes.
+    // The delta logic is mathematically idempotent: if nothing changed since the
+    // last call, it calculates delta=0 and skips all writes.
     useEffect(() => {
         const REVIEW_STEP = 3; // 0-indexed; step 4 in the wizard
         if (wizard.currentStep !== REVIEW_STEP) return;
@@ -426,20 +425,12 @@ export function BillWizard({
 
         const currentBillId = billId || activeSession?.id;
 
-        friendBalanceService.applyBillBalancesIdempotent(
+        ledgerService.applyBillToLedgers(
             currentBillId,
             user.uid,
-            bill.personTotals
-        ).catch(err => console.error('Failed to auto-apply friend balances on review:', err));
-
-        if (targetEventId) {
-            eventLedgerService.applyBillToEventLedgerIdempotent(
-                targetEventId,
-                currentBillId,
-                user.uid,
-                bill.personTotals
-            ).catch(err => console.error('Failed to auto-apply event ledger balances on review:', err));
-        }
+            bill.personTotals,
+            targetEventId || undefined
+        ).catch(err => console.error('Failed to auto-apply ledger balances on review:', err));
     }, [wizard.currentStep, targetEventId]); // re-runs when step changes OR when eventId resolves from async session load
 
 

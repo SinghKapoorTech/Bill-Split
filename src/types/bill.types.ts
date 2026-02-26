@@ -52,6 +52,22 @@ export interface Bill {
   // Participants
   people: Person[];
 
+  /**
+   * Flat array of Firebase UIDs for all linked participants (owner + linked people).
+   * Derived from people[].id at write time (normalizes "user-{uid}" → raw UID).
+   * Enables Firestore array-contains queries and cross-user security rules.
+   * Always kept in sync with the `people` array — callers never set this directly.
+   */
+  participantIds?: string[];
+
+  /**
+   * Mirror of participantIds, but a UID is removed (via arrayRemove) when that
+   * person fully settles their share. Enables efficient "unsettled bills only"
+   * Firestore queries — the Cloud Function uses this to find bills to process.
+   * Populated at bill creation; maintained by the processSettlement Cloud Function.
+   */
+  unsettledParticipantIds?: string[];
+
   // User inputs
   splitEvenly: boolean;
 

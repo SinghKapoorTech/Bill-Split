@@ -97,9 +97,9 @@ The ledger is updated in three situations:
 
 | Trigger | What fires | When it runs |
 |---------|-----------|--------------|
-| **User enters the Review step** | `applyBillBalancesIdempotent()` | As soon as `currentStep === 3` in the wizard (even if the user never presses "Done") |
+| **User enters the Review step** | `ledgerService.applyBillToLedgers()` | As soon as `currentStep === 3` in the wizard (even if the user never presses "Done") |
 | **User presses "Done"** | `navigate('/dashboard')` only — balances already applied on step entry | Immediately after the Review step effect |
-| **Bill is deleted** | `reverseBillBalancesIdempotent()` | Before `deleteDoc()` in both `clearSession` and `deleteSession` |
+| **Bill is deleted** | `ledgerService.reverseBillFromLedgers()` | Before `deleteDoc()` in both `clearSession` and `deleteSession` |
 
 > [!IMPORTANT]
 > The trigger is the **Review step entry**, not the "Done" button. This ensures balances update even when the user:
@@ -113,7 +113,10 @@ If balances only updated on "Done", any user who left the app to Venmo a friend 
 
 ### Idempotency
 
-`applyBillBalancesIdempotent` uses a strictly transactional reverse-and-apply footprint engine. It compares the current `personTotals` against `processedBalances` on the bill document. It subtracts the mathematically old tracked footprint, and adds the new requested footprint during a single ACID transaction. If called multiple times with the same totals, the net effect on the math remains identical.
+`applyBillBalancesIdempotent` (called internally by `ledgerService.applyBillToLedgers`) uses a strictly transactional reverse-and-apply footprint engine. It compares the current `personTotals` against `processedBalances` on the bill document. It subtracts the mathematically old tracked footprint, and adds the new requested footprint during a single ACID transaction. If called multiple times with the same totals, the net effect on the math remains identical.
+
+> [!IMPORTANT]
+> UI code should **never** import `friendBalanceService` directly. All mutations go through `ledgerService`, which guarantees both `friend_balances` and `event_balances` are always updated together.
 
 ---
 
@@ -121,7 +124,7 @@ If balances only updated on "Done", any user who left the app to Venmo a friend 
 
 ### On Review Step Entry (Bill Creation / Edit)
 
-When the user navigates to the Review step, `applyBillBalancesIdempotent()` runs in the background via a `useEffect` in `BillWizard.tsx`:
+When the user navigates to the Review step, `ledgerService.applyBillToLedgers()` runs in the background via a `useEffect` in `BillWizard.tsx`:
 
 1. Reads the bill's `people` array and `processedBalances` from Firestore.
 2. Person IDs in the `people` array use the **`user-{uid}`** format. The service strips the `user-` prefix from each `person.id` to recover the raw Firebase UID before looking it up against the owner's `user.friends` list.
@@ -133,22 +136,17 @@ When the user navigates to the Review step, `applyBillBalancesIdempotent()` runs
 
 ### On Bill Deletion
 
-`reverseBillBalancesIdempotent()` is called **before** `deleteDoc()`:
+`ledgerService.reverseBillFromLedgers()` is called **before** `deleteDoc()`:
 
-1. Reads the bill's `processedBalances`.
-2. For each friend in the map, runs a transaction to completely substract the exact footprint they originally contributed to the ledger.
+1. Reads the bill's `processedBalances` and `eventBalancesApplied`.
+2. For each footprint, runs a transaction to completely subtract the exact footprint they originally contributed to the ledger.
 3. Automatically triggers UI updates because the `getHydratedFriends` hook uses `onSnapshot` to re-fetch the new accurate balance live.
 
 > [!NOTE]
 > If the bill was never reviewed (no `processedBalances`), `reverseBillBalancesIdempotent` returns immediately — there is nothing to reverse.
 
-### Historical Ledger Sync (Self-Healing)
-
-`syncOldBillsForUser(userId)` is an automated background job that runs once every 24 hours when a user logs in. It fixes the ledger for legacy bills created before `friend_balances` existed:
-
-1. Scans the user's past bills for any that lack `processedBalances`.
-2. If the old bill has items and assignments, it calculates what the split *would have been*.
-3. Runs `applyBillBalances` to seamlessly push the missing historical data into the new ledger.
+> [!NOTE]
+> The Historical Ledger Sync / Self-Healing job (`syncOldBillsForUser`) has been **removed** as part of the ledger unification refactor. The unified `ledgerService` write path now guarantees consistency between both ledgers, eliminating the need for background reconciliation.
 
 ## Relationships
 

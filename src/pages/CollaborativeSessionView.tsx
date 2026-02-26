@@ -29,8 +29,7 @@ import { ensureUserInPeople } from '@/utils/billCalculations';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
-import { friendBalanceService } from '@/services/friendBalanceService';
-import { eventLedgerService } from '@/services/eventLedgerService';
+import { ledgerService } from '@/services/ledgerService';
 
 export default function CollaborativeSessionView() {
   const isMobile = useIsMobile();
@@ -244,20 +243,12 @@ export default function CollaborativeSessionView() {
         description: isSettled ? "Their balance has been updated to $0 for this bill." : "Their balance has been restored for this bill.",
       });
 
-      await friendBalanceService.applyBillBalancesIdempotent(
+      await ledgerService.applyBillToLedgers(
         session.id,
         user.uid,
-        bill.personTotals
+        bill.personTotals,
+        session.eventId || undefined
       );
-
-      if (session.eventId) {
-        await eventLedgerService.applyBillToEventLedgerIdempotent(
-          session.eventId,
-          session.id,
-          user.uid,
-          bill.personTotals
-        );
-      }
     } catch (error) {
       console.error("Failed to mark as settled", error);
       toast({
