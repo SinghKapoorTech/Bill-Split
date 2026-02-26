@@ -10,7 +10,8 @@ import {
   Timestamp,
   serverTimestamp,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  orderBy
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Bill, BillData, BillType, BillMember } from '@/types/bill.types';
@@ -153,7 +154,8 @@ export const billService = {
   async getBillsByEvent(eventId: string): Promise<Bill[]> {
     const q = query(
       collection(db, BILLS_COLLECTION),
-      where('eventId', '==', eventId)
+      where('eventId', '==', eventId),
+      orderBy('updatedAt', 'desc')
     );
 
     const querySnapshot = await getDocs(q);
@@ -166,7 +168,8 @@ export const billService = {
   async getBillsBySquad(squadId: string): Promise<Bill[]> {
     const q = query(
       collection(db, BILLS_COLLECTION),
-      where('squadId', '==', squadId)
+      where('squadId', '==', squadId),
+      orderBy('updatedAt', 'desc')
     );
 
     const querySnapshot = await getDocs(q);

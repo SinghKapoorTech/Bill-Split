@@ -41,7 +41,21 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "createdAt",
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "bills",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "squadId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
           "order": "DESCENDING"
         }
       ]

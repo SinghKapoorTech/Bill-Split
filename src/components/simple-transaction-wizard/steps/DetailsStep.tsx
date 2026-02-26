@@ -49,31 +49,8 @@ export function DetailsStep({
   const friends = profile?.friends || [];
 
   return (
-    <div className="flex flex-col gap-6 p-4 max-w-md mx-auto">
-      <div className="text-center mb-2">
-        <h2 className="text-2xl font-semibold">Expense Details</h2>
-        <p className="text-muted-foreground text-sm">Enter the amount and description</p>
-      </div>
-
-      <div className="space-y-4">
-        {/* Amount Input */}
-        <div className="space-y-2">
-          <Label htmlFor="amount" className="text-sm font-medium">Amount</Label>
-          <div className="relative">
-            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
-            <Input
-              id="amount"
-              type="text"
-              inputMode="decimal"
-              placeholder="0.00"
-              value={amount}
-              onChange={handleAmountChange}
-              className="pl-10 text-2xl h-14 font-semibold text-center"
-              autoFocus
-            />
-          </div>
-        </div>
-
+    <div className="flex flex-col gap-6 p-4 max-w-md mx-auto mt-4">
+      <div className="space-y-6">
         {/* Title Input */}
         <div className="space-y-2">
           <Label htmlFor="title" className="text-sm font-medium">What was this for?</Label>
@@ -83,8 +60,25 @@ export function DetailsStep({
             placeholder="e.g. Gas, Uber, Tickets..."
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="h-12"
+            className="h-14 text-lg font-medium"
           />
+        </div>
+
+        {/* Amount Input */}
+        <div className="space-y-2">
+          <Label htmlFor="amount" className="text-sm font-medium">Amount</Label>
+          <div className="relative">
+            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-6 h-6" />
+            <Input
+              id="amount"
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={amount}
+              onChange={handleAmountChange}
+              className="pl-12 text-3xl h-16 font-bold tracking-tight"
+            />
+          </div>
         </div>
       </div>
     </div>

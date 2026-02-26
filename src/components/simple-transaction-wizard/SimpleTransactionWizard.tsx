@@ -317,7 +317,13 @@ export function SimpleTransactionWizard() {
           onBack={handlePrevStep}
           onNext={handleNextStep}
           onComplete={handleComplete}
-          onExit={() => navigate('/dashboard')}
+          onExit={() => {
+            if (routerState?.targetEventId) {
+              navigate(`/events/${routerState.targetEventId}`);
+            } else {
+              navigate('/dashboard');
+            }
+          }}
           exitLabel={routerState?.targetEventId ? 'Event' : 'Dashboard'}
           nextDisabled={!canProceed()}
           hasBillData={true}

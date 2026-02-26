@@ -4,6 +4,7 @@ import { ArrowLeft, Receipt, UserPlus, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { InviteMembersDialog } from '@/components/events/InviteMembersDialog';
+import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -33,6 +34,7 @@ export default function EventDetailView() {
   const [event, setEvent] = useState<TripEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [isCreatingBill, setIsCreatingBill] = useState(false);
   const [eventBills, setEventBills] = useState<Bill[]>([]);
   const { user } = useAuth();
@@ -191,22 +193,24 @@ export default function EventDetailView() {
             <UserPlus className="w-4 h-4 text-muted-foreground" />
           </Button>
           <Button
-            onClick={handleCreateEventBill}
-            disabled={isCreatingBill}
+            onClick={() => setCreateDialogOpen(true)}
             size="icon"
             className="h-8 w-8 rounded-full"
           >
-            {isCreatingBill ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Plus className="w-4 h-4" />
-            )}
+            <Plus className="w-4 h-4" />
           </Button>
         </div>
       </div>
       {event.description && (
         <p className="text-sm text-muted-foreground pl-11 mb-6">{event.description}</p>
       )}
+
+      {/* Reusing CreateOptionsDialog with event context */}
+      <CreateOptionsDialog 
+        open={createDialogOpen} 
+        onOpenChange={setCreateDialogOpen}
+        eventContext={{ targetEventId: event.id, targetEventName: event.name }}
+      />
 
       <InviteMembersDialog
         open={inviteDialogOpen}

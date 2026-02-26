@@ -11,12 +11,16 @@ import { useNavigate } from "react-router-dom";
 interface CreateOptionsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  eventContext?: {
+    targetEventId: string;
+    targetEventName: string;
+  };
 }
 
-export function CreateOptionsDialog({ open, onOpenChange }: CreateOptionsDialogProps) {
+export function CreateOptionsDialog({ open, onOpenChange, eventContext }: CreateOptionsDialogProps) {
   const navigate = useNavigate();
   const handleAction = (path: string) => {
-    navigate(path);
+    navigate(path, { state: eventContext });
     onOpenChange(false);
   };
 
