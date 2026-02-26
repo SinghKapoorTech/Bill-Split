@@ -5,7 +5,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Receipt, Users, Camera, Zap } from "lucide-react";
+import { Receipt, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface CreateOptionsDialogProps {
@@ -24,52 +24,36 @@ export function CreateOptionsDialog({ open, onOpenChange }: CreateOptionsDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Create New</DialogTitle>
+          <DialogTitle className="text-center text-xl font-bold pb-2">Create New</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-4 py-4">
-          <Button
-            variant="outline"
-            className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-all font-normal"
+        <div className="flex flex-col gap-3 py-2">
+          <button
+            className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-primary/[0.03] hover:border-primary/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
             onClick={() => handleAction('/bill/new')}
           >
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <Receipt className="w-5 h-5 text-primary" />
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm">
+              <Receipt className="w-6 h-6" />
             </div>
-            <span>New Bill</span>
-          </Button>
+            <div className="flex flex-col relative z-10">
+              <span className="font-semibold text-foreground text-base group-hover:text-primary transition-colors">New Bill</span>
+              <span className="text-sm text-muted-foreground mt-0.5">Split a detailed expense with friends</span>
+            </div>
+          </button>
 
-          <Button
-            variant="outline"
-            className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-all font-normal"
+          <button
+            className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-amber-500/[0.03] hover:border-amber-500/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
             onClick={() => handleAction('/transaction/new')}
           >
-            <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-amber-600" />
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 shadow-sm">
+              <Zap className="w-6 h-6" />
             </div>
-            <span>Quick Expense</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-all font-normal"
-            onClick={() => handleAction('/events')}
-          >
-            <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-              <Users className="w-5 h-5 text-purple-600" />
+            <div className="flex flex-col relative z-10">
+              <span className="font-semibold text-foreground text-base group-hover:text-amber-600 transition-colors">Quick Expense</span>
+              <span className="text-sm text-muted-foreground mt-0.5">Record a fast, simple transaction</span>
             </div>
-            <span>New Event</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary/50 transition-all font-normal"
-            onClick={() => handleAction('/join/scan')} // Assuming we have a join/scan route or similar? 
-          >
-            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-              <Camera className="w-5 h-5 text-blue-600" />
-            </div>
-            <span>Scan Receipt</span>
-          </Button>
+          </button>
         </div>
       </DialogContent>
     </Dialog>
