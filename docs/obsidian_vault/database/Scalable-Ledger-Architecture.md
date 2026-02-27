@@ -251,6 +251,16 @@ With the pipeline as the sole writer, Firestore security rules now block all cli
 
 The `isSettlementUpdate()` helper on bills was tightened to only allow `settledPersonIds` — `processedBalances` and `eventBalancesApplied` are now written exclusively by the server pipeline.
 
+### Client-Side Event Cache Fallback
+
+The `useEventLedger` hook provides a client-side fallback when the `event_balances` cache document is missing or hasn't been created yet:
+
+- **Primary:** reads from `event_balances/{eventId}` via `onSnapshot` (real-time cache)
+- **Fallback:** if the cache doc doesn't exist and bills are provided, computes balances client-side using `computeEventBalances()` (`src/utils/eventBalanceCalculator.ts`)
+- The fallback mirrors the pipeline's `rebuildEventCache()` logic exactly
+- `useMemo` prevents recomputation on every render
+- Once the pipeline creates the cache doc, the hook seamlessly switches to reading from cache
+
 ---
 
 ## Phased Execution Plan (Small, Safe Chunks)
