@@ -343,12 +343,20 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
 export { ledgerProcessor } from './ledgerProcessor.js';
 
 /**
+ * Cloud Function: Friend Add Processor
+ *
+ * Firestore onDocumentUpdated trigger on users/{userId}.
+ * When a user adds a new friend, retroactively triggers the ledger pipeline
+ * for all shared bills between the two users, backfilling friend_balances.
+ */
+export { friendAddProcessor } from './friendAddProcessor.js';
+
+/**
  * Cloud Function: Process a settlement between two users.
  *
- * Atomically marks shared bills as settled, updates friend and event ledgers,
+ * Atomically marks shared bills as settled, updates friend_balances,
  * and writes an immutable settlement record — all in a single admin transaction.
- *
- * The client calls this instead of doing any Firestore writes directly.
+ * The ledgerProcessor pipeline handles event_balances cache rebuilds.
  */
 export const processSettlement = onCall<import('./settlementProcessor.js').SettlementRequest>(
   { timeoutSeconds: 60, memory: '256MiB' },
@@ -359,5 +367,24 @@ export const processSettlement = onCall<import('./settlementProcessor.js').Settl
 
     const { processSettlementCore } = await import('./settlementProcessor.js');
     return processSettlementCore(request.auth.uid, request.data);
+  }
+);
+
+/**
+ * Cloud Function: Reverse a settlement.
+ *
+ * Un-settles bills, reverses any remaining amount from friend_balances,
+ * and deletes the settlement record. The ledgerProcessor pipeline auto-fires
+ * for each modified bill to recalculate friend_balances and rebuild event cache.
+ */
+export const reverseSettlement = onCall<import('./settlementReversal.js').ReversalRequest>(
+  { timeoutSeconds: 60, memory: '256MiB' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { processSettlementReversalCore } = await import('./settlementReversal.js');
+    return processSettlementReversalCore(request.auth.uid, request.data);
   }
 );

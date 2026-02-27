@@ -54,6 +54,11 @@ export interface Bill {
   // against redundant trigger processing.
   _ledgerVersion?: number;
 
+  // Set by friendAddProcessor to re-trigger the pipeline when a new friend
+  // is added retroactively. The pipeline includes this in hasRelevantChange()
+  // so changing it causes re-processing without modifying actual bill data.
+  _friendScanTrigger?: Timestamp;
+
   // Participants
   people: Person[];
 

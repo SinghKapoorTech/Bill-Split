@@ -5,27 +5,31 @@
  *
  * Atomically settles outstanding bills between two users.
  *   - Queries only unsettled shared bills (via unsettledParticipantIds array-contains index)
- *   - Marks bills settled: updates settledPersonIds, processedBalances, eventBalancesApplied
+ *   - Marks bills settled: updates settledPersonIds, processedBalances
  *   - Updates friend_balances ledger (all bills)
- *   - Updates event_balances ledger (event bills only)
  *   - Removes user from unsettledParticipantIds on each settled bill
  *   - Writes immutable settlement record
  *   All writes happen inside a SINGLE Firestore admin transaction — atomic by design.
+ *
+ *   event_balances is NOT written here — the ledgerProcessor pipeline rebuilds
+ *   the event cache automatically when settledPersonIds changes on bills.
  */
 
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { logger } from 'firebase-functions';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { calculatePersonTotals as calcSharedTotals } from '../../shared/calculations.js';
 import type { PersonTotal } from '../../shared/types.js';
-import { optimizeDebts } from '../../shared/optimizeDebts.js';
-import type { OptimizedDebt } from '../../shared/optimizeDebts.js';
 
 const db = getFirestore();
 
 const BILLS_COLLECTION       = 'bills';
 const FRIEND_BALANCES_COLLECTION = 'friend_balances';
-const EVENT_BALANCES_COLLECTION  = 'event_balances';
 const SETTLEMENTS_COLLECTION     = 'settlements';
+
+// Max bills per transaction to stay safely under Firestore's 500 operation limit.
+// Each bill requires ~4 operations (2 reads + 2 writes), plus friend_balance reads/writes.
+const MAX_BILLS_PER_TX = 50;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -43,18 +47,9 @@ interface Bill {
   paidById?: string;
   settledPersonIds?: string[];
   processedBalances?: Record<string, number>;
-  eventBalancesApplied?: Record<string, number>;
   unsettledParticipantIds?: string[];
   participantIds?: string[];
   createdAt: Timestamp;
-}
-
-interface EventLedger {
-  eventId: string;
-  netBalances: Record<string, number>;
-  optimizedDebts: OptimizedDebt[];
-  processedBillIds: string[];
-  lastUpdatedAt: Timestamp;
 }
 
 // ─── Exported request/response types ────────────────────────────────────────
@@ -64,6 +59,7 @@ export interface SettlementRequest {
   toUserId: string;     // the person receiving
   amount: number;       // the settlement amount
   eventId?: string;     // if set, restrict to this event's bills only
+  idempotencyKey?: string; // client-generated UUID — prevents duplicate settlements on retry
 }
 
 export interface SettlementResult {
@@ -71,6 +67,7 @@ export interface SettlementResult {
   billsSettled: number;
   amountApplied: number;
   remainingAmount: number;
+  hasMore: boolean;     // true if more bills remain beyond the batch limit
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -124,7 +121,7 @@ export async function processSettlementCore(
   callerId: string,
   req: SettlementRequest
 ): Promise<SettlementResult> {
-  const { fromUserId, toUserId, eventId } = req;
+  const { fromUserId, toUserId, eventId, idempotencyKey } = req;
   const amount = parseFloat(req.amount.toFixed(2));
 
   // ── Validate ─────────────────────────────────────────────────────────────
@@ -133,6 +130,26 @@ export async function processSettlementCore(
   if (amount <= 0)              throw new HttpsError('invalid-argument', 'amount must be positive');
   if (callerId !== fromUserId && callerId !== toUserId) {
     throw new HttpsError('permission-denied', 'Caller must be one of the settlement participants');
+  }
+
+  // ── Idempotency check: reject duplicate settlement if key was already used ──
+  if (idempotencyKey) {
+    const existingSnap = await db.collection(SETTLEMENTS_COLLECTION)
+      .where('idempotencyKey', '==', idempotencyKey)
+      .limit(1)
+      .get();
+
+    if (!existingSnap.empty) {
+      const existing = existingSnap.docs[0].data();
+      logger.info('Duplicate settlement detected', { idempotencyKey, existingId: existingData.id });
+      return {
+        settlementId: existingSnap.docs[0].id,
+        billsSettled: existing.billsSettled ?? 0,
+        amountApplied: existing.amount - (existing.remainingAmount ?? 0),
+        remainingAmount: existing.remainingAmount ?? 0,
+        hasMore: false,
+      };
+    }
   }
 
   // ── Fetch only shared bills between these two users (both directions in parallel) ──
@@ -188,6 +205,7 @@ export async function processSettlementCore(
 
   for (const bill of allBills) {
     if (remaining <= 0) break;
+    if (toSettle.length >= MAX_BILLS_PER_TX) break;
     if (!bill.billData?.items?.length) continue;
 
     const personTotals = calculatePersonTotals(bill);
@@ -218,6 +236,9 @@ export async function processSettlementCore(
     }
   }
 
+  // Did we hit the batch limit? If so, there may be more bills to settle.
+  const hasMore = toSettle.length >= MAX_BILLS_PER_TX && remaining > 0.01;
+
   // ── Single admin transaction: all writes are atomic ───────────────────────
   const settlementRef = db.collection(SETTLEMENTS_COLLECTION).doc();
 
@@ -238,17 +259,6 @@ export async function processSettlementCore(
     const friendBalRefs  = [...affectedFriendPairs].map(id => db.collection(FRIEND_BALANCES_COLLECTION).doc(id));
     const friendBalSnaps = await Promise.all(friendBalRefs.map(r => tx.get(r)));
     const friendBalMap   = new Map(friendBalSnaps.map(s => [s.id, s]));
-
-    // Read all event_balances docs that will be updated
-    const affectedEventIds = new Set<string>();
-    for (const plan of toSettle) {
-      if (plan.bill.eventId) affectedEventIds.add(plan.bill.eventId);
-    }
-    if (eventId) affectedEventIds.add(eventId); // in case remaining goes to event ledger
-
-    const eventLedgerRefs  = [...affectedEventIds].map(eid => db.collection(EVENT_BALANCES_COLLECTION).doc(eid));
-    const eventLedgerSnaps = await Promise.all(eventLedgerRefs.map(r => tx.get(r)));
-    const eventLedgerMap   = new Map(eventLedgerSnaps.map(s => [s.id, s]));
 
     // ── Writes phase ──────────────────────────────────────────────────────
     const now = Timestamp.now();
@@ -332,75 +342,14 @@ export async function processSettlementCore(
         tx.update(billRefs[i], { processedBalances: newProcessed });
       }
 
-      // 3. Re-compute event ledger footprint for event bills
-      if (billData.eventId) {
-        const prevEventBalances = billData.eventBalancesApplied ?? {};
-        const newEventBalances: Record<string, number> = {};
-
-        const newSettledIds = [...(billData.settledPersonIds ?? []), internalPersonId];
-
-        // How much each participant owes (0 if settled)
-        let ownerIsOwed = 0;
-        for (const person of (billData.people ?? [])) {
-          const personUid = toUid(person.id);
-          if (personUid === billOwner) continue;
-          const owesAmt = newSettledIds.includes(person.id) ? 0 : (personTotals.get(person.id) ?? 0);
-          if (owesAmt !== 0) {
-            newEventBalances[personUid] = -owesAmt;
-            ownerIsOwed += owesAmt;
-          }
-        }
-        // Owner is owed the sum of what everyone unsettled owes
-        if (ownerIsOwed > 0.001) newEventBalances[billOwner] = ownerIsOwed;
-
-        // Get the event ledger document (already read above)
-        const ledgerSnap = eventLedgerMap.get(billData.eventId);
-        const ledgerData: EventLedger = ledgerSnap?.exists ? { ...(ledgerSnap.data()! as EventLedger) } : {
-          eventId: billData.eventId,
-          netBalances: {},
-          optimizedDebts: [],
-          processedBillIds: [],
-          lastUpdatedAt: now,
-        };
-
-        // Clone netBalances to mutate safely
-        ledgerData.netBalances = { ...ledgerData.netBalances };
-
-        // Reverse old footprint
-        for (const [uid, prev] of Object.entries(prevEventBalances)) {
-          ledgerData.netBalances[uid] = (ledgerData.netBalances[uid] ?? 0) - prev;
-        }
-        // Apply new footprint
-        for (const [uid, next] of Object.entries(newEventBalances)) {
-          ledgerData.netBalances[uid] = (ledgerData.netBalances[uid] ?? 0) + next;
-          if (Math.abs(ledgerData.netBalances[uid]) < 0.01) ledgerData.netBalances[uid] = 0;
-        }
-
-        ledgerData.optimizedDebts = optimizeDebts(ledgerData.netBalances);
-        ledgerData.lastUpdatedAt  = now;
-        if (!ledgerData.processedBillIds.includes(plan.bill.id)) {
-          ledgerData.processedBillIds = [...ledgerData.processedBillIds, plan.bill.id];
-        }
-
-        const ledgerRef = db.collection(EVENT_BALANCES_COLLECTION).doc(billData.eventId);
-        tx.set(ledgerRef, ledgerData, { merge: true });
-
-        // Update the bill's event footprint
-        tx.update(billRefs[i], { eventBalancesApplied: newEventBalances });
-
-        // Update our in-memory map so subsequent bills for the same event see the updated ledger
-        // (Firestore transactions buffer writes; we must track this manually for multi-bill events)
-        eventLedgerMap.set(billData.eventId, {
-          id: billData.eventId,
-          exists: true,
-          data: () => ledgerData,
-          ref: ledgerRef,
-        } as any);
-      }
+      // Event cache: NOT updated here. The ledgerProcessor pipeline auto-fires
+      // when settledPersonIds changes and rebuilds event_balances as a cache.
     }
 
-    // 4. Apply remaining amount (not covered by bills) to the direct friend ledger
-    if (remaining > 0.01) {
+    // 4. Apply remaining amount (not covered by bills) to the direct friend ledger.
+    //    ONLY if we've exhausted all bills — if we hit the batch limit, the remaining
+    //    represents unprocessed bills, not overpayment.
+    if (remaining > 0.01 && !hasMore) {
       const balId    = friendBalanceId(fromUserId, toUserId);
       const balSnap  = friendBalMap.get(balId);
       const existing = balSnap?.exists ? balSnap.data()! : null;
@@ -420,24 +369,6 @@ export async function processSettlementCore(
         },
         lastUpdatedAt: now,
       }, { merge: true });
-
-      // If event-scoped, also adjust the event ledger for the remaining amount
-      if (eventId) {
-        const ledgerSnap = eventLedgerMap.get(eventId);
-        const ledgerData: EventLedger = ledgerSnap?.exists ? { ...(ledgerSnap.data()! as EventLedger) } : {
-          eventId,
-          netBalances: {},
-          optimizedDebts: [],
-          processedBillIds: [],
-          lastUpdatedAt: now,
-        };
-        ledgerData.netBalances = { ...ledgerData.netBalances };
-        ledgerData.netBalances[fromUserId] = (ledgerData.netBalances[fromUserId] ?? 0) + remaining;
-        ledgerData.netBalances[toUserId]   = (ledgerData.netBalances[toUserId]   ?? 0) - remaining;
-        ledgerData.optimizedDebts = optimizeDebts(ledgerData.netBalances);
-        ledgerData.lastUpdatedAt  = now;
-        tx.set(db.collection(EVENT_BALANCES_COLLECTION).doc(eventId), ledgerData, { merge: true });
-      }
     }
 
     // 5. Write the immutable settlement record
@@ -446,10 +377,12 @@ export async function processSettlementCore(
       fromUserId,
       toUserId,
       amount,
+      remainingAmount: parseFloat(remaining.toFixed(2)),
       date: now,
       billsSettled: toSettle.length,
       settledBillIds: toSettle.map(p => p.bill.id),
       ...(eventId ? { eventId } : {}),
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     });
   });
 
@@ -458,5 +391,6 @@ export async function processSettlementCore(
     billsSettled: toSettle.length,
     amountApplied: parseFloat((amount - remaining).toFixed(2)),
     remainingAmount: parseFloat(remaining.toFixed(2)),
+    hasMore,
   };
 }

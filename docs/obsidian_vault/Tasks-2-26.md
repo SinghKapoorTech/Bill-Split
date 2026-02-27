@@ -37,11 +37,11 @@ tags: [backlog, bugs, features, ui, obsidian]
   _Bug:_ needs to walk existing transactions between two individuals and rebuild ledger.  
   **Acceptance:** after adding friend, balances reflect historical transactions correctly.
 
-- [ ] **(P0) “Settle Up” in an event too slow**  
+- [x] **(P0) “Settle Up” in an event too slow**  
   _Bug:_ performance regression.  
   **Acceptance:** settle-up completes within acceptable time; UI stays responsive.
 
-- [ ] **(P0) “Settle Up” in an event doesn’t update friend balances properly**  
+- [x] **(P0) “Settle Up” in an event doesn’t update friend balances properly**  
   _Bug:_ balances out of sync after event settlement.  
   **Acceptance:** friend balances reflect settlements immediately + accurately.
 

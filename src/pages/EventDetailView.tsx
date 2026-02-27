@@ -41,7 +41,7 @@ export default function EventDetailView() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const { netBalances, optimizedDebts, loading: ledgerLoading } = useEventLedger(eventId || '');
+  const { netBalances, optimizedDebts, loading: ledgerLoading } = useEventLedger(eventId || '', eventBills);
   const [memberProfiles, setMemberProfiles] = useState<Record<string, any>>({});
 
   // Settlement state

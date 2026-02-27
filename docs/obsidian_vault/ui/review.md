@@ -51,35 +51,25 @@ Instead of just saying "Money for dinner", the app automatically generates an it
 - If multiple people shared an item, it appends a note: `"(split X ways)"`.
 - Example Output: `Divit: Burger, Fries (split 2 ways), Coke`
 
-## 4. Balance Auto-Apply
+## 4. Automatic Ledger Updates
 
-Entering the Review step automatically commits the bill's balances to the **[[../database/friend_balances|friend_balances]]** ledger, without the user needing to press "Done".
+The Review step no longer manages complex ledger math directly. Under the new **Server-Side Pipeline** architecture, the client's only responsibility is to save the `Bill` document to Firestore.
 
-### When it fires
+### How it works
 
-A `useEffect` in `BillWizard.tsx` watches `currentStep`. As soon as it equals `3` (the Review step, 0-indexed), `ledgerService.applyBillToLedgers()` is called in the background.
+1. When a bill is created, edited, or reviewed, the app simply saves the state of the bill document to the `bills` collection.
+2. The backend **`ledgerProcessor` Cloud Function** instantly detects the write via an `onDocumentWritten` trigger.
+3. The server-side pipeline securely validates the bill, computes exact per-person totals, and atomically updates the authoritative **[[../database/friend_balances|friend_balances]]** ledger.
+4. The pipeline then automatically rebuilds the `event_balances` cache for the associated event.
 
-### Why not on "Done"?
-
-Users frequently leave from the Review screen without pressing Done — most commonly by tapping "Charge on Venmo" and switching apps. If balances only committed on "Done", those users would always see stale balance totals. Triggering on step entry ensures the ledger is updated the moment the user reviews the split.
-
-### What it does
-
-1. Reads the bill's `people` list and cross-references each `person.id` against the owner's Firebase friends list.
-2. Only people with linked Firebase UIDs are written (manually-added people without accounts are skipped).
-3. The Idempotent Engine retrieves `processedBalances` (previously committed totals) and reverses the exact math footprint in the ledger, then applies the new total.
-4. Runs one ACID Firestore transaction per affected friend to safely perform the overwrite.
-5. Writes the new footprint back to `processedBalances` on the bill.
-
-### Idempotency
-
-Calling it multiple times with the same data is safe. The engine strictly reverses the exact old footprint and re-applies the new amount via a single transaction, leaving the math unchanged.
+### Why this is better
+- **No Client Race Conditions:** Users can immediately tap "Charge on Venmo" and close the app. The backend guarantees the ledger completely updates regardless of the user's connection status.
+- **Security:** The app doesn't need to write to `friend_balances`, locking down the database from malicious client updates.
 
 ## 5. Dependencies
 
 - `VenmoChargeDialog.tsx`: The modal that facilitates the deep link or API call to Venmo.
 - `ProfileSettings.tsx`: Invoked dynamically if the user is missing prerequisite profile data.
-- `ledgerService.ts → applyBillToLedgers()`: Unified entry point that commits idempotent footprints to both the **[[../database/friend_balances|friend_balances]]** and `event_balances` collections in parallel.
 
 ## 6. Mark as Settled Flow
 
@@ -89,10 +79,8 @@ On the review page or the collaborative session view, the person who created the
 - **Active State:** When marked as settled, the user's card background turns green and displays a checkmark.
 - **Toggle Action:** Tapping the card triggers `handleMarkAsSettled(personId, isSettled)`.
 
-### Mathematical Impact
-- Marking a person as settled pushes their `personId` into the `settledPersonIds` array on the Firestore bill document.
-- It then re-triggers the unified `ledgerService.applyBillToLedgers()`, which internally calls:
-  - `friendBalanceService.applyBillBalancesIdempotent`
-  - `eventLedgerService.applyBillToEventLedgerIdempotent` (if it's an event bill)
-- Because they are now in the `settledPersonIds` array, their calculated debt on the bill evaluates to `$0`.
-- The engines reverse their old footprint and apply the new `$0` footprint, instantly reducing the overarching global user balance or event ledger balance safely.
+### How the Pipeline Handles It
+- Marking a person as settled simply pushes their `personId` into the `settledPersonIds` array on the Firestore bill document.
+- The backend `ledgerProcessor` Cloud Function detects this modification and re-runs.
+- Because they are now in the `settledPersonIds` array, the server calculates their debt on the bill as `$0`.
+- The server reverses their old footprint and safely applies the new `$0` footprint to the global ledger, instantly marking them paid without any complex client-side logic.

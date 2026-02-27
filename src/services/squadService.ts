@@ -1,8 +1,12 @@
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, Timestamp, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, Timestamp, writeBatch, collection, query, where, getDocs, documentId } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Squad, HydratedSquad, CreateSquadInput, UpdateSquadInput, SquadMember } from '@/types/squad.types';
+import { UserProfile } from '@/types/person.types';
 import { generateSquadId } from '@/utils/squadUtils';
 import { userService } from './userService';
+
+const USERS_COLLECTION = 'users';
+const BATCH_SIZE = 30; // Firestore 'in' operator limit
 
 interface FirestoreSquad {
   id: string;
@@ -41,33 +45,51 @@ function convertToFirestore(squad: Omit<Squad, 'createdAt' | 'updatedAt'> & { cr
 }
 
 /**
- * Helper to hydrate a squad with member details
+ * Batch-fetches user profiles by ID using documentId() in queries.
+ * Returns a map of userId -> UserProfile.
  */
-async function hydrateSquad(squad: Squad): Promise<HydratedSquad> {
-  const memberPromises = squad.memberIds.map(async (memberId) => {
-    try {
-      const userProfile = await userService.getUserProfile(memberId);
-      if (userProfile) {
-        return {
-          id: userProfile.uid,
-          name: userProfile.displayName,
-          venmoId: userProfile.venmoId,
-          email: userProfile.email,
-          phoneNumber: userProfile.phoneNumber
-        } as SquadMember;
-      }
-    } catch (e) {
-      console.error(`Failed to fetch profile for ${memberId}`, e);
+async function batchFetchProfiles(userIds: string[]): Promise<Record<string, UserProfile>> {
+  const profileMap: Record<string, UserProfile> = {};
+  if (userIds.length === 0) return profileMap;
+
+  const usersRef = collection(db, USERS_COLLECTION);
+  const uniqueIds = [...new Set(userIds)];
+
+  for (let i = 0; i < uniqueIds.length; i += BATCH_SIZE) {
+    const batch = uniqueIds.slice(i, i + BATCH_SIZE);
+    const q = query(usersRef, where(documentId(), 'in', batch));
+    const snap = await getDocs(q);
+    snap.docs.forEach(d => {
+      profileMap[d.id] = d.data() as UserProfile;
+    });
+  }
+
+  return profileMap;
+}
+
+/**
+ * Helper to hydrate a squad with member details.
+ * Accepts an optional pre-fetched profile map to avoid redundant reads.
+ */
+async function hydrateSquad(squad: Squad, profileMap?: Record<string, UserProfile>): Promise<HydratedSquad> {
+  // Fetch profiles if not provided
+  const profiles = profileMap ?? await batchFetchProfiles(squad.memberIds);
+
+  const members: SquadMember[] = squad.memberIds.map(memberId => {
+    const profile = profiles[memberId];
+    if (profile) {
+      return {
+        id: profile.uid,
+        name: profile.displayName,
+        venmoId: profile.venmoId,
+        email: profile.email,
+        phoneNumber: profile.phoneNumber,
+      } as SquadMember;
     }
     return { name: 'Unknown User', id: memberId } as SquadMember;
   });
 
-  const members = await Promise.all(memberPromises);
-
-  return {
-    ...squad,
-    members
-  };
+  return { ...squad, members };
 }
 
 /**
@@ -84,21 +106,27 @@ export async function fetchUserSquads(userId: string): Promise<HydratedSquad[]> 
       return [];
     }
 
-    // Fetch all squads in parallel
-    const squadPromises = userProfile.squadIds.map(async (squadId) => {
-      const squadDocRef = doc(db, 'squads', squadId);
-      const squadDoc = await getDoc(squadDocRef);
-      if (squadDoc.exists()) {
-        const squad = convertFromFirestore({ id: squadDoc.id, ...squadDoc.data() } as FirestoreSquad);
-        return hydrateSquad(squad);
-      }
-      return null;
-    });
+    // Batch-fetch all squad docs using documentId() in queries
+    const squadsRef = collection(db, 'squads');
+    const squads: Squad[] = [];
 
-    const squads = await Promise.all(squadPromises);
-    
-    // Filter out any nulls
-    return squads.filter((s): s is HydratedSquad => s !== null);
+    for (let i = 0; i < userProfile.squadIds.length; i += BATCH_SIZE) {
+      const batch = userProfile.squadIds.slice(i, i + BATCH_SIZE);
+      const q = query(squadsRef, where(documentId(), 'in', batch));
+      const snap = await getDocs(q);
+      snap.docs.forEach(d => {
+        squads.push(convertFromFirestore({ id: d.id, ...d.data() } as FirestoreSquad));
+      });
+    }
+
+    if (squads.length === 0) return [];
+
+    // Collect all unique member IDs across all squads, then batch-fetch profiles once
+    const allMemberIds = [...new Set(squads.flatMap(s => s.memberIds))];
+    const profileMap = await batchFetchProfiles(allMemberIds);
+
+    // Hydrate all squads using the pre-fetched profiles
+    return Promise.all(squads.map(squad => hydrateSquad(squad, profileMap)));
   } catch (error) {
     console.error('Error fetching squads:', error);
     throw new Error('Failed to load squads');
@@ -159,28 +187,22 @@ export async function saveSquad(userId: string, input: CreateSquadInput): Promis
       updatedAt: now,
     };
 
-    // 1. Create squad document first (must succeed)
+    // Atomically create squad doc + update all member profiles in one batch
+    const batch = writeBatch(db);
+
     const squadRef = doc(db, 'squads', squadId);
-    await setDoc(squadRef, {
+    batch.set(squadRef, {
       ...convertToFirestore(newSquad),
-      id: squadId 
+      id: squadId
     });
 
-    // 2. Best-effort: Add squad ID to each member's profile.
-    // We do these individually so that one missing user doc doesn't
-    // prevent the squad from being created.
     for (const mId of memberIds) {
       if (mId.startsWith('guest_')) continue;
-      try {
-        const userRef = doc(db, 'users', mId);
-        await updateDoc(userRef, {
-          squadIds: arrayUnion(squadId)
-        });
-      } catch (err) {
-        console.warn(`Could not update squadIds for user ${mId}:`, err);
-      }
+      const userRef = doc(db, 'users', mId);
+      batch.update(userRef, { squadIds: arrayUnion(squadId) });
     }
 
+    await batch.commit();
     return squadId;
   } catch (error) {
     console.error('Error saving squad:', error);
@@ -232,36 +254,27 @@ export async function updateSquad(userId: string, squadId: string, updates: Upda
         updateData.memberIds = newMemberIds;
     }
 
-    await updateDoc(squadRef, updateData);
-    
-    // Sync user profiles if members changed
-    // This part is tricky to do atomically without a huge batch. 
-    // We'll proceed with just updating the squad for now, assuming fetchUserSquads relies on user.squadIds.
-    // WAIT. `fetchUserSquads` relies on `user.squadIds`. If we add a member here, we MUST update their `squadIds`.
-    
+    // Atomically update squad doc + sync all member profiles in one batch
+    const batch = writeBatch(db);
+    batch.update(squadRef, updateData);
+
     if (updates.members) {
         const addedMembers = newMemberIds.filter((id: string) => !currentMemberIds.includes(id));
         const removedMembers = currentMemberIds.filter((id: string) => !newMemberIds.includes(id));
-        
+
         for (const id of addedMembers) {
           if (id.startsWith('guest_')) continue;
-          try {
-            const userRef = doc(db, 'users', id);
-            await updateDoc(userRef, { squadIds: arrayUnion(squadId) });
-          } catch (err) {
-            console.warn(`Could not add squadId to user ${id}:`, err);
-          }
+          const userRef = doc(db, 'users', id);
+          batch.update(userRef, { squadIds: arrayUnion(squadId) });
         }
         for (const id of removedMembers) {
           if (id.startsWith('guest_')) continue;
-          try {
-            const userRef = doc(db, 'users', id);
-            await updateDoc(userRef, { squadIds: arrayRemove(squadId) });
-          } catch (err) {
-            console.warn(`Could not remove squadId from user ${id}:`, err);
-          }
+          const userRef = doc(db, 'users', id);
+          batch.update(userRef, { squadIds: arrayRemove(squadId) });
         }
     }
+
+    await batch.commit();
 
   } catch (error) {
     console.error('Error updating squad:', error);
@@ -283,21 +296,17 @@ export async function deleteSquad(userId: string, squadId: string): Promise<void
     
     const memberIds = squadDoc.data().memberIds || [];
 
-    // 1. Delete squad document first
-    await deleteDoc(squadRef);
+    // Atomically delete squad doc + remove squadId from all member profiles
+    const batch = writeBatch(db);
+    batch.delete(squadRef);
 
-    // 2. Best-effort: Remove squad ID from each member's profile
     for (const mId of memberIds) {
       if (mId.startsWith('guest_')) continue;
-      try {
-        const userRef = doc(db, 'users', mId);
-        await updateDoc(userRef, {
-          squadIds: arrayRemove(squadId)
-        });
-      } catch (err) {
-        console.warn(`Could not remove squadId from user ${mId}:`, err);
-      }
+      const userRef = doc(db, 'users', mId);
+      batch.update(userRef, { squadIds: arrayRemove(squadId) });
     }
+
+    await batch.commit();
   } catch (error) {
     console.error('Error deleting squad:', error);
     throw new Error('Failed to delete squad');

@@ -19,7 +19,8 @@
  */
 
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { logger } from 'firebase-functions';
+import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { calculatePersonTotals } from '../../shared/calculations.js';
 import {
   personIdToFirebaseUid,
@@ -48,7 +49,7 @@ const EVENT_BALANCES_COLLECTION = 'event_balances';
 // the pipeline writes them, so including them would cause infinite loops.
 const RELEVANT_FIELDS = [
   'billData', 'people', 'itemAssignments', 'settledPersonIds',
-  'paidById', 'splitEvenly', 'ownerId',
+  'paidById', 'splitEvenly', 'ownerId', '_friendScanTrigger',
 ] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -166,6 +167,14 @@ async function applyFriendLedger(
       const currentOwnerBal: number = (existing?.balances?.[ownerId] ?? 0) as number;
       const currentFriendBal: number = (existing?.balances?.[friendUserId] ?? 0) as number;
 
+      // Track which bills contribute to this friend pair's balance.
+      // If this bill still has a non-zero contribution → arrayUnion (add).
+      // If contribution went to zero (settled/removed) → arrayRemove (remove).
+      const friendAmount = newFootprint[friendUserId] ?? 0;
+      const billIdUpdate = Math.abs(friendAmount) > 0.001
+        ? { contributingBillIds: FieldValue.arrayUnion(billId) }
+        : { contributingBillIds: FieldValue.arrayRemove(billId) };
+
       tx.set(ref, {
         id: ref.id,
         participants: [ownerId, friendUserId],
@@ -173,6 +182,7 @@ async function applyFriendLedger(
           [ownerId]: currentOwnerBal + delta,
           [friendUserId]: currentFriendBal - delta,
         },
+        ...billIdUpdate,
         lastUpdatedAt: now,
         lastBillId: billId,
       }, { merge: true });
@@ -234,6 +244,7 @@ async function reverseFootprint(
           [ownerId]: currentOwnerBal - amount,
           [friendId]: currentFriendBal + amount,
         },
+        contributingBillIds: FieldValue.arrayRemove(billId),
         lastUpdatedAt: now,
         lastBillId: billId,
       }, { merge: true });
@@ -323,20 +334,20 @@ export const ledgerProcessor = onDocumentWritten(
 
     // ── DELETE ──────────────────────────────────────────────────────────────
     if (before && !after) {
-      console.log(`[ledgerProcessor] DELETE bill ${billId}`);
+      logger.info('Bill deleted', { billId, ownerId: before.ownerId, stage: 'DELETE' });
 
       const previousBalances = before.processedBalances;
       if (previousBalances && Object.keys(previousBalances).length > 0) {
         await reverseFootprint(billId, before.ownerId, previousBalances);
-        console.log(`[ledgerProcessor] Stage 2: reversed footprint`);
+        logger.info('Stage 2: reversed footprint', { billId, friendsReversed: Object.keys(previousBalances).length });
       }
 
       if (before.eventId) {
         try {
           await rebuildEventCache(before.eventId, billId);
-          console.log(`[ledgerProcessor] Stage 3: event cache rebuilt`);
+          logger.info('Stage 3: event cache rebuilt', { billId, eventId: before.eventId });
         } catch (err) {
-          console.error(`[ledgerProcessor] Stage 3 failed (non-fatal):`, err);
+          logger.error('Stage 3 failed (non-fatal)', { billId, eventId: before.eventId, error: String(err) });
         }
       }
       return;
@@ -351,8 +362,8 @@ export const ledgerProcessor = onDocumentWritten(
       return;
     }
 
-    const stage = before ? 'UPDATE' : 'CREATE';
-    console.log(`[ledgerProcessor] ${stage} bill ${billId}`);
+    const operation = before ? 'UPDATE' : 'CREATE';
+    logger.info('Processing bill', { billId, operation, ownerId: after.ownerId, eventId: after.eventId || null });
 
     // ── Stage 1: VALIDATE & CALCULATE ───────────────────────────────────────
     const people = after.people || [];
@@ -360,7 +371,7 @@ export const ledgerProcessor = onDocumentWritten(
     const creditorId = after.paidById || ownerId;
 
     if (!after.billData?.items?.length || !ownerId || people.length === 0) {
-      console.log(`[ledgerProcessor] Incomplete data, skipping`);
+      logger.info('Stage 1: incomplete data, skipping', { billId, hasItems: !!after.billData?.items?.length, hasOwner: !!ownerId, peopleCount: people.length });
       return;
     }
 
@@ -368,7 +379,7 @@ export const ledgerProcessor = onDocumentWritten(
     const personTotals = computePersonTotals(after);
 
     if (personTotals.length === 0) {
-      console.log(`[ledgerProcessor] No person totals, skipping`);
+      logger.info('Stage 1: no person totals, skipping', { billId });
       return;
     }
 
@@ -385,9 +396,9 @@ export const ledgerProcessor = onDocumentWritten(
 
       const deltasApplied = await applyFriendLedger(billId, ownerId, newFootprint);
       stage2Wrote = deltasApplied > 0;
-      console.log(`[ledgerProcessor] Stage 2: ${deltasApplied} friend balance(s) updated`);
+      logger.info('Stage 2: friend ledger updated', { billId, deltasApplied, linkedFriends: linkedFriendUids.size });
     } else {
-      console.log(`[ledgerProcessor] Stage 2: no linked friends, skipping`);
+      logger.info('Stage 2: no linked friends, skipping', { billId, ownerId });
     }
 
     // Bump _ledgerVersion even when Stage 2 didn't write (no friends / no deltas)
@@ -402,9 +413,9 @@ export const ledgerProcessor = onDocumentWritten(
     if (after.eventId) {
       try {
         await rebuildEventCache(after.eventId);
-        console.log(`[ledgerProcessor] Stage 3: event cache rebuilt`);
+        logger.info('Stage 3: event cache rebuilt', { billId, eventId: after.eventId });
       } catch (err) {
-        console.error(`[ledgerProcessor] Stage 3 failed (non-fatal):`, err);
+        logger.error('Stage 3 failed (non-fatal)', { billId, eventId: after.eventId, error: String(err) });
       }
     }
   }

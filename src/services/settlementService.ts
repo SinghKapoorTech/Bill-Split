@@ -1,10 +1,8 @@
 import {
   collection,
-  doc,
   getDocs,
   query,
   where,
-  deleteDoc,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '@/config/firebase';
@@ -17,6 +15,7 @@ export interface SettlementResult {
   billsSettled: number;
   amountApplied: number;
   remainingAmount: number;
+  hasMore: boolean;
 }
 
 
@@ -24,7 +23,7 @@ export const settlementService = {
   /**
    * Requests a settlement via the Cloud Function.
    * The function atomically marks bills as settled and updates all ledgers.
-   * This is the primary entry point for settling between two users.
+   * Sends an idempotencyKey to prevent duplicate settlements on network retry.
    */
   async requestSettlement(
     fromUserId: string,
@@ -32,12 +31,14 @@ export const settlementService = {
     amount: number,
     eventId?: string
   ): Promise<SettlementResult> {
+    const idempotencyKey = crypto.randomUUID();
+
     const fn = httpsCallable<
-      { fromUserId: string; toUserId: string; amount: number; eventId?: string },
+      { fromUserId: string; toUserId: string; amount: number; eventId?: string; idempotencyKey: string },
       SettlementResult
     >(functions, 'processSettlement');
 
-    const result = await fn({ fromUserId, toUserId, amount, ...(eventId ? { eventId } : {}) });
+    const result = await fn({ fromUserId, toUserId, amount, idempotencyKey, ...(eventId ? { eventId } : {}) });
     return result.data;
   },
 
@@ -92,9 +93,17 @@ export const settlementService = {
   },
 
   /**
-   * Deletes a settlement (e.g. if created by mistake)
+   * Reverses a settlement via the Cloud Function.
+   * Un-settles bills, reverses remaining amount from friend_balances,
+   * and deletes the settlement record atomically.
    */
-  async deleteSettlement(settlementId: string): Promise<void> {
-    await deleteDoc(doc(db, SETTLEMENTS_COLLECTION, settlementId));
+  async deleteSettlement(settlementId: string): Promise<{ reversed: boolean; billsReversed: number }> {
+    const fn = httpsCallable<
+      { settlementId: string },
+      { reversed: boolean; billsReversed: number }
+    >(functions, 'reverseSettlement');
+
+    const result = await fn({ settlementId });
+    return result.data;
   }
 };
