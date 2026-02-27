@@ -1,24 +1,19 @@
-import { doc, updateDoc, Timestamp, runTransaction } from 'firebase/firestore';
+import { doc, Timestamp, runTransaction } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Bill, PersonTotal } from '@/types';
 import { userService } from './userService';
+import {
+  getFriendBalanceId,
+  calculateFriendFootprint,
+  computeFootprintDeltas,
+  toProcessedBalances,
+} from '@shared/ledgerCalculations';
 
 const BILLS_COLLECTION = 'bills';
 const FRIEND_BALANCES_COLLECTION = 'friend_balances';
 
-/**
- * Bill people use the `user-{uid}` format from generateUserId.
- * Firebase UIDs are the raw uid string. This helper converts between the two.
- */
-function personIdToFirebaseUid(personId: string): string {
-  return personId.startsWith('user-') ? personId.slice(5) : personId;
-}
-
 export const friendBalanceService = {
-  // Helper to generate the unique document ID for a friend balance pair
-  getFriendBalanceId(userId1: string, userId2: string): string {
-    return [userId1, userId2].sort().join('_');
-  },
+  getFriendBalanceId,
 
   /**
    * Applies the exact delta of a bill to the friend_balances collection.
@@ -54,74 +49,30 @@ export const friendBalanceService = {
       const billData = billSnap.data() as Bill;
       if (billData.ownerId !== currentUserId) return;
 
-      const settledPersonIds = billData.settledPersonIds || [];
       const previousBalances = billData.processedBalances || {};
-      // Map bill-local person ID (user-{uid}) → raw Firebase UID (or null if not a linked user)
-      const personIdToUserId: Record<string, string | null> = {};
 
-      for (const person of (billData.people || [])) {
-        const firebaseUid = personIdToFirebaseUid(person.id);
-        personIdToUserId[person.id] = friendUserIds.has(firebaseUid) ? firebaseUid : null;
-      }
+      // Calculate the new footprint using shared pure function
+      const newFootprint = calculateFriendFootprint({
+        people: billData.people || [],
+        personTotals,
+        settledPersonIds: billData.settledPersonIds || [],
+        linkedFriendUids: friendUserIds,
+        ownerId: currentUserId,
+        creditorId: billData.paidById || billData.ownerId,
+      });
 
-      // Calculate the NEW exact debts each friend owes for this bill
-      const newDeltasInside: Record<string, number> = {};
+      // Compute deltas between old and new footprints
+      const deltas = computeFootprintDeltas(newFootprint, previousBalances);
 
-      const creditorId = billData.paidById || billData.ownerId;
-      const isOwnerCreditor = creditorId === currentUserId;
-      const creditorFirebaseUid = personIdToFirebaseUid(creditorId);
-
-      const ownerTotalRecord = personTotals.find(pt => personIdToFirebaseUid(pt.personId) === currentUserId);
-      const ownerAmountOwed = ownerTotalRecord && !settledPersonIds.includes(ownerTotalRecord.personId)
-        ? ownerTotalRecord.total
-        : 0;
-
-      for (const total of personTotals) {
-        const firebaseUid = personIdToFirebaseUid(total.personId);
-        const friendUserId = personIdToUserId[total.personId] ?? null;
-        if (!friendUserId) continue; // skip unlinked people
-
-        if (isOwnerCreditor) {
-          if (firebaseUid === currentUserId) continue; // skip self
-          const amountOwed = settledPersonIds.includes(total.personId) ? 0 : total.total;
-          newDeltasInside[friendUserId] = amountOwed;
-        } else {
-          if (firebaseUid === creditorFirebaseUid) {
-            // This friend paid. The owner owes them the owner's share.
-            newDeltasInside[friendUserId] = -ownerAmountOwed;
-          } else if (firebaseUid !== currentUserId) {
-            // Another friend. They owe the creditor, not the owner.
-            newDeltasInside[friendUserId] = 0;
-          }
-        }
-      }
-
-      // Now we have the old footprint (previousBalances) and the new footprint (newDeltasInside).
-      // For each friend involved in either footprint, run a delta update.
-      const allInvolvedFriendIds = new Set([
-        ...Object.keys(previousBalances),
-        ...Object.keys(newDeltasInside)
-      ]);
-
-      const newProcessedBalances: Record<string, number> = {};
-
-      // 1. Gather all reads
+      // 1. Gather all reads for friends with non-zero deltas
       const balanceRefs: Record<string, any> = {};
       const balanceSnaps: Record<string, any> = {};
-      const deltas: Record<string, number> = {};
 
-      for (const friendUserId of allInvolvedFriendIds) {
-        const prevAmount = previousBalances[friendUserId] || 0;
-        const newAmount = newDeltasInside[friendUserId] || 0;
-        const delta = newAmount - prevAmount;
-
-        if (delta !== 0) {
-          deltas[friendUserId] = delta;
-          const balanceId = friendBalanceService.getFriendBalanceId(currentUserId, friendUserId);
-          const balanceRef = doc(db, FRIEND_BALANCES_COLLECTION, balanceId);
-          balanceRefs[friendUserId] = balanceRef;
-          balanceSnaps[friendUserId] = await transaction.get(balanceRef);
-        }
+      for (const friendUserId of Object.keys(deltas)) {
+        const balanceId = getFriendBalanceId(currentUserId, friendUserId);
+        const balanceRef = doc(db, FRIEND_BALANCES_COLLECTION, balanceId);
+        balanceRefs[friendUserId] = balanceRef;
+        balanceSnaps[friendUserId] = await transaction.get(balanceRef);
       }
 
       // 2. Perform all writes
@@ -151,16 +102,8 @@ export const friendBalanceService = {
         );
       }
 
-      // Populate newProcessedBalances for ALL involved friends, even if delta is 0
-      for (const friendUserId of allInvolvedFriendIds) {
-        const newAmount = newDeltasInside[friendUserId] || 0;
-        if (newAmount !== 0) {
-          newProcessedBalances[friendUserId] = newAmount;
-        }
-      }
-
       // Save the new footprint to the bill
-      transaction.update(billRef, { processedBalances: newProcessedBalances });
+      transaction.update(billRef, { processedBalances: toProcessedBalances(newFootprint) });
     });
   },
 
@@ -201,7 +144,7 @@ export const friendBalanceService = {
         if (amount === 0) continue;
         friendsToReverse.push(friendId);
 
-        const balanceId = friendBalanceService.getFriendBalanceId(currentUserId, friendId);
+        const balanceId = getFriendBalanceId(currentUserId, friendId);
         const balanceRef = doc(db, FRIEND_BALANCES_COLLECTION, balanceId);
         balanceRefs[friendId] = balanceRef;
         balanceSnaps[friendId] = await transaction.get(balanceRef);

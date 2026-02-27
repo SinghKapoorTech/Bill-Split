@@ -114,6 +114,26 @@ interface Settlement {
 
 ---
 
+## Shared Pure Modules
+
+Core calculation logic is extracted into framework-agnostic pure modules under `shared/`. These contain no Firebase, no browser APIs — just math. Both the client app and Cloud Functions import from them.
+
+### `shared/ledgerCalculations.ts`
+| Function | Purpose |
+|----------|---------|
+| `personIdToFirebaseUid(personId)` | Normalizes `user-{uid}` format → raw Firebase UID |
+| `getFriendBalanceId(uid1, uid2)` | Deterministic sorted document ID for a friend-balance pair |
+| `calculateFriendFootprint(input)` | Computes per-friend amounts from bill data (supports flexible payer) |
+| `computeFootprintDeltas(new, old)` | Diff engine — returns only non-zero changes |
+| `toProcessedBalances(footprint)` | Strips zero entries before saving to Firestore |
+
+### `shared/optimizeDebts.ts`
+| Function | Purpose |
+|----------|---------|
+| `optimizeDebts(netBalances)` | Greedy debt minimization — reduces N-way balances to minimum transfers |
+
+---
+
 ## Unified Ledger Write Path
 
 Any time a Bill is Created, Edited, or Deleted, all ledger mutations are orchestrated through a single entry point:
@@ -123,10 +143,10 @@ This calls both underlying services in parallel via `Promise.all`:
 
 #### Step A — `friendBalanceService.applyBillBalancesIdempotent()`
 1. **Transaction Start:** Read `Bill` and target `friend_balances`.
-2. Look at `bill.processedBalances`.
-3. Subtract the exact amounts in `processedBalances` from the `friend_balances` doc. (Reversing the old state).
-4. Add the `newTotals` to the `friend_balances` doc. (Applying the new state).
-5. Overwrite the `bill.processedBalances` with `newTotals`.
+2. Compute new footprint using `calculateFriendFootprint()` from shared module.
+3. Compute delta using `computeFootprintDeltas(newFootprint, bill.processedBalances)`.
+4. Apply only the delta to the `friend_balances` doc (not a full replacement).
+5. Save new footprint via `toProcessedBalances()` back onto the Bill.
 6. **Transaction End.**
 
 #### Step B — `eventLedgerService.applyBillToEventLedgerIdempotent()` (if `eventId` provided)
@@ -134,7 +154,7 @@ This calls both underlying services in parallel via `Promise.all`:
 2. Look at `bill.eventBalancesApplied`.
 3. Subtract the exact amounts in `eventBalancesApplied` from `event_balances.netBalances`.
 4. Add the `newTotals` to `event_balances.netBalances`.
-5. Run the debt optimization algorithm *in-memory* on the newly aggregated `netBalances`.
+5. Run `optimizeDebts()` from shared module on the newly aggregated `netBalances`.
 6. Overwrite the `bill.eventBalancesApplied` with `newTotals`.
 7. **Transaction End.**
 

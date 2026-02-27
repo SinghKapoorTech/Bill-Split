@@ -99,17 +99,17 @@ Each commit is small and self-contained. System stays functional after every com
 - Updated `functions/src/settlementProcessor.ts` — imports from `../../shared/optimizeDebts.js`
 - Both client and functions type-check clean. No behavior change.
 
-#### Commit 2: Extract ledger delta logic to shared module
+#### ~~Commit 2: Extract ledger delta logic to shared module~~ DONE
 
-The idempotent delta calculation needs to be reusable by the Cloud Function.
-
-- Create `shared/ledgerCalculations.ts` with pure functions:
-  - `calculateFriendDeltas(billData, people, personTotals, settledPersonIds, previousBalances, creditorId, ownerId)` → `Record<string, number>` (new footprint)
-  - `computeDelta(newFootprint, oldFootprint)` → `Record<string, number>` (what to apply)
-  - `personIdToFirebaseUid(personId)` → helper
-- These are pure functions: no Firestore, no side effects, just math
-- Update `src/services/friendBalanceService.ts` — use shared calculation, keep Firestore calls
-- Verify: Build both. Same behavior, cleaner separation.
+- Created `shared/ledgerCalculations.ts` with pure functions:
+  - `personIdToFirebaseUid(personId)` — normalizes `user-{uid}` → raw UID
+  - `getFriendBalanceId(uid1, uid2)` — deterministic sorted doc ID
+  - `calculateFriendFootprint(input)` — computes per-friend amounts from bill data
+  - `computeFootprintDeltas(newFootprint, oldFootprint)` — diff engine
+  - `toProcessedBalances(footprint)` — strips zero entries for storage
+- Updated `src/services/friendBalanceService.ts` — imports shared functions, removed local logic
+- Updated `src/services/eventLedgerService.ts` — imports shared `personIdToFirebaseUid`
+- Both client and functions type-check clean. No behavior change.
 
 #### Commit 3: Add `settledBillIds` to settlement type and processor
 

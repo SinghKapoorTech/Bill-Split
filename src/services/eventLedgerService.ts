@@ -3,6 +3,7 @@ import { db } from '@/config/firebase';
 import { Bill, PersonTotal } from '@/types';
 import { userService } from './userService';
 import { optimizeDebts } from '@shared/optimizeDebts';
+import { personIdToFirebaseUid } from '@shared/ledgerCalculations';
 
 export type { OptimizedDebt } from '@shared/optimizeDebts';
 
@@ -15,14 +16,6 @@ export interface EventLedger {
   optimizedDebts: OptimizedDebt[];
   processedBillIds: string[];
   lastUpdatedAt: Timestamp;
-}
-
-/**
- * Bill people use the `user-{uid}` format from generateUserId.
- * Firebase UIDs are the raw uid string. This helper converts between the two.
- */
-function personIdToFirebaseUid(personId: string): string {
-  return personId.startsWith('user-') ? personId.slice(5) : personId;
 }
 
 export const eventLedgerService = {
