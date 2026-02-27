@@ -61,11 +61,11 @@ When you edit a bill, the engine:
 **Behavior:**
 - The app logs a historical `Settlement` document (a receipt of the payment).
 - Wait, does it just do a blind delta? No! We implemented **Cascading Settlements**.
-- The `billService` queries your oldest unsettled bills where you owe that specific friend.
-- It calculates the exact amount you owe on each bill, and deducts it from your payment amount until it runs out.
-- For each fully-covered bill, it pushes your `personId` into the `settledPersonIds` array. 
-- Because marking a bill as settled triggers the same Delta Engine (bringing your debt on that bill to $0), it automatically zeroes out the global ledger balance safely.
-- Any remaining partial payment left over is then applied mathematically to the ledger using an idempotent deduction.
+- The settlement processor (`settlementProcessor.ts`) queries your oldest unsettled bills and calculates the exact amount you owe on each.
+- For each fully-covered bill, it pushes your `personId` into the `settledPersonIds` array and updates `friend_balances` atomically in a single transaction.
+- The ledger pipeline auto-fires for each modified bill and rebuilds the `event_balances` cache.
+- Any remaining partial payment left over is applied directly to `friend_balances` as an idempotent deduction.
+- The settlement processor does **not** write to `event_balances` — the pipeline handles that as a cache rebuild.
 
 ---
 
