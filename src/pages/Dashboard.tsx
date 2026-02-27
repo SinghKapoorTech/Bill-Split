@@ -18,6 +18,9 @@ import {
   Plus,
   Receipt,
   Loader2,
+  ReceiptText,
+  CalendarDays,
+  Zap,
 } from 'lucide-react';
 import { Bill } from '@/types/bill.types';
 import { billService } from '@/services/billService';
@@ -219,19 +222,44 @@ export default function Dashboard() {
           </div>
 
           {allBills.length === 0 ? (
-            <Card className="p-12">
-              <div className="text-center">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                  <Receipt className="w-8 h-8 text-muted-foreground" />
+            <Card className="p-4 md:p-6 overflow-hidden">
+              <div className="text-center max-w-2xl mx-auto">
+                <h3 className="font-semibold mb-4">Create your first bill</h3>
+                
+                <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-border border rounded-lg">
+                  <button 
+                    className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-primary/5 transition-colors group"
+                    onClick={handleNewBill}
+                  >
+                    <ReceiptText className="w-5 h-5 text-primary" />
+                    <div className="text-left">
+                      <div className="font-medium text-sm">Standard Bill</div>
+                      <div className="text-[10px] text-muted-foreground">Scan receipt</div>
+                    </div>
+                  </button>
+
+                  <button 
+                    className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-blue-500/5 transition-colors group"
+                    onClick={() => navigate('/transaction/new')}
+                  >
+                    <Zap className="w-5 h-5 text-blue-500" />
+                    <div className="text-left">
+                      <div className="font-medium text-sm">Quick Expense</div>
+                      <div className="text-[10px] text-muted-foreground">No items</div>
+                    </div>
+                  </button>
+
+                  <button 
+                    className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-orange-500/5 transition-colors group"
+                    onClick={() => navigate('/events')}
+                  >
+                    <CalendarDays className="w-5 h-5 text-orange-500" />
+                    <div className="text-left">
+                      <div className="font-medium text-sm">Event / Trip</div>
+                      <div className="text-[10px] text-muted-foreground">Group bills</div>
+                    </div>
+                  </button>
                 </div>
-                <h3 className="text-lg font-medium mb-2">No bills yet</h3>
-                <p className="text-sm text-muted-foreground mb-6">
-                  Create your first bill to get started
-                </p>
-                <Button onClick={handleNewBill} className="gap-2">
-                  <Plus className="w-4 h-4" />
-                  Create Your First Bill
-                </Button>
               </div>
             </Card>
           ) : (
