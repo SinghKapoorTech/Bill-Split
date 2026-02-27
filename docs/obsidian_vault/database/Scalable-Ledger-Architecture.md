@@ -48,13 +48,18 @@ When you edit a bill, the engine:
 - Our Delta Engine fires mathematically. It evaluates that friend's owed amount as `$0` because they are in the `settledPersonIds` array.
 - The Delta Engine reverses their old debt, applies the new `$0` debt, and their balance instantly vanishes from the global ledger without affecting anyone else on the receipt.
 
-### 2. Bills with Non-Friends (Shadow Users)
+### 2. Bills with Non-Friends (Shadow Users) + Retroactive Friend Scan
 **Scenario:** You go on a trip with Dave. Dave is not your friend in the app yet, but you split 10 bills with him via his phone number.
 **Behavior:**
-- The Delta Engine never checks the "Friends List" social graph.
-- Every time you create a bill, the engine happily creates a raw `friend_balances` document between your User ID and Dave's User ID, tracking the math in the background.
-- Because Dave isn't your friend, the UI simply hides this balance on your Dashboard.
-- Six months later, you add Dave as a friend. Because the engine was silently tracking the math the entire time, Dave instantly appears on your Dashboard with the perfectly calculated 6-month history.
+- The ledger pipeline only creates `friend_balances` entries for participants who are in the bill owner's friends list (`resolveLinkedFriends`).
+- While Dave isn't your friend, bills are saved normally but no `friend_balances` entry is created for Dave.
+- When you add Dave as a friend, the `friendAddProcessor` Cloud Function fires:
+  - Detects the newly added friend UID by diffing `before.friends` vs `after.friends`
+  - Queries all bills you own that include Dave (via `participantIds` array-contains index)
+  - Touches each bill with `_friendScanTrigger` to re-trigger the ledger pipeline
+  - The pipeline re-fires, now sees Dave in `resolveLinkedFriends()`, and backfills `friend_balances`
+- Dave instantly appears on your Dashboard with the correctly calculated history.
+- **Note:** Only bills you own are processed when you add Dave. Bills Dave owns that include you are processed when Dave adds you as a friend (owner controls ledger entries).
 
 ### 3. Global "Settle Up"
 **Scenario:** You and a friend decide to settle your entire global balance or event balance.
@@ -194,8 +199,37 @@ Bill Create/Edit/Delete  →  Firestore bills/{billId}
 **Key design decisions:**
 - **Stage 2 is a Firestore transaction** — atomic, retries on contention, authoritative
 - **Stage 3 is outside the transaction** — it's just a cache rebuild. If it fails, friend_balances (the authority) is still correct. Cache rebuilds on the next bill change.
-- **Loop prevention:** `hasRelevantChange()` compares only bill-content fields (`billData`, `people`, `itemAssignments`, `settledPersonIds`, `paidById`, `splitEvenly`, `ownerId`). The pipeline's own `processedBalances` write is excluded, preventing infinite trigger loops.
+- **Loop prevention:** `hasRelevantChange()` compares only bill-content fields (`billData`, `people`, `itemAssignments`, `settledPersonIds`, `paidById`, `splitEvenly`, `ownerId`, `_friendScanTrigger`). The pipeline's own `processedBalances` write is excluded, preventing infinite trigger loops.
 - **Delete handling:** reads footprint from `before` snapshot, reverses friend_balances, rebuilds event cache without the deleted bill.
+
+### `friendAddProcessor` Cloud Function (`functions/src/friendAddProcessor.ts`)
+
+Retroactive friend scan — when a user adds a new friend, backfills `friend_balances` for historical shared bills.
+
+```
+User adds friend  →  Firestore users/{userId} update
+                              │
+                   onDocumentUpdated trigger
+                              │
+                              ▼
+            ┌──────────────────────────────────────┐
+            │  1. Diff before.friends vs after      │
+            │  2. For each new friend UID:          │
+            │     - Query bills: participantIds     │
+            │       ARRAY-CONTAINS newFriendUid     │
+            │       AND ownerId == userId            │
+            │     - Touch each bill with            │
+            │       _friendScanTrigger: Timestamp    │
+            │  3. ledgerProcessor auto-fires →       │
+            │     backfills friend_balances          │
+            └──────────────────────────────────────┘
+```
+
+**Key design decisions:**
+- **Touch, don't duplicate:** Instead of duplicating pipeline logic, the processor touches bills with `_friendScanTrigger` to re-trigger the pipeline. The pipeline's `hasRelevantChange()` includes this field.
+- **Owner-scoped:** Only processes bills owned by the user who added the friend. Bills owned by the friend are processed when/if the friend adds the user back.
+- **Batch limit:** Max 50 bills per invocation to stay within Cloud Function timeout.
+- **No infinite loop:** The pipeline never writes `_friendScanTrigger`, so the second trigger (from the pipeline's own `processedBalances` write) sees no relevant change and exits.
 
 ### Client-Side Write Path — REMOVED
 

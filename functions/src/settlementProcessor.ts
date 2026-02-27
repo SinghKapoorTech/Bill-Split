@@ -345,8 +345,10 @@ export async function processSettlementCore(
       // when settledPersonIds changes and rebuilds event_balances as a cache.
     }
 
-    // 4. Apply remaining amount (not covered by bills) to the direct friend ledger
-    if (remaining > 0.01) {
+    // 4. Apply remaining amount (not covered by bills) to the direct friend ledger.
+    //    ONLY if we've exhausted all bills — if we hit the batch limit, the remaining
+    //    represents unprocessed bills, not overpayment.
+    if (remaining > 0.01 && !hasMore) {
       const balId    = friendBalanceId(fromUserId, toUserId);
       const balSnap  = friendBalMap.get(balId);
       const existing = balSnap?.exists ? balSnap.data()! : null;

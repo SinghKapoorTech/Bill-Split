@@ -48,7 +48,7 @@ const EVENT_BALANCES_COLLECTION = 'event_balances';
 // the pipeline writes them, so including them would cause infinite loops.
 const RELEVANT_FIELDS = [
   'billData', 'people', 'itemAssignments', 'settledPersonIds',
-  'paidById', 'splitEvenly', 'ownerId',
+  'paidById', 'splitEvenly', 'ownerId', '_friendScanTrigger',
 ] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

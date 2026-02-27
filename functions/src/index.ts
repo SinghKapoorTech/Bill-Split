@@ -343,6 +343,15 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
 export { ledgerProcessor } from './ledgerProcessor.js';
 
 /**
+ * Cloud Function: Friend Add Processor
+ *
+ * Firestore onDocumentUpdated trigger on users/{userId}.
+ * When a user adds a new friend, retroactively triggers the ledger pipeline
+ * for all shared bills between the two users, backfilling friend_balances.
+ */
+export { friendAddProcessor } from './friendAddProcessor.js';
+
+/**
  * Cloud Function: Process a settlement between two users.
  *
  * Atomically marks shared bills as settled, updates friend_balances,
