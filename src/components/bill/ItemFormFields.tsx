@@ -51,7 +51,6 @@ export function ItemFormFields({
             onChange={(e) => onNameChange(e.target.value)}
             onKeyPress={(e) => handleKeyPress(e, !!canSubmit)}
             className="h-8"
-            autoFocus={mode === 'add'}
           />
         </TableCell>
         <TableCell className="text-right">
@@ -110,7 +109,6 @@ export function ItemFormFields({
             onChange={(e) => onNameChange(e.target.value)}
             onKeyPress={(e) => handleKeyPress(e, !!canSubmit)}
             className="text-sm h-9"
-            autoFocus={mode === 'add'}
           />
         </div>
         <div className="w-24 md:w-full">

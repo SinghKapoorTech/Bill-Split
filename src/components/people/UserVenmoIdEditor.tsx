@@ -55,7 +55,6 @@ export function UserVenmoIdEditor({ currentVenmoId }: UserVenmoIdEditorProps) {
         onChange={(e) => setVenmoId(e.target.value)}
         placeholder="Venmo username"
         className="h-7 text-xs w-32"
-        autoFocus
         onKeyDown={(e) => {
           if (e.key === 'Enter') handleSave();
           if (e.key === 'Escape') handleCancel();

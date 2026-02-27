@@ -251,7 +251,6 @@ function SquadNameField({ value, onChange }: SquadNameFieldProps) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         maxLength={50}
-        autoFocus
       />
     </div>
   );

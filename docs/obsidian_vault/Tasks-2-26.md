@@ -57,7 +57,7 @@ tags: [backlog, bugs, features, ui, obsidian]
   _Bug:_ background white stuff shouldn't be there.  
   **Acceptance:** should be similar to bill wizard UI.
   
-- [ ] **(P0) Auto Focus happening in places
+- [x] **(P0) Auto Focus happening in places
   _Bug:_ Shouldn't happen anywhere
   **Acceptance:** no auto focus in the app
   

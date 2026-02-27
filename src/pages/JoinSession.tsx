@@ -187,7 +187,6 @@ export default function JoinSession() {
                 setError(null); // Clear error when typing
               }}
               onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
-              autoFocus
               className={error ? 'border-destructive' : ''}
             />
             <p className="text-xs text-muted-foreground">

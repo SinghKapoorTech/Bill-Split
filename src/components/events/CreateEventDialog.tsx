@@ -48,7 +48,6 @@ export function CreateEventDialog({ open, onOpenChange, onCreateEvent }: CreateE
               value={eventName}
               onChange={(e) => setEventName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-              autoFocus
             />
           </div>
 
