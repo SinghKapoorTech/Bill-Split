@@ -78,7 +78,7 @@ tags: [backlog, bugs, features, ui, obsidian]
 - [x] **(P1) “Create your first bill” should give options**  
   **Acceptance:** first-time CTA offers choices (e.g., Bill / Simple Transaction / Event Bill).
   
-- [ ] **(P1) Website view should have all 4 options l**  
+- [x] **(P1) Website view should have all 4 options l**  
   **Acceptance:** first-time CTA offers choices (e.g., Bill / Simple Transaction / Event Bill).
   
 - [ ] **(P1) When creating an event, prompt to add users + add “first bill” buttons**  
