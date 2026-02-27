@@ -1,5 +1,31 @@
 # Ledger Pipeline Restructuring Plan
 
+## Progress
+
+- [x] **Commit 1:** Extract `optimizeDebts` to shared module
+- [x] **Commit 2:** Extract ledger delta logic to shared module
+- [x] **Commit 3:** Add `settledBillIds` to settlement type and processor
+- [x] **Commit 4:** Create `ledgerProcessor` Cloud Function (pipeline core)
+- [x] **Commit 5:** Add `_ledgerVersion` pipeline guard flag
+- [ ] **Commit 6:** Remove client-side ledger writes (**BREAKING** — deploy pipeline first)
+- [ ] **Commit 7:** Lock down security rules (**BREAKING** — requires Commit 6)
+- [ ] **Commit 8:** Remove event_balances writes from settlement processor
+- [ ] **Commit 9:** Create `reverseSettlement` Cloud Function
+- [ ] **Commit 10:** Batch limit + idempotency for settlement processor
+- [ ] **Commit 11:** Create `friendAddProcessor` Cloud Function (retroactive scan)
+- [ ] **Commit 12:** Client-side event cache fallback
+- [ ] **Commit 13:** Batch friend profile hydration
+- [ ] **Commit 14:** Batch squad member hydration
+- [ ] **Commit 15:** Add missing composite index
+- [ ] **Commit 16:** Transaction for `updatePersonDetails`
+- [ ] **Commit 17:** Atomic squad member sync
+- [ ] **Commits 18-21:** Operational hardening (optional)
+
+**Current phase:** Phase 2 (Server-Side Pipeline) — next up is Commit 6.
+**Critical deploy order:** Pipeline (Commits 4-5) must be deployed before Commit 6 removes client writes.
+
+---
+
 ## Context
 
 The Bill Split app's dual-ledger system needs restructuring. The current system has client-side security vulnerabilities, inconsistent write paths, and two competing sources of truth. This plan restructures into a **single-ledger + cache** model with a **server-side pipeline** where bill changes trigger predictable, flag-driven downstream effects — designed to scale to millions of users.
@@ -136,14 +162,12 @@ Each commit is small and self-contained. System stays functional after every com
 - Client-side ledger service left intact — both run in parallel (idempotent, safe)
 - Both client and functions type-check clean.
 
-#### Commit 5: Add pipeline guard flag
+#### ~~Commit 5: Add pipeline guard flag~~ DONE
 
-During transition, prevent double processing.
-
-- Add `_ledgerVersion?: number` field to bill type
-- Pipeline increments `_ledgerVersion` after processing
-- Pipeline checks: if `before._ledgerVersion === after._ledgerVersion` and the trigger is from its own write → skip
-- Verify: Create bill → pipeline processes once, not infinite loop.
+- Added `_ledgerVersion?: number` to `src/types/bill.types.ts`
+- Pipeline increments `_ledgerVersion` after processing (inside Stage 2 transaction, or standalone if Stage 2 skipped)
+- Loop prevention via `hasRelevantChange()` excludes both `processedBalances` and `_ledgerVersion`
+- Both client and functions type-check clean.
 
 #### Commit 6: Remove client-side ledger writes
 
@@ -328,28 +352,28 @@ Same N+1 problem.
 
 ## Commit Summary
 
-| # | Commit | Change Type | Deploy |
-|---|--------|------------|--------|
-| 1 | Extract `optimizeDebts` to shared | Refactor | No |
-| 2 | Extract ledger delta logic to shared | Refactor | No |
-| 3 | Add `settledBillIds` to settlements | Additive | Functions |
-| 4 | Create `ledgerProcessor` pipeline | Additive (parallel) | Functions |
-| 5 | Add pipeline guard flag | Coordination | Functions |
-| 6 | Remove client-side ledger writes | **Breaking** | Client |
-| 7 | Lock down security rules | **Breaking** | Rules |
-| 8 | Remove event_balances from settlement | Simplification | Functions |
-| 9 | Create `reverseSettlement` | Additive | Functions + Client |
-| 10 | Batch limit + idempotency | Additive | Functions + Client |
-| 11 | Create `friendAddProcessor` | Additive | Functions |
-| 12 | Client-side event cache fallback | Additive | Client |
-| 13 | Batch friend hydration | Performance | Client |
-| 14 | Batch squad hydration | Performance | Client |
-| 15 | Add missing composite index | Fix | Indexes |
-| 16 | Transaction for `updatePersonDetails` | Reliability | Client |
-| 17 | Atomic squad member sync | Reliability | Client |
-| 18-21 | Operational hardening | Optional | Functions |
+| # | Commit | Status | Change Type | Deploy |
+|---|--------|--------|------------|--------|
+| 1 | Extract `optimizeDebts` to shared | DONE | Refactor | No |
+| 2 | Extract ledger delta logic to shared | DONE | Refactor | No |
+| 3 | Add `settledBillIds` to settlements | DONE | Additive | Functions |
+| 4 | Create `ledgerProcessor` pipeline | DONE | Additive (parallel) | Functions |
+| 5 | Add pipeline guard flag | DONE | Coordination | Functions |
+| 6 | Remove client-side ledger writes | TODO | **Breaking** | Client |
+| 7 | Lock down security rules | TODO | **Breaking** | Rules |
+| 8 | Remove event_balances from settlement | TODO | Simplification | Functions |
+| 9 | Create `reverseSettlement` | TODO | Additive | Functions + Client |
+| 10 | Batch limit + idempotency | TODO | Additive | Functions + Client |
+| 11 | Create `friendAddProcessor` | TODO | Additive | Functions |
+| 12 | Client-side event cache fallback | TODO | Additive | Client |
+| 13 | Batch friend hydration | TODO | Performance | Client |
+| 14 | Batch squad hydration | TODO | Performance | Client |
+| 15 | Add missing composite index | TODO | Fix | Indexes |
+| 16 | Transaction for `updatePersonDetails` | TODO | Reliability | Client |
+| 17 | Atomic squad member sync | TODO | Reliability | Client |
+| 18-21 | Operational hardening | TODO | Optional | Functions |
 
-**Critical deploy order:** Commits 4→5→6→7 must be sequential. Pipeline must be running before client writes are removed and rules are locked.
+**Critical deploy order:** Commits 4→5→6→7 must be sequential. Pipeline must be deployed and running before client writes are removed (Commit 6) and rules are locked (Commit 7).
 
 ---
 

@@ -38,8 +38,8 @@ const FRIEND_BALANCES_COLLECTION = 'friend_balances';
 const EVENT_BALANCES_COLLECTION = 'event_balances';
 
 // Fields that require pipeline re-processing when changed.
-// processedBalances is intentionally excluded — the pipeline writes it,
-// so including it would cause infinite loops.
+// processedBalances and _ledgerVersion are intentionally excluded —
+// the pipeline writes them, so including them would cause infinite loops.
 const RELEVANT_FIELDS = [
   'billData', 'people', 'itemAssignments', 'settledPersonIds',
   'paidById', 'splitEvenly', 'ownerId',
@@ -172,8 +172,12 @@ async function applyFriendLedger(
       }, { merge: true });
     }
 
-    // Save the new footprint on the bill
-    tx.update(billRef, { processedBalances: toProcessedBalances(newFootprint) });
+    // Save the new footprint and bump pipeline version on the bill
+    const currentVersion: number = (billData._ledgerVersion ?? 0);
+    tx.update(billRef, {
+      processedBalances: toProcessedBalances(newFootprint),
+      _ledgerVersion: currentVersion + 1,
+    });
     deltasApplied = Object.keys(deltas).length;
   });
 
@@ -365,6 +369,8 @@ export const ledgerProcessor = onDocumentWritten(
     // ── Stage 2: FRIEND LEDGER (authoritative, in transaction) ──────────────
     const linkedFriendUids = await resolveLinkedFriends(ownerId);
 
+    let stage2Wrote = false;
+
     if (linkedFriendUids.size > 0) {
       const newFootprint = calculateFriendFootprint({
         people, personTotals, settledPersonIds,
@@ -372,9 +378,18 @@ export const ledgerProcessor = onDocumentWritten(
       });
 
       const deltasApplied = await applyFriendLedger(billId, ownerId, newFootprint);
+      stage2Wrote = deltasApplied > 0;
       console.log(`[ledgerProcessor] Stage 2: ${deltasApplied} friend balance(s) updated`);
     } else {
       console.log(`[ledgerProcessor] Stage 2: no linked friends, skipping`);
+    }
+
+    // Bump _ledgerVersion even when Stage 2 didn't write (no friends / no deltas)
+    // so it always reflects that the pipeline processed this bill state.
+    if (!stage2Wrote) {
+      const billRef = db.collection(BILLS_COLLECTION).doc(billId);
+      const currentVersion: number = (after._ledgerVersion ?? 0);
+      await billRef.update({ _ledgerVersion: currentVersion + 1 });
     }
 
     // ── Stage 3: EVENT CACHE (best-effort, outside transaction) ─────────────

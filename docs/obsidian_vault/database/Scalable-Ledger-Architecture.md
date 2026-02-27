@@ -92,10 +92,14 @@ interface Bill {
   settledPersonIds?: string[];
 
   // Tracks exactly what was added to the global friend ledger
-  processedBalances?: Record<string, number>; 
-  
+  processedBalances?: Record<string, number>;
+
   // Tracks exactly what was added to the local event ledger
-  eventBalancesApplied?: Record<string, number>; 
+  eventBalancesApplied?: Record<string, number>;
+
+  // Pipeline version — incremented by ledgerProcessor after each processing pass.
+  // Used for observability and as a guard against redundant trigger processing.
+  _ledgerVersion?: number;
 }
 ```
 
