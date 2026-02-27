@@ -141,7 +141,7 @@ export async function processSettlementCore(
 
     if (!existingSnap.empty) {
       const existing = existingSnap.docs[0].data();
-      logger.info('Duplicate settlement detected', { idempotencyKey, existingId: existingData.id });
+      logger.info('Duplicate settlement detected', { idempotencyKey, existingId: existingSnap.docs[0].id });
       return {
         settlementId: existingSnap.docs[0].id,
         billsSettled: existing.billsSettled ?? 0,
@@ -152,40 +152,75 @@ export async function processSettlementCore(
     }
   }
 
-  // ── Fetch only shared bills between these two users (both directions in parallel) ──
+  // ── Fetch only shared bills between these two users ──
   const billsRef = db.collection(BILLS_COLLECTION);
+  let allBillsDocs: FirebaseFirestore.DocumentSnapshot[] = [];
 
-  // Direction A: bills owned by `toUserId` where `fromUserId` is still unsettled.
-  // Uses unsettledParticipantIds index — UIDs are removed as they settle, so only
-  // bills that still need settlement are returned. settledPersonIds is checked in code
-  // as a safety guard.
-  const qA = eventId
-    ? billsRef.where('eventId', '==', eventId).where('ownerId', '==', toUserId).where('unsettledParticipantIds', 'array-contains', fromUserId)
-    : billsRef.where('ownerId', '==', toUserId).where('unsettledParticipantIds', 'array-contains', fromUserId);
+  if (eventId) {
+    // Event specific: fetch all bills for the event and filter in memory.
+    // Bypasses missing indexes and handles legacy bills correctly.
+    const eventBillsSnap = await billsRef.where('eventId', '==', eventId).get();
+    allBillsDocs = eventBillsSnap.docs;
+  } else {
+    // Global Settle Up: Try O(1) fetch via contributingBillIds
+    const balId = friendBalanceId(fromUserId, toUserId);
+    const balSnap = await db.collection(FRIEND_BALANCES_COLLECTION).doc(balId).get();
+    const contributingBillIds: string[] = balSnap.exists ? (balSnap.data()?.contributingBillIds || []) : [];
 
-  // Direction B: bills owned by `fromUserId` where `toUserId` is still unsettled.
-  const qB = eventId
-    ? billsRef.where('eventId', '==', eventId).where('ownerId', '==', fromUserId).where('unsettledParticipantIds', 'array-contains', toUserId)
-    : billsRef.where('ownerId', '==', fromUserId).where('unsettledParticipantIds', 'array-contains', toUserId);
+    if (contributingBillIds.length > 0) {
+      const chunks = [];
+      for (let i = 0; i < contributingBillIds.length; i += 100) {
+        chunks.push(contributingBillIds.slice(i, i + 100));
+      }
+      const chunkPromises = chunks.map(chunk => db.getAll(...chunk.map(id => billsRef.doc(id))));
+      const chunkResults = await Promise.all(chunkPromises);
+      for (const results of chunkResults) {
+        for (const doc of results) {
+          if (doc.exists) allBillsDocs.push(doc);
+        }
+      }
+    } else {
+      // Fallback: For legacy users lacking contributingBillIds.
+      // We query strictly by participantIds (which uses default single-field auto-index)
+      // to bypass ownerId entirely so third-party event bills are safely caught.
+      const fallbackSnap = await billsRef.where('participantIds', 'array-contains', fromUserId).get();
+      // Filter in memory for bills that also involve the other user
+      allBillsDocs = fallbackSnap.docs.filter(doc => {
+        const pIds = doc.data().participantIds || [];
+        return pIds.includes(toUserId);
+      });
+    }
+  }
 
-  const [snapA, snapB] = await Promise.all([qA.get(), qB.get()]);
+  type TaggedBill = Bill & { _ownerOfBill: string; _unsettlingUid: string; isForgiveness: boolean };
+  const allBills: TaggedBill[] = [];
 
-  type TaggedBill = Bill & { _ownerOfBill: string; _unsettlingUid: string };
+  for (const doc of allBillsDocs) {
+    const bill = doc.data() as Bill;
+    const creditorUid = toUid(bill.paidById || bill.ownerId);
 
-  // Tag each bill so we know who we're marking as settled inside it
-  const batchA: TaggedBill[] = snapA.docs.map(d => ({
-    ...(d.data() as Bill), id: d.id,
-    _ownerOfBill: toUserId,
-    _unsettlingUid: fromUserId,
-  }));
-  const batchB: TaggedBill[] = snapB.docs.map(d => ({
-    ...(d.data() as Bill), id: d.id,
-    _ownerOfBill: fromUserId,
-    _unsettlingUid: toUserId,
-  }));
+    // Derive participant UIDs directly from bill.people — `participantIds` is optional
+    // and may not be populated on older bills.
+    const peopleUids = new Set((bill.people ?? []).map((p: Person) => toUid(p.id)));
 
-  // Sort merged list oldest-first — settle oldest debts first
-  const allBills = [...batchA, ...batchB].sort((a, b) => {
+    // Direction 1 (Standard Debt): fromUserId owes toUserId.
+    // Settling this consumes the 'remaining' cash pool.
+    if (creditorUid === toUserId && peopleUids.has(fromUserId)) {
+      allBills.push({ ...bill, id: doc.id, _ownerOfBill: bill.ownerId, _unsettlingUid: fromUserId, isForgiveness: false });
+    }
+    // Direction 2 (Forgiveness): toUserId owes fromUserId.
+    // By settling this, fromUserId "forgives" the debt, which mathematically
+    // acts as an infusion of virtual cash into the 'remaining' pool.
+    else if (creditorUid === fromUserId && peopleUids.has(toUserId)) {
+      allBills.push({ ...bill, id: doc.id, _ownerOfBill: bill.ownerId, _unsettlingUid: toUserId, isForgiveness: true });
+    }
+  }
+
+  // Sort: Process Forgiveness bills FIRST (to inflate the cash pool before tackling debts)
+  // Within the same category, sort oldest-first
+  allBills.sort((a, b) => {
+    if (a.isForgiveness && !b.isForgiveness) return -1;
+    if (!a.isForgiveness && b.isForgiveness) return 1;
     const tA = a.createdAt?.toMillis?.() ?? 0;
     const tB = b.createdAt?.toMillis?.() ?? 0;
     return tA - tB;
@@ -204,14 +239,15 @@ export async function processSettlementCore(
   const toSettle: BillSettlementPlan[] = [];
 
   for (const bill of allBills) {
-    if (remaining <= 0) break;
+    // If we've exhausted our cash pool AND we aren't looking at a forgiveness bill
+    // that would inject more virtual cash, we stop.
+    if (remaining <= 0 && !bill.isForgiveness) break;
     if (toSettle.length >= MAX_BILLS_PER_TX) break;
     if (!bill.billData?.items?.length) continue;
 
     const personTotals = calculatePersonTotals(bill);
     if (personTotals.size === 0) continue;
 
-    // Find the internal person ID for the unsettling participant
     const unsettlingUid = bill._unsettlingUid;
     let internalPersonId: string | null = null;
     for (const p of (bill.people ?? [])) {
@@ -219,24 +255,26 @@ export async function processSettlementCore(
     }
     if (!internalPersonId) continue;
 
-    // Already settled?
     if ((bill.settledPersonIds ?? []).includes(internalPersonId)) continue;
 
-    // How much does this person owe in this bill?
     const personShare = personTotals.get(internalPersonId) ?? 0;
     if (personShare <= 0) continue;
 
-    if (remaining >= personShare) {
+    // Forgiveness bills INFLATE the pool because we are forgiving debt owed TO us.
+    if (bill.isForgiveness) {
+      toSettle.push({ bill, internalPersonId, billOwner: bill._ownerOfBill, unsettlingUid, personTotals });
+      remaining += personShare;
+    } 
+    // Standard debts CONSUME the pool.
+    else if (remaining >= personShare) {
       toSettle.push({ bill, internalPersonId, billOwner: bill._ownerOfBill, unsettlingUid, personTotals });
       remaining -= personShare;
     } else {
-      // Not enough to fully cover this bill — stop here (partial settlement
-      // is not supported; the ledger adjustment covers the difference)
+      // Not enough strictly to cover this single bill — stop.
       break;
     }
   }
 
-  // Did we hit the batch limit? If so, there may be more bills to settle.
   const hasMore = toSettle.length >= MAX_BILLS_PER_TX && remaining > 0.01;
 
   // ── Single admin transaction: all writes are atomic ───────────────────────
@@ -251,7 +289,12 @@ export async function processSettlementCore(
     // Read all friend_balance docs that will be updated (both private and event bills)
     const affectedFriendPairs = new Set<string>();
     for (const plan of toSettle) {
-      affectedFriendPairs.add(friendBalanceId(plan.billOwner, plan.unsettlingUid));
+      const creditorUid = toUid(plan.bill.paidById || plan.billOwner);
+      if (plan.unsettlingUid === plan.billOwner) {
+         affectedFriendPairs.add(friendBalanceId(plan.billOwner, creditorUid));
+      } else {
+         affectedFriendPairs.add(friendBalanceId(plan.billOwner, plan.unsettlingUid));
+      }
     }
     // Also read the direct settlement ledger pair (for any remaining amount)
     affectedFriendPairs.add(friendBalanceId(fromUserId, toUserId));
@@ -326,6 +369,8 @@ export async function processSettlementCore(
           const friendBal = (existing?.balances?.[friendUid] ?? 0) as number;
           const balRef    = db.collection(FRIEND_BALANCES_COLLECTION).doc(balId);
 
+          const isFullySettled = Math.abs(next) < 0.001;
+
           tx.set(balRef, {
             id: balId,
             participants: [billOwner, friendUid],
@@ -333,6 +378,7 @@ export async function processSettlementCore(
               [billOwner]:  ownerBal  + delta,
               [friendUid]: friendBal - delta,
             },
+            ...(isFullySettled ? { contributingBillIds: FieldValue.arrayRemove(plan.bill.id) } : {}),
             lastUpdatedAt: now,
             lastBillId: plan.bill.id,
           }, { merge: true });

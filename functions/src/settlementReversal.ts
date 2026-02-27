@@ -95,9 +95,10 @@ export async function processSettlementReversalCore(
       const billOwner = bill.ownerId;
 
       // Determine who was settled on this bill:
-      // - Bills owned by toUserId: fromUserId was the debtor who was settled
-      // - Bills owned by fromUserId: toUserId was the debtor who was settled
-      const unsettlingUid = billOwner === toUserId ? fromUserId : toUserId;
+      // - Bills where toUserId was the creditor: fromUserId was the debtor who was settled
+      // - Bills where fromUserId was the creditor: toUserId was the debtor who was settled
+      const creditorUid = personIdToFirebaseUid(bill.paidById || billOwner);
+      const unsettlingUid = creditorUid === toUserId ? fromUserId : toUserId;
 
       // Find internal person ID (e.g., "user-{uid}") from bill's people array
       const person = (bill.people || []).find(
