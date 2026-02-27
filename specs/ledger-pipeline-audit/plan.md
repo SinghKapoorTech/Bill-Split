@@ -9,20 +9,21 @@
 - [x] **Commit 5:** Add `_ledgerVersion` pipeline guard flag
 - [x] **Commit 6:** Remove client-side ledger writes (**BREAKING** — deploy pipeline first)
 - [x] **Commit 7:** Lock down security rules (**BREAKING** — requires Commit 6)
-- [ ] **Commit 8:** Remove event_balances writes from settlement processor
-- [ ] **Commit 9:** Create `reverseSettlement` Cloud Function
-- [ ] **Commit 10:** Batch limit + idempotency for settlement processor
-- [ ] **Commit 11:** Create `friendAddProcessor` Cloud Function (retroactive scan)
-- [ ] **Commit 12:** Client-side event cache fallback
-- [ ] **Commit 13:** Batch friend profile hydration
-- [ ] **Commit 14:** Batch squad member hydration
-- [ ] **Commit 15:** Add missing composite index
-- [ ] **Commit 16:** Transaction for `updatePersonDetails`
-- [ ] **Commit 17:** Atomic squad member sync
-- [ ] **Commits 18-21:** Operational hardening (optional)
+- [x] **Commit 8:** Add `contributingBillIds` to friend_balances (pipeline tracks which bills contribute)
+- [ ] **Commit 9:** Remove event_balances writes from settlement processor
+- [ ] **Commit 10:** Create `reverseSettlement` Cloud Function
+- [ ] **Commit 11:** Batch limit + idempotency for settlement processor
+- [ ] **Commit 12:** Create `friendAddProcessor` Cloud Function (retroactive scan)
+- [ ] **Commit 13:** Client-side event cache fallback
+- [ ] **Commit 14:** Batch friend profile hydration
+- [ ] **Commit 15:** Batch squad member hydration
+- [ ] **Commit 16:** Add missing composite index
+- [ ] **Commit 17:** Transaction for `updatePersonDetails`
+- [ ] **Commit 18:** Atomic squad member sync
+- [ ] **Commits 19-22:** Operational hardening (optional)
 
-**Current phase:** Commits 1-7 complete. Next up is Commit 8 (remove event_balances writes from settlement processor).
-**Critical deploy order:** Pipeline (Commits 4-5) must be deployed before Commit 6 removes client writes. ✅ Done.
+**Current phase:** Commits 1-8 complete. Next up is Commit 9 (remove event_balances writes from settlement processor).
+**Critical deploy order:** Pipeline (Commits 4-5) deployed. Client writes removed (Commit 6). Rules locked (Commit 7). ✅ All done.
 
 ---
 

@@ -116,6 +116,25 @@ interface Settlement {
   settledBillIds?: string[]; // Bill IDs fully settled by this payment (enables reversal)
 ```
 
+### `friend_balances` Collection
+Pairwise running balance between two users. Written exclusively by the server-side pipeline (Admin SDK).
+```typescript
+interface FriendBalance {
+  id: string;                        // Deterministic: sorted uid1_uid2
+  participants: [string, string];    // The two user UIDs
+  balances: Record<string, number>;  // { uid1: amount, uid2: -amount }
+  contributingBillIds: string[];     // All bill IDs with non-zero contribution to this balance
+  lastUpdatedAt: Timestamp;
+  lastBillId: string;                // Most recent bill that triggered a change
+}
+```
+
+The `contributingBillIds` array is maintained atomically by the pipeline:
+- `arrayUnion(billId)` when a bill has a non-zero contribution to this friend pair
+- `arrayRemove(billId)` when a bill's contribution goes to zero (settled, person removed, or bill deleted)
+
+This enables the UI to show which bills make up a debt and simplifies settlement by providing bill IDs directly.
+
 ---
 
 ## Shared Pure Modules

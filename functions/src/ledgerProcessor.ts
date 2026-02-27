@@ -19,7 +19,7 @@
  */
 
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { calculatePersonTotals } from '../../shared/calculations.js';
 import {
   personIdToFirebaseUid,
@@ -166,6 +166,14 @@ async function applyFriendLedger(
       const currentOwnerBal: number = (existing?.balances?.[ownerId] ?? 0) as number;
       const currentFriendBal: number = (existing?.balances?.[friendUserId] ?? 0) as number;
 
+      // Track which bills contribute to this friend pair's balance.
+      // If this bill still has a non-zero contribution → arrayUnion (add).
+      // If contribution went to zero (settled/removed) → arrayRemove (remove).
+      const friendAmount = newFootprint[friendUserId] ?? 0;
+      const billIdUpdate = Math.abs(friendAmount) > 0.001
+        ? { contributingBillIds: FieldValue.arrayUnion(billId) }
+        : { contributingBillIds: FieldValue.arrayRemove(billId) };
+
       tx.set(ref, {
         id: ref.id,
         participants: [ownerId, friendUserId],
@@ -173,6 +181,7 @@ async function applyFriendLedger(
           [ownerId]: currentOwnerBal + delta,
           [friendUserId]: currentFriendBal - delta,
         },
+        ...billIdUpdate,
         lastUpdatedAt: now,
         lastBillId: billId,
       }, { merge: true });
@@ -234,6 +243,7 @@ async function reverseFootprint(
           [ownerId]: currentOwnerBal - amount,
           [friendId]: currentFriendBal + amount,
         },
+        contributingBillIds: FieldValue.arrayRemove(billId),
         lastUpdatedAt: now,
         lastBillId: billId,
       }, { merge: true });
