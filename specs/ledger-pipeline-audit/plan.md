@@ -19,10 +19,10 @@
 - [x] **Commit 15:** Batch squad member hydration
 - [x] **Commit 16:** Add missing composite index
 - [x] **Commit 17:** Transaction for `updatePersonDetails`
-- [ ] **Commit 18:** Atomic squad member sync
+- [x] **Commit 18:** Atomic squad member sync
 - [ ] **Commits 19-22:** Operational hardening (optional)
 
-**Current phase:** Commits 1-17 complete. Next up is Commit 18 (atomic squad member sync).
+**Current phase:** Commits 1-18 complete. Commits 19-22 (operational hardening) are optional.
 **Critical deploy order:** Pipeline (Commits 4-5) deployed. Client writes removed (Commit 6). Rules locked (Commit 7). ✅ All done.
 
 ---

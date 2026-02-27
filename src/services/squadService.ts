@@ -187,28 +187,22 @@ export async function saveSquad(userId: string, input: CreateSquadInput): Promis
       updatedAt: now,
     };
 
-    // 1. Create squad document first (must succeed)
+    // Atomically create squad doc + update all member profiles in one batch
+    const batch = writeBatch(db);
+
     const squadRef = doc(db, 'squads', squadId);
-    await setDoc(squadRef, {
+    batch.set(squadRef, {
       ...convertToFirestore(newSquad),
-      id: squadId 
+      id: squadId
     });
 
-    // 2. Best-effort: Add squad ID to each member's profile.
-    // We do these individually so that one missing user doc doesn't
-    // prevent the squad from being created.
     for (const mId of memberIds) {
       if (mId.startsWith('guest_')) continue;
-      try {
-        const userRef = doc(db, 'users', mId);
-        await updateDoc(userRef, {
-          squadIds: arrayUnion(squadId)
-        });
-      } catch (err) {
-        console.warn(`Could not update squadIds for user ${mId}:`, err);
-      }
+      const userRef = doc(db, 'users', mId);
+      batch.update(userRef, { squadIds: arrayUnion(squadId) });
     }
 
+    await batch.commit();
     return squadId;
   } catch (error) {
     console.error('Error saving squad:', error);
@@ -260,36 +254,27 @@ export async function updateSquad(userId: string, squadId: string, updates: Upda
         updateData.memberIds = newMemberIds;
     }
 
-    await updateDoc(squadRef, updateData);
-    
-    // Sync user profiles if members changed
-    // This part is tricky to do atomically without a huge batch. 
-    // We'll proceed with just updating the squad for now, assuming fetchUserSquads relies on user.squadIds.
-    // WAIT. `fetchUserSquads` relies on `user.squadIds`. If we add a member here, we MUST update their `squadIds`.
-    
+    // Atomically update squad doc + sync all member profiles in one batch
+    const batch = writeBatch(db);
+    batch.update(squadRef, updateData);
+
     if (updates.members) {
         const addedMembers = newMemberIds.filter((id: string) => !currentMemberIds.includes(id));
         const removedMembers = currentMemberIds.filter((id: string) => !newMemberIds.includes(id));
-        
+
         for (const id of addedMembers) {
           if (id.startsWith('guest_')) continue;
-          try {
-            const userRef = doc(db, 'users', id);
-            await updateDoc(userRef, { squadIds: arrayUnion(squadId) });
-          } catch (err) {
-            console.warn(`Could not add squadId to user ${id}:`, err);
-          }
+          const userRef = doc(db, 'users', id);
+          batch.update(userRef, { squadIds: arrayUnion(squadId) });
         }
         for (const id of removedMembers) {
           if (id.startsWith('guest_')) continue;
-          try {
-            const userRef = doc(db, 'users', id);
-            await updateDoc(userRef, { squadIds: arrayRemove(squadId) });
-          } catch (err) {
-            console.warn(`Could not remove squadId from user ${id}:`, err);
-          }
+          const userRef = doc(db, 'users', id);
+          batch.update(userRef, { squadIds: arrayRemove(squadId) });
         }
     }
+
+    await batch.commit();
 
   } catch (error) {
     console.error('Error updating squad:', error);
@@ -311,21 +296,17 @@ export async function deleteSquad(userId: string, squadId: string): Promise<void
     
     const memberIds = squadDoc.data().memberIds || [];
 
-    // 1. Delete squad document first
-    await deleteDoc(squadRef);
+    // Atomically delete squad doc + remove squadId from all member profiles
+    const batch = writeBatch(db);
+    batch.delete(squadRef);
 
-    // 2. Best-effort: Remove squad ID from each member's profile
     for (const mId of memberIds) {
       if (mId.startsWith('guest_')) continue;
-      try {
-        const userRef = doc(db, 'users', mId);
-        await updateDoc(userRef, {
-          squadIds: arrayRemove(squadId)
-        });
-      } catch (err) {
-        console.warn(`Could not remove squadId from user ${mId}:`, err);
-      }
+      const userRef = doc(db, 'users', mId);
+      batch.update(userRef, { squadIds: arrayRemove(squadId) });
     }
+
+    await batch.commit();
   } catch (error) {
     console.error('Error deleting squad:', error);
     throw new Error('Failed to delete squad');
