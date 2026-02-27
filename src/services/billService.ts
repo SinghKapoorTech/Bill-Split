@@ -12,7 +12,8 @@ import {
   serverTimestamp,
   arrayUnion,
   arrayRemove,
-  orderBy
+  orderBy,
+  runTransaction
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Bill, BillData, BillType, BillMember } from '@/types/bill.types';
@@ -427,44 +428,46 @@ export const billService = {
   ): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
 
-    // 1. Get current bill data
-    const billSnap = await getDoc(billRef);
-    if (!billSnap.exists()) throw new Error('Bill not found');
+    await runTransaction(db, async (tx) => {
+      // 1. Read inside transaction for consistency
+      const billSnap = await tx.get(billRef);
+      if (!billSnap.exists()) throw new Error('Bill not found');
 
-    const billData = billSnap.data() as Bill;
-    const people = billData.people || [];
+      const billData = billSnap.data() as Bill;
+      const people = billData.people || [];
 
-    // 2. Find and update the person
-    const personIndex = people.findIndex(p => p.id === personId);
-    if (personIndex === -1) throw new Error('Person not found on this bill');
+      // 2. Find and update the person
+      const personIndex = people.findIndex(p => p.id === personId);
+      if (personIndex === -1) throw new Error('Person not found on this bill');
 
-    const updatedPeople = [...people];
-    updatedPeople[personIndex] = {
-      ...updatedPeople[personIndex],
-      ...updates
-    };
-
-    // 3. Write back the updated people array
-    // Also update member record if this person is a member
-    const members = billData.members || [];
-    const memberIndex = members.findIndex(m => m.userId === personId);
-
-    const updatePayload: any = {
-      people: updatedPeople,
-      updatedAt: serverTimestamp(),
-      lastActivity: serverTimestamp()
-    };
-
-    if (memberIndex !== -1 && updates.name) {
-      const updatedMembers = [...members];
-      updatedMembers[memberIndex] = {
-        ...updatedMembers[memberIndex],
-        name: updates.name
+      const updatedPeople = [...people];
+      updatedPeople[personIndex] = {
+        ...updatedPeople[personIndex],
+        ...updates
       };
-      updatePayload.members = updatedMembers;
-    }
 
-    await updateDoc(billRef, updatePayload);
+      // 3. Write back the updated people array
+      // Also update member record if this person is a member
+      const members = billData.members || [];
+      const memberIndex = members.findIndex(m => m.userId === personId);
+
+      const updatePayload: any = {
+        people: updatedPeople,
+        updatedAt: serverTimestamp(),
+        lastActivity: serverTimestamp()
+      };
+
+      if (memberIndex !== -1 && updates.name) {
+        const updatedMembers = [...members];
+        updatedMembers[memberIndex] = {
+          ...updatedMembers[memberIndex],
+          name: updates.name
+        };
+        updatePayload.members = updatedMembers;
+      }
+
+      tx.update(billRef, updatePayload);
+    });
   },
 };
 
