@@ -15,14 +15,14 @@
 - [x] **Commit 11:** Batch limit + idempotency for settlement processor
 - [x] **Commit 12:** Create `friendAddProcessor` Cloud Function (retroactive scan)
 - [x] **Commit 13:** Client-side event cache fallback
-- [ ] **Commit 14:** Batch friend profile hydration
-- [ ] **Commit 15:** Batch squad member hydration
+- [x] **Commit 14:** Batch friend profile hydration
+- [x] **Commit 15:** Batch squad member hydration
 - [ ] **Commit 16:** Add missing composite index
 - [ ] **Commit 17:** Transaction for `updatePersonDetails`
 - [ ] **Commit 18:** Atomic squad member sync
 - [ ] **Commits 19-22:** Operational hardening (optional)
 
-**Current phase:** Commits 1-13 complete. Next up is Commit 14 (batch friend profile hydration).
+**Current phase:** Commits 1-15 complete. Next up is Commit 16 (add missing composite index).
 **Critical deploy order:** Pipeline (Commits 4-5) deployed. Client writes removed (Commit 6). Rules locked (Commit 7). ✅ All done.
 
 ---

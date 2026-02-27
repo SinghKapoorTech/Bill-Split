@@ -1,8 +1,12 @@
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, Timestamp, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, Timestamp, writeBatch, collection, query, where, getDocs, documentId } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { Squad, HydratedSquad, CreateSquadInput, UpdateSquadInput, SquadMember } from '@/types/squad.types';
+import { UserProfile } from '@/types/person.types';
 import { generateSquadId } from '@/utils/squadUtils';
 import { userService } from './userService';
+
+const USERS_COLLECTION = 'users';
+const BATCH_SIZE = 30; // Firestore 'in' operator limit
 
 interface FirestoreSquad {
   id: string;
@@ -41,33 +45,51 @@ function convertToFirestore(squad: Omit<Squad, 'createdAt' | 'updatedAt'> & { cr
 }
 
 /**
- * Helper to hydrate a squad with member details
+ * Batch-fetches user profiles by ID using documentId() in queries.
+ * Returns a map of userId -> UserProfile.
  */
-async function hydrateSquad(squad: Squad): Promise<HydratedSquad> {
-  const memberPromises = squad.memberIds.map(async (memberId) => {
-    try {
-      const userProfile = await userService.getUserProfile(memberId);
-      if (userProfile) {
-        return {
-          id: userProfile.uid,
-          name: userProfile.displayName,
-          venmoId: userProfile.venmoId,
-          email: userProfile.email,
-          phoneNumber: userProfile.phoneNumber
-        } as SquadMember;
-      }
-    } catch (e) {
-      console.error(`Failed to fetch profile for ${memberId}`, e);
+async function batchFetchProfiles(userIds: string[]): Promise<Record<string, UserProfile>> {
+  const profileMap: Record<string, UserProfile> = {};
+  if (userIds.length === 0) return profileMap;
+
+  const usersRef = collection(db, USERS_COLLECTION);
+  const uniqueIds = [...new Set(userIds)];
+
+  for (let i = 0; i < uniqueIds.length; i += BATCH_SIZE) {
+    const batch = uniqueIds.slice(i, i + BATCH_SIZE);
+    const q = query(usersRef, where(documentId(), 'in', batch));
+    const snap = await getDocs(q);
+    snap.docs.forEach(d => {
+      profileMap[d.id] = d.data() as UserProfile;
+    });
+  }
+
+  return profileMap;
+}
+
+/**
+ * Helper to hydrate a squad with member details.
+ * Accepts an optional pre-fetched profile map to avoid redundant reads.
+ */
+async function hydrateSquad(squad: Squad, profileMap?: Record<string, UserProfile>): Promise<HydratedSquad> {
+  // Fetch profiles if not provided
+  const profiles = profileMap ?? await batchFetchProfiles(squad.memberIds);
+
+  const members: SquadMember[] = squad.memberIds.map(memberId => {
+    const profile = profiles[memberId];
+    if (profile) {
+      return {
+        id: profile.uid,
+        name: profile.displayName,
+        venmoId: profile.venmoId,
+        email: profile.email,
+        phoneNumber: profile.phoneNumber,
+      } as SquadMember;
     }
     return { name: 'Unknown User', id: memberId } as SquadMember;
   });
 
-  const members = await Promise.all(memberPromises);
-
-  return {
-    ...squad,
-    members
-  };
+  return { ...squad, members };
 }
 
 /**
@@ -84,21 +106,27 @@ export async function fetchUserSquads(userId: string): Promise<HydratedSquad[]> 
       return [];
     }
 
-    // Fetch all squads in parallel
-    const squadPromises = userProfile.squadIds.map(async (squadId) => {
-      const squadDocRef = doc(db, 'squads', squadId);
-      const squadDoc = await getDoc(squadDocRef);
-      if (squadDoc.exists()) {
-        const squad = convertFromFirestore({ id: squadDoc.id, ...squadDoc.data() } as FirestoreSquad);
-        return hydrateSquad(squad);
-      }
-      return null;
-    });
+    // Batch-fetch all squad docs using documentId() in queries
+    const squadsRef = collection(db, 'squads');
+    const squads: Squad[] = [];
 
-    const squads = await Promise.all(squadPromises);
-    
-    // Filter out any nulls
-    return squads.filter((s): s is HydratedSquad => s !== null);
+    for (let i = 0; i < userProfile.squadIds.length; i += BATCH_SIZE) {
+      const batch = userProfile.squadIds.slice(i, i + BATCH_SIZE);
+      const q = query(squadsRef, where(documentId(), 'in', batch));
+      const snap = await getDocs(q);
+      snap.docs.forEach(d => {
+        squads.push(convertFromFirestore({ id: d.id, ...d.data() } as FirestoreSquad));
+      });
+    }
+
+    if (squads.length === 0) return [];
+
+    // Collect all unique member IDs across all squads, then batch-fetch profiles once
+    const allMemberIds = [...new Set(squads.flatMap(s => s.memberIds))];
+    const profileMap = await batchFetchProfiles(allMemberIds);
+
+    // Hydrate all squads using the pre-fetched profiles
+    return Promise.all(squads.map(squad => hydrateSquad(squad, profileMap)));
   } catch (error) {
     console.error('Error fetching squads:', error);
     throw new Error('Failed to load squads');

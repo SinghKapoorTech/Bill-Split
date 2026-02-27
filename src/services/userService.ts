@@ -11,6 +11,7 @@ import {
   query,
   where,
   getDocs,
+  documentId,
   limit
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -189,10 +190,24 @@ export const userService = {
       });
     }
 
+    // Batch-fetch friend profiles using documentId() in queries (max 30 per batch).
+    // This reduces N individual reads to ceil(N/30) batch reads.
+    const profileMap: Record<string, UserProfile> = {};
+    const usersRef = collection(db, USERS_COLLECTION);
+    const BATCH_SIZE = 30; // Firestore 'in' operator limit
+
+    for (let i = 0; i < friendIds.length; i += BATCH_SIZE) {
+      const batch = friendIds.slice(i, i + BATCH_SIZE);
+      const q = query(usersRef, where(documentId(), 'in', batch));
+      const snap = await getDocs(q);
+      snap.docs.forEach(d => {
+        profileMap[d.id] = d.data() as UserProfile;
+      });
+    }
+
     const hydratedFriends: Friend[] = [];
     for (const friendId of friendIds) {
-      if (!friendId) continue;
-      const friendProfile = await this.getUserProfile(friendId);
+      const friendProfile = profileMap[friendId];
       if (friendProfile) {
         hydratedFriends.push({
           id: friendProfile.uid,
