@@ -134,32 +134,63 @@ Core calculation logic is extracted into framework-agnostic pure modules under `
 
 ---
 
-## Unified Ledger Write Path
+## Server-Side Ledger Pipeline
 
-Any time a Bill is Created, Edited, or Deleted, all ledger mutations are orchestrated through a single entry point:
+> [!NOTE]
+> **Migration in progress.** The pipeline (`ledgerProcessor`) now runs server-side alongside the existing client-side writes. Once verified, client-side writes will be removed and security rules locked down.
 
-### `ledgerService.applyBillToLedgers(billId, ownerId, personTotals, eventId?)`
-This calls both underlying services in parallel via `Promise.all`:
+All ledger mutations are moving to a **server-side pipeline** — a Firestore `onDocumentWritten` trigger on `bills/{billId}`. The client only writes bill documents; the pipeline handles all downstream ledger effects.
 
-#### Step A — `friendBalanceService.applyBillBalancesIdempotent()`
-1. **Transaction Start:** Read `Bill` and target `friend_balances`.
-2. Compute new footprint using `calculateFriendFootprint()` from shared module.
-3. Compute delta using `computeFootprintDeltas(newFootprint, bill.processedBalances)`.
-4. Apply only the delta to the `friend_balances` doc (not a full replacement).
-5. Save new footprint via `toProcessedBalances()` back onto the Bill.
-6. **Transaction End.**
+### `ledgerProcessor` Cloud Function (`functions/src/ledgerProcessor.ts`)
 
-#### Step B — `eventLedgerService.applyBillToEventLedgerIdempotent()` (if `eventId` provided)
-1. **Transaction Start:** Read `Bill` and target `event_balances`.
-2. Look at `bill.eventBalancesApplied`.
-3. Subtract the exact amounts in `eventBalancesApplied` from `event_balances.netBalances`.
-4. Add the `newTotals` to `event_balances.netBalances`.
-5. Run `optimizeDebts()` from shared module on the newly aggregated `netBalances`.
-6. Overwrite the `bill.eventBalancesApplied` with `newTotals`.
-7. **Transaction End.**
+```
+Bill Create/Edit/Delete  →  Firestore bills/{billId}
+                                    │
+                         onDocumentWritten trigger
+                                    │
+                                    ▼
+              ┌─────────────────────────────────────┐
+              │  Stage 1: VALIDATE & CALCULATE      │
+              │  - Compute personTotals from bill    │
+              │  - Determine creditor (paidById)     │
+              ├─────────────────────────────────────┤
+              │  Stage 2: FRIEND LEDGER             │
+              │  [authoritative, in transaction]     │
+              │  - Compute footprint → delta         │
+              │  - Apply to friend_balances          │
+              │  - Save processedBalances on bill    │
+              ├─────────────────────────────────────┤
+              │  Stage 3: EVENT CACHE               │
+              │  [best-effort, outside transaction]  │
+              │  - Full rebuild from all event bills │
+              │  - Write to event_balances           │
+              └─────────────────────────────────────┘
+```
 
-> [!IMPORTANT]
-> UI code should **never** import `friendBalanceService` or `eventLedgerService` directly. All mutations go through `ledgerService`, which guarantees both ledgers are always updated atomically.
+**Key design decisions:**
+- **Stage 2 is a Firestore transaction** — atomic, retries on contention, authoritative
+- **Stage 3 is outside the transaction** — it's just a cache rebuild. If it fails, friend_balances (the authority) is still correct. Cache rebuilds on the next bill change.
+- **Loop prevention:** `hasRelevantChange()` compares only bill-content fields (`billData`, `people`, `itemAssignments`, `settledPersonIds`, `paidById`, `splitEvenly`, `ownerId`). The pipeline's own `processedBalances` write is excluded, preventing infinite trigger loops.
+- **Delete handling:** reads footprint from `before` snapshot, reverses friend_balances, rebuilds event cache without the deleted bill.
+
+### Legacy Client-Side Write Path (being removed)
+
+> [!WARNING]
+> The client-side write path below is being phased out. During transition, both paths run in parallel safely due to idempotent delta design.
+
+#### `ledgerService.applyBillToLedgers(billId, ownerId, personTotals, eventId?)`
+Calls both services sequentially:
+
+**Step A — `friendBalanceService.applyBillBalancesIdempotent()`**
+1. Compute new footprint using `calculateFriendFootprint()` from shared module.
+2. Compute delta using `computeFootprintDeltas(newFootprint, bill.processedBalances)`.
+3. Apply delta to `friend_balances` doc in transaction.
+4. Save new footprint via `toProcessedBalances()` back onto the Bill.
+
+**Step B — `eventLedgerService.applyBillToEventLedgerIdempotent()` (if `eventId` provided)**
+1. Reverse old `eventBalancesApplied`, apply new totals to `event_balances.netBalances`.
+2. Run `optimizeDebts()` on aggregated balances.
+3. Save new `eventBalancesApplied` on the Bill.
 
 ---
 

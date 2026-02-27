@@ -121,25 +121,20 @@ Each commit is small and self-contained. System stays functional after every com
 
 ### PHASE 2: Server-Side Pipeline (Core migration)
 
-#### Commit 4: Create `ledgerProcessor` Cloud Function
+#### ~~Commit 4: Create `ledgerProcessor` Cloud Function~~ DONE
 
-The heart of the pipeline. Firestore `onWrite` trigger on bills collection.
-
-- Create `functions/src/ledgerProcessor.ts`:
-  - Trigger: `onDocumentWritten('bills/{billId}')`
+- Created `functions/src/ledgerProcessor.ts`:
+  - Trigger: `onDocumentWritten('bills/{billId}')` — 60s timeout, 256MiB memory
   - On create/update:
-    - Stage 1: Validate bill, calculate personTotals from trusted data
-    - Stage 2: Apply friend_balances delta (idempotent, using shared calculations) — in `runTransaction`
-    - Stage 3: Rebuild event cache if `eventId` set — query event bills, aggregate, write cache (outside tx)
-  - On delete:
-    - Read footprint from `before` snapshot
-    - Reverse friend_balances delta in transaction
-    - Rebuild event cache (without deleted bill)
-  - Log stage decisions for observability
-- Register in `functions/src/index.ts`
-- **DO NOT remove client-side ledger service yet** — both run in parallel (idempotent, safe)
-- Deploy Cloud Functions
-- Verify: Create bill → check Cloud Function logs → check friend_balances updated.
+    - Stage 1: Validate bill, compute personTotals (splitEvenly or item-assignment) from trusted data
+    - Stage 2: Compute friend footprint, delta against processedBalances, apply to friend_balances in `runTransaction`
+    - Stage 3: Rebuild event_balances cache (full rebuild from all event bills, outside transaction)
+  - On delete: reverse footprint from `before` snapshot, rebuild event cache without deleted bill
+  - Loop prevention: `hasRelevantChange()` compares only bill-content fields, skips pipeline's own processedBalances write
+  - Structured logging at every stage decision
+- Registered in `functions/src/index.ts` via re-export
+- Client-side ledger service left intact — both run in parallel (idempotent, safe)
+- Both client and functions type-check clean.
 
 #### Commit 5: Add pipeline guard flag
 
