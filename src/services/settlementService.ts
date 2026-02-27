@@ -1,10 +1,8 @@
 import {
   collection,
-  doc,
   getDocs,
   query,
   where,
-  deleteDoc,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '@/config/firebase';
@@ -92,9 +90,17 @@ export const settlementService = {
   },
 
   /**
-   * Deletes a settlement (e.g. if created by mistake)
+   * Reverses a settlement via the Cloud Function.
+   * Un-settles bills, reverses remaining amount from friend_balances,
+   * and deletes the settlement record atomically.
    */
-  async deleteSettlement(settlementId: string): Promise<void> {
-    await deleteDoc(doc(db, SETTLEMENTS_COLLECTION, settlementId));
+  async deleteSettlement(settlementId: string): Promise<{ reversed: boolean; billsReversed: number }> {
+    const fn = httpsCallable<
+      { settlementId: string },
+      { reversed: boolean; billsReversed: number }
+    >(functions, 'reverseSettlement');
+
+    const result = await fn({ settlementId });
+    return result.data;
   }
 };

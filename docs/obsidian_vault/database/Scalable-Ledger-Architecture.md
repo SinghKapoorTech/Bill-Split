@@ -66,6 +66,7 @@ When you edit a bill, the engine:
 - The ledger pipeline auto-fires for each modified bill and rebuilds the `event_balances` cache.
 - Any remaining partial payment left over is applied directly to `friend_balances` as an idempotent deduction.
 - The settlement processor does **not** write to `event_balances` — the pipeline handles that as a cache rebuild.
+- Settlements can be **reversed** via the `reverseSettlement` Cloud Function, which un-settles bills and restores balances atomically.
 
 ---
 

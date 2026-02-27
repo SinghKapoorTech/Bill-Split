@@ -344,6 +344,7 @@ export async function processSettlementCore(
       fromUserId,
       toUserId,
       amount,
+      remainingAmount: parseFloat(remaining.toFixed(2)),
       date: now,
       billsSettled: toSettle.length,
       settledBillIds: toSettle.map(p => p.bill.id),
