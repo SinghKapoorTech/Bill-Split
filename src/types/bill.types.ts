@@ -49,6 +49,11 @@ export interface Bill {
   // Tracks exactly what was added to the local event ledger
   eventBalancesApplied?: Record<string, number>;
 
+  // Pipeline version — incremented each time the server-side ledgerProcessor
+  // processes this bill. Used for observability and as an additional guard
+  // against redundant trigger processing.
+  _ledgerVersion?: number;
+
   // Participants
   people: Person[];
 

@@ -334,6 +334,15 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
 );
 
 /**
+ * Cloud Function: Ledger Pipeline
+ *
+ * Firestore onDocumentWritten trigger on bills/{billId}.
+ * Handles all ledger mutations server-side: friend_balances (authoritative)
+ * and event_balances cache (best-effort rebuild).
+ */
+export { ledgerProcessor } from './ledgerProcessor.js';
+
+/**
  * Cloud Function: Process a settlement between two users.
  *
  * Atomically marks shared bills as settled, updates friend and event ledgers,
