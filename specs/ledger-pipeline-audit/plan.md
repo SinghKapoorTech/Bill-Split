@@ -7,8 +7,8 @@
 - [x] **Commit 3:** Add `settledBillIds` to settlement type and processor
 - [x] **Commit 4:** Create `ledgerProcessor` Cloud Function (pipeline core)
 - [x] **Commit 5:** Add `_ledgerVersion` pipeline guard flag
-- [ ] **Commit 6:** Remove client-side ledger writes (**BREAKING** — deploy pipeline first)
-- [ ] **Commit 7:** Lock down security rules (**BREAKING** — requires Commit 6)
+- [x] **Commit 6:** Remove client-side ledger writes (**BREAKING** — deploy pipeline first)
+- [x] **Commit 7:** Lock down security rules (**BREAKING** — requires Commit 6)
 - [ ] **Commit 8:** Remove event_balances writes from settlement processor
 - [ ] **Commit 9:** Create `reverseSettlement` Cloud Function
 - [ ] **Commit 10:** Batch limit + idempotency for settlement processor
@@ -21,8 +21,8 @@
 - [ ] **Commit 17:** Atomic squad member sync
 - [ ] **Commits 18-21:** Operational hardening (optional)
 
-**Current phase:** Phase 2 (Server-Side Pipeline) — next up is Commit 6.
-**Critical deploy order:** Pipeline (Commits 4-5) must be deployed before Commit 6 removes client writes.
+**Current phase:** Commits 1-7 complete. Next up is Commit 8 (remove event_balances writes from settlement processor).
+**Critical deploy order:** Pipeline (Commits 4-5) must be deployed before Commit 6 removes client writes. ✅ Done.
 
 ---
 
@@ -169,19 +169,19 @@ Each commit is small and self-contained. System stays functional after every com
 - Loop prevention via `hasRelevantChange()` excludes both `processedBalances` and `_ledgerVersion`
 - Both client and functions type-check clean.
 
-#### Commit 6: Remove client-side ledger writes
+#### ~~Commit 6: Remove client-side ledger writes~~ DONE
 
-Pipeline is proven. Remove client-side writes.
-
-- Modify `src/services/ledgerService.ts`:
-  - `applyBillToLedgers()` → becomes no-op (log "handled by pipeline")
-  - `reverseBillFromLedgers()` → becomes no-op (pipeline handles delete)
-- Delete `src/services/friendBalanceService.ts`
-- Modify `src/services/eventLedgerService.ts` — remove write functions, keep only `optimizeDebts` export
-- Simplify `src/hooks/useBills.ts` `deleteSession()` — just `deleteDoc()`, pipeline handles reversal
-- Simplify `src/hooks/useEventBills.ts` `deleteTransaction()` — same
-- Remove `useEffect` in `BillWizard.tsx` that calls `ledgerService.applyBillToLedgers()` on review step
-- Verify: Full flow works — create, edit, settle, delete. All via pipeline.
+- `src/services/ledgerService.ts` — both methods are now no-ops (pipeline handles everything)
+- Deleted `src/services/friendBalanceService.ts`
+- `src/services/eventLedgerService.ts` — removed all write functions, kept only `EventLedger` interface + `OptimizedDebt` re-export
+- `src/hooks/useBills.ts` — removed `reverseBillFromLedgers` calls from `clearSession` and `deleteSession`
+- `src/hooks/useEventBills.ts` — removed `reverseBillFromLedgers` call from `deleteTransaction`
+- `src/components/bill-wizard/BillWizard.tsx` — removed `useEffect` that called `applyBillToLedgers` on review step
+- `src/components/bill-wizard/steps/ReviewStep.tsx` — removed `applyBillToLedgers` from settle toggle
+- `src/pages/CollaborativeSessionView.tsx` — removed `applyBillToLedgers` from settle toggle
+- `src/components/simple-transaction-wizard/SimpleTransactionWizard.tsx` — removed all `applyBillToLedgers` calls + unused `getPersonTotals` helper
+- All `ledgerService` imports removed from files that no longer need them
+- Both client and functions type-check clean.
 
 #### Commit 7: Lock down security rules
 
@@ -359,7 +359,7 @@ Same N+1 problem.
 | 3 | Add `settledBillIds` to settlements | DONE | Additive | Functions |
 | 4 | Create `ledgerProcessor` pipeline | DONE | Additive (parallel) | Functions |
 | 5 | Add pipeline guard flag | DONE | Coordination | Functions |
-| 6 | Remove client-side ledger writes | TODO | **Breaking** | Client |
+| 6 | Remove client-side ledger writes | DONE | **Breaking** | Client |
 | 7 | Lock down security rules | TODO | **Breaking** | Rules |
 | 8 | Remove event_balances from settlement | TODO | Simplification | Functions |
 | 9 | Create `reverseSettlement` | TODO | Additive | Functions + Client |

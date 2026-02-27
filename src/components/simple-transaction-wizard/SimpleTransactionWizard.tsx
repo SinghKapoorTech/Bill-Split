@@ -3,9 +3,8 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
-import { Person, PersonTotal } from '@/types';
+import { Person } from '@/types';
 import { billService } from '@/services/billService';
-import { ledgerService } from '@/services/ledgerService';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { Stepper, StepContent } from '@/components/ui/stepper';
 import { PillProgress } from '@/components/ui/pill-progress';
@@ -87,20 +86,6 @@ export function SimpleTransactionWizard() {
     return true;
   };
 
-  // Helper to calculate totals for balances
-  const getPersonTotals = (currentAmount: number, currentPeople: Person[]): PersonTotal[] => {
-    const numAmount = currentAmount || 0;
-    const splitAmount = currentPeople.length > 0 ? numAmount / currentPeople.length : 0;
-    return currentPeople.map(p => ({
-      personId: p.id,
-      name: p.name,
-      itemsSubtotal: splitAmount,
-      tax: 0,
-      tip: 0,
-      total: splitAmount
-    }));
-  };
-
   // ── Auto-save existing transactions (Debounced) ───────────
   // Automatically saves edits to Amount, Title, and People if this transaction already exists in the database.
   useEffect(() => {
@@ -128,14 +113,8 @@ export function SimpleTransactionWizard() {
           itemAssignments: {
             [dummyItemId]: people.map(p => p.id)
           }
-      }).then(async () => {
-         const personTotals = getPersonTotals(numAmount, people);
-         try {
-           await ledgerService.applyBillToLedgers(billId, user.uid, personTotals, targetEventId || undefined);
-         } catch (e) {
-           console.error("ledger error in autosave:", e);
-         }
       }).catch(console.error);
+      // Ledger update handled by server-side pipeline (bill write triggers re-processing)
       
     }, 1000);
 
@@ -185,17 +164,9 @@ export function SimpleTransactionWizard() {
             [dummyItemId]: people.map(p => p.id)
           }
         });
-
-        // Apply balances only AFTER successfully writing the bill to database
-        const personTotals = getPersonTotals(numAmount, people);
-        await ledgerService.applyBillToLedgers(
-          billId,
-          user.uid,
-          personTotals,
-          targetEventId || undefined
-        ).catch(console.error);
+        // Ledger update handled by server-side pipeline (bill write triggers re-processing)
       } else {
-        const newBillId = await billService.createSimpleTransaction(
+        await billService.createSimpleTransaction(
           user.uid,
           user.displayName || 'Anonymous',
           numAmount,
@@ -204,13 +175,7 @@ export function SimpleTransactionWizard() {
           people,
           targetEventId
         );
-        const personTotals = getPersonTotals(numAmount, people);
-        await ledgerService.applyBillToLedgers(
-          newBillId,
-          user.uid,
-          personTotals,
-          targetEventId || undefined
-        ).catch(console.error);
+        // Ledger update handled by server-side pipeline (bill create triggers processing)
       }
 
       if (targetEventId) {

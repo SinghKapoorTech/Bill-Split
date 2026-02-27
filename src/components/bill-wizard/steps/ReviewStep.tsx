@@ -8,7 +8,6 @@ import { Person, BillData, ItemAssignment, PersonTotal } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { billService } from '@/services/billService';
-import { ledgerService } from '@/services/ledgerService';
 import { arrayUnion, arrayRemove } from 'firebase/firestore';
 
 interface ReviewStepProps {
@@ -92,21 +91,12 @@ export function ReviewStep({
                 settledPersonIds: (isSettled ? arrayUnion(personId) : arrayRemove(personId)) as unknown as string[]
             });
 
-            // Need to update the active session's local state too - this happens naturally 
-            // if we're listening to snapshot, but we explicitly force recalculate ledger
             toast({
                 title: isSettled ? "Marked as Settled" : "Undo Settled",
                 description: isSettled ? "Their balance has been updated to $0 for this bill." : "Their balance has been restored for this bill.",
             });
 
-            // Reapply both ledgers atomically. The idempotent logic reads
-            // settledPersonIds from the bill and automatically zeroes out the settled person's share.
-            await ledgerService.applyBillToLedgers(
-                billId,
-                user.uid,
-                personTotals,
-                eventId || undefined
-            );
+            // Ledger update handled by server-side pipeline (settledPersonIds change triggers re-processing)
 
         } catch (error) {
             console.error("Failed to mark as settled", error);

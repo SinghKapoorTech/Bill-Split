@@ -141,7 +141,7 @@ Core calculation logic is extracted into framework-agnostic pure modules under `
 ## Server-Side Ledger Pipeline
 
 > [!NOTE]
-> **Migration in progress.** The pipeline (`ledgerProcessor`) now runs server-side alongside the existing client-side writes. Once verified, client-side writes will be removed and security rules locked down.
+> **Migration complete.** Client-side ledger writes have been removed and security rules locked down. The pipeline (`ledgerProcessor`) is the sole writer to `friend_balances` and `event_balances`.
 
 All ledger mutations are moving to a **server-side pipeline** — a Firestore `onDocumentWritten` trigger on `bills/{billId}`. The client only writes bill documents; the pipeline handles all downstream ledger effects.
 
@@ -177,24 +177,25 @@ Bill Create/Edit/Delete  →  Firestore bills/{billId}
 - **Loop prevention:** `hasRelevantChange()` compares only bill-content fields (`billData`, `people`, `itemAssignments`, `settledPersonIds`, `paidById`, `splitEvenly`, `ownerId`). The pipeline's own `processedBalances` write is excluded, preventing infinite trigger loops.
 - **Delete handling:** reads footprint from `before` snapshot, reverses friend_balances, rebuilds event cache without the deleted bill.
 
-### Legacy Client-Side Write Path (being removed)
+### Client-Side Write Path — REMOVED
 
-> [!WARNING]
-> The client-side write path below is being phased out. During transition, both paths run in parallel safely due to idempotent delta design.
+The client no longer writes to `friend_balances` or `event_balances` directly. All ledger mutations flow through the server-side pipeline. The client only writes bill documents to Firestore.
 
-#### `ledgerService.applyBillToLedgers(billId, ownerId, personTotals, eventId?)`
-Calls both services sequentially:
+- `friendBalanceService.ts` — deleted
+- `eventLedgerService.ts` — write functions removed, retained only for `EventLedger` type + `OptimizedDebt` re-export
+- `ledgerService.ts` — both methods (`applyBillToLedgers`, `reverseBillFromLedgers`) are no-ops
+- All UI components (BillWizard, ReviewStep, SimpleTransactionWizard, etc.) no longer call ledger write functions
 
-**Step A — `friendBalanceService.applyBillBalancesIdempotent()`**
-1. Compute new footprint using `calculateFriendFootprint()` from shared module.
-2. Compute delta using `computeFootprintDeltas(newFootprint, bill.processedBalances)`.
-3. Apply delta to `friend_balances` doc in transaction.
-4. Save new footprint via `toProcessedBalances()` back onto the Bill.
+### Security Rules — Ledger Collections Locked Down
 
-**Step B — `eventLedgerService.applyBillToEventLedgerIdempotent()` (if `eventId` provided)**
-1. Reverse old `eventBalancesApplied`, apply new totals to `event_balances.netBalances`.
-2. Run `optimizeDebts()` on aggregated balances.
-3. Save new `eventBalancesApplied` on the Bill.
+With the pipeline as the sole writer, Firestore security rules now block all client-side writes:
+
+| Collection | Client Read | Client Write | Server (Admin SDK) |
+|-----------|-------------|-------------|-------------------|
+| `friend_balances` | Participants only | **Blocked** (`if false`) | Full access |
+| `event_balances` | Event members only | **Blocked** (`if false`) | Full access |
+
+The `isSettlementUpdate()` helper on bills was tightened to only allow `settledPersonIds` — `processedBalances` and `eventBalancesApplied` are now written exclusively by the server pipeline.
 
 ---
 

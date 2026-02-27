@@ -31,7 +31,13 @@ import {
 import { optimizeDebts } from '../../shared/optimizeDebts.js';
 import type { PersonTotal } from '../../shared/types.js';
 
-const db = getFirestore();
+// Lazy-initialized: getFirestore() must not run at import time because
+// initializeApp() in index.ts may not have executed yet.
+let _db: ReturnType<typeof getFirestore> | null = null;
+function db() {
+  if (!_db) _db = getFirestore();
+  return _db;
+}
 
 const BILLS_COLLECTION = 'bills';
 const FRIEND_BALANCES_COLLECTION = 'friend_balances';
@@ -69,7 +75,7 @@ function hasRelevantChange(
  * by reading the owner's friends list.
  */
 async function resolveLinkedFriends(ownerId: string): Promise<Set<string>> {
-  const userDoc = await db.collection('users').doc(ownerId).get();
+  const userDoc = await db().collection('users').doc(ownerId).get();
   const userData = userDoc.data();
   const friends: any[] = userData?.friends || [];
 
@@ -124,10 +130,10 @@ async function applyFriendLedger(
   ownerId: string,
   newFootprint: Record<string, number>
 ): Promise<number> {
-  const billRef = db.collection(BILLS_COLLECTION).doc(billId);
+  const billRef = db().collection(BILLS_COLLECTION).doc(billId);
   let deltasApplied = 0;
 
-  await db.runTransaction(async (tx) => {
+  await db().runTransaction(async (tx) => {
     // Read bill inside transaction for latest processedBalances
     const billSnap = await tx.get(billRef);
     if (!billSnap.exists) return;
@@ -144,7 +150,7 @@ async function applyFriendLedger(
 
     for (const friendUserId of Object.keys(deltas)) {
       const balanceId = getFriendBalanceId(ownerId, friendUserId);
-      const ref = db.collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
+      const ref = db().collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
       balanceRefs[friendUserId] = ref;
       balanceSnaps[friendUserId] = await tx.get(ref);
     }
@@ -193,7 +199,7 @@ async function reverseFootprint(
   ownerId: string,
   previousBalances: Record<string, number>
 ): Promise<void> {
-  await db.runTransaction(async (tx) => {
+  await db().runTransaction(async (tx) => {
     // Phase 1: Read all affected friend_balance docs
     const friendsToReverse: string[] = [];
     const balanceRefs: Record<string, any> = {};
@@ -204,7 +210,7 @@ async function reverseFootprint(
       friendsToReverse.push(friendId);
 
       const balanceId = getFriendBalanceId(ownerId, friendId);
-      const ref = db.collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
+      const ref = db().collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
       balanceRefs[friendId] = ref;
       balanceSnaps[friendId] = await tx.get(ref);
     }
@@ -251,7 +257,7 @@ async function rebuildEventCache(
   eventId: string,
   excludeBillId?: string
 ): Promise<void> {
-  const billsSnap = await db.collection(BILLS_COLLECTION)
+  const billsSnap = await db().collection(BILLS_COLLECTION)
     .where('eventId', '==', eventId)
     .get();
 
@@ -296,7 +302,7 @@ async function rebuildEventCache(
     }
   }
 
-  const eventLedgerRef = db.collection(EVENT_BALANCES_COLLECTION).doc(eventId);
+  const eventLedgerRef = db().collection(EVENT_BALANCES_COLLECTION).doc(eventId);
   await eventLedgerRef.set({
     eventId,
     netBalances,
@@ -387,7 +393,7 @@ export const ledgerProcessor = onDocumentWritten(
     // Bump _ledgerVersion even when Stage 2 didn't write (no friends / no deltas)
     // so it always reflects that the pipeline processed this bill state.
     if (!stage2Wrote) {
-      const billRef = db.collection(BILLS_COLLECTION).doc(billId);
+      const billRef = db().collection(BILLS_COLLECTION).doc(billId);
       const currentVersion: number = (after._ledgerVersion ?? 0);
       await billRef.update({ _ledgerVersion: currentVersion + 1 });
     }

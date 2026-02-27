@@ -37,7 +37,6 @@ import { ensureUserInPeople } from '@/utils/billCalculations';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useToast } from '@/hooks/use-toast';
-import { ledgerService } from '@/services/ledgerService';
 
 export default function CollaborativeSessionView() {
   const isMobile = useIsMobile();
@@ -260,12 +259,7 @@ export default function CollaborativeSessionView() {
         description: isSettled ? "Their balance has been updated to $0 for this bill." : "Their balance has been restored for this bill.",
       });
 
-      await ledgerService.applyBillToLedgers(
-        session.id,
-        user.uid,
-        bill.personTotals,
-        session.eventId || undefined
-      );
+      // Ledger update handled by server-side pipeline (settledPersonIds change triggers re-processing)
     } catch (error) {
       console.error("Failed to mark as settled", error);
       toast({

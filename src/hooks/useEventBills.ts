@@ -12,7 +12,6 @@ import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Bill } from '@/types/bill.types';
 import { billService } from '@/services/billService';
-import { ledgerService } from '@/services/ledgerService';
 
 export function useEventBills(eventId: string) {
   const { user } = useAuth();
@@ -79,23 +78,10 @@ export function useEventBills(eventId: string) {
   }, []);
 
   const deleteTransaction = useCallback(async (billId: string) => {
-    // Read the bill first to get footprints before the document is deleted
-    const billSnap = await billService.getBill(billId);
-    if (!billSnap) return;
-
-    if (user) {
-      await ledgerService.reverseBillFromLedgers(
-        billId,
-        user.uid,
-        billSnap.eventId || undefined,
-        billSnap.processedBalances,
-        billSnap.eventBalancesApplied
-      ).catch(err => console.error('Failed to reverse ledger balances on delete:', err));
-    }
-
+    // Delete the bill — pipeline handles ledger reversal via onDelete trigger
     const billRef = doc(db, 'bills', billId);
     await deleteDoc(billRef);
-  }, [eventId, user]);
+  }, []);
 
   return {
     transactions: bills,

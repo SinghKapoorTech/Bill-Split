@@ -19,7 +19,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Bill, BillData } from '@/types/bill.types';
 import { useToast } from './use-toast';
 import { billService } from '@/services/billService';
-import { ledgerService } from '@/services/ledgerService';
 import { removeUndefinedFields } from '@/utils/firestoreHelpers';
 
 /**
@@ -258,18 +257,8 @@ export function useBills() {
     }
 
     try {
-      // Reverse this bill's contribution to both ledgers before deleting
-      if (user) {
-        await ledgerService.reverseBillFromLedgers(
-          activeSession.id,
-          user.uid,
-          activeSession.eventId || undefined,
-          activeSession.processedBalances,
-          activeSession.eventBalancesApplied
-        ).catch(err => console.error('Failed to reverse ledger balances on clear:', err));
-      }
-
       // Delete the active bill from Firestore
+      // (pipeline handles ledger reversal via onDelete trigger)
       const billRef = doc(db, 'bills', activeSession.id);
       await deleteDoc(billRef);
 
@@ -299,21 +288,11 @@ export function useBills() {
   const deleteSession = useCallback(async (sessionId: string, receiptFileName?: string) => {
     setIsDeleting(true);
     try {
-      // Get the bill first so we can check if it has a receiptImageUrl and balances
+      // Get the bill first so we can check if it has a receiptImageUrl
       const billRef = doc(db, 'bills', sessionId);
       const billSnap = await billService.getBill(sessionId);
 
-      // Reverse this bill's contribution to both ledgers before deleting
-      if (user) {
-        await ledgerService.reverseBillFromLedgers(
-          sessionId,
-          user.uid,
-          billSnap?.eventId || undefined,
-          billSnap?.processedBalances,
-          billSnap?.eventBalancesApplied
-        ).catch(err => console.error('Failed to reverse ledger balances on delete:', err));
-      }
-
+      // Delete the bill — pipeline handles ledger reversal via onDelete trigger
       await deleteDoc(billRef);
 
       const fileNameToDelete = receiptFileName || billSnap?.receiptFileName;
@@ -345,9 +324,6 @@ export function useBills() {
           console.error("Failed to delete image via URL parsing", e);
         }
       }
-
-      // No longer a separate event ledger reversal needed —
-      // reverseBillFromLedgers above handled both friend_balances and event_balances.
 
       toast({ title: 'Success', description: 'Session deleted.' });
     } catch (error) {
