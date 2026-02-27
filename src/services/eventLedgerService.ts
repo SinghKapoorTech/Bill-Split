@@ -2,15 +2,12 @@ import { doc, collection, query, where, getDocs, Timestamp, runTransaction } fro
 import { db } from '@/config/firebase';
 import { Bill, PersonTotal } from '@/types';
 import { userService } from './userService';
+import { optimizeDebts } from '@shared/optimizeDebts';
+
+export type { OptimizedDebt } from '@shared/optimizeDebts';
 
 const BILLS_COLLECTION = 'bills';
 const EVENT_BALANCES_COLLECTION = 'event_balances';
-
-export interface OptimizedDebt {
-  fromUserId: string;
-  toUserId: string;
-  amount: number;
-}
 
 export interface EventLedger {
   eventId: string;
@@ -127,7 +124,7 @@ export const eventLedgerService = {
       }
 
       // 6. Re-optimize debts
-      ledgerData.optimizedDebts = eventLedgerService.optimizeDebts(ledgerData.netBalances);
+      ledgerData.optimizedDebts = optimizeDebts(ledgerData.netBalances);
       ledgerData.lastUpdatedAt = Timestamp.now();
 
       if (!ledgerData.processedBillIds.includes(billId)) {
@@ -182,7 +179,7 @@ export const eventLedgerService = {
       }
 
       // Re-optimize
-      ledgerData.optimizedDebts = eventLedgerService.optimizeDebts(ledgerData.netBalances);
+      ledgerData.optimizedDebts = optimizeDebts(ledgerData.netBalances);
       ledgerData.lastUpdatedAt = Timestamp.now();
       ledgerData.processedBillIds = ledgerData.processedBillIds.filter(id => id !== billId);
 
@@ -193,53 +190,4 @@ export const eventLedgerService = {
       }
     });
   },
-
-  /**
-   * Greedy debt simplification algorithm.
-   * Minimizes the number of transactions needed to settle all debts.
-   */
-  optimizeDebts(netBalances: Record<string, number>): OptimizedDebt[] {
-    const debtors: { userId: string; amount: number }[] = [];
-    const creditors: { userId: string; amount: number }[] = [];
-
-    // Separate into debtors (negative balance) and creditors (positive balance)
-    for (const [userId, balance] of Object.entries(netBalances)) {
-      if (balance < -0.01) {
-        debtors.push({ userId, amount: Math.abs(balance) });
-      } else if (balance > 0.01) {
-        creditors.push({ userId, amount: balance });
-      }
-    }
-
-    // Sort descending by amount to minimize transactions
-    debtors.sort((a, b) => b.amount - a.amount);
-    creditors.sort((a, b) => b.amount - a.amount);
-
-    const optimizedDebts: OptimizedDebt[] = [];
-    let i = 0; // debtor index
-    let j = 0; // creditor index
-
-    while (i < debtors.length && j < creditors.length) {
-      const debtor = debtors[i];
-      const creditor = creditors[j];
-
-      const settleAmount = Math.min(debtor.amount, creditor.amount);
-
-      if (settleAmount > 0.01) {
-        optimizedDebts.push({
-          fromUserId: debtor.userId,
-          toUserId: creditor.userId,
-          amount: parseFloat(settleAmount.toFixed(2))
-        });
-      }
-
-      debtor.amount -= settleAmount;
-      creditor.amount -= settleAmount;
-
-      if (debtor.amount < 0.01) i++;
-      if (creditor.amount < 0.01) j++;
-    }
-
-    return optimizedDebts;
-  }
 };

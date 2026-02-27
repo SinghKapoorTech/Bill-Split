@@ -17,6 +17,8 @@ import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { calculatePersonTotals as calcSharedTotals } from '../../shared/calculations.js';
 import type { PersonTotal } from '../../shared/types.js';
+import { optimizeDebts } from '../../shared/optimizeDebts.js';
+import type { OptimizedDebt } from '../../shared/optimizeDebts.js';
 
 const db = getFirestore();
 
@@ -55,8 +57,6 @@ interface EventLedger {
   lastUpdatedAt: Timestamp;
 }
 
-interface OptimizedDebt { fromUserId: string; toUserId: string; amount: number; }
-
 // ─── Exported request/response types ────────────────────────────────────────
 
 export interface SettlementRequest {
@@ -83,43 +83,6 @@ function toUid(personId: string): string {
 /** Returns the sorted deterministic document ID for a friend-balance pair. */
 function friendBalanceId(uid1: string, uid2: string): string {
   return [uid1, uid2].sort().join('_');
-}
-
-/**
- * Debt simplification (greedy algorithm).
- * Minimizes the number of payment transactions within a group.
- */
-function optimizeDebts(netBalances: Record<string, number>): OptimizedDebt[] {
-  const debtors:   { userId: string; amount: number }[] = [];
-  const creditors: { userId: string; amount: number }[] = [];
-
-  for (const [userId, balance] of Object.entries(netBalances)) {
-    if (balance < -0.01)   debtors.push({ userId, amount: Math.abs(balance) });
-    else if (balance > 0.01) creditors.push({ userId, amount: balance });
-  }
-
-  debtors.sort((a, b) => b.amount - a.amount);
-  creditors.sort((a, b) => b.amount - a.amount);
-
-  const result: OptimizedDebt[] = [];
-  let i = 0, j = 0;
-
-  while (i < debtors.length && j < creditors.length) {
-    const settleAmt = Math.min(debtors[i].amount, creditors[j].amount);
-    if (settleAmt > 0.01) {
-      result.push({
-        fromUserId: debtors[i].userId,
-        toUserId: creditors[j].userId,
-        amount: parseFloat(settleAmt.toFixed(2)),
-      });
-    }
-    debtors[i].amount -= settleAmt;
-    creditors[j].amount -= settleAmt;
-    if (debtors[i].amount < 0.01) i++;
-    if (creditors[j].amount < 0.01) j++;
-  }
-
-  return result;
 }
 
 /**
