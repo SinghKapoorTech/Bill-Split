@@ -115,7 +115,7 @@ service cloud.firestore {
 
 
       // Helper: Only settlement-related fields are being changed.
-      // processedBalances and eventBalancesApplied removed — pipeline handles those server-side.
+      // processedBalances is written exclusively by the server-side pipeline.
       function isSettlementUpdate() {
         return onlyUpdating(['settledPersonIds']);
       }

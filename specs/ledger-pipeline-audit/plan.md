@@ -22,9 +22,9 @@
 - [x] **Commit 18:** Atomic squad member sync
 - [x] **Commit 19:** Structured pipeline logging
 - [x] **Commit 20:** Cascade delete for events
-- [ ] **Commit 22:** Clean up `eventBalancesApplied` field from existing bills
+- [x] **Commit 22:** Clean up `eventBalancesApplied` field from existing bills
 
-**Current phase:** Commits 1-18 complete. Commits 19-22 (operational hardening) are optional.
+**Current phase:** ALL COMMITS COMPLETE. Plan fully executed (Commit 21 skipped by design).
 **Critical deploy order:** Pipeline (Commits 4-5) deployed. Client writes removed (Commit 6). Rules locked (Commit 7). ✅ All done.
 
 ---

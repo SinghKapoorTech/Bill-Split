@@ -123,9 +123,6 @@ interface Bill {
   // Tracks exactly what was added to the global friend ledger
   processedBalances?: Record<string, number>;
 
-  // Tracks exactly what was added to the local event ledger
-  eventBalancesApplied?: Record<string, number>;
-
   // Pipeline version — incremented by ledgerProcessor after each processing pass.
   // Used for observability and as a guard against redundant trigger processing.
   _ledgerVersion?: number;
@@ -272,7 +269,7 @@ With the pipeline as the sole writer, Firestore security rules now block all cli
 | `friend_balances` | Participants only | **Blocked** (`if false`) | Full access |
 | `event_balances` | Event members only | **Blocked** (`if false`) | Full access |
 
-The `isSettlementUpdate()` helper on bills was tightened to only allow `settledPersonIds` — `processedBalances` and `eventBalancesApplied` are now written exclusively by the server pipeline.
+The `isSettlementUpdate()` helper on bills was tightened to only allow `settledPersonIds` — `processedBalances` is written exclusively by the server pipeline.
 
 ### Client-Side Event Cache Fallback
 
