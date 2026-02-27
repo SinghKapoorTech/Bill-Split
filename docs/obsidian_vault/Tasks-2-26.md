@@ -75,7 +75,7 @@ tags: [backlog, bugs, features, ui, obsidian]
   - 🟥 not settled  
   **Acceptance:** consistent indicator on bills + event views; derived from ledger state.
 
-- [ ] **(P1) “Create your first bill” should give options**  
+- [x] **(P1) “Create your first bill” should give options**  
   **Acceptance:** first-time CTA offers choices (e.g., Bill / Simple Transaction / Event Bill).
   
 - [ ] **(P1) Website view should have all 4 options l**  
