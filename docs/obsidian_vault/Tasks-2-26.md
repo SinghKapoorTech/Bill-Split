@@ -110,7 +110,7 @@ tags: [backlog, bugs, features, ui, obsidian]
 
 ## 🧹 P2 — Removals / Cleanups
 
-- [ ] **(P2) Remove “MY FRIENDS” title under Manage Friends**  
+- [x] **(P2) Remove “MY FRIENDS” title under Manage Friends**  
   **Acceptance:** page reads clean without redundant header.
 
 - [ ] **(P2) Manage Friends: remove your icon (only show friend icon)**  

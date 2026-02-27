@@ -88,16 +88,8 @@ export function ManageFriends({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="space-y-8 py-4">
-          {/* SECTION 1: MY FRIENDS */}
+
           <div className="space-y-4">
-            <div className="relative py-2 z-0">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground font-semibold">My Friends</span>
-              </div>
-            </div>
 
             {/* Friends List */}
             <div className="space-y-2">
@@ -385,7 +377,7 @@ export function ManageFriends({ open, onOpenChange }: Props) {
                   </div>
                 </div>
 
-                <Button onClick={handleAddFriend} variant="default" disabled={!newFriendName.trim() || !newFriendEmail.trim()} className="mt-2 text-sm">
+                <Button onClick={() => handleAddFriend()} variant="default" disabled={!newFriendName.trim() || !newFriendEmail.trim()} className="mt-2 text-sm">
                   Save External Friend
                 </Button>
             </div>
