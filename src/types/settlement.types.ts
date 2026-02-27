@@ -10,4 +10,5 @@ export interface Settlement {
   eventId?: string; // Optional: If the settlement was made specifically for an event
   billsSettled?: number; // Number of bills fully settled
   settledBillIds?: string[]; // Bill IDs that were fully settled by this settlement (for reversal)
+  idempotencyKey?: string; // Client-generated UUID to prevent duplicate settlements on retry
 }

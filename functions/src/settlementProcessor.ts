@@ -26,6 +26,10 @@ const BILLS_COLLECTION       = 'bills';
 const FRIEND_BALANCES_COLLECTION = 'friend_balances';
 const SETTLEMENTS_COLLECTION     = 'settlements';
 
+// Max bills per transaction to stay safely under Firestore's 500 operation limit.
+// Each bill requires ~4 operations (2 reads + 2 writes), plus friend_balance reads/writes.
+const MAX_BILLS_PER_TX = 50;
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface Person { id: string; name: string; venmoId?: string; }
@@ -54,6 +58,7 @@ export interface SettlementRequest {
   toUserId: string;     // the person receiving
   amount: number;       // the settlement amount
   eventId?: string;     // if set, restrict to this event's bills only
+  idempotencyKey?: string; // client-generated UUID — prevents duplicate settlements on retry
 }
 
 export interface SettlementResult {
@@ -61,6 +66,7 @@ export interface SettlementResult {
   billsSettled: number;
   amountApplied: number;
   remainingAmount: number;
+  hasMore: boolean;     // true if more bills remain beyond the batch limit
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -114,7 +120,7 @@ export async function processSettlementCore(
   callerId: string,
   req: SettlementRequest
 ): Promise<SettlementResult> {
-  const { fromUserId, toUserId, eventId } = req;
+  const { fromUserId, toUserId, eventId, idempotencyKey } = req;
   const amount = parseFloat(req.amount.toFixed(2));
 
   // ── Validate ─────────────────────────────────────────────────────────────
@@ -123,6 +129,26 @@ export async function processSettlementCore(
   if (amount <= 0)              throw new HttpsError('invalid-argument', 'amount must be positive');
   if (callerId !== fromUserId && callerId !== toUserId) {
     throw new HttpsError('permission-denied', 'Caller must be one of the settlement participants');
+  }
+
+  // ── Idempotency check: reject duplicate settlement if key was already used ──
+  if (idempotencyKey) {
+    const existingSnap = await db.collection(SETTLEMENTS_COLLECTION)
+      .where('idempotencyKey', '==', idempotencyKey)
+      .limit(1)
+      .get();
+
+    if (!existingSnap.empty) {
+      const existing = existingSnap.docs[0].data();
+      console.log(`[settlement] Duplicate idempotencyKey=${idempotencyKey}, returning existing settlement`);
+      return {
+        settlementId: existingSnap.docs[0].id,
+        billsSettled: existing.billsSettled ?? 0,
+        amountApplied: existing.amount - (existing.remainingAmount ?? 0),
+        remainingAmount: existing.remainingAmount ?? 0,
+        hasMore: false,
+      };
+    }
   }
 
   // ── Fetch only shared bills between these two users (both directions in parallel) ──
@@ -178,6 +204,7 @@ export async function processSettlementCore(
 
   for (const bill of allBills) {
     if (remaining <= 0) break;
+    if (toSettle.length >= MAX_BILLS_PER_TX) break;
     if (!bill.billData?.items?.length) continue;
 
     const personTotals = calculatePersonTotals(bill);
@@ -207,6 +234,9 @@ export async function processSettlementCore(
       break;
     }
   }
+
+  // Did we hit the batch limit? If so, there may be more bills to settle.
+  const hasMore = toSettle.length >= MAX_BILLS_PER_TX && remaining > 0.01;
 
   // ── Single admin transaction: all writes are atomic ───────────────────────
   const settlementRef = db.collection(SETTLEMENTS_COLLECTION).doc();
@@ -349,6 +379,7 @@ export async function processSettlementCore(
       billsSettled: toSettle.length,
       settledBillIds: toSettle.map(p => p.bill.id),
       ...(eventId ? { eventId } : {}),
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     });
   });
 
@@ -357,5 +388,6 @@ export async function processSettlementCore(
     billsSettled: toSettle.length,
     amountApplied: parseFloat((amount - remaining).toFixed(2)),
     remainingAmount: parseFloat(remaining.toFixed(2)),
+    hasMore,
   };
 }

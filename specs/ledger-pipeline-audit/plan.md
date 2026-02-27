@@ -12,7 +12,7 @@
 - [x] **Commit 8:** Add `contributingBillIds` to friend_balances (pipeline tracks which bills contribute)
 - [x] **Commit 9:** Remove event_balances writes from settlement processor
 - [x] **Commit 10:** Create `reverseSettlement` Cloud Function
-- [ ] **Commit 11:** Batch limit + idempotency for settlement processor
+- [x] **Commit 11:** Batch limit + idempotency for settlement processor
 - [ ] **Commit 12:** Create `friendAddProcessor` Cloud Function (retroactive scan)
 - [ ] **Commit 13:** Client-side event cache fallback
 - [ ] **Commit 14:** Batch friend profile hydration
@@ -22,7 +22,7 @@
 - [ ] **Commit 18:** Atomic squad member sync
 - [ ] **Commits 19-22:** Operational hardening (optional)
 
-**Current phase:** Commits 1-10 complete. Next up is Commit 11 (batch limit + idempotency for settlement processor).
+**Current phase:** Commits 1-11 complete. Next up is Commit 12 (create friendAddProcessor Cloud Function).
 **Critical deploy order:** Pipeline (Commits 4-5) deployed. Client writes removed (Commit 6). Rules locked (Commit 7). ✅ All done.
 
 ---
