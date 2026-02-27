@@ -352,6 +352,15 @@ export { ledgerProcessor } from './ledgerProcessor.js';
 export { friendAddProcessor } from './friendAddProcessor.js';
 
 /**
+ * Cloud Function: Event Delete Processor
+ *
+ * Firestore onDocumentDeleted trigger on events/{eventId}.
+ * Cascade-deletes orphaned bills, event_balances cache, and invitations.
+ * Bill deletions auto-trigger the ledger pipeline to reverse friend_balances.
+ */
+export { eventDeleteProcessor } from './eventDeleteProcessor.js';
+
+/**
  * Cloud Function: Process a settlement between two users.
  *
  * Atomically marks shared bills as settled, updates friend_balances,
