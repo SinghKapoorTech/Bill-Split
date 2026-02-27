@@ -14,6 +14,12 @@ import { WizardNavigation } from '@/components/bill-wizard/WizardNavigation';
 import { DetailsStep } from './steps/DetailsStep';
 import { PeopleStep } from './steps/PeopleStep';
 import { ReviewStep } from './steps/ReviewStep';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { ensureUserInPeople, generateUserId } from '@/utils/billCalculations';
+import { userService } from '@/services/userService';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/config/firebase';
+import { Bill } from '@/types/bill.types';
 
 const STEPS = [
   { id: 1, label: 'Details', description: 'Amount & Info' },
@@ -33,21 +39,67 @@ export function SimpleTransactionWizard() {
   const [amount, setAmount] = useState<string>('');
   const [title, setTitle] = useState<string>('');
   const [paidById, setPaidById] = useState<string>(user?.uid || '');
-  const [people, setPeople] = useState<Person[]>(() => {
-    if (user) {
-      return [{
-        id: `user-${user.uid}`,
-        name: user.displayName || 'You',
-        isAnonymous: false,
-      } as Person];
-    }
-    return [];
-  });
+  const [people, setPeople] = useState<Person[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [existingEventId, setExistingEventId] = useState<string | undefined>();
+  const [existingSquadId, setExistingSquadId] = useState<string | undefined>();
+  const [existingItemId, setExistingItemId] = useState<string | undefined>();
 
+  const getTargetContext = () => {
+    if (billId && billId !== 'new') {
+      return { eventId: existingEventId, squadId: existingSquadId };
+    }
+    return { eventId: routerState?.targetEventId, squadId: routerState?.targetSquadId };
+  };
+
+  const { profile } = useUserProfile();
   const peopleManager = usePeopleManager(people, setPeople);
-
   const hasLoadedBillId = useRef<string | null>(null);
+  const hasInitializedNew = useRef(false);
+
+  // Helper: fetch all event members and return them as Person[]
+  const fetchEventMembers = async (eventId: string): Promise<Person[]> => {
+    try {
+      const eventSnap = await getDoc(doc(db, 'events', eventId));
+      if (!eventSnap.exists()) return [];
+      const data = eventSnap.data();
+      const memberIds: string[] = data?.memberIds || [];
+      const profiles = await Promise.all(
+        memberIds.map(uid => userService.getUserProfile(uid).catch(() => null))
+      );
+      return profiles
+        .filter((p): p is NonNullable<typeof p> => p !== null)
+        .map(p => ({
+          id: p.uid.startsWith('user-') ? p.uid : generateUserId(p.uid),
+          name: p.displayName,
+          venmoId: p.venmoId,
+        }));
+    } catch (err) {
+      console.error('Failed to fetch event members:', err);
+      return [];
+    }
+  };
+
+  // Pre-populate for new transactions
+  useEffect(() => {
+    if ((!billId || billId === 'new') && user && !hasInitializedNew.current) {
+      hasInitializedNew.current = true;
+      const { targetEventId, targetSquadId } = routerState || {};
+      
+      if (targetEventId) {
+        fetchEventMembers(targetEventId).then(eventPeople => {
+          setPeople(ensureUserInPeople(eventPeople, user, profile));
+        });
+      } else if (targetSquadId) {
+        // For squads, we just start with the user for now, 
+        // as squads might not have a simple "fetch all members" profile helper readily available here
+        // or we can just stick to user-only for squads until requested.
+        setPeople(ensureUserInPeople([], user, profile));
+      } else {
+        setPeople(ensureUserInPeople([], user, profile));
+      }
+    }
+  }, [billId, user, routerState, profile]);
 
   useEffect(() => {
     // If we're creating a new transaction, exit early
@@ -58,6 +110,9 @@ export function SimpleTransactionWizard() {
       if (bill.billData?.total) setAmount(bill.billData.total.toString());
       if (bill.paidById) setPaidById(bill.paidById);
       if (bill.people && bill.people.length > 0) setPeople(bill.people);
+      if (bill.eventId) setExistingEventId(bill.eventId);
+      if (bill.squadId) setExistingSquadId(bill.squadId);
+      if (bill.billData?.items?.[0]?.id) setExistingItemId(bill.billData.items[0].id);
       
       // Force to the review step automatically for existing transactions
       setCurrentStep(2);
@@ -95,13 +150,15 @@ export function SimpleTransactionWizard() {
       const numAmount = Number(amount);
       if (numAmount === 0 || title.trim().length === 0 || people.length === 0) return;
       
-      const dummyItemId = activeSession?.billData?.items?.[0]?.id || `item-${Date.now()}`;
-      const targetEventId = activeSession?.eventId || routerState?.targetEventId;
+      const dummyItemId = existingItemId || `item-${Date.now()}`;
       
       billService.updateBill(billId, {
           title,
           paidById,
           people,
+          billType: existingEventId ? 'event' : 'private',
+          eventId: existingEventId,
+          squadId: existingSquadId,
           billData: {
             items: [{ id: dummyItemId, name: title, price: numAmount }],
             subtotal: numAmount,
@@ -119,7 +176,7 @@ export function SimpleTransactionWizard() {
     }, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [amount, title, paidById, people, billId, user, activeSession?.eventId, activeSession?.billData?.items, routerState?.targetEventId]);
+  }, [amount, title, paidById, people, billId, user, existingEventId, existingSquadId, existingItemId]);
 
   const handleNextStep = () => {
     if (currentStep < STEPS.length - 1 && canProceed()) {
@@ -138,22 +195,20 @@ export function SimpleTransactionWizard() {
     setIsSaving(true);
     try {
       const numAmount = Number(amount);
-      const targetEventId = routerState?.targetEventId;
+      const { eventId: targetEventId, squadId: targetSquadId } = getTargetContext();
 
       if (billId && billId !== 'new') {
-        // Find the dummy item ID to recycle, or create a new one
-        const dummyItemId = activeSession?.billData?.items?.[0]?.id || `item-${Date.now()}`;
+        const dummyItemId = existingItemId || `item-${Date.now()}`;
         
         await billService.updateBill(billId, {
           title,
           paidById,
           people,
+          billType: targetEventId ? 'event' : 'private',
+          eventId: targetEventId,
+          squadId: targetSquadId,
           billData: {
-            items: [{
-              id: dummyItemId,
-              name: title,
-              price: numAmount
-            }],
+            items: [{ id: dummyItemId, name: title, price: numAmount }],
             subtotal: numAmount,
             tax: 0,
             tip: 0,
@@ -164,7 +219,6 @@ export function SimpleTransactionWizard() {
             [dummyItemId]: people.map(p => p.id)
           }
         });
-        // Ledger update handled by server-side pipeline (bill write triggers re-processing)
       } else {
         await billService.createSimpleTransaction(
           user.uid,
@@ -173,13 +227,15 @@ export function SimpleTransactionWizard() {
           title,
           paidById,
           people,
-          targetEventId
+          targetEventId,
+          targetSquadId
         );
-        // Ledger update handled by server-side pipeline (bill create triggers processing)
       }
 
       if (targetEventId) {
         navigate(`/events/${targetEventId}`);
+      } else if (targetSquadId) {
+        navigate(`/squads/${targetSquadId}`);
       } else {
         navigate('/dashboard');
       }
@@ -229,6 +285,10 @@ export function SimpleTransactionWizard() {
               setAmount={setAmount}
               title={title}
               setTitle={setTitle}
+              onNext={handleNextStep}
+              canProceed={canProceed()}
+              currentStep={currentStep}
+              totalSteps={STEPS.length}
             />
           )}
 
@@ -272,13 +332,16 @@ export function SimpleTransactionWizard() {
           onNext={handleNextStep}
           onComplete={handleComplete}
           onExit={() => {
-            if (routerState?.targetEventId) {
-              navigate(`/events/${routerState.targetEventId}`);
+            const { eventId: targetEventId, squadId: targetSquadId } = getTargetContext();
+            if (targetEventId) {
+              navigate(`/events/${targetEventId}`);
+            } else if (targetSquadId) {
+              navigate(`/squads/${targetSquadId}`);
             } else {
               navigate('/dashboard');
             }
           }}
-          exitLabel={routerState?.targetEventId ? 'Event' : 'Dashboard'}
+          exitLabel={getTargetContext().eventId ? 'Event' : getTargetContext().squadId ? 'Squad' : 'Dashboard'}
           nextDisabled={!canProceed()}
           hasBillData={true}
           isLoading={isSaving}

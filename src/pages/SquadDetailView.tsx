@@ -62,19 +62,26 @@ export default function SquadDetailView() {
     );
 
     // 2. Fetch bills for this squad
-    const fetchBills = async () => {
-      try {
-        const bills = await billService.getBillsBySquad(squadId);
-        setSquadBills(bills);
-      } catch (err) {
-        console.error('Failed to load squad bills', err);
-      }
+    const unsubscribeBills = billService.subscribeBillsBySquad(squadId, (bills) => {
+      setSquadBills(bills);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeBills();
     };
-
-    fetchBills();
-
-    return () => unsubscribe();
   }, [squadId, user]);
+
+  const handleViewBill = (billId: string, isSimpleTransaction?: boolean) => {
+    const path = isSimpleTransaction ? `/transaction/${billId}` : `/bill/${billId}`;
+    navigate(path, { state: { targetSquadId: squad.id, targetSquadName: squad.name } });
+  };
+
+  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean) => {
+    await resumeSession(billId);
+    const path = isSimpleTransaction ? `/transaction/${billId}` : `/bill/${billId}`;
+    navigate(path, { state: { targetSquadId: squad.id, targetSquadName: squad.name } });
+  };
 
   if (loading) {
     return <div className="text-center py-12 text-muted-foreground">Loading squad...</div>;
@@ -143,11 +150,8 @@ export default function SquadDetailView() {
                   key={b.id}
                   bill={b}
                   isLatest={b.id === activeSession?.id}
-                  onView={(id) => navigate(`/bill/${id}`)}
-                  onResume={async (id) => {
-                    await resumeSession(id);
-                    navigate(`/bill/${id}`);
-                  }}
+                  onView={(id) => handleViewBill(id, b.isSimpleTransaction)}
+                  onResume={(id) => handleResumeBill(id, b.isSimpleTransaction)}
                   onDelete={(bill) => {
                      if (window.confirm("Are you sure you want to delete this bill?")) {
                        deleteSession(bill.id, bill.receiptFileName);
@@ -172,11 +176,8 @@ export default function SquadDetailView() {
                   key={b.id}
                   bill={b}
                   isLatest={b.id === activeSession?.id}
-                  onView={(id) => navigate(`/bill/${id}`)}
-                  onResume={async (id) => {
-                    await resumeSession(id);
-                    navigate(`/bill/${id}`);
-                  }}
+                  onView={(id) => handleViewBill(id, b.isSimpleTransaction)}
+                  onResume={(id) => handleResumeBill(id, b.isSimpleTransaction)}
                   onDelete={(bill) => {
                      if (window.confirm("Are you sure you want to delete this bill?")) {
                        deleteSession(bill.id, bill.receiptFileName);

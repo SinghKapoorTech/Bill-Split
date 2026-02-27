@@ -10,10 +10,22 @@ export function NavigationBar() {
 
   const tabs = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/events', label: 'Events', icon: Users }, // MdGroups in mobile
-    { path: '/squads', label: 'Squads', icon: Users }, // MdPeople in mobile
-    { path: '/settings', label: 'Profile', icon: UserCircle }, // MdAccountCircle in mobile
+    { path: '/events', label: 'Events', icon: Users },
+    { path: '/squads', label: 'Squads', icon: Users },
+    { path: '/settings', label: 'Profile', icon: UserCircle },
   ];
+
+  // Context detection for Quick Expense / New Bill
+  const eventMatch = location.pathname.match(/\/events\/([^\/]+)/);
+  const squadMatch = location.pathname.match(/\/squads\/([^\/]+)/);
+  
+  const eventContext = eventMatch ? { 
+    targetEventId: eventMatch[1],
+    targetEventName: '' // Name is hard to get here, but ID is enough for the logic
+  } : squadMatch ? {
+    targetSquadId: squadMatch[1],
+    targetSquadName: ''
+  } : undefined;
 
   return (
     <nav className="flex items-center gap-4">
@@ -42,6 +54,7 @@ export function NavigationBar() {
       <CreateOptionsDialog 
         open={createDialogOpen} 
         onOpenChange={setCreateDialogOpen} 
+        eventContext={eventContext as any}
       />
 
       <Button onClick={() => setCreateDialogOpen(true)} className="hidden md:flex gap-2">

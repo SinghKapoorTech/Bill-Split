@@ -7,6 +7,7 @@ import {
   query,
   where,
   getDocs,
+  onSnapshot,
   Timestamp,
   serverTimestamp,
   arrayUnion,
@@ -187,6 +188,22 @@ export const billService = {
   },
 
   /**
+   * Subscribes to all bills associated with an event
+   */
+  subscribeBillsByEvent(eventId: string, callback: (bills: Bill[]) => void): () => void {
+    const q = query(
+      collection(db, BILLS_COLLECTION),
+      where('eventId', '==', eventId),
+      orderBy('updatedAt', 'desc')
+    );
+
+    return onSnapshot(q, (snapshot) => {
+      const bills = snapshot.docs.map(doc => doc.data() as Bill);
+      callback(bills);
+    });
+  },
+
+  /**
    * Gets all bills associated with a squad
    */
   async getBillsBySquad(squadId: string): Promise<Bill[]> {
@@ -198,6 +215,22 @@ export const billService = {
 
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => doc.data() as Bill);
+  },
+
+  /**
+   * Subscribes to all bills associated with a squad
+   */
+  subscribeBillsBySquad(squadId: string, callback: (bills: Bill[]) => void): () => void {
+    const q = query(
+      collection(db, BILLS_COLLECTION),
+      where('squadId', '==', squadId),
+      orderBy('updatedAt', 'desc')
+    );
+
+    return onSnapshot(q, (snapshot) => {
+      const bills = snapshot.docs.map(doc => doc.data() as Bill);
+      callback(bills);
+    });
   },
 
   /**

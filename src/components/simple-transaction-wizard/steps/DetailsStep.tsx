@@ -11,12 +11,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DollarSign } from "lucide-react";
+import { StepFooter } from "@/components/shared/StepFooter";
 
 interface DetailsStepProps {
   amount: string;
   setAmount: (val: string) => void;
   title: string;
   setTitle: (val: string) => void;
+  // Navigation
+  onNext: () => void;
+  canProceed: boolean;
+  currentStep: number;
+  totalSteps: number;
 }
 
 export function DetailsStep({
@@ -24,6 +30,10 @@ export function DetailsStep({
   setAmount,
   title,
   setTitle,
+  onNext,
+  canProceed,
+  currentStep,
+  totalSteps,
 }: DetailsStepProps) {
   const { user } = useAuth();
   const { profile } = useUserProfile();
@@ -80,6 +90,16 @@ export function DetailsStep({
             />
           </div>
         </div>
+      </div>
+
+      {/* Desktop only: StepFooter */}
+      <div className="hidden md:block">
+        <StepFooter
+          currentStep={currentStep}
+          totalSteps={totalSteps}
+          onNext={onNext}
+          nextDisabled={!canProceed}
+        />
       </div>
     </div>
   );

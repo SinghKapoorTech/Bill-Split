@@ -122,19 +122,27 @@ export default function EventDetailView() {
       }
     );
 
-    const fetchBills = async () => {
-      try {
-        const bills = await billService.getBillsByEvent(eventId);
-        setEventBills(bills);
-      } catch (err) {
-        console.error('Failed to load event bills', err);
-      }
+    // Subscribe to bills
+    const unsubscribeBills = billService.subscribeBillsByEvent(eventId, (bills) => {
+      setEventBills(bills);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeBills();
     };
-
-    fetchBills();
-
-    return () => unsubscribe();
   }, [eventId]);
+
+  const handleViewBill = (billId: string, isSimpleTransaction?: boolean) => {
+    const path = isSimpleTransaction ? `/transaction/${billId}` : `/bill/${billId}`;
+    navigate(path, { state: { targetEventId: event.id, targetEventName: event.name } });
+  };
+
+  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean) => {
+    await resumeSession(billId);
+    const path = isSimpleTransaction ? `/transaction/${billId}` : `/bill/${billId}`;
+    navigate(path, { state: { targetEventId: event.id, targetEventName: event.name } });
+  };
 
 
 
@@ -328,11 +336,8 @@ export default function EventDetailView() {
                       key={b.id}
                       bill={b}
                       isLatest={b.id === activeSession?.id}
-                      onView={(id) => navigate(`/bill/${id}`)}
-                      onResume={async (id) => {
-                        await resumeSession(id);
-                        navigate(`/bill/${id}`);
-                      }}
+                      onView={(id) => handleViewBill(id, b.isSimpleTransaction)}
+                      onResume={(id) => handleResumeBill(id, b.isSimpleTransaction)}
                       onDelete={handleDeleteBill}
                       isResuming={isResuming}
                       isDeleting={isDeleting}
@@ -353,11 +358,8 @@ export default function EventDetailView() {
                       key={b.id}
                       bill={b}
                       isLatest={b.id === activeSession?.id}
-                      onView={(id) => navigate(`/bill/${id}`)}
-                      onResume={async (id) => {
-                        await resumeSession(id);
-                        navigate(`/bill/${id}`);
-                      }}
+                      onView={(id) => handleViewBill(id, b.isSimpleTransaction)}
+                      onResume={(id) => handleResumeBill(id, b.isSimpleTransaction)}
                       onDelete={handleDeleteBill}
                       isResuming={isResuming}
                       isDeleting={isDeleting}

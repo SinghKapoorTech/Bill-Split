@@ -29,7 +29,7 @@ tags: [backlog, bugs, features, ui, obsidian]
   _Bug:_ “insufficient permission” error.  
   **Acceptance:** heart save works; correct permissions + error handling.
 
-- [ ] **(P0) Simple transaction UI resets back to normal bill UI EVENT**  
+- [x] **(P0) Simple transaction UI resets back to normal bill UI EVENT**  
   _Bug:_ created correctly, but returning to UI shows normal bill UI.  
   **Acceptance:** simple transaction stays in simple transaction UI state on revisit.
 
