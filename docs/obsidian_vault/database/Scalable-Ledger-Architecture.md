@@ -109,7 +109,7 @@ interface Settlement {
   amount: number;
   date: Timestamp;
   eventId?: string; // If this settlement was made specifically inside an event
-}
+  settledBillIds?: string[]; // Bill IDs fully settled by this payment (enables reversal)
 ```
 
 ---

@@ -111,13 +111,11 @@ Each commit is small and self-contained. System stays functional after every com
 - Updated `src/services/eventLedgerService.ts` — imports shared `personIdToFirebaseUid`
 - Both client and functions type-check clean. No behavior change.
 
-#### Commit 3: Add `settledBillIds` to settlement type and processor
+#### ~~Commit 3: Add `settledBillIds` to settlement type and processor~~ DONE
 
-Settlement records currently only store a count. Need actual bill IDs for reversal.
-
-- Update `src/types/settlement.types.ts` — add `settledBillIds: string[]`
-- Update `functions/src/settlementProcessor.ts:481-489` — add `settledBillIds: toSettle.map(p => p.bill.id)`
-- Verify: Create settlement → check Firestore doc has `settledBillIds` array.
+- Updated `src/types/settlement.types.ts` — added `settledBillIds?: string[]`
+- Updated `functions/src/settlementProcessor.ts` — added `settledBillIds: toSettle.map(p => p.bill.id)` to settlement record write
+- Both client and functions type-check clean. Additive change, no behavior change for existing settlements.
 
 ---
 

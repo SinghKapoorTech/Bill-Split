@@ -448,6 +448,7 @@ export async function processSettlementCore(
       amount,
       date: now,
       billsSettled: toSettle.length,
+      settledBillIds: toSettle.map(p => p.bill.id),
       ...(eventId ? { eventId } : {}),
     });
   });

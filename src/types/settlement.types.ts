@@ -7,4 +7,5 @@ export interface Settlement {
   amount: number;
   date: Timestamp;
   eventId?: string; // Optional: If the settlement was made specifically for an event
+  settledBillIds?: string[]; // Bill IDs that were fully settled by this settlement (for reversal)
 }
