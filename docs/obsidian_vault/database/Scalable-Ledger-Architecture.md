@@ -7,9 +7,15 @@ tags:
 ---
 # Scalable Ledger Architecture (Idempotent Deltas)
 
-## Why We Are Making This Change
+## Evolution of the Architecture
 
-There are two primary ways to calculate a user's running balance, and the previous architecture relied on problematic implementations of both, leading to critical flaws at scale:
+The application's ledger architecture has undergone two major evolutionary phases to reach its current scalable, secure state:
+1. **V1: Client-Side Idempotent Deltas** - Solved the math scale problem by replacing $O(N)$ recalculations and "blind deltas" with idempotent tracking footprints.
+2. **V2: Server-Side Unified Pipeline (Current)** - Moved the engine to a secure, backend Cloud Function pipeline to resolve security vulnerabilities, client-side race conditions, and to establish a unified single source of truth.
+
+## Why We Built Idempotent Deltas (V1)
+
+There are two primary ways to calculate a user's running balance, and the earliest architecture relied on problematic implementations of both, leading to critical flaws at scale:
 
 ### 1. The $O(N)$ Recalculation Approach ("Burn the Database")
 When a user edits a single $10 bill, the easiest way to find the new balance is to delete the current balance, query the database for every single bill that user has ever been a part of in their life, and add them all up from scratch.
@@ -33,9 +39,26 @@ When you edit a bill, the engine:
 4. Applies the new math to the Ledger.
 5. Saves the new footprint back onto the Bill.
 
-**Benefits:**
+**Benefits of Idempotent Deltas:**
 - **Crash Proof:** If a network retry hits the server twice, the footprint is already up to date. The first transaction applies normally. The second transaction reverses the new math, and applies the exact same new math again. The ledger stays perfectly intact.
 - **Cost:** It requires exactly 2 Reads and 2 Writes per operation, costing an absolute flat fraction of a cent per edit regardless of how long the user has been active.
+
+---
+
+## Why We Moved to a Server-Side Pipeline (V2)
+
+While Client-Side Idempotent Deltas solved the mathematical scaling issues, allowing the client to execute these transactions directly uncovered significant architectural flaws:
+
+1. **Security Vulnerabilities**: To allow the client to update `friend_balances` and `event_balances`, those collections had to be practically wide open in Firestore Security Rules. A malicious user could theoretically write arbitrary balances to any ledger they were a participant in.
+2. **Client-Side Complexity & Race Conditions**: The client was responsible for orchestrating complex, multi-document ACID transactions across different ledgers. If the user closed the app right after creating a bill but before the transaction finished, the ledger would be permanently out of sync.
+3. **Dual Source of Truth**: The client was maintaining two separate authorities (`friend_balances` and `event_balances`) via simultaneous writes.
+
+**The Solution:** We migrated the Idempotent Delta Engine entirely to a backend **Server-Side Pipeline** powered by Firebase Cloud Functions. (See [[../backend/cloud_functions|Cloud Functions Overview]] for details on triggers and behavior).
+
+**Why this is better:**
+- **Rock-Solid Security:** `friend_balances` and `event_balances` are now completely locked down (`allow write: if false`) to client requests. Only the secure Admin SDK on the backend can mutate balances.
+- **Guaranteed Consistency:** The client's only job is to save the `Bill` document. The backend `onDocumentWritten` trigger handles the rest. If the user closes the app, loses service, or crashes, the backend pipeline still guarantees the ledger is perfectly updated.
+- **Single Source of Truth:** `friend_balances` is the sole authoritative source of truth. `event_balances` has been demoted to a rebuildable cache. If the cache is deleted, the pipeline simply rebuilds it from the original bills.
 
 ---
 
@@ -260,34 +283,3 @@ The `useEventLedger` hook provides a client-side fallback when the `event_balanc
 - The fallback mirrors the pipeline's `rebuildEventCache()` logic exactly
 - `useMemo` prevents recomputation on every render
 - Once the pipeline creates the cache doc, the hook seamlessly switches to reading from cache
-
----
-
-## Phased Execution Plan (Small, Safe Chunks)
-
-We will execute this change carefully, ensuring nothing breaks for existing users.
-
-### Phase 1: Data Infrastructure & Preparation (No logic changes)
-- [x] Add `settlements` collection rules to Firebase.
-- [x] Create `src/types/settlement.types.ts` interface.
-- [x] Update `src/types/bill.types.ts` to add optional `settledPersonIds`, `processedBalances`, and `eventBalancesApplied`.
-- [x] Create `src/services/settlementService.ts` for basic CRUD operations.
-
-### Phase 2: Building the O(1) Engine (In Isolation)
-- [x] Refactor `friendBalanceService.ts` to implement the new Transactional Reversed-Footprint method (`applyBillBalancesIdempotent`). Leave the old method intact temporarily.
-- [x] Refactor `eventLedgerService.ts` to implement the same Idempotent transaction logic for events.
-
-### Phase 3: Switching Over the Triggers
-- [x] Update `useBills.ts` Create/Update/Delete functions to point to the new Idempotent methods instead of the old delta methods.
-- [x] Update `useEventBills.ts` similarly.
-
-### Phase 4: Settle Up UI
-- [x] Build the UI component for capturing "Global Settle Up" (selecting friend, inputting amount, firing `createSettlement`).
-- [x] Add the "Settle Up" UI to `EventDetailView.tsx`.
-- [ ] Update Bill Creation UI to support checking off "Already Settled" to push to `settledPersonIds`.
-
-### Phase 5: Cleanup & Unification ✅
-- [x] Delete the old non-idempotent delta functions (`applyBillBalances`, `reverseBillBalances`, `applyBillToEventLedger`).
-- [x] Delete the self-healing sync jobs (`syncOldBillsForUser`, `recalculateEventLedger`).
-- [x] Create unified `ledgerService.ts` that orchestrates both ledger services via `Promise.all`.
-- [x] Update all UI call sites to use `ledgerService` instead of calling individual services directly.

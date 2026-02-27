@@ -16,6 +16,7 @@
  */
 
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { logger } from 'firebase-functions';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { calculatePersonTotals as calcSharedTotals } from '../../shared/calculations.js';
 import type { PersonTotal } from '../../shared/types.js';
@@ -140,7 +141,7 @@ export async function processSettlementCore(
 
     if (!existingSnap.empty) {
       const existing = existingSnap.docs[0].data();
-      console.log(`[settlement] Duplicate idempotencyKey=${idempotencyKey}, returning existing settlement`);
+      logger.info('Duplicate settlement detected', { idempotencyKey, existingId: existingData.id });
       return {
         settlementId: existingSnap.docs[0].id,
         billsSettled: existing.billsSettled ?? 0,

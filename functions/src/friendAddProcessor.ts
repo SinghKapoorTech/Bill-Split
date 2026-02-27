@@ -22,6 +22,7 @@
  */
 
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { logger } from 'firebase-functions';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
 // Lazy-initialized: getFirestore() must not run at import time because
@@ -73,18 +74,14 @@ export const friendAddProcessor = onDocumentUpdated(
       return; // No new friends added, nothing to do
     }
 
-    console.log(
-      `[friendAddProcessor] User ${userId} added ${newFriendUids.length} new friend(s): ${newFriendUids.join(', ')}`
-    );
+    logger.info('New friends detected', { userId, newFriendUids, count: newFriendUids.length });
 
     // For each new friend, find shared bills and trigger re-processing
     let totalBillsTouched = 0;
 
     for (const newFriendUid of newFriendUids) {
       if (totalBillsTouched >= MAX_BILLS_PER_SCAN) {
-        console.log(
-          `[friendAddProcessor] Reached batch limit (${MAX_BILLS_PER_SCAN}), stopping`
-        );
+        logger.warn('Batch limit reached', { userId, limit: MAX_BILLS_PER_SCAN, totalBillsTouched });
         break;
       }
 
@@ -97,9 +94,7 @@ export const friendAddProcessor = onDocumentUpdated(
         .get();
 
       if (billsSnap.empty) {
-        console.log(
-          `[friendAddProcessor] No shared bills found for friend ${newFriendUid}`
-        );
+        logger.info('No shared bills found', { userId, friendUid: newFriendUid });
         continue;
       }
 
@@ -119,13 +114,9 @@ export const friendAddProcessor = onDocumentUpdated(
       await batch.commit();
       totalBillsTouched += billsToTouch.length;
 
-      console.log(
-        `[friendAddProcessor] Touched ${billsToTouch.length} bill(s) for friend ${newFriendUid}`
-      );
+      logger.info('Bills touched for friend', { userId, friendUid: newFriendUid, billsTouched: billsToTouch.length });
     }
 
-    console.log(
-      `[friendAddProcessor] Done. Total bills touched: ${totalBillsTouched}`
-    );
+    logger.info('Friend scan complete', { userId, totalBillsTouched });
   }
 );

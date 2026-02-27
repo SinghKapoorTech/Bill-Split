@@ -61,20 +61,16 @@ The two values always sum to zero: `balances[A] + balances[B] === 0`.
 
 ## Security Rules
 
+## Security Rules
+
 ```javascript
 match /friend_balances/{balanceId} {
   // resource == null allows transaction.get() to read non-existent docs
   allow read: if request.auth != null &&
                  (resource == null || request.auth.uid in resource.data.participants);
 
-  allow create: if request.auth != null &&
-                   request.auth.uid in request.resource.data.participants;
-
-  allow update: if request.auth != null &&
-                   request.auth.uid in resource.data.participants &&
-                   request.auth.uid in request.resource.data.participants;
-
-  allow delete: if false;
+  // Locked down: Only the backend ledgerProcessor Cloud Function can write balances
+  allow write: if false;
 }
 ```
 
@@ -83,64 +79,46 @@ match /friend_balances/{balanceId} {
 
 ## Write Strategy — Transactions
 
-All writes to this collection use `runTransaction()` (not `writeBatch` + `FieldValue.increment()`). This is intentional:
+All writes to this collection are performed exclusively by the **`ledgerProcessor` Cloud Function** using the Firebase Admin SDK. (See [[../backend/cloud_functions|Cloud Functions Overview]] for details). Specifically, it uses `runTransaction()` internally. This is intentional:
 
 1. The transaction reads the existing document first.
-2. Computes new balance values in TypeScript (exact numbers, no server-side transforms).
+2. Computes new balance values in TypeScript (exact numbers, no server-side transforms) based on the exact change (delta) from the connected bill.
 3. Writes the full object back using `transaction.set(..., { merge: true })`.
 
-This approach ensures Firestore Security Rules can evaluate `request.resource.data` correctly, since plain numbers (not `FieldValue.increment()` transforms) are present at rules evaluation time.
+This transactional approach guarantees that even if a bill is rapidly edited by multiple users concurrently, the running balance remains perfectly mathematically accurate.
 
 ## When `friend_balances` Gets Updated
 
-The ledger is updated in three situations:
+Under the unified ledger architecture, the `friend_balances` collection is strictly updated via the backend to establish a single source of truth and eliminate race conditions.
 
 | Trigger | What fires | When it runs |
 |---------|-----------|--------------|
-| **User enters the Review step** | `ledgerService.applyBillToLedgers()` | As soon as `currentStep === 3` in the wizard (even if the user never presses "Done") |
-| **User presses "Done"** | `navigate('/dashboard')` only — balances already applied on step entry | Immediately after the Review step effect |
-| **Bill is deleted** | `ledgerService.reverseBillFromLedgers()` | Before `deleteDoc()` in both `clearSession` and `deleteSession` |
+| **Bill is Created/Edited/Reviewing** | `ledgerProcessor` Cloud Function | Automatically `onDocumentWritten` (whenever the Bill document changes in Firestore). |
+| **Mark as Settled (Specific User)**| `ledgerProcessor` Cloud Function | The client sets a user in the `settledPersonIds` array. The backend detects this and applies a `$0` debt footprint. |
+| **Historical Settle Up** | `settlementProcessor` Cloud Function | A settlement receipt is created. The backend applies the payment directly to the balances. |
+| **Adding a New Friend** | `friendAddProcessor` Cloud Function | When a user's `friends` array changes, the backend retroactively triggers all historical shared bills to backfill the ledger. |
 
 > [!IMPORTANT]
-> The trigger is the **Review step entry**, not the "Done" button. This ensures balances update even when the user:
-> - Taps "Charge on Venmo" and leaves the app without pressing Done
-> - Closes the browser tab from the Review screen
-> - Navigates away via the back button after reviewing
-
-### Why Entry — Not Done?
-
-If balances only updated on "Done", any user who left the app to Venmo a friend would see stale balances indefinitely. Moving the trigger to step entry means the balance is committed the moment the user has seen and reviewed the split.
-
-### Idempotency
-
-`applyBillBalancesIdempotent` (called internally by `ledgerService.applyBillToLedgers`) uses a strictly transactional reverse-and-apply footprint engine. It compares the current `personTotals` against `processedBalances` on the bill document. It subtracts the mathematically old tracked footprint, and adds the new requested footprint during a single ACID transaction. If called multiple times with the same totals, the net effect on the math remains identical.
-
-> [!IMPORTANT]
-> UI code should **never** import `friendBalanceService` directly. All mutations go through `ledgerService`, which guarantees both `friend_balances` and `event_balances` are always updated together.
+> Client code **cannot** modify `friend_balances` directly. All UI mutations (creating, editing, deleting a bill) simply save the bill to Firestore, and the backend guarantees the ledger is perfectly updated.
 
 ---
 
 ## How Balances Flow
 
-### On Review Step Entry (Bill Creation / Edit)
+### 1. The Validation & Calculation Phase
+When a `Bill` document is written, the `ledgerProcessor` detects the change. It reads the bill, computes exact per-person mathematical totals using `shared/ledgerCalculations.ts`, and determines who the creditors are.
 
-When the user navigates to the Review step, `ledgerService.applyBillToLedgers()` runs in the background via a `useEffect` in `BillWizard.tsx`:
+### 2. The Transactional Update Phase (Authoritative)
+The pipeline opens an ACID transaction against Firestore:
+1. It looks at the bill's `processedBalances` property to see what financial footprint was *previously* committed for this bill.
+2. It reverses the old footprint from `friend_balances`.
+3. It applies the newly calculated footprint to `friend_balances`.
+4. It saves the newly applied footprint back onto the bill's `processedBalances` field.
 
-1. Reads the bill's `people` array and `processedBalances` from Firestore.
-2. Person IDs in the `people` array use the **`user-{uid}`** format. The service strips the `user-` prefix from each `person.id` to recover the raw Firebase UID before looking it up against the owner's `user.friends` list.
-3. People whose resolved Firebase UID is **not** in the owner's friends list are skipped (e.g. manually-added-by-name guests whose ID is a plain UUID with no `user-` prefix).
-4. Runs a Firestore transaction per linked friend.
-5. In the transaction, the engine reverses the old footprint (`processedBalances`) and applies the new total, arriving at an exact new value.
-6. Writes the new balance back to the `friend_balances` doc.
-7. Updates the bill's `processedBalances` to reflect the new committed footprint.
+This system of "Idempotent Deltas" makes the ledger bulletproof against network lag, double-submissions, or race conditions.
 
-### On Bill Deletion
-
-`ledgerService.reverseBillFromLedgers()` is called **before** `deleteDoc()`:
-
-1. Reads the bill's `processedBalances` and `eventBalancesApplied`.
-2. For each footprint, runs a transaction to completely subtract the exact footprint they originally contributed to the ledger.
-3. Automatically triggers UI updates because the `getHydratedFriends` hook uses `onSnapshot` to re-fetch the new accurate balance live.
+### 3. The Cache Rebuild Phase (Best-Effort)
+After the transaction successfully commits to `friend_balances`, the backend rebuilds the associated `event_balances` cache document (if the bill was part of an event).
 
 > [!NOTE]
 > If the bill was never reviewed (no `processedBalances`), `reverseBillBalancesIdempotent` returns immediately — there is nothing to reverse.

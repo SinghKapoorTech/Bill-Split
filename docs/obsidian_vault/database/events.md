@@ -77,6 +77,10 @@ Just like `friend_balances` tracks global debt between two friends over time, `e
 | `processedBillIds` | Array of String | Array of footprint safeguards so bills double-added via network lag are ignored. |
 | `lastUpdatedAt` | Timestamp | Standard timestamp. |
 
-The math works via the same **Idempotent Delta Engine** (see [[Scalable-Ledger-Architecture]]). When a bill is reviewed, the Delta engine reads the bill's `eventBalancesApplied` footprint, reverses it entirely from the `event_balances` ledger, and applies the new exact net amounts.
+This collection is no longer a primary source of truth. It functions as a **read-only materialized cache** populated by the server-side pipeline.
 
-When a user settles up from the Event UI, `markBillsAsSettledForUser` is called. The engine cascades backwards through old Event bills where the user owes money, marks the individual bills as Settled, zeroes out their footprint on the ledger, and effectively "Pays Off" the event using the exact same atomic transaction logic.
+Under the new unified ledger architecture, the `ledgerProcessor` Cloud Function automatically queries all `bills` in the event whenever one is added, modified, settled, or deleted. It computes the aggregate `netBalances`, runs the `optimizeDebts` algorithm, and overwrites this cache document.
+
+If the `event_balances` document is missing or stale, the client application falls back to calculating these exact values dynamically from the loaded bills using `computeEventBalances()`. This guarantees the Event UI remains instantly responsive without requiring write access to the ledger.
+
+When a user settles up from the Event UI, the `settlementProcessor` handles applying the actual money transfers directly to the global `friend_balances` ledger. The `ledgerProcessor` then auto-fires to rebuild the `event_balances` cache so the event debt mathematically zeroes out.

@@ -14,6 +14,7 @@
  */
 
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { logger } from 'firebase-functions';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { personIdToFirebaseUid, getFriendBalanceId } from '../../shared/ledgerCalculations.js';
 
@@ -137,7 +138,7 @@ export async function processSettlementReversalCore(
     tx.delete(settlementRef);
   });
 
-  console.log(`[reverseSettlement] Reversed settlement ${settlementId}: ${billsReversed} bills un-settled`);
+  logger.info('Settlement reversed', { settlementId, billsReversed, fromUserId: settlement.fromUserId, toUserId: settlement.toUserId, amount: settlement.amount });
 
   return { reversed: true, billsReversed };
 }

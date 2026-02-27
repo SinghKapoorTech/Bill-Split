@@ -19,6 +19,7 @@
  */
 
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { logger } from 'firebase-functions';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { calculatePersonTotals } from '../../shared/calculations.js';
 import {
@@ -333,20 +334,20 @@ export const ledgerProcessor = onDocumentWritten(
 
     // ── DELETE ──────────────────────────────────────────────────────────────
     if (before && !after) {
-      console.log(`[ledgerProcessor] DELETE bill ${billId}`);
+      logger.info('Bill deleted', { billId, ownerId: before.ownerId, stage: 'DELETE' });
 
       const previousBalances = before.processedBalances;
       if (previousBalances && Object.keys(previousBalances).length > 0) {
         await reverseFootprint(billId, before.ownerId, previousBalances);
-        console.log(`[ledgerProcessor] Stage 2: reversed footprint`);
+        logger.info('Stage 2: reversed footprint', { billId, friendsReversed: Object.keys(previousBalances).length });
       }
 
       if (before.eventId) {
         try {
           await rebuildEventCache(before.eventId, billId);
-          console.log(`[ledgerProcessor] Stage 3: event cache rebuilt`);
+          logger.info('Stage 3: event cache rebuilt', { billId, eventId: before.eventId });
         } catch (err) {
-          console.error(`[ledgerProcessor] Stage 3 failed (non-fatal):`, err);
+          logger.error('Stage 3 failed (non-fatal)', { billId, eventId: before.eventId, error: String(err) });
         }
       }
       return;
@@ -361,8 +362,8 @@ export const ledgerProcessor = onDocumentWritten(
       return;
     }
 
-    const stage = before ? 'UPDATE' : 'CREATE';
-    console.log(`[ledgerProcessor] ${stage} bill ${billId}`);
+    const operation = before ? 'UPDATE' : 'CREATE';
+    logger.info('Processing bill', { billId, operation, ownerId: after.ownerId, eventId: after.eventId || null });
 
     // ── Stage 1: VALIDATE & CALCULATE ───────────────────────────────────────
     const people = after.people || [];
@@ -370,7 +371,7 @@ export const ledgerProcessor = onDocumentWritten(
     const creditorId = after.paidById || ownerId;
 
     if (!after.billData?.items?.length || !ownerId || people.length === 0) {
-      console.log(`[ledgerProcessor] Incomplete data, skipping`);
+      logger.info('Stage 1: incomplete data, skipping', { billId, hasItems: !!after.billData?.items?.length, hasOwner: !!ownerId, peopleCount: people.length });
       return;
     }
 
@@ -378,7 +379,7 @@ export const ledgerProcessor = onDocumentWritten(
     const personTotals = computePersonTotals(after);
 
     if (personTotals.length === 0) {
-      console.log(`[ledgerProcessor] No person totals, skipping`);
+      logger.info('Stage 1: no person totals, skipping', { billId });
       return;
     }
 
@@ -395,9 +396,9 @@ export const ledgerProcessor = onDocumentWritten(
 
       const deltasApplied = await applyFriendLedger(billId, ownerId, newFootprint);
       stage2Wrote = deltasApplied > 0;
-      console.log(`[ledgerProcessor] Stage 2: ${deltasApplied} friend balance(s) updated`);
+      logger.info('Stage 2: friend ledger updated', { billId, deltasApplied, linkedFriends: linkedFriendUids.size });
     } else {
-      console.log(`[ledgerProcessor] Stage 2: no linked friends, skipping`);
+      logger.info('Stage 2: no linked friends, skipping', { billId, ownerId });
     }
 
     // Bump _ledgerVersion even when Stage 2 didn't write (no friends / no deltas)
@@ -412,9 +413,9 @@ export const ledgerProcessor = onDocumentWritten(
     if (after.eventId) {
       try {
         await rebuildEventCache(after.eventId);
-        console.log(`[ledgerProcessor] Stage 3: event cache rebuilt`);
+        logger.info('Stage 3: event cache rebuilt', { billId, eventId: after.eventId });
       } catch (err) {
-        console.error(`[ledgerProcessor] Stage 3 failed (non-fatal):`, err);
+        logger.error('Stage 3 failed (non-fatal)', { billId, eventId: after.eventId, error: String(err) });
       }
     }
   }
