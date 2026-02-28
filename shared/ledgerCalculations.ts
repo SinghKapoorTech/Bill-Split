@@ -91,43 +91,23 @@ export function calculateFriendFootprint(input: FriendFootprintInput): Record<st
 }
 
 /**
- * Computes the delta between an old footprint and a new footprint.
- * Returns only non-zero deltas (friends whose balance actually changed).
+ * Converts an owner-relative amount to the single-balance sign convention
+ * used in friend_balances documents.
+ *
+ * Sign convention:
+ *   balance > 0  →  participants[0] (alphabetically smaller UID) is owed money
+ *   balance < 0  →  participants[1] (alphabetically larger UID) is owed money
+ *
+ * @param ownerId - Firebase UID of the bill owner (the creditor)
+ * @param friendId - Firebase UID of the friend (the debtor)
+ * @param amountFriendOwes - How much the friend owes the owner (positive = owes)
  */
-export function computeFootprintDeltas(
-  newFootprint: Record<string, number>,
-  previousFootprint: Record<string, number>
-): Record<string, number> {
-  const allFriendIds = new Set([
-    ...Object.keys(previousFootprint),
-    ...Object.keys(newFootprint),
-  ]);
-
-  const deltas: Record<string, number> = {};
-
-  for (const friendId of allFriendIds) {
-    const prevAmount = previousFootprint[friendId] || 0;
-    const newAmount = newFootprint[friendId] || 0;
-    const delta = newAmount - prevAmount;
-
-    if (Math.abs(delta) > 0.001) {
-      deltas[friendId] = delta;
-    }
-  }
-
-  return deltas;
-}
-
-/**
- * Strips zero-value entries from a footprint to produce the processedBalances
- * that gets saved on the bill document.
- */
-export function toProcessedBalances(footprint: Record<string, number>): Record<string, number> {
-  const result: Record<string, number> = {};
-  for (const [friendId, amount] of Object.entries(footprint)) {
-    if (amount !== 0) {
-      result[friendId] = amount;
-    }
-  }
-  return result;
+export function toSingleBalance(
+  ownerId: string,
+  friendId: string,
+  amountFriendOwes: number
+): number {
+  // If owner sorts first, owner being owed = positive balance
+  // If owner sorts second, owner being owed = negative balance
+  return ownerId < friendId ? amountFriendOwes : -amountFriendOwes;
 }

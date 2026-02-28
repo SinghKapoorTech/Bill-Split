@@ -180,13 +180,19 @@ export const userService = {
       const balanceSnap = await getDocs(query(balancesRef, where('participants', 'array-contains', userId)));
 
       // Build a quick lookup: friendId -> balance (positive = they owe you)
+      // Single balance convention: balance > 0 means participants[0] (sorted) is owed
       balanceSnap.docs.forEach(docSnap => {
         const data = docSnap.data();
         const participants: string[] = data.participants || [];
         const friendId = participants.find(p => p !== userId);
-        if (friendId && data.balances?.[userId] !== undefined) {
-          balanceMap[friendId] = data.balances[userId];
-        }
+        if (!friendId) return;
+
+        const rawBalance: number = data.balance ?? 0;
+        const sortedParticipants = [...participants].sort();
+        const userIsFirst = sortedParticipants[0] === userId;
+        // If user is first sorted and balance > 0, user is owed (positive)
+        // If user is second sorted, negate to get user-relative view
+        balanceMap[friendId] = userIsFirst ? rawBalance : -rawBalance;
       });
     }
 

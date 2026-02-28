@@ -32,9 +32,11 @@ When a user clicks "Settle Up" to pay off an outstanding balance, the client fir
 
 ### Responsibilities:
 1. **Historical Ledger Crawling:** It determines exactly how much is owed, and iterates chronologically through the oldest unsettled bills.
-2. **Atomic Ledger Deductions:** It adds the payer's `personId` to the `settledPersonIds` array of the fully covered bills, instructing the `ledgerProcessor` engine that this debt is nullified.
-3. **Receipt Generation:** It logs the action permanently in the `settlements` collection for historical tracking and reversal capabilities.
-4. **Concurrency Safety:** It is strictly idempotent (rejecting double-submissions of the same settlement) and processes bills in batches to avoid Firestore transaction timeouts.
+2. **Forgiveness Bill Support:** Bills where the current user is the *creditor* (owed money) are treated as "forgiveness" bills — settling them inflates the virtual cash pool rather than consuming it, allowing a single settlement to simultaneously clear debts in both directions.
+3. **`paidById`-Aware Creditor Resolution:** The creditor is resolved via `paidById` first (supports bills where someone other than the owner paid), falling back to `ownerId`. This ensures correct `friend_balances` pair targeting even on bills with a delegated payer.
+4. **Atomic Ledger Deductions:** It adds the payer's `personId` to the `settledPersonIds` array of the fully covered bills, instructing the `ledgerProcessor` engine that this debt is nullified. When a bill becomes fully settled it also removes it from `contributingBillIds` on the `friend_balances` document.
+5. **Receipt Generation:** It logs the action permanently in the `settlements` collection for historical tracking and reversal capabilities.
+6. **Concurrency Safety:** It is strictly idempotent (rejecting double-submissions of the same settlement) and processes bills in batches to avoid Firestore transaction timeouts.
 
 ---
 
@@ -45,8 +47,9 @@ Allows a user to undo a settlement if a payment was logged accidentally.
 
 ### Responsibilities:
 1. **Lookup:** Finds the `settledBillIds` stored on the target settlement receipt.
-2. **Un-Settle:** Safely removes the the user's `personId` from the `settledPersonIds` array on each individual bill document.
-3. **Pipeline Reactivation:** Mutating the bills natively re-triggers the `ledgerProcessor`, which computes that the users are no longer settled, perfectly recreating their former owed balance in the ledger. 
+2. **`paidById`-Aware Creditor Resolution:** Determines who was unsettled on each bill by resolving the creditor via `paidById` (or `ownerId` as fallback), mirroring the settlement processor's logic for correctness.
+3. **Un-Settle:** Safely removes the user's `personId` from the `settledPersonIds` array on each individual bill document.
+4. **Pipeline Reactivation:** Mutating the bills natively re-triggers the `ledgerProcessor`, which computes that the users are no longer settled, perfectly recreating their former owed balance in the ledger.
 
 ---
 
@@ -58,4 +61,19 @@ A retroactive scanning function that heals the ledger when new social connection
 ### Responsibilities:
 1. **Detect Changes:** Looks at `before.friends` and `after.friends` to identify specifically whose UID was just added.
 2. **Historical Query:** Queries the `bills` collection for any past bills where the two users split a cost as non-friends (which bypassed the `friend_balances` ledger at the time).
-3. **Pipeline Reactivation:** Gently "touches" these old bills with a `_friendScanTrigger` timestamp. This arbitrary modification causes the `ledgerProcessor` to spin up. The `ledgerProcessor` now sees the users are, in fact, friends, and backfills their shared ledger perfectly. 
+3. **Pipeline Reactivation:** Gently "touches" these old bills with a `_friendScanTrigger` timestamp. This arbitrary modification causes the `ledgerProcessor` to spin up. The `ledgerProcessor` now sees the users are, in fact, friends, and backfills their shared ledger perfectly.
+
+---
+
+## 5. `eventDeleteProcessor`
+**Trigger:** `onDocumentDeleted ('events/{eventId}')`
+
+A cascade cleanup function that prevents orphaned documents when an event is deleted.
+
+### Responsibilities:
+1. **Bill Cascade Delete:** Queries and deletes all `bills` documents where `eventId == deletedEventId` in batches (respecting the Firestore 500-op write limit). Each bill deletion natively re-triggers `ledgerProcessor`, which automatically reverses any `friend_balances` footprints for that bill — no manual ledger cleanup needed.
+2. **Cache Cleanup:** Deletes the `event_balances` cache document for the event.
+3. **Invitation Cleanup:** Deletes all `eventInvitations` documents associated with the event.
+
+> [!NOTE]
+> The function does **not** write to `friend_balances` directly. It relies on `ledgerProcessor` firing for each deleted bill to handle ledger reversal atomically.

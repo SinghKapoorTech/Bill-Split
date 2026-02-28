@@ -361,13 +361,12 @@ export { friendAddProcessor } from './friendAddProcessor.js';
 export { eventDeleteProcessor } from './eventDeleteProcessor.js';
 
 /**
- * Cloud Function: Process a settlement between two users.
+ * Cloud Function: Settle all outstanding bills with a friend.
  *
- * Atomically marks shared bills as settled, updates friend_balances,
- * and writes an immutable settlement record — all in a single admin transaction.
- * The ledgerProcessor pipeline handles event_balances cache rebuilds.
+ * Reads unsettledBillIds from friend_balances, marks each bill settled,
+ * zeros the balance, and writes a settlement record — all in one transaction.
  */
-export const processSettlement = onCall<import('./settlementProcessor.js').SettlementRequest>(
+export const processSettlement = onCall<import('./settlementProcessor.js').SettleRequest>(
   { timeoutSeconds: 60, memory: '256MiB' },
   async (request) => {
     if (!request.auth) {
@@ -382,9 +381,8 @@ export const processSettlement = onCall<import('./settlementProcessor.js').Settl
 /**
  * Cloud Function: Reverse a settlement.
  *
- * Un-settles bills, reverses any remaining amount from friend_balances,
- * and deletes the settlement record. The ledgerProcessor pipeline auto-fires
- * for each modified bill to recalculate friend_balances and rebuild event cache.
+ * Un-settles bills and deletes the settlement record. The ledgerProcessor
+ * pipeline auto-fires for each modified bill to recalculate friend_balances.
  */
 export const reverseSettlement = onCall<import('./settlementReversal.js').ReversalRequest>(
   { timeoutSeconds: 60, memory: '256MiB' },

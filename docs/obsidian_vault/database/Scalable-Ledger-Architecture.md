@@ -90,11 +90,13 @@ While Client-Side Idempotent Deltas solved the mathematical scaling issues, allo
 - The app logs a historical `Settlement` document (a receipt of the payment).
 - Wait, does it just do a blind delta? No! We implemented **Cascading Settlements**.
 - The settlement processor (`settlementProcessor.ts`) queries your oldest unsettled bills and calculates the exact amount you owe on each.
-- For each fully-covered bill, it pushes your `personId` into the `settledPersonIds` array and updates `friend_balances` atomically in a single transaction.
+- **Forgiveness Bills:** Bills where you are the *creditor* (owed money) are processed first and inflate the virtual cash pool, enabling a single settlement to clear debts in both directions simultaneously.
+- **`paidById`-Aware Creditor Resolution:** The creditor is resolved via `paidById` (falling back to `ownerId`) so that bills where someone other than the owner paid are settled against the correct `friend_balances` pair.
+- For each fully-covered bill, it pushes your `personId` into the `settledPersonIds` array and updates `friend_balances` atomically in a single transaction. The bill is also removed from `contributingBillIds` on `friend_balances` once fully settled.
 - The ledger pipeline auto-fires for each modified bill and rebuilds the `event_balances` cache.
 - Any remaining partial payment left over is applied directly to `friend_balances` as an idempotent deduction.
 - The settlement processor does **not** write to `event_balances` — the pipeline handles that as a cache rebuild.
-- Settlements can be **reversed** via the `reverseSettlement` Cloud Function, which un-settles bills and restores balances atomically.
+- Settlements can be **reversed** via the `reverseSettlement` Cloud Function, which un-settles bills and restores balances atomically. The reversal also uses `paidById`-aware creditor resolution to correctly identify which party was unsettled.
 
 ---
 

@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useFriendsEditor } from '@/hooks/useFriendsEditor';
 import { useToast } from '@/hooks/use-toast';
 import { UI_TEXT, SUCCESS_MESSAGES } from '@/utils/uiConstants';
-import { SettleUpModal } from '@/components/settlements/SettleUpModal';
+import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
 import { AddPersonDialog } from '@/components/people/AddPersonDialog';
 
 export function ManageFriendsCard() {
@@ -41,7 +41,7 @@ export function ManageFriendsCard() {
     refreshFriends,
   } = useFriendsEditor();
 
-  const [settleTarget, setSettleTarget] = useState<{ userId: string; name: string; amount: number; isPaying: boolean; venmoId?: string } | null>(null);
+  const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
   const [showAllFriends, setShowAllFriends] = useState(false);
   const [expandedFriends, setExpandedFriends] = useState<Record<number, boolean>>({});
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -188,7 +188,6 @@ export function ManageFriendsCard() {
                                   name: friend.name,
                                   amount: Math.abs(friend.balance as number),
                                   isPaying: friend.balance! < 0,
-                                  venmoId: friend.venmoId
                                 })}
                               >
                                 Settle Up
@@ -296,9 +295,8 @@ export function ManageFriendsCard() {
           onOpenChange={(open) => !open && setSettleTarget(null)}
           targetUserId={settleTarget.userId}
           targetUserName={settleTarget.name}
-          targetVenmoId={settleTarget.venmoId}
           isPaying={settleTarget.isPaying}
-          recommendedAmount={settleTarget.amount}
+          balanceAmount={settleTarget.amount}
           onSuccess={() => {
             setSettleTarget(null);
             refreshFriends();

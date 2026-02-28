@@ -21,8 +21,7 @@ import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useEventLedger } from '@/hooks/useEventLedger';
-import { generateUserId } from '@/utils/billCalculations';
-import { SettleUpModal } from '@/components/settlements/SettleUpModal';
+import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
 import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
 
 // Firestore collection name
@@ -45,7 +44,7 @@ export default function EventDetailView() {
   const [memberProfiles, setMemberProfiles] = useState<Record<string, any>>({});
 
   // Settlement state
-  const [settleTarget, setSettleTarget] = useState<{ userId: string; name: string; amount: number; isPaying: boolean; venmoId?: string } | null>(null);
+  const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
 
   // Need to bring in session methods to resume/delete from the list
   const { deleteSession, resumeSession, activeSession, isDeleting, isResuming } = useBillContext();
@@ -215,8 +214,8 @@ export default function EventDetailView() {
       )}
 
       {/* Reusing CreateOptionsDialog with event context */}
-      <CreateOptionsDialog 
-        open={createDialogOpen} 
+      <CreateOptionsDialog
+        open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         eventContext={{ targetEventId: event.id, targetEventName: event.name }}
       />
@@ -252,8 +251,6 @@ export default function EventDetailView() {
 
                     let fromName = fromProfile?.displayName || fromProfile?.username;
                     let toName = toProfile?.displayName || toProfile?.username;
-                    let fromVenmoId = fromProfile?.venmoId;
-                    let toVenmoId = toProfile?.venmoId;
 
                     if (!fromName || !toName) {
                       for (const bill of eventBills) {
@@ -279,8 +276,8 @@ export default function EventDetailView() {
                     const direction: BalanceDirection = isCurrentUserPaying
                       ? 'you-owe'
                       : isCurrentUserReceiving
-                      ? 'owes-you'
-                      : 'neutral';
+                        ? 'owes-you'
+                        : 'neutral';
 
                     return (
                       <BalanceListRow
@@ -298,7 +295,6 @@ export default function EventDetailView() {
                               name: isCurrentUserPaying ? toName! : fromName!,
                               amount: debt.amount,
                               isPaying: isCurrentUserPaying,
-                              venmoId: isCurrentUserPaying ? toVenmoId : fromVenmoId
                             });
                           }
                         } : undefined}
@@ -384,13 +380,9 @@ export default function EventDetailView() {
           onOpenChange={(open) => !open && setSettleTarget(null)}
           targetUserId={settleTarget.userId}
           targetUserName={settleTarget.name}
-          targetVenmoId={settleTarget.venmoId}
           isPaying={settleTarget.isPaying}
-          recommendedAmount={settleTarget.amount}
-          eventId={event.id}
-          eventName={event.name}
+          balanceAmount={settleTarget.amount}
           onSuccess={() => {
-            // Ledger automatically refreshes because of real-time listener in useEventLedger
             setSettleTarget(null);
           }}
         />

@@ -5,17 +5,13 @@
  *
  * The heart of the ledger pipeline. When a bill is created, updated, or deleted:
  *   Stage 1: Validate & calculate personTotals from trusted server-side data
- *   Stage 2: Apply friend_balances delta (authoritative, in transaction)
+ *   Stage 2: Apply single-balance delta to friend_balances (authoritative, in transaction)
  *   Stage 3: Rebuild event_balances cache (best-effort, outside transaction)
  *
- * Key design decisions:
- *   - Stage 2 reads processedBalances INSIDE the transaction for consistency.
- *   - Stage 3 is outside the transaction — it's just a cache rebuild.
- *     If it fails, the authoritative data (friend_balances) is still correct.
- *   - The pipeline writes processedBalances back to the bill; the hasRelevantChange
- *     guard prevents infinite trigger loops from this write.
- *   - During transition (Commits 4-5), both client and pipeline run in parallel.
- *     This is safe because the footprint-based delta design is idempotent.
+ * friend_balances schema:
+ *   { balance: number, unsettledBillIds: string[], participants: [uid1, uid2] }
+ *   balance > 0 → participants[0] (alphabetically smaller UID) is owed
+ *   balance < 0 → participants[1] is owed
  */
 
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
@@ -26,14 +22,11 @@ import {
   personIdToFirebaseUid,
   getFriendBalanceId,
   calculateFriendFootprint,
-  computeFootprintDeltas,
-  toProcessedBalances,
+  toSingleBalance,
 } from '../../shared/ledgerCalculations.js';
 import { optimizeDebts } from '../../shared/optimizeDebts.js';
 import type { PersonTotal } from '../../shared/types.js';
 
-// Lazy-initialized: getFirestore() must not run at import time because
-// initializeApp() in index.ts may not have executed yet.
 let _db: ReturnType<typeof getFirestore> | null = null;
 function db() {
   if (!_db) _db = getFirestore();
@@ -45,8 +38,7 @@ const FRIEND_BALANCES_COLLECTION = 'friend_balances';
 const EVENT_BALANCES_COLLECTION = 'event_balances';
 
 // Fields that require pipeline re-processing when changed.
-// processedBalances and _ledgerVersion are intentionally excluded —
-// the pipeline writes them, so including them would cause infinite loops.
+// processedBalances and _ledgerVersion are excluded to prevent infinite loops.
 const RELEVANT_FIELDS = [
   'billData', 'people', 'itemAssignments', 'settledPersonIds',
   'paidById', 'splitEvenly', 'ownerId', '_friendScanTrigger',
@@ -54,11 +46,6 @@ const RELEVANT_FIELDS = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Checks whether any pipeline-relevant fields changed between snapshots.
- * Returns false if only pipeline-written fields (processedBalances) changed,
- * which prevents infinite trigger loops.
- */
 function hasRelevantChange(
   before: Record<string, any>,
   after: Record<string, any>
@@ -71,10 +58,6 @@ function hasRelevantChange(
   return false;
 }
 
-/**
- * Resolves which bill participants are linked Firebase users
- * by reading the owner's friends list.
- */
 async function resolveLinkedFriends(ownerId: string): Promise<Set<string>> {
   const userDoc = await db().collection('users').doc(ownerId).get();
   const userData = userDoc.data();
@@ -88,10 +71,6 @@ async function resolveLinkedFriends(ownerId: string): Promise<Set<string>> {
   return linked;
 }
 
-/**
- * Computes personTotals from bill data, handling both splitEvenly and
- * item-assignment-based splits.
- */
 function computePersonTotals(bill: Record<string, any>): PersonTotal[] {
   const billData = bill.billData;
   const people = bill.people || [];
@@ -117,15 +96,35 @@ function computePersonTotals(bill: Record<string, any>): PersonTotal[] {
   );
 }
 
-// ─── Stage 2: Friend Ledger (authoritative) ──────────────────────────────────
+/**
+ * Strips zero-value entries from a footprint for storage.
+ */
+function stripZeros(footprint: Record<string, number>): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [k, v] of Object.entries(footprint)) {
+    if (Math.abs(v) > 0.001) result[k] = v;
+  }
+  return result;
+}
 
 /**
- * Applies footprint deltas to friend_balances in a single transaction.
- * Reads processedBalances from the bill INSIDE the transaction for consistency,
- * then saves the updated processedBalances footprint back to the bill.
- *
- * Returns the number of friend_balance documents updated.
+ * Computes non-zero deltas between two footprints.
  */
+function computeDeltas(
+  newFootprint: Record<string, number>,
+  oldFootprint: Record<string, number>
+): Record<string, number> {
+  const allIds = new Set([...Object.keys(oldFootprint), ...Object.keys(newFootprint)]);
+  const deltas: Record<string, number> = {};
+  for (const id of allIds) {
+    const delta = (newFootprint[id] || 0) - (oldFootprint[id] || 0);
+    if (Math.abs(delta) > 0.001) deltas[id] = delta;
+  }
+  return deltas;
+}
+
+// ─── Stage 2: Friend Ledger (authoritative, single balance) ─────────────────
+
 async function applyFriendLedger(
   billId: string,
   ownerId: string,
@@ -135,63 +134,58 @@ async function applyFriendLedger(
   let deltasApplied = 0;
 
   await db().runTransaction(async (tx) => {
-    // Read bill inside transaction for latest processedBalances
     const billSnap = await tx.get(billRef);
     if (!billSnap.exists) return;
 
     const billData = billSnap.data()!;
     const previousBalances = billData.processedBalances || {};
+    const deltas = computeDeltas(newFootprint, previousBalances);
 
-    const deltas = computeFootprintDeltas(newFootprint, previousBalances);
     if (Object.keys(deltas).length === 0) return;
 
-    // Phase 1: Read all friend_balance docs (Firestore requires reads before writes)
-    const balanceRefs: Record<string, any> = {};
-    const balanceSnaps: Record<string, any> = {};
+    // Phase 1: Read all friend_balance docs
+    const balanceRefs: Record<string, FirebaseFirestore.DocumentReference> = {};
+    const balanceSnaps: Record<string, FirebaseFirestore.DocumentSnapshot> = {};
 
-    for (const friendUserId of Object.keys(deltas)) {
-      const balanceId = getFriendBalanceId(ownerId, friendUserId);
+    for (const friendId of Object.keys(deltas)) {
+      const balanceId = getFriendBalanceId(ownerId, friendId);
       const ref = db().collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
-      balanceRefs[friendUserId] = ref;
-      balanceSnaps[friendUserId] = await tx.get(ref);
+      balanceRefs[friendId] = ref;
+      balanceSnaps[friendId] = await tx.get(ref);
     }
 
-    // Phase 2: Write all friend_balance updates
+    // Phase 2: Write single-balance updates
     const now = Timestamp.now();
-    for (const friendUserId of Object.keys(deltas)) {
-      const delta = deltas[friendUserId];
-      const ref = balanceRefs[friendUserId];
-      const snap = balanceSnaps[friendUserId];
+    for (const friendId of Object.keys(deltas)) {
+      const delta = deltas[friendId];
+      const ref = balanceRefs[friendId];
+      const snap = balanceSnaps[friendId];
       const existing = snap.exists ? snap.data()! : null;
+      const currentBalance: number = (existing?.balance ?? 0) as number;
 
-      const currentOwnerBal: number = (existing?.balances?.[ownerId] ?? 0) as number;
-      const currentFriendBal: number = (existing?.balances?.[friendUserId] ?? 0) as number;
+      // Convert owner-relative delta to single-balance sign convention
+      const deltaSingle = toSingleBalance(ownerId, friendId, delta);
 
-      // Track which bills contribute to this friend pair's balance.
-      // If this bill still has a non-zero contribution → arrayUnion (add).
-      // If contribution went to zero (settled/removed) → arrayRemove (remove).
-      const friendAmount = newFootprint[friendUserId] ?? 0;
+      // Track unsettled bills
+      const friendAmount = newFootprint[friendId] ?? 0;
       const billIdUpdate = Math.abs(friendAmount) > 0.001
-        ? { contributingBillIds: FieldValue.arrayUnion(billId) }
-        : { contributingBillIds: FieldValue.arrayRemove(billId) };
+        ? { unsettledBillIds: FieldValue.arrayUnion(billId) }
+        : { unsettledBillIds: FieldValue.arrayRemove(billId) };
 
       tx.set(ref, {
         id: ref.id,
-        participants: [ownerId, friendUserId],
-        balances: {
-          [ownerId]: currentOwnerBal + delta,
-          [friendUserId]: currentFriendBal - delta,
-        },
+        participants: [ownerId, friendId].sort(),
+        balance: currentBalance + deltaSingle,
         ...billIdUpdate,
         lastUpdatedAt: now,
         lastBillId: billId,
       }, { merge: true });
     }
 
-    // Save the new footprint and bump pipeline version on the bill
+    // Save footprint and bump version on the bill
     const currentVersion: number = (billData._ledgerVersion ?? 0);
     tx.update(billRef, {
-      processedBalances: toProcessedBalances(newFootprint),
+      processedBalances: stripZeros(newFootprint),
       _ledgerVersion: currentVersion + 1,
     });
     deltasApplied = Object.keys(deltas).length;
@@ -200,20 +194,15 @@ async function applyFriendLedger(
   return deltasApplied;
 }
 
-/**
- * Reverses a bill's processedBalances footprint from friend_balances.
- * Used when a bill is deleted.
- */
 async function reverseFootprint(
   billId: string,
   ownerId: string,
   previousBalances: Record<string, number>
 ): Promise<void> {
   await db().runTransaction(async (tx) => {
-    // Phase 1: Read all affected friend_balance docs
     const friendsToReverse: string[] = [];
-    const balanceRefs: Record<string, any> = {};
-    const balanceSnaps: Record<string, any> = {};
+    const balanceRefs: Record<string, FirebaseFirestore.DocumentReference> = {};
+    const balanceSnaps: Record<string, FirebaseFirestore.DocumentSnapshot> = {};
 
     for (const [friendId, amount] of Object.entries(previousBalances)) {
       if (Math.abs(amount) < 0.001) continue;
@@ -225,7 +214,6 @@ async function reverseFootprint(
       balanceSnaps[friendId] = await tx.get(ref);
     }
 
-    // Phase 2: Write reversals
     const now = Timestamp.now();
     for (const friendId of friendsToReverse) {
       const amount = previousBalances[friendId];
@@ -234,17 +222,16 @@ async function reverseFootprint(
       if (!snap.exists) continue;
 
       const existing = snap.data()!;
-      const currentOwnerBal: number = (existing?.balances?.[ownerId] ?? 0) as number;
-      const currentFriendBal: number = (existing?.balances?.[friendId] ?? 0) as number;
+      const currentBalance: number = (existing?.balance ?? 0) as number;
+
+      // Reverse: subtract the single-balance equivalent
+      const reversalDelta = toSingleBalance(ownerId, friendId, -amount);
 
       tx.set(ref, {
         id: ref.id,
-        participants: [ownerId, friendId],
-        balances: {
-          [ownerId]: currentOwnerBal - amount,
-          [friendId]: currentFriendBal + amount,
-        },
-        contributingBillIds: FieldValue.arrayRemove(billId),
+        participants: [ownerId, friendId].sort(),
+        balance: currentBalance + reversalDelta,
+        unsettledBillIds: FieldValue.arrayRemove(billId),
         lastUpdatedAt: now,
         lastBillId: billId,
       }, { merge: true });
@@ -254,16 +241,6 @@ async function reverseFootprint(
 
 // ─── Stage 3: Event Cache (best-effort) ──────────────────────────────────────
 
-/**
- * Rebuilds the event_balances cache from scratch by querying all bills
- * in the event, aggregating per-person totals, and running optimizeDebts.
- *
- * This is intentionally a full rebuild (not incremental) because event_balances
- * is a read-only cache. Rebuilding is simpler, more debuggable, and self-healing.
- *
- * @param eventId - the event whose cache to rebuild
- * @param excludeBillId - bill to exclude (used during deletion)
- */
 async function rebuildEventCache(
   eventId: string,
   excludeBillId?: string
@@ -287,7 +264,6 @@ async function rebuildEventCache(
 
     const personTotals = computePersonTotals(bill);
 
-    // Aggregate: non-owner participants owe (negative), owner is owed (positive)
     let ownerIsOwed = 0;
     for (const pt of personTotals) {
       const uid = personIdToFirebaseUid(pt.personId);
@@ -306,7 +282,6 @@ async function rebuildEventCache(
     processedBillIds.push(billDoc.id);
   }
 
-  // Clean near-zero values
   for (const uid of Object.keys(netBalances)) {
     if (Math.abs(netBalances[uid]) < 0.01) {
       netBalances[uid] = 0;
@@ -356,8 +331,6 @@ export const ledgerProcessor = onDocumentWritten(
     // ── CREATE or UPDATE ────────────────────────────────────────────────────
     if (!after) return;
 
-    // Guard: skip if no relevant fields changed
-    // (prevents infinite loop from our own processedBalances write)
     if (before && !hasRelevantChange(before, after)) {
       return;
     }
@@ -371,7 +344,7 @@ export const ledgerProcessor = onDocumentWritten(
     const creditorId = after.paidById || ownerId;
 
     if (!after.billData?.items?.length || !ownerId || people.length === 0) {
-      logger.info('Stage 1: incomplete data, skipping', { billId, hasItems: !!after.billData?.items?.length, hasOwner: !!ownerId, peopleCount: people.length });
+      logger.info('Stage 1: incomplete data, skipping', { billId });
       return;
     }
 
@@ -385,7 +358,6 @@ export const ledgerProcessor = onDocumentWritten(
 
     // ── Stage 2: FRIEND LEDGER (authoritative, in transaction) ──────────────
     const linkedFriendUids = await resolveLinkedFriends(ownerId);
-
     let stage2Wrote = false;
 
     if (linkedFriendUids.size > 0) {
@@ -401,8 +373,6 @@ export const ledgerProcessor = onDocumentWritten(
       logger.info('Stage 2: no linked friends, skipping', { billId, ownerId });
     }
 
-    // Bump _ledgerVersion even when Stage 2 didn't write (no friends / no deltas)
-    // so it always reflects that the pipeline processed this bill state.
     if (!stage2Wrote) {
       const billRef = db().collection(BILLS_COLLECTION).doc(billId);
       const currentVersion: number = (after._ledgerVersion ?? 0);

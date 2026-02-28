@@ -5,18 +5,12 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useFriendsEditor } from '@/hooks/useFriendsEditor';
 import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
-import { SettleUpModal } from '@/components/settlements/SettleUpModal';
+import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
 
 export function FriendBalancePreviewCard() {
   const navigate = useNavigate();
   const { friends, isLoadingFriends, refreshFriends } = useFriendsEditor();
-  const [settleTarget, setSettleTarget] = useState<{
-    userId: string;
-    name: string;
-    amount: number;
-    isPaying: boolean;
-    venmoId?: string;
-  } | null>(null);
+  const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
 
   const previewFriends = friends.slice(0, 5);
 
@@ -76,7 +70,6 @@ export function FriendBalancePreviewCard() {
                         name: friend.name,
                         amount,
                         isPaying: !!youOwe,
-                        venmoId: friend.venmoId,
                       }),
                     } : undefined}
                   />
@@ -104,9 +97,8 @@ export function FriendBalancePreviewCard() {
           onOpenChange={(open) => !open && setSettleTarget(null)}
           targetUserId={settleTarget.userId}
           targetUserName={settleTarget.name}
-          targetVenmoId={settleTarget.venmoId}
           isPaying={settleTarget.isPaying}
-          recommendedAmount={settleTarget.amount}
+          balanceAmount={settleTarget.amount}
           onSuccess={() => { setSettleTarget(null); refreshFriends(); }}
         />
       )}
