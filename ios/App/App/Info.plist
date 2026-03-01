@@ -52,7 +52,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.592503616573-9mlde00s5d6opgjbgqe0rcg0dio6batr</string>
+				<string>com.googleusercontent.apps.162777511812-2dps8kd79tucfc5si56act9lanueshcl</string>
 			</array>
 		</dict>
 	</array>
@@ -63,6 +63,6 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Bill Split saves receipt images for later analysis</string>
 	<key>GIDClientID</key>
-	<string>592503616573-9mlde00s5d6opgjbgqe0rcg0dio6batr.apps.googleusercontent.com</string>
+	<string>162777511812-2dps8kd79tucfc5si56act9lanueshcl.apps.googleusercontent.com</string>
 </dict>
 </plist>
