@@ -200,16 +200,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ========== Event Balances Collection ==========
-    match /event_balances/{eventId} {
-      allow read: if request.auth != null &&
-                     exists(/databases/$(database)/documents/events/$(eventId)) &&
-                     (request.auth.uid == get(/databases/$(database)/documents/events/$(eventId)).data.ownerId ||
-                      ('memberIds' in get(/databases/$(database)/documents/events/$(eventId)).data &&
-                       request.auth.uid in get(/databases/$(database)/documents/events/$(eventId)).data.memberIds));
-                     
-      // Admin-only: server-side ledgerProcessor pipeline rebuilds this cache via Admin SDK
-      allow write: if false;
+    // ========== Event Balances Collection (per-pair, mirrors friend_balances) ==========
+    match /event_balances/{balanceId} {
+      // allow get: handles both existing docs and non-existent docs (transaction reads)
+      allow get: if request.auth != null &&
+                    (resource == null || request.auth.uid in resource.data.participants);
+
+      // allow list: for queries filtering by eventId
+      allow list: if request.auth != null &&
+                     request.auth.uid in resource.data.participants;
+
+      // Admin-only: server-side ledgerProcessor pipeline writes via Admin SDK
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     // ========== Settlements Collection ==========

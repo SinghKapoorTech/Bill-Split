@@ -126,6 +126,20 @@
     }
     ,
     {
+      "collectionGroup": "event_balances",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "eventId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "participants",
+          "arrayConfig": "CONTAINS"
+        }
+      ]
+    },
+    {
       "collectionGroup": "eventInvitations",
       "queryScope": "COLLECTION",
       "fields": [

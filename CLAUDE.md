@@ -64,11 +64,15 @@ The app uses a **custom hooks architecture** where each major feature domain has
 - **`useSquadManager`** - Manages saved friend groups (Squads)
 - **`useSquadEditor`** - Squad creation/editing UI state
 
-**Groups & Collaboration:**
-- **`useGroupManager`** - Multi-receipt group events
-- **`useGroupBills`** - Bills within group events
-- **`useGroupInvites`** - Group invitation system
+**Events & Collaboration:**
+- **`useEventManager`** - Multi-receipt event CRUD and membership
+- **`useEventBills`** - Bills within events (subscribe, create, update, delete)
+- **`useEventInvites`** - Event invitation system
+- **`useEventLedger`** - Event balance data from per-pair balance docs (real-time)
 - **`useShareSession`** - Shareable link generation
+
+**Settlements & Balances:**
+- **`useFriendsEditor`** - Friend list management with hydrated balances from `friend_balances`
 
 **AI & Media:**
 - **`useReceiptAnalyzer`** - Gemini AI integration for receipt analysis
@@ -92,10 +96,12 @@ These hooks are composed together in pages and components.
 6. **Venmo Charges**: Person total + assigned items → `generateItemDescription()` → Venmo deep link with itemized note
 7. **Session Management**: Bills auto-save → Dashboard lists all bills → Resume/delete functionality
 
-**Group Events:**
-1. **Group Creation**: User creates group → `useGroupManager.createGroup()` → Firestore
-2. **Multiple Bills**: Group members add receipts → Each bill tracked in group → Aggregate totals
-3. **Sharing**: Group owner invites members → Share link → Members view/contribute
+**Events (Multi-Receipt Groups):**
+1. **Event Creation**: User creates event → `useEventManager.createEvent()` → Firestore `events` collection
+2. **Multiple Bills**: Event members add receipts → Each bill has `eventId` → Per-pair balance tracking
+3. **Balance Pipeline**: Bill changes trigger `ledgerProcessor` → Updates `friend_balances` (Stage 2) and `event_balances` per-pair docs (Stage 3) via idempotent deltas
+4. **Event Settlement**: User settles within event → `processEventSettlement` Cloud Function → Only settles bills in that event → Flow-through updates `friend_balances` automatically
+5. **Sharing**: Event owner invites members by email → Members view/contribute
 
 **Squads:**
 1. **Squad Creation**: Settings → Squads tab → Add squad with members → Firestore
@@ -152,13 +158,14 @@ users/{userId}/                          # User profiles
       }
     ]
 
-bills/{billId}/                          # All bills (private + group)
+bills/{billId}/                          # All bills (private + event)
   - id: string
   - billType: 'private' | 'event'
   - ownerId: string                      # User who created the bill
   - eventId?: string                     # If billType is 'event'
+  - paidById?: string                    # Overrides creditor (simple transactions)
   - billData: {
-      items: [{ id, name, price, quantity }],
+      items: [{ id, name, price }],
       subtotal: number,
       tax: number,
       tip: number,
@@ -170,6 +177,13 @@ bills/{billId}/                          # All bills (private + group)
       [itemId]: [personId, personId, ...]
     }
   - splitEvenly: boolean
+  - settledPersonIds?: string[]          # Bill-local person IDs who have paid
+  - processedBalances?: Record<uid, number>  # Last footprint written to friend_balances
+  - processedEventBalances?: Record<uid, number>  # Last footprint written to event_balances
+  - _ledgerVersion?: number              # Incremented by pipeline each pass
+  - _friendScanTrigger?: timestamp       # Touched to re-trigger pipeline on friend add
+  - participantIds?: string[]            # Firebase UIDs of all linked participants
+  - unsettledParticipantIds?: string[]   # UIDs removed as people settle
   - members: [{                          # Authenticated users with access
       userId: string,
       name: string,
@@ -187,18 +201,44 @@ bills/{billId}/                          # All bills (private + group)
   - shareCodeExpiresAt?: timestamp       # 7 days from creation
   - shareCodeCreatedBy?: userId
 
-groups/{groupId}/                        # Multi-receipt events
+events/{eventId}/                        # Multi-receipt events
   - name: string
-  - description: string
+  - description?: string
   - ownerId: string
-  - memberIds: [userId, ...]             # Group members
-  - pendingInvites: [email, ...]         # Pending email invitations
+  - memberIds: [userId, ...]             # Event members
+  - pendingInvites?: [email, ...]        # Pending email invitations
   - createdAt: timestamp
   - updatedAt: timestamp
 
-groupInvitations/{invitationId}/         # Email invitations
+friend_balances/{uid1_uid2}/             # Bilateral balance between two friends
+  - id: string                           # Sorted composite: [uid1, uid2].sort().join('_')
+  - participants: [uid1, uid2]           # Sorted alphabetically
+  - balance: number                      # >0 → participants[0] is owed; <0 → participants[1] is owed
+  - unsettledBillIds: string[]           # Bill IDs contributing to this balance
+  - lastUpdatedAt: timestamp
+  - lastBillId: string
+
+event_balances/{eventId_uid1_uid2}/      # Per-pair balance within an event (mirrors friend_balances)
+  - id: string                           # "{eventId}_{sorted uid pair}"
+  - eventId: string
+  - participants: [uid1, uid2]           # Sorted alphabetically
+  - balance: number                      # Same sign convention as friend_balances
+  - unsettledBillIds: string[]           # Bill IDs from this event between this pair
+  - lastUpdatedAt: timestamp
+  - lastBillId: string
+
+settlements/{settlementId}/              # Immutable settlement records
+  - id: string
+  - fromUserId: string                   # Debtor
+  - toUserId: string                     # Creditor
+  - amount: number
+  - settledBillIds: string[]
+  - eventId?: string                     # Present if event-scoped settlement
+  - date: timestamp
+
+eventInvitations/{invitationId}/         # Email invitations
   - email: string
-  - groupId: string
+  - eventId: string
   - invitedBy: userId
   - status: 'pending' | 'accepted' | 'declined'
   - createdAt: timestamp
@@ -230,11 +270,21 @@ receipts/collaborative/{fileName}        # Shared receipt images
   - Authenticated members can update limited fields (itemAssignments, people, lastActivity)
 - **Delete**: Owner only
 
-**Groups Collection:**
+**Events Collection:**
 - **Read**: Owner, members, or invited users (via email)
 - **Create**: Authenticated users only, must set themselves as owner and member
 - **Update**: Owner has full access; members can update specific fields (memberIds, pendingInvites)
 - **Delete**: Owner only
+
+**Friend Balances & Event Balances Collections:**
+- **Read**: Only participants (via `participants` array-contains)
+- **Write**: Admin SDK only (server-side pipeline)
+
+**Settlements Collection:**
+- **Read**: From/to user, or event members (if event settlement)
+- **Create**: From/to user only
+- **Update**: Immutable (blocked)
+- **Delete**: From/to user only
 
 **Storage Rules (`storage.rules`):**
 - Users can read/write their own receipts: `/receipts/{userId}/**`
@@ -256,6 +306,17 @@ receipts/collaborative/{fileName}        # Shared receipt images
 - `updateSquad(userId, squadId, updates)` - Updates specific squad
 - `deleteSquad(userId, squadId)` - Removes squad from array
 - `getSquadById(userId, squadId)` - Fetches single squad
+
+**Settlement Service (`src/services/settlementService.ts`):**
+- `requestSettlement(friendUserId)` - Settles ALL unsettled bills with a friend (calls `processSettlement` Cloud Function)
+- `requestEventSettlement(eventId, friendUserId)` - Settles bills within a specific event only (calls `processEventSettlement` Cloud Function)
+
+**User Service (`src/services/userService.ts`):**
+- `getUserProfile(userId)` - Fetches user profile
+- `getHydratedFriends(userId)` - Queries `friend_balances` to build friends list with balance data
+
+**Event Ledger Service (`src/services/eventLedgerService.ts`):**
+- Defines `EventPairBalance` type for per-pair event balance documents
 
 **Firestore Utils (`src/utils/firestore.ts`):**
 - `saveFriendToFirestore(userId, friend)` - Adds friend using `arrayUnion`
@@ -284,14 +345,25 @@ query(
 // Debounces updates to avoid excessive writes
 ```
 
-**useGroupManager Hook (`src/hooks/useGroupManager.ts`):**
+**useEventManager Hook (`src/hooks/useEventManager.ts`):**
 ```typescript
-// Listens to groups where user is owner
+// Listens to events where user is owner
 query(
-  collection(db, 'groups'),
+  collection(db, 'events'),
   where('ownerId', '==', userId),
   orderBy('updatedAt', 'desc')
 )
+```
+
+**useEventLedger Hook (`src/hooks/useEventLedger.ts`):**
+```typescript
+// Subscribes to per-pair event balance docs in real-time
+query(
+  collection(db, 'event_balances'),
+  where('eventId', '==', eventId)
+)
+// Derives netBalances and optimizedDebts client-side from pair docs
+// Falls back to computeEventBalances(bills) when no pair docs exist
 ```
 
 #### Share Link Flow
@@ -323,16 +395,52 @@ personTip = effectiveTip × proportion
 personTotal = personSubtotal + personTax + personTip
 ```
 
-See `src/utils/calculations.ts` for implementation.
+See `shared/calculations.ts` for implementation (shared between client and Cloud Functions).
+
+### Ledger Pipeline (`functions/src/ledgerProcessor.ts`)
+
+Server-side Cloud Function triggered on every `bills/{billId}` write. No client ever writes to `friend_balances` or `event_balances` directly.
+
+**3-stage pipeline:**
+
+1. **Stage 1 — Validate & Calculate**: Computes `personTotals` server-side. Skips if no relevant fields changed (`billData`, `people`, `itemAssignments`, `settledPersonIds`, `paidById`, `splitEvenly`, `ownerId`, `_friendScanTrigger`).
+
+2. **Stage 2 — Friend Ledger** (authoritative, transactional): Computes `calculateFriendFootprint()` → diffs against `bill.processedBalances` (old footprint) → applies delta to `friend_balances/{uid1_uid2}` docs. Only processes people who are linked friends of the owner.
+
+3. **Stage 3 — Event Pair Ledger** (transactional): If bill has `eventId`, computes footprint for event participants (event members + linked friends) → diffs against `bill.processedEventBalances` → applies delta to `event_balances/{eventId_uid1_uid2}` per-pair docs.
+
+**Idempotent delta mechanism**: The `processedBalances` and `processedEventBalances` fields on the bill store the last-applied footprint. On any edit, old footprint is reversed and new footprint applied, preventing double-counting on retries.
+
+**On bill DELETE**: Reverses both footprints (`reverseFootprint` + `reverseEventFootprint`).
+
+### Settlement Flow
+
+**Global Settlement** (`processSettlement` Cloud Function):
+1. Reads `friend_balances/{uid1_uid2}` to get `balance` and `unsettledBillIds`
+2. For each bill: marks debtor as settled (`settledPersonIds`), zeros `processedBalances[debtorUid]`
+3. Zeros `friend_balances` balance
+4. Writes immutable `settlements` record
+5. Pipeline re-fires from `settledPersonIds` change → updates `event_balances` via flow-through
+
+**Event-Scoped Settlement** (`processEventSettlement` Cloud Function):
+1. Reads `event_balances/{eventId_uid1_uid2}` to get `unsettledBillIds`
+2. For each bill: marks debtor as settled, zeros `processedEventBalances[debtorUid]`
+3. Zeros event pair balance
+4. Does NOT touch `processedBalances` — pipeline re-fires and updates `friend_balances` via flow-through
+5. **One settle action reduces both event and global friend balances**
+
+**Settlement Reversal** (`reverseSettlement` Cloud Function):
+- Removes debtor from `settledPersonIds` on each bill
+- Does NOT directly modify balance docs — pipeline auto-fires and recalculates via deltas
 
 ### Type System
 
 All types are in `src/types/`:
 - **`bill.types.ts`** - BillData, BillItem, Bill (Firestore document)
-- **`person.types.ts`** - Person, UserProfile, VenmoCharge
+- **`person.types.ts`** - Person, UserProfile, Friend, VenmoCharge
 - **`assignment.types.ts`** - ItemAssignment, AssignmentMode, PersonTotal
 - **`squad.types.ts`** - Squad, SquadMember, CreateSquadInput, UpdateSquadInput
-- **`group.types.ts`** - Group (multi-receipt events)
+- **`event.types.ts`** - TripEvent, EventInvitation
 - **`gradient.types.ts`** - GradientBlob (landing page animations)
 
 Components should always type their props with an interface.
@@ -387,7 +495,6 @@ The app uses a single-active-session model with archives:
 
 Required in `.env`:
 ```
-VITE_GEMINI_API_KEY=
 VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=
 VITE_FIREBASE_PROJECT_ID=
@@ -432,24 +539,43 @@ firebase deploy --only firestore:indexes
 ```
 src/
 ├── components/
-│   ├── bill/          # Bill items display (table/card + edit/add forms)
-│   ├── people/        # People management + friends dialogs
-│   ├── profile/       # Profile settings cards
-│   ├── receipt/       # Receipt upload UI
-│   ├── shared/        # Item assignment badges/dropdowns, feature cards
-│   ├── venmo/         # Venmo charge dialog
-│   ├── squads/        # Squad management dialogs and forms
-│   ├── groups/        # Group event management
-│   ├── share/         # Share session modal and collaborative features
-│   ├── landing/       # Landing page sections (hero, features, animations)
-│   ├── layout/        # Navigation bars, headers, layout wrappers
-│   └── ui/            # shadcn/ui primitives
-├── hooks/             # Custom hooks for state management
-├── contexts/          # AuthContext, BillSessionContext
-├── utils/             # Calculations, validation, Venmo helpers, squad utils
-├── services/          # Gemini AI service, billService, squadService
-├── types/             # TypeScript type definitions
-└── pages/             # Route components (Dashboard, SettingsView, etc.)
+│   ├── bill/              # Bill items display (table/card + edit/add forms)
+│   ├── bill-wizard/       # Multi-step bill creation wizard
+│   ├── dashboard/         # Dashboard cards (MobileBillCard, DesktopBillCard, FriendBalancePreviewCard)
+│   ├── events/            # Event management (InviteMembersDialog)
+│   ├── landing/           # Landing page sections (hero, features, animations)
+│   ├── layout/            # Navigation bars, headers, layout wrappers
+│   ├── people/            # People management + friends dialogs
+│   ├── profile/           # Profile settings cards
+│   ├── receipt/           # Receipt upload UI
+│   ├── settlements/       # SettleUpModal (Venmo + mark-as-settled)
+│   ├── share/             # Share session modal and collaborative features
+│   ├── shared/            # BalanceListRow, item assignment badges/dropdowns
+│   ├── simple-transaction-wizard/  # Quick transaction flow
+│   ├── squads/            # Squad management dialogs and forms
+│   ├── ui/                # shadcn/ui primitives
+│   └── venmo/             # Venmo charge dialog
+├── hooks/                 # Custom hooks for state management
+├── contexts/              # AuthContext, BillSessionContext
+├── utils/                 # Calculations, validation, Venmo helpers, squad utils
+├── services/              # billService, settlementService, userService, eventLedgerService, squadService
+├── types/                 # TypeScript type definitions
+└── pages/                 # Route components (Dashboard, EventDetailView, SettingsView, etc.)
+
+shared/                    # Pure functions shared between client and Cloud Functions
+├── calculations.ts        # calculatePersonTotals (proportional tax/tip)
+├── ledgerCalculations.ts  # getFriendBalanceId, getEventBalanceId, calculateFriendFootprint, toSingleBalance
+├── optimizeDebts.ts       # Greedy debt minimization algorithm
+└── types.ts               # PersonTotal type
+
+functions/src/             # Firebase Cloud Functions
+├── index.ts               # Function exports (analyzeBill, inviteMemberToEvent, processSettlement, etc.)
+├── ledgerProcessor.ts     # onDocumentWritten('bills/{billId}') — 3-stage ledger pipeline
+├── friendAddProcessor.ts  # onDocumentUpdated('users/{userId}') — retroactive friend scan
+├── eventDeleteProcessor.ts       # onDocumentDeleted('events/{eventId}') — cascade cleanup
+├── settlementProcessor.ts        # processSettlement callable — global friend settlement
+├── eventSettlementProcessor.ts   # processEventSettlement callable — event-scoped settlement
+└── settlementReversal.ts         # reverseSettlement callable — undo settlement
 ```
 
 ## Important Notes

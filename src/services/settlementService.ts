@@ -22,4 +22,19 @@ export const settlementService = {
     const result = await fn({ friendUserId });
     return result.data;
   },
+
+  /**
+   * Settles all outstanding bills with a friend within a specific event.
+   * Only bills in that event are settled. The global friend_balances are
+   * updated automatically via the ledgerProcessor flow-through.
+   */
+  async requestEventSettlement(eventId: string, friendUserId: string): Promise<SettleResult> {
+    const fn = httpsCallable<
+      { eventId: string; friendUserId: string },
+      SettleResult
+    >(functions, 'processEventSettlement');
+
+    const result = await fn({ eventId, friendUserId });
+    return result.data;
+  },
 };

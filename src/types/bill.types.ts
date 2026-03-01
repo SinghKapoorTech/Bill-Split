@@ -46,6 +46,9 @@ export interface Bill {
   // Tracks exactly what was added to the global friend ledger
   processedBalances?: Record<string, number>;
 
+  // Tracks exactly what was added to per-pair event balance docs
+  processedEventBalances?: Record<string, number>;
+
   // Pipeline version — incremented each time the server-side ledgerProcessor
   // processes this bill. Used for observability and as an additional guard
   // against redundant trigger processing.

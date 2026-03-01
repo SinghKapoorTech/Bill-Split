@@ -338,7 +338,7 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
  *
  * Firestore onDocumentWritten trigger on bills/{billId}.
  * Handles all ledger mutations server-side: friend_balances (authoritative)
- * and event_balances cache (best-effort rebuild).
+ * and event_balances per-pair docs (delta-based).
  */
 export { ledgerProcessor } from './ledgerProcessor.js';
 
@@ -355,7 +355,7 @@ export { friendAddProcessor } from './friendAddProcessor.js';
  * Cloud Function: Event Delete Processor
  *
  * Firestore onDocumentDeleted trigger on events/{eventId}.
- * Cascade-deletes orphaned bills, event_balances cache, and invitations.
+ * Cascade-deletes orphaned bills, event_balances pair docs, and invitations.
  * Bill deletions auto-trigger the ledger pipeline to reverse friend_balances.
  */
 export { eventDeleteProcessor } from './eventDeleteProcessor.js';
@@ -375,6 +375,25 @@ export const processSettlement = onCall<import('./settlementProcessor.js').Settl
 
     const { processSettlementCore } = await import('./settlementProcessor.js');
     return processSettlementCore(request.auth.uid, request.data);
+  }
+);
+
+/**
+ * Cloud Function: Settle all outstanding bills with a friend within a specific event.
+ *
+ * Reads unsettledBillIds from the event pair balance, marks each bill settled,
+ * zeros the event balance, and writes a settlement record — all in one transaction.
+ * The friend_balances are updated automatically via the ledgerProcessor flow-through.
+ */
+export const processEventSettlement = onCall<import('./eventSettlementProcessor.js').EventSettleRequest>(
+  { timeoutSeconds: 60, memory: '256MiB' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { processEventSettlementCore } = await import('./eventSettlementProcessor.js');
+    return processEventSettlementCore(request.auth.uid, request.data);
   }
 );
 

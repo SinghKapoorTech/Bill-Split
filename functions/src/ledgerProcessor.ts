@@ -6,9 +6,9 @@
  * The heart of the ledger pipeline. When a bill is created, updated, or deleted:
  *   Stage 1: Validate & calculate personTotals from trusted server-side data
  *   Stage 2: Apply single-balance delta to friend_balances (authoritative, in transaction)
- *   Stage 3: Rebuild event_balances cache (best-effort, outside transaction)
+ *   Stage 3: Apply single-balance delta to event_balances per-pair docs (in transaction)
  *
- * friend_balances schema:
+ * Balance schema (same for friend_balances and event_balances):
  *   { balance: number, unsettledBillIds: string[], participants: [uid1, uid2] }
  *   balance > 0 → participants[0] (alphabetically smaller UID) is owed
  *   balance < 0 → participants[1] is owed
@@ -19,12 +19,11 @@ import { logger } from 'firebase-functions';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { calculatePersonTotals } from '../../shared/calculations.js';
 import {
-  personIdToFirebaseUid,
   getFriendBalanceId,
+  getEventBalanceId,
   calculateFriendFootprint,
   toSingleBalance,
 } from '../../shared/ledgerCalculations.js';
-import { optimizeDebts } from '../../shared/optimizeDebts.js';
 import type { PersonTotal } from '../../shared/types.js';
 
 let _db: ReturnType<typeof getFirestore> | null = null;
@@ -239,63 +238,163 @@ async function reverseFootprint(
   });
 }
 
-// ─── Stage 3: Event Cache (best-effort) ──────────────────────────────────────
+// ─── Stage 3: Event Pair Ledger (per-pair deltas, in transaction) ────────────
 
-async function rebuildEventCache(
+/**
+ * Resolves the set of Firebase UIDs eligible for event pair balances.
+ * Includes event members and the owner's linked friends.
+ */
+async function resolveEventParticipants(
+  ownerId: string,
   eventId: string,
-  excludeBillId?: string
+  linkedFriendUids: Set<string>
+): Promise<Set<string>> {
+  const eligible = new Set(linkedFriendUids);
+
+  // Also include event members
+  const eventDoc = await db().collection('events').doc(eventId).get();
+  if (eventDoc.exists) {
+    const memberIds: string[] = eventDoc.data()?.memberIds || [];
+    for (const mid of memberIds) {
+      if (mid !== ownerId) eligible.add(mid);
+    }
+  }
+
+  return eligible;
+}
+
+/**
+ * Calculates the event footprint: what each eligible participant owes the owner.
+ * Similar to calculateFriendFootprint but uses event participant scope.
+ */
+function calculateEventFootprint(
+  people: { id: string }[],
+  personTotals: PersonTotal[],
+  settledPersonIds: string[],
+  eligibleUids: Set<string>,
+  ownerId: string,
+  creditorId: string
+): Record<string, number> {
+  return calculateFriendFootprint({
+    people,
+    personTotals,
+    settledPersonIds,
+    linkedFriendUids: eligibleUids,
+    ownerId,
+    creditorId,
+  });
+}
+
+async function applyEventPairLedger(
+  billId: string,
+  eventId: string,
+  ownerId: string,
+  newFootprint: Record<string, number>
+): Promise<number> {
+  const billRef = db().collection(BILLS_COLLECTION).doc(billId);
+  let deltasApplied = 0;
+
+  await db().runTransaction(async (tx) => {
+    const billSnap = await tx.get(billRef);
+    if (!billSnap.exists) return;
+
+    const billData = billSnap.data()!;
+    const previousEventBalances = billData.processedEventBalances || {};
+    const deltas = computeDeltas(newFootprint, previousEventBalances);
+
+    if (Object.keys(deltas).length === 0) return;
+
+    // Phase 1: Read all event pair balance docs
+    const balanceRefs: Record<string, FirebaseFirestore.DocumentReference> = {};
+    const balanceSnaps: Record<string, FirebaseFirestore.DocumentSnapshot> = {};
+
+    for (const participantId of Object.keys(deltas)) {
+      const balanceId = getEventBalanceId(eventId, ownerId, participantId);
+      const ref = db().collection(EVENT_BALANCES_COLLECTION).doc(balanceId);
+      balanceRefs[participantId] = ref;
+      balanceSnaps[participantId] = await tx.get(ref);
+    }
+
+    // Phase 2: Write per-pair balance updates
+    const now = Timestamp.now();
+    for (const participantId of Object.keys(deltas)) {
+      const delta = deltas[participantId];
+      const ref = balanceRefs[participantId];
+      const snap = balanceSnaps[participantId];
+      const existing = snap.exists ? snap.data()! : null;
+      const currentBalance: number = (existing?.balance ?? 0) as number;
+
+      const deltaSingle = toSingleBalance(ownerId, participantId, delta);
+
+      const participantAmount = newFootprint[participantId] ?? 0;
+      const billIdUpdate = Math.abs(participantAmount) > 0.001
+        ? { unsettledBillIds: FieldValue.arrayUnion(billId) }
+        : { unsettledBillIds: FieldValue.arrayRemove(billId) };
+
+      tx.set(ref, {
+        id: ref.id,
+        eventId,
+        participants: [ownerId, participantId].sort(),
+        balance: currentBalance + deltaSingle,
+        ...billIdUpdate,
+        lastUpdatedAt: now,
+        lastBillId: billId,
+      }, { merge: true });
+    }
+
+    // Save event footprint on the bill
+    tx.update(billRef, {
+      processedEventBalances: stripZeros(newFootprint),
+    });
+    deltasApplied = Object.keys(deltas).length;
+  });
+
+  return deltasApplied;
+}
+
+async function reverseEventFootprint(
+  billId: string,
+  eventId: string,
+  ownerId: string,
+  previousEventBalances: Record<string, number>
 ): Promise<void> {
-  const billsSnap = await db().collection(BILLS_COLLECTION)
-    .where('eventId', '==', eventId)
-    .get();
+  await db().runTransaction(async (tx) => {
+    const participantsToReverse: string[] = [];
+    const balanceRefs: Record<string, FirebaseFirestore.DocumentReference> = {};
+    const balanceSnaps: Record<string, FirebaseFirestore.DocumentSnapshot> = {};
 
-  const netBalances: Record<string, number> = {};
-  const processedBillIds: string[] = [];
+    for (const [participantId, amount] of Object.entries(previousEventBalances)) {
+      if (Math.abs(amount) < 0.001) continue;
+      participantsToReverse.push(participantId);
 
-  for (const billDoc of billsSnap.docs) {
-    if (excludeBillId && billDoc.id === excludeBillId) continue;
-
-    const bill = billDoc.data();
-    const people = bill.people || [];
-    const ownerId = bill.ownerId;
-    const settledPersonIds = bill.settledPersonIds || [];
-
-    if (!bill.billData?.items?.length || !ownerId || people.length === 0) continue;
-
-    const personTotals = computePersonTotals(bill);
-
-    let ownerIsOwed = 0;
-    for (const pt of personTotals) {
-      const uid = personIdToFirebaseUid(pt.personId);
-      if (uid === ownerId) continue;
-
-      const owesAmount = settledPersonIds.includes(pt.personId) ? 0 : pt.total;
-      if (owesAmount > 0) {
-        netBalances[uid] = (netBalances[uid] ?? 0) - owesAmount;
-        ownerIsOwed += owesAmount;
-      }
-    }
-    if (ownerIsOwed > 0.001) {
-      netBalances[ownerId] = (netBalances[ownerId] ?? 0) + ownerIsOwed;
+      const balanceId = getEventBalanceId(eventId, ownerId, participantId);
+      const ref = db().collection(EVENT_BALANCES_COLLECTION).doc(balanceId);
+      balanceRefs[participantId] = ref;
+      balanceSnaps[participantId] = await tx.get(ref);
     }
 
-    processedBillIds.push(billDoc.id);
-  }
+    const now = Timestamp.now();
+    for (const participantId of participantsToReverse) {
+      const amount = previousEventBalances[participantId];
+      const ref = balanceRefs[participantId];
+      const snap = balanceSnaps[participantId];
+      if (!snap.exists) continue;
 
-  for (const uid of Object.keys(netBalances)) {
-    if (Math.abs(netBalances[uid]) < 0.01) {
-      netBalances[uid] = 0;
+      const existing = snap.data()!;
+      const currentBalance: number = (existing?.balance ?? 0) as number;
+      const reversalDelta = toSingleBalance(ownerId, participantId, -amount);
+
+      tx.set(ref, {
+        id: ref.id,
+        eventId,
+        participants: [ownerId, participantId].sort(),
+        balance: currentBalance + reversalDelta,
+        unsettledBillIds: FieldValue.arrayRemove(billId),
+        lastUpdatedAt: now,
+        lastBillId: billId,
+      }, { merge: true });
     }
-  }
-
-  const eventLedgerRef = db().collection(EVENT_BALANCES_COLLECTION).doc(eventId);
-  await eventLedgerRef.set({
-    eventId,
-    netBalances,
-    optimizedDebts: optimizeDebts(netBalances),
-    processedBillIds,
-    lastUpdatedAt: Timestamp.now(),
-  }, { merge: true });
+  });
 }
 
 // ─── Main trigger ─────────────────────────────────────────────────────────────
@@ -318,11 +417,14 @@ export const ledgerProcessor = onDocumentWritten(
       }
 
       if (before.eventId) {
-        try {
-          await rebuildEventCache(before.eventId, billId);
-          logger.info('Stage 3: event cache rebuilt', { billId, eventId: before.eventId });
-        } catch (err) {
-          logger.error('Stage 3 failed (non-fatal)', { billId, eventId: before.eventId, error: String(err) });
+        const previousEventBalances = before.processedEventBalances;
+        if (previousEventBalances && Object.keys(previousEventBalances).length > 0) {
+          try {
+            await reverseEventFootprint(billId, before.eventId, before.ownerId, previousEventBalances);
+            logger.info('Stage 3: reversed event footprint', { billId, eventId: before.eventId, participantsReversed: Object.keys(previousEventBalances).length });
+          } catch (err) {
+            logger.error('Stage 3 failed (non-fatal)', { billId, eventId: before.eventId, error: String(err) });
+          }
         }
       }
       return;
@@ -379,11 +481,22 @@ export const ledgerProcessor = onDocumentWritten(
       await billRef.update({ _ledgerVersion: currentVersion + 1 });
     }
 
-    // ── Stage 3: EVENT CACHE (best-effort, outside transaction) ─────────────
+    // ── Stage 3: EVENT PAIR LEDGER (per-pair deltas, in transaction) ────────
     if (after.eventId) {
       try {
-        await rebuildEventCache(after.eventId);
-        logger.info('Stage 3: event cache rebuilt', { billId, eventId: after.eventId });
+        const eventParticipants = await resolveEventParticipants(ownerId, after.eventId, linkedFriendUids);
+
+        if (eventParticipants.size > 0) {
+          const eventFootprint = calculateEventFootprint(
+            people, personTotals, settledPersonIds,
+            eventParticipants, ownerId, creditorId
+          );
+
+          const eventDeltasApplied = await applyEventPairLedger(billId, after.eventId, ownerId, eventFootprint);
+          logger.info('Stage 3: event pair ledger updated', { billId, eventId: after.eventId, deltasApplied: eventDeltasApplied });
+        } else {
+          logger.info('Stage 3: no event participants, skipping', { billId, eventId: after.eventId });
+        }
       } catch (err) {
         logger.error('Stage 3 failed (non-fatal)', { billId, eventId: after.eventId, error: String(err) });
       }

@@ -27,6 +27,7 @@ interface SettleUpModalProps {
   targetUserName: string;
   isPaying: boolean;
   balanceAmount: number;
+  eventId?: string;
   onSuccess?: () => void;
 }
 
@@ -52,6 +53,7 @@ export function SettleUpModal({
   targetUserName,
   isPaying,
   balanceAmount,
+  eventId,
   onSuccess
 }: SettleUpModalProps) {
   const { user } = useAuth();
@@ -65,7 +67,9 @@ export function SettleUpModal({
 
     setIsSubmitting(true);
     try {
-      const result = await settlementService.requestSettlement(targetUserId);
+      const result = eventId
+        ? await settlementService.requestEventSettlement(eventId, targetUserId)
+        : await settlementService.requestSettlement(targetUserId);
 
       if (result.billsSettled === 0) {
         toast({

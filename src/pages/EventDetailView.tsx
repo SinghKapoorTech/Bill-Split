@@ -382,6 +382,7 @@ export default function EventDetailView() {
           targetUserName={settleTarget.name}
           isPaying={settleTarget.isPaying}
           balanceAmount={settleTarget.amount}
+          eventId={eventId}
           onSuccess={() => {
             setSettleTarget(null);
           }}

@@ -5,7 +5,7 @@
  *
  * When an event is deleted, this function cleans up all orphaned child documents:
  *   - Deletes all bills associated with the event
- *   - Deletes the event_balances cache document
+ *   - Deletes all event_balances pair documents for the event
  *   - Deletes all eventInvitations for the event
  *
  * Bill deletions trigger the ledgerProcessor pipeline, which automatically
@@ -75,13 +75,11 @@ export const eventDeleteProcessor = onDocumentDeleted(
     const billsDeleted = await deleteQueryResults(billsQuery);
     logger.info('Cascade: bills deleted', { eventId, billsDeleted });
 
-    // 2. Delete the event_balances cache document
-    const cacheRef = db().collection(EVENT_BALANCES_COLLECTION).doc(eventId);
-    const cacheSnap = await cacheRef.get();
-    if (cacheSnap.exists) {
-      await cacheRef.delete();
-      logger.info('Cascade: event_balances cache deleted', { eventId });
-    }
+    // 2. Delete all event_balances pair documents for this event
+    const eventBalancesQuery = db().collection(EVENT_BALANCES_COLLECTION)
+      .where('eventId', '==', eventId);
+    const eventBalancesDeleted = await deleteQueryResults(eventBalancesQuery);
+    logger.info('Cascade: event_balances pair docs deleted', { eventId, eventBalancesDeleted });
 
     // 3. Delete all eventInvitations for this event
     const invitationsQuery = db().collection(INVITATIONS_COLLECTION)

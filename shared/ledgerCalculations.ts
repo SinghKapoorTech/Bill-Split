@@ -23,6 +23,14 @@ export function getFriendBalanceId(userId1: string, userId2: string): string {
 }
 
 /**
+ * Returns the deterministic document ID for an event pair balance.
+ * Format: "{eventId}_{sortedUid1}_{sortedUid2}"
+ */
+export function getEventBalanceId(eventId: string, uid1: string, uid2: string): string {
+  return `${eventId}_${[uid1, uid2].sort().join('_')}`;
+}
+
+/**
  * Input for calculating the friend ledger footprint of a bill.
  */
 export interface FriendFootprintInput {

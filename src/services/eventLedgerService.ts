@@ -6,16 +6,22 @@ export type { OptimizedDebt } from '@shared/optimizeDebts';
  * Event ledger types.
  *
  * Write functions have been removed — all event_balances mutations are now
- * handled by the server-side ledgerProcessor Cloud Function (Stage 3: cache rebuild).
+ * handled by the server-side ledgerProcessor Cloud Function (Stage 3: per-pair deltas).
  *
- * This file retains the EventLedger interface for use by read-side hooks
- * (e.g., useEventLedger).
+ * This file retains type interfaces for use by read-side hooks (e.g., useEventLedger).
  */
 
-export interface EventLedger {
+/**
+ * Per-pair balance document within an event.
+ * Mirrors the friend_balances schema but scoped to a single event.
+ */
+export interface EventPairBalance {
+  id: string;
   eventId: string;
-  netBalances: Record<string, number>;
-  optimizedDebts: import('@shared/optimizeDebts').OptimizedDebt[];
-  processedBillIds: string[];
+  participants: string[];
+  balance: number;
+  unsettledBillIds: string[];
   lastUpdatedAt: Timestamp;
+  lastBillId: string;
 }
+
