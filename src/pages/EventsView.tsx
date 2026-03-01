@@ -16,6 +16,7 @@ import {
 import { CreateEventDialog } from '@/components/events/CreateEventDialog';
 import { EventCard } from '@/components/events/EventCard';
 import { useEventManager } from '@/hooks/useEventManager';
+import { useEventInvites } from '@/hooks/useEventInvites';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -28,13 +29,37 @@ export default function EventsView() {
   const { events, loading, createEvent, deleteEvent } = useEventManager();
   const { toast } = useToast();
 
-  const handleCreateEvent = async (name: string, description: string) => {
+  const { inviteMember } = useEventInvites(''); // Just need the function for arbitrary events
+
+  const handleCreateEvent = async (name: string, description: string, memberIds: string[], pendingEmails: string[]) => {
     try {
-      await createEvent(name, description);
+      const newEventId = await createEvent(name, description, memberIds);
+      
+      // Handle pending email invitations
+      if (pendingEmails.length > 0) {
+        // We need a specific hooks instance for the new event to invite emails
+        await Promise.all(pendingEmails.map(async (email) => {
+           // We can't use the hook directly since it is bound to an ID, we'll dispatch directly or let the user handle it later
+           // For simplicity in this flow, we'll update the event document with pendingInvites
+           try {
+              const { doc, updateDoc, arrayUnion } = await import('firebase/firestore');
+              const { db } = await import('@/config/firebase');
+              const eventRef = doc(db, 'events', newEventId);
+              await updateDoc(eventRef, {
+                 pendingInvites: arrayUnion(email)
+              });
+           } catch(e) {
+              console.error('Failed to invite email', e);
+           }
+        }));
+      }
+
       toast({
         title: 'Event created',
         description: `${name} has been created successfully.`,
       });
+      setDialogOpen(false);
+      navigate(`/events/${newEventId}`);
     } catch (error) {
       toast({
         title: 'Error',
