@@ -36,27 +36,44 @@ export function BalanceListRow({
   const fromInitials = fromLabel.substring(0, 2).toUpperCase();
   const toInitials = toLabel.substring(0, 2).toUpperCase();
 
-  const amountFormatted = `$${amount.toFixed(2)}`;
+  const isSettled = amount === 0;
 
-  const fromFallbackClass =
-    direction === 'you-owe'
-      ? 'bg-destructive/10 text-destructive'
-      : 'bg-muted text-muted-foreground';
+  const amountFormatted = isSettled ? '' : `$${amount.toFixed(2)}`;
 
-  const toFallbackClass =
-    direction === 'owes-you'
-      ? 'bg-green-500/10 text-green-600'
-      : 'bg-muted text-muted-foreground';
+  const fromFallbackClass = isSettled
+    ? 'bg-muted text-muted-foreground'
+    : direction === 'you-owe'
+    ? 'bg-destructive/10 text-destructive'
+    : 'bg-muted text-muted-foreground';
 
-  const amountClass =
-    direction === 'you-owe'
-      ? 'text-destructive font-semibold'
-      : direction === 'owes-you'
-      ? 'text-green-600 font-semibold'
-      : 'text-muted-foreground';
+  const toFallbackClass = isSettled
+    ? 'bg-muted text-muted-foreground'
+    : direction === 'owes-you'
+    ? 'bg-green-500/10 text-green-600'
+    : 'bg-muted text-muted-foreground';
+
+  const amountClass = isSettled
+    ? 'text-muted-foreground'
+    : direction === 'you-owe'
+    ? 'text-destructive font-semibold'
+    : direction === 'owes-you'
+    ? 'text-green-600 font-semibold'
+    : 'text-muted-foreground';
 
   let owesText: React.ReactNode;
-  if (direction === 'you-owe') {
+  if (isSettled) {
+    const displayFrom = fromLabel.toLowerCase() === 'you' ? 'You' : fromLabel;
+    const displayTo = toLabel.toLowerCase() === 'you' ? 'You' : toLabel;
+    
+    owesText = (
+      <>
+        <span className="font-medium text-foreground">{displayFrom}</span>
+        <span className="text-muted-foreground text-[13px] mx-1">and</span>
+        <span className="font-medium text-foreground">{displayTo}</span>
+        <span className="font-medium text-muted-foreground text-[13px] ml-1">are Settled Up</span>
+      </>
+    );
+  } else if (direction === 'you-owe') {
     owesText = (
       <>
         <span className="font-medium text-foreground">You</span>

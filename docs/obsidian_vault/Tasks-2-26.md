@@ -33,7 +33,7 @@ tags: [backlog, bugs, features, ui, obsidian]
   _Bug:_ created correctly, but returning to UI shows normal bill UI.  
   **Acceptance:** simple transaction stays in simple transaction UI state on revisit.
 
-- [ ] **(P0) Ledger not updating when adding new friend**  
+- [x] **(P0) Ledger not updating when adding new friend**  
   _Bug:_ needs to walk existing transactions between two individuals and rebuild ledger.  
   **Acceptance:** after adding friend, balances reflect historical transactions correctly.
 
@@ -100,11 +100,15 @@ tags: [backlog, bugs, features, ui, obsidian]
 - [x] **(P1) Add a friend should be a dialog (not inline UI)**  
   **Acceptance:** reduces clutter; dialog has validation + clear actions.
 
-- [ ] **(P1) Friend balances list behavior**  
-  - Show up to **5** friends initially  
+- [x] **(P1) Friend balances list behavior**  
+  - Show up to **4** friends initially  
   - Button: **“Expand List”** to show the rest  
   - “Manage Friends” button should exist but placed more thoughtfully  
   **Acceptance:** clean default view; expands predictably.
+
+- [x] **(P1) Not owing should have it's own UI 
+  - You owes X 0.00 should not happen
+  **Acceptance:** Proper UI
 
 ---
 
