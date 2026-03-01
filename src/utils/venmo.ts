@@ -27,16 +27,7 @@ export function openVenmoApp(charge: VenmoCharge): void {
     window.location.href = nativeScheme;
 
     setTimeout(() => {
-      const timeElapsed = Date.now() - startTime;
-      
-      // If the app successfully opened, the browser was likely suspended/backgrounded.
-      // In that case, the setTimeout will be delayed significantly more than 2500ms when they return.
-      // If it fired right on time (~2500ms), the app didn't open and the user is still staring at the browser.
-      // We add a 500ms buffer to account for normal browser execution delays.
-      
-      if (timeElapsed < 3000 && document.visibilityState !== 'hidden') {
-         window.location.href = universalLink;
-      }
+      window.location.href = universalLink;
     }, 2500);
   } else {
     window.open(universalLink, '_blank');
