@@ -19,7 +19,6 @@ import { ensureUserInPeople, generateUserId } from '@/utils/billCalculations';
 import { userService } from '@/services/userService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { Bill } from '@/types/bill.types';
 
 const STEPS = [
   { id: 1, label: 'Details', description: 'Amount & Info' },
@@ -85,7 +84,7 @@ export function SimpleTransactionWizard() {
     if ((!billId || billId === 'new') && user && !hasInitializedNew.current) {
       hasInitializedNew.current = true;
       const { targetEventId, targetSquadId } = routerState || {};
-      
+
       if (targetEventId) {
         fetchEventMembers(targetEventId).then(eventPeople => {
           setPeople(ensureUserInPeople(eventPeople, user, profile));
@@ -113,7 +112,7 @@ export function SimpleTransactionWizard() {
       if (bill.eventId) setExistingEventId(bill.eventId);
       if (bill.squadId) setExistingSquadId(bill.squadId);
       if (bill.billData?.items?.[0]?.id) setExistingItemId(bill.billData.items[0].id);
-      
+
       // Force to the review step automatically for existing transactions
       setCurrentStep(2);
     };
@@ -145,34 +144,34 @@ export function SimpleTransactionWizard() {
   // Automatically saves edits to Amount, Title, and People if this transaction already exists in the database.
   useEffect(() => {
     if (!billId || billId === 'new' || !user || !hasLoadedBillId.current) return;
-    
+
     const timeoutId = setTimeout(() => {
       const numAmount = Number(amount);
       if (numAmount === 0 || title.trim().length === 0 || people.length === 0) return;
-      
+
       const dummyItemId = existingItemId || `item-${Date.now()}`;
-      
+
       billService.updateBill(billId, {
-          title,
-          paidById,
-          people,
-          billType: existingEventId ? 'event' : 'private',
-          eventId: existingEventId,
-          squadId: existingSquadId,
-          billData: {
-            items: [{ id: dummyItemId, name: title, price: numAmount }],
-            subtotal: numAmount,
-            tax: 0,
-            tip: 0,
-            total: numAmount,
-            restaurantName: title
-          },
-          itemAssignments: {
-            [dummyItemId]: people.map(p => p.id)
-          }
+        title,
+        paidById,
+        people,
+        billType: existingEventId ? 'event' : 'private',
+        ...(existingEventId && { eventId: existingEventId }),
+        ...(existingSquadId && { squadId: existingSquadId }),
+        billData: {
+          items: [{ id: dummyItemId, name: title, price: numAmount }],
+          subtotal: numAmount,
+          tax: 0,
+          tip: 0,
+          total: numAmount,
+          restaurantName: title
+        },
+        itemAssignments: {
+          [dummyItemId]: people.map(p => p.id)
+        }
       }).catch(console.error);
       // Ledger update handled by server-side pipeline (bill write triggers re-processing)
-      
+
     }, 1000);
 
     return () => clearTimeout(timeoutId);
@@ -199,14 +198,14 @@ export function SimpleTransactionWizard() {
 
       if (billId && billId !== 'new') {
         const dummyItemId = existingItemId || `item-${Date.now()}`;
-        
+
         await billService.updateBill(billId, {
           title,
           paidById,
           people,
           billType: targetEventId ? 'event' : 'private',
-          eventId: targetEventId,
-          squadId: targetSquadId,
+          ...(targetEventId && { eventId: targetEventId }),
+          ...(targetSquadId && { squadId: targetSquadId }),
           billData: {
             items: [{ id: dummyItemId, name: title, price: numAmount }],
             subtotal: numAmount,
@@ -254,7 +253,7 @@ export function SimpleTransactionWizard() {
             steps={STEPS}
             currentStep={currentStep}
             onStepClick={(step) => {
-               if (step <= currentStep) setCurrentStep(step);
+              if (step <= currentStep) setCurrentStep(step);
             }}
             canNavigateToStep={(step) => step <= currentStep}
           />
@@ -264,7 +263,7 @@ export function SimpleTransactionWizard() {
             currentStep={currentStep}
             orientation="horizontal"
             onStepClick={(step) => {
-               if (step < currentStep) setCurrentStep(step);
+              if (step < currentStep) setCurrentStep(step);
             }}
             canNavigateToStep={(step) => step <= currentStep}
           />
@@ -319,6 +318,8 @@ export function SimpleTransactionWizard() {
               onComplete={handleComplete}
               currentStep={currentStep}
               totalSteps={STEPS.length}
+              billId={billId !== 'new' ? billId : undefined}
+              settledPersonIds={activeSession?.settledPersonIds || []}
             />
           )}
         </StepContent>

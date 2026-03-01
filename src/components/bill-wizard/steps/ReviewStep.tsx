@@ -1,7 +1,6 @@
 import { Card } from '@/components/ui/card';
 import { CheckCircle2 } from 'lucide-react';
 import { SplitSummary } from '@/components/people/SplitSummary';
-import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
 import { StepFooter } from '@/components/shared/StepFooter';
 import { StepHeader } from '@/components/shared/StepHeader';
 import { Person, BillData, ItemAssignment, PersonTotal } from '@/types';
@@ -10,10 +9,21 @@ import { useToast } from '@/hooks/use-toast';
 import { billService } from '@/services/billService';
 import { arrayUnion, arrayRemove } from 'firebase/firestore';
 
+export interface ReceiptThumbnailProps {
+    imagePreview: string | null;
+    selectedFile: File | null;
+    isUploading: boolean;
+    isAnalyzing: boolean;
+    receiptImageUrl?: string;
+    onImageSelected?: (fileOrBase64: File | string) => void;
+    onAnalyze?: () => void;
+    onRemoveImage?: () => void;
+    isMobile: boolean;
+    upload: any;
+}
+
 interface ReviewStepProps {
-    // Data
     billId?: string;
-    eventId?: string;
     billData: BillData | null;
     people: Person[];
     itemAssignments: ItemAssignment;
@@ -23,35 +33,23 @@ interface ReviewStepProps {
     paidById?: string;
     ownerId?: string;
 
-    // Receipt state (for mobile thumbnail)
-    imagePreview: string | null;
-    selectedFile: File | null;
-    isUploading: boolean;
-    isAnalyzing: boolean;
-    receiptImageUrl?: string;
-    onImageSelected?: (fileOrBase64: File | string) => void;
-    onAnalyze?: () => void;
-    onRemoveImage?: () => void;
+    // Optional receipt thumbnail (only used by bill wizard)
+    receipt?: ReceiptThumbnailProps;
 
     // Navigation
     onComplete: () => void;
     onPrev: () => void;
     currentStep: number;
     totalSteps: number;
-
-    // Utility
-    isMobile: boolean;
-    upload: any;
 }
 
 /**
  * Step 4: Review & Complete
- * Final review of the split summary
- * Extracted from AIScanView lines 958-1006
+ * Final review of the split summary.
+ * Shared by both the bill wizard and simple transaction wizard.
  */
 export function ReviewStep({
     billId,
-    eventId,
     billData,
     people,
     itemAssignments,
@@ -60,22 +58,13 @@ export function ReviewStep({
     settledPersonIds,
     paidById,
     ownerId,
-    imagePreview,
-    selectedFile,
-    isUploading,
-    isAnalyzing,
-    receiptImageUrl,
-    onImageSelected,
-    onAnalyze,
-    onRemoveImage,
+    receipt,
     onComplete,
     onPrev,
     currentStep,
     totalSteps,
-    isMobile,
-    upload
 }: ReviewStepProps) {
-    const hasReceipt = imagePreview || receiptImageUrl;
+    const hasReceipt = receipt && (receipt.imagePreview || receipt.receiptImageUrl);
     const hasItems = billData?.items && billData.items.length > 0;
     const { user } = useAuth();
     const { toast } = useToast();
@@ -84,9 +73,6 @@ export function ReviewStep({
         if (!user || !billId || !billData) return;
 
         try {
-            // Update Firestore bill document
-            // If isSettled is true, they want to mark as settled (arrayUnion)
-            // If isSettled is false, they want to undo (arrayRemove)
             await billService.updateBill(billId, {
                 settledPersonIds: (isSettled ? arrayUnion(personId) : arrayRemove(personId)) as unknown as string[]
             });
@@ -95,8 +81,6 @@ export function ReviewStep({
                 title: isSettled ? "Marked as Settled" : "Undo Settled",
                 description: isSettled ? "Their balance has been updated to $0 for this bill." : "Their balance has been restored for this bill.",
             });
-
-            // Ledger update handled by server-side pipeline (settledPersonIds change triggers re-processing)
 
         } catch (error) {
             console.error("Failed to mark as settled", error);
@@ -112,22 +96,22 @@ export function ReviewStep({
     return (
         <div>
             <Card className="bill-card-full-width">
-                {isMobile && hasReceipt && hasItems && (
+                {receipt?.isMobile && hasReceipt && hasItems && (
                     <StepHeader
                         icon={CheckCircle2}
                         title="Split Summary"
                         showReceiptThumbnail={true}
-                        selectedFile={selectedFile}
-                        imagePreview={imagePreview}
-                        isDragging={upload.isDragging}
-                        isUploading={isUploading}
-                        isAnalyzing={isAnalyzing}
-                        isMobile={isMobile}
-                        receiptImageUrl={receiptImageUrl}
-                        upload={upload}
-                        onImageSelected={onImageSelected}
-                        onAnalyze={onAnalyze}
-                        onRemoveImage={onRemoveImage}
+                        selectedFile={receipt.selectedFile}
+                        imagePreview={receipt.imagePreview}
+                        isDragging={receipt.upload.isDragging}
+                        isUploading={receipt.isUploading}
+                        isAnalyzing={receipt.isAnalyzing}
+                        isMobile={receipt.isMobile}
+                        receiptImageUrl={receipt.receiptImageUrl}
+                        upload={receipt.upload}
+                        onImageSelected={receipt.onImageSelected}
+                        onAnalyze={receipt.onAnalyze}
+                        onRemoveImage={receipt.onRemoveImage}
                     />
                 )}
 

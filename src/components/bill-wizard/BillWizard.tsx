@@ -577,7 +577,6 @@ export function BillWizard({
                     {wizard.currentStep === 3 && (
                         <ReviewStep
                             billId={billId || activeSession?.id}
-                            eventId={activeSession?.eventId}
                             billData={billData}
                             people={people}
                             itemAssignments={itemAssignments}
@@ -586,20 +585,22 @@ export function BillWizard({
                             settledPersonIds={activeSession?.settledPersonIds || []}
                             paidById={paidById}
                             ownerId={activeSession?.ownerId || user?.uid}
-                            imagePreview={upload.imagePreview}
-                            selectedFile={upload.selectedFile}
-                            isUploading={isUploading}
-                            isAnalyzing={analyzer.isAnalyzing}
-                            receiptImageUrl={activeSession?.receiptImageUrl}
-                            onImageSelected={handleImageSelected}
-                            onAnalyze={handleAnalyzeReceipt}
-                            onRemoveImage={handleRemoveImage}
+                            receipt={{
+                                imagePreview: upload.imagePreview,
+                                selectedFile: upload.selectedFile,
+                                isUploading,
+                                isAnalyzing: analyzer.isAnalyzing,
+                                receiptImageUrl: activeSession?.receiptImageUrl,
+                                onImageSelected: handleImageSelected,
+                                onAnalyze: handleAnalyzeReceipt,
+                                onRemoveImage: handleRemoveImage,
+                                isMobile,
+                                upload,
+                            }}
                             onComplete={handleDone}
                             onPrev={wizard.handlePrevStep}
                             currentStep={wizard.currentStep}
                             totalSteps={STEPS.length}
-                            isMobile={isMobile}
-                            upload={upload}
                         />
                     )}
                 </StepContent>

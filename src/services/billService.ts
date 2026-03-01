@@ -85,7 +85,7 @@ export const billService = {
       lastActivity: now
     };
 
-    await setDoc(newBillRef, newBill);
+    await setDoc(newBillRef, removeUndefinedFields(newBill));
     return newBillRef.id;
   },
 
@@ -156,7 +156,7 @@ export const billService = {
       lastActivity: now
     };
 
-    await setDoc(newBillRef, newBill);
+    await setDoc(newBillRef, removeUndefinedFields(newBill));
     return newBillRef.id;
   },
 
