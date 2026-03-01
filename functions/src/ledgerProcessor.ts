@@ -193,7 +193,7 @@ async function applyFriendLedger(
   return deltasApplied;
 }
 
-async function reverseFootprint(
+export async function reverseFootprint(
   billId: string,
   ownerId: string,
   previousBalances: Record<string, number>
@@ -221,6 +221,11 @@ async function reverseFootprint(
       if (!snap.exists) continue;
 
       const existing = snap.data()!;
+
+      // Idempotency: skip if this bill was already reversed
+      const unsettledBillIds: string[] = existing.unsettledBillIds || [];
+      if (!unsettledBillIds.includes(billId)) continue;
+
       const currentBalance: number = (existing?.balance ?? 0) as number;
 
       // Reverse: subtract the single-balance equivalent
@@ -352,7 +357,7 @@ async function applyEventPairLedger(
   return deltasApplied;
 }
 
-async function reverseEventFootprint(
+export async function reverseEventFootprint(
   billId: string,
   eventId: string,
   ownerId: string,
@@ -381,6 +386,11 @@ async function reverseEventFootprint(
       if (!snap.exists) continue;
 
       const existing = snap.data()!;
+
+      // Idempotency: skip if this bill was already reversed
+      const unsettledBillIds: string[] = existing.unsettledBillIds || [];
+      if (!unsettledBillIds.includes(billId)) continue;
+
       const currentBalance: number = (existing?.balance ?? 0) as number;
       const reversalDelta = toSingleBalance(ownerId, participantId, -amount);
 
