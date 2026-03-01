@@ -157,7 +157,7 @@ export function BillWizard({
         initialStep
     });
 
-    useBillSession({
+    const { executeSave } = useBillSession({
         billData,
         people,
         itemAssignments,
@@ -503,6 +503,7 @@ export function BillWizard({
                             totalSteps={STEPS.length}
                             isMobile={isMobile}
                             removeItemAssignments={bill.removeItemAssignments}
+                            onTriggerSave={executeSave}
                         />
                     )}
 
@@ -569,6 +570,7 @@ export function BillWizard({
                             totalSteps={STEPS.length}
                             isMobile={isMobile}
                             upload={upload}
+                            onTriggerSave={executeSave}
                         />
                     )}
 

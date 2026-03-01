@@ -39,6 +39,7 @@ interface BillEntryStepProps {
     // Utility
     isMobile: boolean;
     removeItemAssignments: (itemId: string) => void;
+    onTriggerSave?: (options?: { overrideData?: Partial<any>, forceSave?: boolean }) => void;
 }
 
 /**
@@ -62,13 +63,18 @@ export function BillEntryStep({
     currentStep,
     totalSteps,
     isMobile,
-    removeItemAssignments
+    removeItemAssignments,
+    onTriggerSave
 }: BillEntryStepProps) {
     const upload = useFileUpload();
     const editor = useItemEditor(
         billData,
         setBillData,
-        removeItemAssignments
+        removeItemAssignments,
+        // Trigger save when item edited, added, removed
+        (newBillData) => {
+            onTriggerSave?.({ overrideData: { billData: newBillData }, forceSave: true });
+        }
     );
 
     // Tab state for mobile view
@@ -175,7 +181,11 @@ export function BillEntryStep({
 
                                 <BillSummary
                                     billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
-                                    onUpdate={(updates) => setBillData({ ...billData, ...updates })}
+                                    onUpdate={(updates) => {
+                                        const newBillData = { ...(billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }), ...updates };
+                                        setBillData(newBillData);
+                                        onTriggerSave?.({ overrideData: { billData: newBillData }, forceSave: true });
+                                    }}
                                 />
                             </Card>
                         </div>
@@ -245,7 +255,11 @@ export function BillEntryStep({
 
                         <BillSummary
                             billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
-                            onUpdate={(updates) => setBillData({ ...billData, ...updates })}
+                            onUpdate={(updates) => {
+                                const newBillData = { ...(billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }), ...updates };
+                                setBillData(newBillData);
+                                onTriggerSave?.({ overrideData: { billData: newBillData }, forceSave: true });
+                            }}
                         />
                     </Card>
                 }

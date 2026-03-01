@@ -69,8 +69,8 @@ To prevent database bloat, new bills utilize a **Client-Side Draft (Just-In-Time
 
 1.  **`/bill/new` Memory State**: When a user clicks "New Bill", the router navigates to `/bill/new`. At this stage, **no document exists in Firestore**. The `AIScanView` and `useBillSession` hook initialize empty temporary state in local React memory.
 2.  **Smart Saving (JIT Creation)**: The `useBillSession` hook monitors the draft data. It refuses to call `billService.createBill` until the user performs a meaningful action (adding an item, taking a photo, or typing a title).
-3.  **Step-Change/Unmount Saves**: Background saves do *not* fire on every keystroke to protect Firebase quotas. They exclusively fire when a user clicks 'Next' between wizard steps or actively navigates away from the page (unmounting).
-4.  **Silent URL Swap**: Once meaningul data is entered and a save is triggered (e.g., clicking 'Next' after editing the title), the document is created yielding a Firestore ID. The client silently swamps the URL to `/bill/{new_id}` without refreshing the page, seamlessly transitioning from memory to realtime syncing.
+3.  **Explicit Action Saves**: Implicit background saves (like step-changes, debouncing, or unmounting) have been completely removed. Writes to Firestore trigger *strictly* upon explicit user confirmation (e.g., clicking a checkmark after editing an item, or typing a new tax/tip value). This guarantees real-time sync without ghost updates.
+4.  **Silent URL Swap**: Once meaningful data is explicitly saved (e.g., clicking the save button after entering an item), the document is created yielding a Firestore ID. The client silently swamps the URL to `/bill/{new_id}` without refreshing the page, seamlessly transitioning from memory to realtime syncing.
 
 ### Session & Sharing
 

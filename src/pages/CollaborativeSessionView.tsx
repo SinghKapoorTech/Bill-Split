@@ -22,7 +22,7 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Receipt, Upload, Edit, Loader2, AlertCircle } from 'lucide-react';
 import { UI_TEXT } from '@/utils/uiConstants';
-import { Person, BillData, ItemAssignment } from '@/types';
+import { Person, BillData, ItemAssignment, Bill } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import {
@@ -55,9 +55,16 @@ export default function CollaborativeSessionView() {
   const [people, setPeople] = useState<Person[]>([]);
   const [billData, setBillData] = useState<BillData | null>(null);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
-  
+
   const [paidById, setPaidById] = useState<string | undefined>(undefined);
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
+
+  // Refs for stable access to latest state in async callbacks and handlers
+  const latestItemAssignments = useRef(itemAssignments);
+  const latestSplitEvenly = useRef(splitEvenly);
+  const latestPaidById = useRef(paidById);
+  const sessionIdRef = useRef<string | null>(null);
+  const updateSessionRef = useRef<((updates: Partial<Bill>) => Promise<void>) | null>(null);
 
   const peopleManager = usePeopleManager(people, setPeople);
   const bill = useBillSplitter({
@@ -73,20 +80,31 @@ export default function CollaborativeSessionView() {
 
   const upload = useFileUpload();
   const analyzer = useReceiptAnalyzer(setBillData, setPeople, billData);
-  const editor = useItemEditor(billData, setBillData, bill.removeItemAssignments);
+  const editor = useItemEditor(
+    billData,
+    setBillData,
+    bill.removeItemAssignments,
+    // Write on checkmark/add/delete
+    (newBillData) => {
+      updateSessionRef.current?.({
+        billData: newBillData,
+        itemAssignments: latestItemAssignments.current,
+        splitEvenly: latestSplitEvenly.current,
+        ...(latestPaidById.current ? { paidById: latestPaidById.current } : {}),
+      });
+    }
+  );
 
   // Sync local state with collaborative session
+  // Runs on every Firestore update so all clients stay in sync in real-time.
   useEffect(() => {
     isInitializing.current = true;
     if (session) {
       setBillData(session.billData || null);
       setItemAssignments(session.itemAssignments || {});
-      // Ensure logged-in user is always in the people list
       setPeople(ensureUserInPeople(session.people || [], user, profile));
       setSplitEvenly(session.splitEvenly || false);
-      if (session.paidById) {
-        setPaidById(session.paidById);
-      }
+      if (session.paidById) setPaidById(session.paidById);
       if (session.receiptImageUrl) {
         upload.setImagePreview(session.receiptImageUrl);
         upload.setSelectedFile(new File([], session.receiptFileName || 'receipt.jpg'));
@@ -94,31 +112,17 @@ export default function CollaborativeSessionView() {
     }
     const timer = setTimeout(() => (isInitializing.current = false), 200);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  // Debounced auto-save to Firestore
-  // NOTE: We excluded people and itemAssignments from auto-save to prevent race conditions.
-  // Those are now updated atomically via events (except when split evenly is true).
-  useEffect(() => {
-    if (isInitializing.current || !session) return;
+  // Keep sessionIdRef and updateSessionRef current
+  useEffect(() => { sessionIdRef.current = session?.id ?? null; }, [session?.id]);
+  useEffect(() => { updateSessionRef.current = updateSession; }, [updateSession]);
 
-    const timeoutId = setTimeout(() => {
-      const updates: any = {
-        billData,
-        splitEvenly,
-      };
-
-      // If split evenly is active, assignments are deterministic (all people)
-      // so we can safely auto-save them without worrying about race conditions.
-      if (splitEvenly) {
-        updates.itemAssignments = itemAssignments;
-      }
-
-      updateSession(updates);
-    }, 1500);
-
-    return () => clearTimeout(timeoutId);
-  }, [billData, splitEvenly, itemAssignments, session, updateSession]);
+  // Keep latest state refs in sync for use in async callbacks
+  useEffect(() => { latestItemAssignments.current = itemAssignments; }, [itemAssignments]);
+  useEffect(() => { latestSplitEvenly.current = splitEvenly; }, [splitEvenly]);
+  useEffect(() => { latestPaidById.current = paidById; }, [paidById]);
 
   // Determine if current user has full edit access (must be before early returns)
   const hasFullAccess = useMemo(() => {
@@ -131,42 +135,39 @@ export default function CollaborativeSessionView() {
   const handleAddSelfToPeople = (newPerson: Person) => {
     const updatedPeople = [...people, newPerson];
     setPeople(updatedPeople);
-    updateSession({ people: arrayUnion(newPerson) as unknown as Person[] });
+    // Immediate write so all users see the new participant
+    updateSessionRef.current?.({ people: updatedPeople });
   };
 
   const handleClaimItem = (itemId: string, personId: string, claimed: boolean) => {
-    // 1. Optimistic update (for UI responsiveness)
+    // Update local state immediately (for UI responsiveness)
     bill.handleItemAssignment(itemId, personId, claimed);
 
     if (splitEvenly) {
       setSplitEvenly(false);
-      updateSession({ splitEvenly: false });
+      // Immediate write — discrete action
+      updateSessionRef.current?.({ splitEvenly: false });
     }
 
-    // 2. Atomic update (for real-time sync)
+    // Immediate atomic write so all users see the assignment change in real-time
     toggleAssignment(itemId, personId, claimed);
   };
 
   const handleRemovePerson = (personId: string) => {
-    // 1. Optimistic update
     peopleManager.removePerson(personId);
     bill.removePersonFromAssignments(personId);
-
-    // 2. Atomic update via service
+    // Immediate write so all users see the updated people list
     const updatedPeople = people.filter(p => p.id !== personId);
-    updateSession({ people: updatedPeople });
+    updateSessionRef.current?.({ people: updatedPeople });
   };
 
   const handlePaidByChange = (newPaidById: string) => {
     setPaidById(newPaidById);
-    updateSession({ paidById: newPaidById });
+    // Immediate write — discrete selection
+    updateSessionRef.current?.({ paidById: newPaidById });
   };
 
   const handleToggleSplitEvenly = () => {
-    // 1. Optimistic update
-    bill.toggleSplitEvenly();
-
-    // 2. Atomic update to Firebase
     const newSplitEvenly = !splitEvenly;
     const newAssignments: ItemAssignment = {};
 
@@ -176,12 +177,15 @@ export default function CollaborativeSessionView() {
       });
     }
 
-    if (session) {
-      updateSession({
-        splitEvenly: newSplitEvenly,
-        itemAssignments: newAssignments
-      });
-    }
+    // Update local state
+    bill.toggleSplitEvenly();
+    setItemAssignments(newAssignments);
+
+    // Immediate write — discrete toggle action
+    updateSessionRef.current?.({
+      splitEvenly: newSplitEvenly,
+      itemAssignments: newAssignments,
+    });
   };
 
   const handleAnalyzeReceipt = async () => {
@@ -395,21 +399,19 @@ export default function CollaborativeSessionView() {
                 onAdd={async (name, venmoId) => {
                   const newPerson = await peopleManager.addPerson(name, venmoId);
                   if (newPerson) {
-                    // Atomic add
-                    updateSession({ people: arrayUnion(newPerson) as unknown as Person[] });
+                    // Immediate write — discrete action
+                    const updatedPeople = [...people, newPerson];
+                    updateSessionRef.current?.({ people: updatedPeople });
                   }
                 }}
                 onAddFromFriend={(f) => {
                   const newPerson = peopleManager.addFromFriend(f);
                   if (newPerson) {
-                    updateSession({ people: arrayUnion(newPerson) as unknown as Person[] });
+                    const updatedPeople = [...people, newPerson];
+                    updateSessionRef.current?.({ people: updatedPeople });
                   }
                 }}
-                onRemove={(id) => {
-                  handleRemovePerson(id);
-                  const newPeople = people.filter(p => p.id !== id);
-                  updateSession({ people: newPeople });
-                }}
+                onRemove={handleRemovePerson}
                 onUpdate={handleUpdatePerson}
                 onSaveAsFriend={peopleManager.savePersonAsFriend}
                 setPeople={setPeople}
@@ -425,7 +427,7 @@ export default function CollaborativeSessionView() {
                         {people.map((person: Person) => {
                           const isMe = person.id === user?.uid || (person as any).userId === user?.uid || person.id === `user-${user?.uid}`;
                           const optionValue = isMe && user ? user.uid : person.id;
-                          
+
                           return (
                             <SelectItem key={person.id} value={optionValue}>
                               {isMe ? 'you' : person.name.split(' ')[0]}
@@ -531,7 +533,7 @@ export default function CollaborativeSessionView() {
                     {people.map((person: Person) => {
                       const isMe = person.id === user?.uid || (person as any).userId === user?.uid || person.id === `user-${user?.uid}`;
                       const optionValue = isMe && user ? user.uid : person.id;
-                      
+
                       return (
                         <SelectItem key={person.id} value={optionValue}>
                           {isMe ? 'you' : person.name.split(' ')[0]}

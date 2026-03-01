@@ -44,6 +44,7 @@ interface AssignmentStepProps {
     // Utility
     isMobile: boolean;
     upload: any;
+    onTriggerSave?: (options?: { overrideData?: Partial<any>, forceSave?: boolean }) => void;
 }
 
 /**
@@ -75,10 +76,19 @@ export function AssignmentStep({
     totalSteps,
     isMobile,
     upload,
-    removeItemAssignments
+    removeItemAssignments,
+    onTriggerSave
 }: AssignmentStepProps) {
     // Use the item editor hook for edit/delete functionality
-    const editor = useItemEditor(billData, setBillData, removeItemAssignments);
+    const editor = useItemEditor(
+        billData,
+        setBillData,
+        removeItemAssignments,
+        // Trigger save when item edited, added, removed
+        (newBillData) => {
+            onTriggerSave?.({ overrideData: { billData: newBillData }, forceSave: true });
+        }
+    );
 
     // Show loading overlay if AI is still processing
     if (isAIProcessing) {

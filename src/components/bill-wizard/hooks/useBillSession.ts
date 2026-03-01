@@ -68,10 +68,10 @@ export function useBillSession({
     }, [activeSession?.id]);
 
     // Function to execute the save logic sync/async
-    const executeSave = (options?: { isUnmounting?: boolean }) => {
+    const executeSave = (options?: { isUnmounting?: boolean, overrideData?: Partial<UseBillSessionProps>, forceSave?: boolean }) => {
         if (isInitializing.current) return;
 
-        const props = latestProps.current;
+        const props = { ...latestProps.current, ...(options?.overrideData || {}) };
         const targetBillId = props.billId;
         const targetActiveId = props.activeSession?.id;
 
@@ -97,7 +97,9 @@ export function useBillSession({
             return;
         }
 
-        if (currentData !== lastSavedData.current || options?.isUnmounting) {
+        const isDifferent = currentData !== lastSavedData.current;
+
+        if (isDifferent || options?.isUnmounting || options?.forceSave) {
             const savePayload: any = {
                 billData: props.billData,
                 splitEvenly: props.splitEvenly,

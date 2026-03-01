@@ -10,14 +10,16 @@ export function BillSummary({ billData, onUpdate }: Props) {
   const handleTaxChange = (value: string) => {
     const numValue = parseFloat(value);
     if (!isNaN(numValue) && numValue >= 0) {
-      onUpdate({ tax: numValue });
+      const total = parseFloat(((billData.subtotal || 0) + numValue + (billData.tip || 0)).toFixed(2));
+      onUpdate({ tax: numValue, total });
     }
   };
 
   const handleTipChange = (value: string) => {
     const numValue = parseFloat(value);
     if (!isNaN(numValue) && numValue >= 0) {
-      onUpdate({ tip: numValue });
+      const total = parseFloat(((billData.subtotal || 0) + (billData.tax || 0) + numValue).toFixed(2));
+      onUpdate({ tip: numValue, total });
     }
   };
 

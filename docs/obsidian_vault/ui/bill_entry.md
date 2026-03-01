@@ -50,7 +50,7 @@ This component is responsible for rendering the actual list of line items, but i
 - **Deleting**: Individual items can be permanently removed from the bill.
 
 ## 4. Nuances & State Handling
-- **Draft/Memory State**: When navigated to via `/bill/new`, this entire step operates `isDraft === true`. No database document exists yet. The background save engine (`useBillSession`) strictly monitors this step and will quietly generate a real Firebase document (silently swapping the URL to `/bill/{id}`) the moment the user transitions to the next step, ensuring empty sessions are never saved.
+- **Draft/Memory State**: When navigated to via `/bill/new`, this entire step operates `isDraft === true`. No database document exists yet. The explicit save engine (`useBillSession`) strictly monitors this step and will quietly generate a real Firebase document (silently swapping the URL to `/bill/{id}`) the moment the user confirms their first real edit (like adding an item or setting the title), rather than relying on step transitions.
 - **Subtotal & Summary**: The `BillSummary` component sits at the bottom of the items list. While it primarily calculates totals in later steps, its presence here helps users verify that the total matches their physical receipt.
 - **Item Assignment Prep**: While not the primary focus of this step, `BillEntryStep` prepares the data structure so that the items created here can later have people assigned to them.
 - **Responsive Fluidity**: The aggressive separation of desktop vs. mobile experiences (table vs. cards, side-by-side vs. tabs) ensures that the complex task of entering financial data doesn't feel cramped on a phone or overly sparse on a monitor.

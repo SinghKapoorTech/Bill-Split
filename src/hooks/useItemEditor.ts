@@ -15,7 +15,8 @@ import { validateItemInput, parsePrice } from '@/utils/validation';
 export function useItemEditor(
   billData: BillData | null,
   setBillData: (data: BillData) => void,
-  removeItemAssignments: (itemId: string) => void
+  removeItemAssignments: (itemId: string) => void,
+  onAfterSave?: (newBillData: BillData) => void
 ) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemName, setEditingItemName] = useState('');
@@ -54,12 +55,15 @@ export function useItemEditor(
 
     const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip);
 
-    setBillData({
+    const newBillData: BillData = {
       ...billData,
       items: updatedItems,
       subtotal,
       total,
-    });
+    };
+
+    setBillData(newBillData);
+    onAfterSave?.(newBillData);
 
     cancelEdit();
   };
@@ -76,12 +80,14 @@ export function useItemEditor(
     const updatedItems = billData.items.filter(item => item.id !== itemId);
     const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip);
 
-    setBillData({
+    const newBillData: BillData = {
       ...billData,
       items: updatedItems,
       subtotal,
       total,
-    });
+    };
+    setBillData(newBillData);
+    onAfterSave?.(newBillData);
 
     removeItemAssignments(itemId);
 
@@ -126,17 +132,20 @@ export function useItemEditor(
         total: price,
       };
       setBillData(newBillData);
+      onAfterSave?.(newBillData);
     } else {
       // Add to existing bill
       const updatedItems = [...billData.items, newItem];
       const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip);
 
-      setBillData({
+      const newBillData: BillData = {
         ...billData,
         items: updatedItems,
         subtotal,
         total,
-      });
+      };
+      setBillData(newBillData);
+      onAfterSave?.(newBillData);
     }
 
     toast({
