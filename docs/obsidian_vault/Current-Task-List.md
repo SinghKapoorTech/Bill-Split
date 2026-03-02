@@ -95,7 +95,7 @@ tags:
 - [ ] **(P1) Simple bill/transaction should be mergeable into an event**  
   **Acceptance:** can assign existing bill to event; event & bill views update both ways.
 
-- [ ] **(P1) “My Bills” should be an expandable list (show 5 initially)**  
+- [x] **(P1) “My Bills” should be an expandable list (show 5 initially)**  
   **Acceptance:** shows first 5 + “Expand List” to reveal all; smooth UX.
 
 ---
@@ -121,9 +121,6 @@ tags:
 
 - [x] **(P2) Remove “MY FRIENDS” title under Manage Friends**  
   **Acceptance:** page reads clean without redundant header.
-
-- [ ] **(P2) Manage Friends: remove your icon (only show friend icon)**  
-  **Acceptance:** no double icons; consistent visuals.
 
 - [ ] **(P2) Remove Cancel button from “Settle Up” dialog**  
   **Acceptance:** dialog still has a clear close mechanism (X or outside click), if intended.

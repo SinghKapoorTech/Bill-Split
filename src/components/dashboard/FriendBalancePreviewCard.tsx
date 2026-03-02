@@ -29,9 +29,6 @@ export function FriendBalancePreviewCard() {
             <Users className="w-6 h-6" />
             Friend Balances
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Keep track of who owes who
-          </p>
         </div>
       </div>
 
