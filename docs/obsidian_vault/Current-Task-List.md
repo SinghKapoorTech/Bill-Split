@@ -1,8 +1,13 @@
 ---
 title: Bill Split App – Product Backlog
-date: 2026-02-26
+date: 2026-03-01
 owner: Aakaash
-tags: [backlog, bugs, features, ui, obsidian]
+tags:
+  - backlog
+  - bugs
+  - features
+  - ui
+  - obsidian
 ---
 
 # ✅ Backlog (Single File)
@@ -49,7 +54,7 @@ tags: [backlog, bugs, features, ui, obsidian]
   _Bug:_ if I create event + add person, that person must see the event too.  
   **Acceptance:** added users can see event, associated bills, and their balances.
 
-- [ ] **(P0) Users should NOT see “Mark as Settle” on their own UI**  
+- [x] **(P0) Users should NOT see “Mark as Settle” on their own UI**  
   _Bug:_ button visibility rules wrong.  
   **Acceptance:** shown only when user owes someone or someone owes user (correct side only).
   

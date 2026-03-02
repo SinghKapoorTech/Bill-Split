@@ -203,7 +203,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                       </Button>
                     )}
 
-                    {onMarkAsSettled && (
+                    {onMarkAsSettled && showVenmoButton && (
                       <Button
                         variant={isSettled ? "outline" : "ghost"}
                         size="sm"
