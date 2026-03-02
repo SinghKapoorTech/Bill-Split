@@ -1,6 +1,21 @@
 import { test, expect } from '@playwright/test';
 import { loginAsTestUser } from './helpers/auth';
 
+/**
+ * Helper to add a member by email invite in the AddAppUserDialog.
+ * The dialog must already be open.
+ */
+async function addMemberByEmail(page: import('@playwright/test').Page, email: string) {
+  // Type the email in the search input
+  const searchInput = page.getByPlaceholder('Name, @username, or email...');
+  await searchInput.fill(email);
+
+  // Wait for the "Invite" button to appear (debounce + no results → email invite UI)
+  const inviteButton = page.getByRole('button', { name: 'Invite' });
+  await inviteButton.waitFor({ state: 'visible', timeout: 10000 });
+  await inviteButton.click();
+}
+
 test.describe('Event Management', () => {
   test('creates an event and views the event detail page', async ({ page }) => {
     await loginAsTestUser(page);
@@ -24,17 +39,19 @@ test.describe('Event Management', () => {
     // Fill in description
     await page.locator('#description').fill('Annual Vegas trip with the crew');
 
+    // Add a member by email (required before creating)
+    await page.getByRole('button', { name: 'Add Member' }).click();
+    await expect(page.getByRole('heading', { name: 'Add Member' })).toBeVisible();
+    await addMemberByEmail(page, 'friend@example.com');
+
+    // Verify member was added to the list
+    await expect(page.getByText('friend@example.com')).toBeVisible();
+
     // Click "Create Event" button in the dialog footer
-    await page.getByRole('button', { name: 'Create Event' }).last().click();
+    await page.getByRole('button', { name: 'Create Event' }).click();
 
-    // Wait for toast to appear and dismiss, then verify event heading
-    await expect(page.getByRole('heading', { name: 'Vegas Weekend' })).toBeVisible({ timeout: 10000 });
-
-    // Click on the event card to navigate to detail view
-    await page.getByRole('heading', { name: 'Vegas Weekend' }).click();
-
-    // Should navigate to /events/:id
-    await page.waitForURL(/\/events\//, { timeout: 10000 });
+    // Wait for navigation to event detail page
+    await page.waitForURL(/\/events\//, { timeout: 15000 });
 
     // Verify event detail page shows the event name
     await expect(page.getByText('Vegas Weekend').first()).toBeVisible();
@@ -54,9 +71,20 @@ test.describe('Event Management', () => {
     await expect(page.getByRole('heading', { name: 'Create New Event' })).toBeVisible({ timeout: 5000 });
 
     await page.locator('#event-name').fill('Ski Trip 2026');
-    await page.getByRole('button', { name: 'Create Event' }).last().click();
 
-    // Verify created
-    await expect(page.getByRole('heading', { name: 'Ski Trip 2026' })).toBeVisible({ timeout: 10000 });
+    // Add a member by email (required before creating)
+    await page.getByRole('button', { name: 'Add Member' }).click();
+    await expect(page.getByRole('heading', { name: 'Add Member' })).toBeVisible();
+    await addMemberByEmail(page, 'skibuddy@example.com');
+
+    // Verify member appeared
+    await expect(page.getByText('skibuddy@example.com')).toBeVisible();
+
+    // Create the event
+    await page.getByRole('button', { name: 'Create Event' }).click();
+
+    // Should navigate to event detail
+    await page.waitForURL(/\/events\//, { timeout: 15000 });
+    await expect(page.getByText('Ski Trip 2026').first()).toBeVisible();
   });
 });

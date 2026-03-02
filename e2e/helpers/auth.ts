@@ -8,26 +8,35 @@ import { Page } from '@playwright/test';
  * Must be called when the page is on the /auth route.
  */
 export async function signInWithEmulator(page: Page) {
+  // Start listening for the popup BEFORE clicking (avoids race with slowMo)
+  const popupPromise = page.waitForEvent('popup');
+
   // Click the Google sign-in button
   const googleButton = page.getByRole('button', { name: 'Sign in with Google' });
   await googleButton.click();
 
   // Wait for the emulator auth popup
-  const popup = await page.waitForEvent('popup');
-  await popup.waitForLoadState('networkidle');
+  const popup = await popupPromise;
+  await popup.waitForLoadState('domcontentloaded');
 
   // In the emulator popup: click "Add new account" then "Auto-generate" then "Sign in"
-  await popup.getByRole('button', { name: /add new account/i }).click();
-  await popup.waitForLoadState('networkidle');
+  const addAccountBtn = popup.getByRole('button', { name: /add new account/i });
+  await addAccountBtn.waitFor({ state: 'visible', timeout: 10000 });
+  await addAccountBtn.click();
 
   // Auto-generate user credentials
-  await popup.getByRole('button', { name: /auto-generate/i }).click();
+  const autoGenBtn = popup.getByRole('button', { name: /auto-generate/i });
+  await autoGenBtn.waitFor({ state: 'visible', timeout: 10000 });
+  await autoGenBtn.click();
 
   // Click "Sign in with Google.com"
-  await popup.getByRole('button', { name: /sign in/i }).click();
+  const signInBtn = popup.getByRole('button', { name: /sign in/i });
+  await signInBtn.waitFor({ state: 'visible', timeout: 10000 });
+  await signInBtn.click();
 
   // Wait for the popup to close and the app to redirect to dashboard
-  await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+  // Extra time needed when running with slowMo
+  await page.waitForURL(/\/dashboard/, { timeout: 30000 });
 }
 
 /**
