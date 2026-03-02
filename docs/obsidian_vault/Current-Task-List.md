@@ -1,8 +1,13 @@
 ---
 title: Bill Split App – Product Backlog
-date: 2026-02-26
+date: 2026-03-01
 owner: Aakaash
-tags: [backlog, bugs, features, ui, obsidian]
+tags:
+  - backlog
+  - bugs
+  - features
+  - ui
+  - obsidian
 ---
 
 # ✅ Backlog (Single File)
@@ -33,7 +38,7 @@ tags: [backlog, bugs, features, ui, obsidian]
   _Bug:_ created correctly, but returning to UI shows normal bill UI.  
   **Acceptance:** simple transaction stays in simple transaction UI state on revisit.
 
-- [ ] **(P0) Ledger not updating when adding new friend**  
+- [x] **(P0) Ledger not updating when adding new friend**  
   _Bug:_ needs to walk existing transactions between two individuals and rebuild ledger.  
   **Acceptance:** after adding friend, balances reflect historical transactions correctly.
 
@@ -49,7 +54,7 @@ tags: [backlog, bugs, features, ui, obsidian]
   _Bug:_ if I create event + add person, that person must see the event too.  
   **Acceptance:** added users can see event, associated bills, and their balances.
 
-- [ ] **(P0) Users should NOT see “Mark as Settle” on their own UI**  
+- [x] **(P0) Users should NOT see “Mark as Settle” on their own UI**  
   _Bug:_ button visibility rules wrong.  
   **Acceptance:** shown only when user owes someone or someone owes user (correct side only).
   
@@ -69,7 +74,7 @@ tags: [backlog, bugs, features, ui, obsidian]
 - [ ] **(P1) Settlement History + Undo Settlement (Unsettle all related bills)**  
   **Acceptance:** settlement history list; undo reverses all linked bill states and ledgers.
 
-- [ ] **(P1) Paid Status Indicator (Green/Yellow/Red)**  
+- [x] **(P1) Paid Status Indicator (Green/Yellow/Red)**  
   - 🟩 fully settled  
   - 🟨 partially settled  
   - 🟥 not settled  
@@ -81,7 +86,7 @@ tags: [backlog, bugs, features, ui, obsidian]
 - [x] **(P1) Website view should have all 4 options l**  
   **Acceptance:** first-time CTA offers choices (e.g., Bill / Simple Transaction / Event Bill).
   
-- [ ] **(P1) When creating an event, prompt to add users + add “first bill” buttons**  
+- [x] **(P1) When creating an event, prompt to add users + add “first bill” buttons**  
   **Acceptance:** event wizard includes user add step; post-create shows quick actions.
 
 - [ ] **(P1) Any bill wizard should allow associating with an event**  
@@ -90,7 +95,7 @@ tags: [backlog, bugs, features, ui, obsidian]
 - [ ] **(P1) Simple bill/transaction should be mergeable into an event**  
   **Acceptance:** can assign existing bill to event; event & bill views update both ways.
 
-- [ ] **(P1) “My Bills” should be an expandable list (show 5 initially)**  
+- [x] **(P1) “My Bills” should be an expandable list (show 5 initially)**  
   **Acceptance:** shows first 5 + “Expand List” to reveal all; smooth UX.
 
 ---
@@ -100,11 +105,15 @@ tags: [backlog, bugs, features, ui, obsidian]
 - [x] **(P1) Add a friend should be a dialog (not inline UI)**  
   **Acceptance:** reduces clutter; dialog has validation + clear actions.
 
-- [ ] **(P1) Friend balances list behavior**  
-  - Show up to **5** friends initially  
+- [x] **(P1) Friend balances list behavior**  
+  - Show up to **4** friends initially  
   - Button: **“Expand List”** to show the rest  
   - “Manage Friends” button should exist but placed more thoughtfully  
   **Acceptance:** clean default view; expands predictably.
+
+- [x] **(P1) Not owing should have it's own UI 
+  - You owes X 0.00 should not happen
+  **Acceptance:** Proper UI
 
 ---
 
@@ -112,9 +121,6 @@ tags: [backlog, bugs, features, ui, obsidian]
 
 - [x] **(P2) Remove “MY FRIENDS” title under Manage Friends**  
   **Acceptance:** page reads clean without redundant header.
-
-- [ ] **(P2) Manage Friends: remove your icon (only show friend icon)**  
-  **Acceptance:** no double icons; consistent visuals.
 
 - [ ] **(P2) Remove Cancel button from “Settle Up” dialog**  
   **Acceptance:** dialog still has a clear close mechanism (X or outside click), if intended.

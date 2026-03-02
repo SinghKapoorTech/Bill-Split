@@ -1,5 +1,6 @@
 import { Bill } from '@/types/bill.types';
 import { formatCurrency } from '@/utils/format';
+import { getSettlementStatus } from '@/utils/billCalculations';
 import { ChevronRight, Loader2, Play, Trash2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -54,6 +55,20 @@ export default function MobileBillCard({
     .join(' • ') || '';
   const hasMoreItems = itemCount > 3;
 
+  const status = getSettlementStatus(bill);
+  
+  const statusColors = {
+    settled: 'text-emerald-700 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/10',
+    partial: 'text-amber-700 bg-amber-500/15 dark:text-amber-400 dark:bg-amber-500/10',
+    unsettled: 'text-rose-700 bg-rose-500/15 dark:text-rose-400 dark:bg-rose-500/10',
+  };
+  
+  const statusText = {
+    settled: 'Settled',
+    partial: 'Partial',
+    unsettled: 'Not Settled',
+  };
+
   const handleRowClick = () => {
     if (isLatest) {
       onView(bill.id);
@@ -91,6 +106,9 @@ export default function MobileBillCard({
               Latest
             </span>
           )}
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${statusColors[status]}`}>
+            {statusText[status]}
+          </span>
         </div>
 
         {/* Row 2: Consolidated meta line - DoorDash style */}
@@ -103,7 +121,7 @@ export default function MobileBillCard({
         </div>
 
         {/* Row 3: Item names preview (if any items exist) */}
-        {itemNames && (
+        {itemNames && !bill.isSimpleTransaction && (
           <div className="mobile-bill-items-preview mt-1 truncate text-muted-foreground">
             {itemNames}{hasMoreItems && ' ...'}
           </div>

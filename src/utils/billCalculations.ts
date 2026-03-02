@@ -1,4 +1,4 @@
-import { BillData, BillItem, Person } from '@/types';
+import { BillData, BillItem, Person, Bill } from '@/types';
 import { User } from 'firebase/auth';
 
 /**
@@ -117,4 +117,23 @@ export function ensureUserInPeople(
   };
   
   return [currentUser, ...people];
+}
+
+/**
+ * Determines the settlement status of a bill
+ * @param bill - The bill to check
+ * @returns 'settled' | 'partial' | 'unsettled'
+ */
+export function getSettlementStatus(bill: Bill): 'settled' | 'partial' | 'unsettled' {
+  const totalPeople = bill.people?.length || 0;
+  const debtorsCount = Math.max(0, totalPeople - 1);
+  const settledCount = bill.settledPersonIds?.length || 0;
+
+  if (totalPeople <= 1 || settledCount >= debtorsCount) {
+    return 'settled';
+  }
+  if (settledCount > 0) {
+    return 'partial';
+  }
+  return 'unsettled';
 }

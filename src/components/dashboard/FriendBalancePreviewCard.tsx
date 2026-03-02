@@ -12,7 +12,14 @@ export function FriendBalancePreviewCard() {
   const { friends, isLoadingFriends, refreshFriends } = useFriendsEditor();
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
 
-  const previewFriends = friends.slice(0, 5);
+  const sortedFriends = [...friends].sort((a, b) => {
+    const balA = Math.abs(a.balance || 0);
+    const balB = Math.abs(b.balance || 0);
+    if (balB !== balA) return balB - balA;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  const previewFriends = sortedFriends.slice(0, 4);
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -22,9 +29,6 @@ export function FriendBalancePreviewCard() {
             <Users className="w-6 h-6" />
             Friend Balances
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Keep track of who owes who
-          </p>
         </div>
       </div>
 

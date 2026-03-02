@@ -21,6 +21,8 @@ import {
   ReceiptText,
   CalendarDays,
   Zap,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Bill } from '@/types/bill.types';
 import { billService } from '@/services/billService';
@@ -34,6 +36,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isCreatingBill, setIsCreatingBill] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [billToDelete, setBillToDelete] = useState<{ id: string; receiptFileName?: string; title: string } | null>(null);
   const {
     activeSession,
@@ -188,18 +191,15 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl">
       {/* Header - added dashboard-header class for mobile CSS targeting */}
-      <div className="dashboard-header mb-8">
+      <div className="dashboard-header mb-4 md:mb-8">
         <h1 className="text-3xl md:text-4xl font-bold mb-2">
           Welcome back{user?.displayName ? `, ${user.displayName.split(' ')[0]}` : ''}
         </h1>
-        <p className="text-muted-foreground">
-          Manage your bills and split expenses with friends
-        </p>
       </div>
 
-      <div className="flex flex-col gap-10">
+      <div className="flex flex-col gap-6 md:gap-10">
         {/* Top Section: Friend Balances */}
         <div>
           <FriendBalancePreviewCard />
@@ -213,9 +213,6 @@ export default function Dashboard() {
                 <Receipt className="w-6 h-6" />
                 My Bills
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Your work is automatically saved as you go
-              </p>
             </div>
           </div>
 
@@ -264,7 +261,7 @@ export default function Dashboard() {
             <>
               {/* Mobile List View - compact, DoorDash-style */}
               <div className="block md:hidden divide-y divide-border rounded-lg border bg-card">
-                {allBills.map((bill) => (
+                {(isExpanded ? allBills : allBills.slice(0, 3)).map((bill) => (
                   <MobileBillCard
                     key={bill.id}
                     bill={bill}
@@ -283,7 +280,7 @@ export default function Dashboard() {
 
               {/* Desktop Grid View - card layout */}
               <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {allBills.map((bill) => (
+                {(isExpanded ? allBills : allBills.slice(0, 3)).map((bill) => (
                   <DesktopBillCard
                     key={bill.id}
                     bill={bill}
@@ -299,6 +296,28 @@ export default function Dashboard() {
                   />
                 ))}
               </div>
+
+              {allBills.length > 3 && (
+                <div className="mt-6 flex justify-center">
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto rounded-full px-6 py-5 text-muted-foreground hover:text-foreground transition-all duration-300 shadow-sm hover:shadow"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                  >
+                    {isExpanded ? (
+                      <>
+                        <ChevronUp className="w-4 h-4 mr-2" />
+                        Show Less
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-4 h-4 mr-2" />
+                        Expand List ({allBills.length - 3} more)
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </div>

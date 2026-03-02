@@ -54,10 +54,12 @@ export function useEventManager() {
     return () => unsubscribe();
   }, [user]);
 
-  const createEvent = async (name: string, description?: string) => {
+  const createEvent = async (name: string, description?: string, memberIds: string[] = []) => {
     if (!user) {
       throw new Error('Must be logged in to create an event');
     }
+
+    const uniqueMemberIds = Array.from(new Set([user.uid, ...memberIds]));
 
     const now = Timestamp.now();
     const eventData = {
@@ -66,7 +68,7 @@ export function useEventManager() {
       createdAt: now,
       updatedAt: now,
       ownerId: user.uid,
-      memberIds: [user.uid],
+      memberIds: uniqueMemberIds,
     };
 
     const docRef = await addDoc(collection(db, EVENTS_COLLECTION), eventData);
