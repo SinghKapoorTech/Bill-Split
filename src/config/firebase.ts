@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, initializeAuth, indexedDBLocalPersistence } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, initializeAuth, indexedDBLocalPersistence, connectAuthEmulator } from 'firebase/auth';
 import { getAnalytics } from 'firebase/analytics';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 import { Capacitor } from '@capacitor/core';
@@ -38,6 +38,12 @@ export const functions = getFunctions(app);
 
 // Initialize Analytics (optional)
 export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+
+// Connect to Firebase Emulators in test mode
+if (import.meta.env.VITE_USE_EMULATORS === 'true') {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8081);
+}
 
 // Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();

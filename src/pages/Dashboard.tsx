@@ -179,8 +179,6 @@ export default function Dashboard() {
     return hasItems || hasReceipt;
   });
 
-  console.log("MY BILLS INFO:", allBills.map(b => ({ id: b.id, title: getBillTitle(b), people: b.people, assignments: b.itemAssignments })));
-
   if (isLoadingSessions) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-200px)]">
@@ -225,9 +223,9 @@ export default function Dashboard() {
             <Card className="p-4 md:p-6 overflow-hidden">
               <div className="text-center max-w-2xl mx-auto">
                 <h3 className="font-semibold mb-4">Create your first bill</h3>
-                
+
                 <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-border border rounded-lg">
-                  <button 
+                  <button
                     className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-primary/5 transition-colors group"
                     onClick={handleNewBill}
                   >
@@ -238,7 +236,7 @@ export default function Dashboard() {
                     </div>
                   </button>
 
-                  <button 
+                  <button
                     className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-blue-500/5 transition-colors group"
                     onClick={() => navigate('/transaction/new')}
                   >
@@ -249,7 +247,7 @@ export default function Dashboard() {
                     </div>
                   </button>
 
-                  <button 
+                  <button
                     className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-orange-500/5 transition-colors group"
                     onClick={() => navigate('/events')}
                   >

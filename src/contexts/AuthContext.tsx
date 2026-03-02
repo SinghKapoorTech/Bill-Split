@@ -87,6 +87,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Custom auth state implementation with timeout (replaces useAuthState hook)
   useEffect(() => {
+    // Dev-only: allow test user injection for E2E tests
+    if (import.meta.env.DEV && (window as any).__TEST_USER__) {
+      setUser((window as any).__TEST_USER__ as User);
+      setLoading(false);
+      return;
+    }
+
     // Force loading to false after 3 seconds if Firebase doesn't respond
     const timeout = setTimeout(() => {
       if (loading) {

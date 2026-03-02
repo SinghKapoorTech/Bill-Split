@@ -45,6 +45,101 @@ npm run lint
 npm preview
 ```
 
+## E2E Testing
+
+### Prerequisites
+
+- **Java** — Required by Firebase Firestore Emulator. Install via Homebrew:
+  ```bash
+  brew install openjdk
+  echo 'export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"' >> ~/.zshrc
+  source ~/.zshrc
+  java -version  # verify
+  ```
+- **Playwright browsers** — Install once:
+  ```bash
+  npx playwright install chromium
+  ```
+
+### Running Tests
+
+Tests use **Firebase Emulators** (Auth + Firestore) so nothing hits production. You need 3 terminals:
+
+```bash
+# Terminal 1: Start Firebase emulators
+firebase emulators:start --only auth,firestore
+
+# Terminal 2: Start dev server with emulators enabled
+VITE_USE_EMULATORS=true npm run dev
+
+# Terminal 3: Run tests
+npx playwright test e2e/ --reporter=list
+```
+
+Or run a single test file:
+```bash
+npx playwright test e2e/bill-creation.spec.ts --reporter=list
+```
+
+### Test Files
+
+| File | What it tests |
+|------|---------------|
+| `e2e/login.spec.ts` | Landing page → Auth page → Google sign-in popup |
+| `e2e/bill-creation.spec.ts` | Full 4-step bill wizard: add items → add people → split evenly → review |
+| `e2e/events.spec.ts` | Create events via empty state and header `+` button, navigate to detail |
+| `e2e/settle-flow.spec.ts` | Dashboard renders, bill creation with split verification on review |
+
+### How It Works
+
+- **Firebase Emulators** run locally (Auth on `:9099`, Firestore on `:8081`) — configured in `firebase.json`
+- **`VITE_USE_EMULATORS=true`** tells the app to connect to emulators instead of production (`src/config/firebase.ts`)
+- **Authentication** uses the Auth Emulator's popup flow — tests click "Sign in with Google", which opens the emulator UI where a new account is auto-generated (`e2e/helpers/auth.ts`)
+- **`e2e/global-setup.ts`** checks if emulators are already running and reuses them
+
+### Troubleshooting
+
+**`java -version` fails / "Unable to locate a Java Runtime"**
+```bash
+brew install openjdk
+echo 'export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+**"Port 9099/8081/4000 is not open" — emulators won't start**
+Previous emulator processes are still running. Kill them:
+```bash
+lsof -ti:9099,8081,4000 | xargs kill -9
+```
+Then retry `firebase emulators:start --only auth,firestore`.
+
+**Tests timeout waiting for emulators**
+Start emulators manually in a separate terminal first, then run tests. The `global-setup.ts` will detect them and skip auto-start.
+
+**"strict mode violation: resolved to N elements"**
+A selector matched multiple elements. Use more specific locators:
+- `page.getByRole('cell', { name: 'Burger' })` instead of `page.getByText('Burger')`
+- `page.getByRole('heading', { name: 'Vegas Weekend' })` instead of `page.getByText('Vegas Weekend')`
+- Scope to a parent: `page.locator('tr').filter({ has: ... }).getByPlaceholder(...)`
+
+**Auth popup doesn't open or times out**
+- Ensure the dev server was started with `VITE_USE_EMULATORS=true`
+- Verify auth emulator is running: `curl -s http://localhost:9099` should respond
+
+**Firestore permission errors**
+- Ensure Firestore emulator is running: `curl -s http://localhost:8081` should respond
+- Verify `VITE_USE_EMULATORS=true` is set — without it the app connects to production Firestore
+
+### Writing New Tests
+
+1. Import the auth helper:
+   ```typescript
+   import { loginAsTestUser } from './helpers/auth';
+   ```
+2. Call `await loginAsTestUser(page)` at the start of any test that needs authentication
+3. Use `getByRole()` over `getByText()` to avoid strict mode violations from toast notifications
+4. Tests run at 1280x720 desktop viewport — wizard navigation uses desktop `StepFooter` buttons
+
 ## Architecture
 
 ### State Management Pattern
