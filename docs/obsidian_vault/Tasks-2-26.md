@@ -69,7 +69,7 @@ tags: [backlog, bugs, features, ui, obsidian]
 - [ ] **(P1) Settlement History + Undo Settlement (Unsettle all related bills)**  
   **Acceptance:** settlement history list; undo reverses all linked bill states and ledgers.
 
-- [ ] **(P1) Paid Status Indicator (Green/Yellow/Red)**  
+- [x] **(P1) Paid Status Indicator (Green/Yellow/Red)**  
   - 🟩 fully settled  
   - 🟨 partially settled  
   - 🟥 not settled  

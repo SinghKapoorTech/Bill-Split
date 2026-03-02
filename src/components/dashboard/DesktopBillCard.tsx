@@ -1,5 +1,6 @@
 import { Bill } from '@/types/bill.types';
 import { formatCurrency } from '@/utils/format';
+import { getSettlementStatus } from '@/utils/billCalculations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +41,20 @@ export default function DesktopBillCard({
   getBillTitle,
   isOwner = true
 }: DesktopBillCardProps) {
+  const status = getSettlementStatus(bill);
+  
+  const statusColors = {
+    settled: 'text-emerald-700 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/10',
+    partial: 'text-amber-700 bg-amber-500/15 dark:text-amber-400 dark:bg-amber-500/10',
+    unsettled: 'text-rose-700 bg-rose-500/15 dark:text-rose-400 dark:bg-rose-500/10',
+  };
+  
+  const statusText = {
+    settled: 'Settled',
+    partial: 'Partial',
+    unsettled: 'Not Settled',
+  };
+
   return (
     <Card
       className={`desktop-bill-card hover:shadow-lg transition-all ${
@@ -73,6 +88,9 @@ export default function DesktopBillCard({
                   Latest
                 </span>
               )}
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${statusColors[status]}`}>
+                {statusText[status]}
+              </span>
             </div>
             <CardDescription className="text-xs">
               {formatDate(bill.savedAt || bill.createdAt)}
