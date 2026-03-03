@@ -115,11 +115,6 @@ export function useBills() {
         const billDataToUse = cleanedData.billData || defaultBillData;
         const peopleToUse = cleanedData.people || [];
 
-        console.log("JIT SAVE INITIATED");
-        console.log("1. Original Session Data:", sessionData);
-        console.log("2. Cleaned Data:", cleanedData);
-        console.log("3. People To Use:", peopleToUse);
-
         const newBillId = await billService.createBill(
           user.uid,
           user.displayName || 'Anonymous',

@@ -3,7 +3,7 @@ import { getAuth, GoogleAuthProvider, initializeAuth, indexedDBLocalPersistence,
 import { getAnalytics } from 'firebase/analytics';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { getFunctions } from 'firebase/functions';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { Capacitor } from '@capacitor/core';
 
 const firebaseConfig = {
@@ -23,8 +23,8 @@ export const app = initializeApp(firebaseConfig);
 // On native platforms, use indexedDB persistence to sync with native auth
 export const auth = Capacitor.isNativePlatform()
   ? initializeAuth(app, {
-      persistence: indexedDBLocalPersistence,
-    })
+    persistence: indexedDBLocalPersistence,
+  })
   : getAuth(app);
 
 // Initialize Firestore
@@ -43,6 +43,7 @@ export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : nul
 if (import.meta.env.VITE_USE_EMULATORS === 'true') {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, '127.0.0.1', 8081);
+  connectFunctionsEmulator(functions, '127.0.0.1', 5001);
 }
 
 // Google Auth Provider

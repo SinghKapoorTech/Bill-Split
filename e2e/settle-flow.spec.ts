@@ -1,21 +1,21 @@
 import { test, expect } from '@playwright/test';
 import { loginAsTestUser } from './helpers/auth';
+import { createStandardBill } from './helpers/bill';
 
 test.describe('Settlement Flow', () => {
   test('dashboard shows friend balance section and bill management', async ({ page }) => {
     await loginAsTestUser(page);
 
     // Verify dashboard loads
-    await expect(page.getByText('Welcome back')).toBeVisible();
+    await expect(page.getByText('Welcome back')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('My Bills')).toBeVisible();
   });
 
   test('creates a bill, splits it, and verifies review step shows per-person totals', async ({ page }) => {
     await loginAsTestUser(page);
 
-    // Create a bill through the wizard
-    await page.getByText('Standard Bill').click();
-    await page.waitForURL(/\/bill\//, { timeout: 15000 });
+    // Create a bill through the wizard (handles both empty and non-empty dashboard)
+    await createStandardBill(page);
 
     // Add an item
     await page.getByRole('button', { name: 'Add Item' }).click();

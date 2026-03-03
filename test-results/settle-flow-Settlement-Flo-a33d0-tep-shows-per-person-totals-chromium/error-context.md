@@ -1,0 +1,113 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - region "Notifications (F8)":
+      - list
+    - region "Notifications alt+T"
+    - generic [ref=e3]:
+      - banner [ref=e4]:
+        - generic [ref=e6]:
+          - generic [ref=e7]:
+            - img [ref=e9]
+            - heading "Divit" [level=1] [ref=e12]
+          - generic [ref=e13]:
+            - navigation [ref=e14]:
+              - generic [ref=e15]:
+                - link "Dashboard" [ref=e16] [cursor=pointer]:
+                  - /url: /dashboard
+                  - img [ref=e17]
+                  - generic [ref=e22]: Dashboard
+                - link "Events" [ref=e23] [cursor=pointer]:
+                  - /url: /events
+                  - img [ref=e24]
+                  - generic [ref=e29]: Events
+                - link "Squads" [ref=e30] [cursor=pointer]:
+                  - /url: /squads
+                  - img [ref=e31]
+                  - generic [ref=e36]: Squads
+                - link "Profile" [ref=e37] [cursor=pointer]:
+                  - /url: /settings
+                  - img [ref=e38]
+                  - generic [ref=e42]: Profile
+              - button "Create a bill" [ref=e43] [cursor=pointer]:
+                - img
+                - text: Create a bill
+            - button "OO" [ref=e44] [cursor=pointer]:
+              - generic [ref=e46]: OO
+      - main [ref=e47]:
+        - generic [ref=e48]:
+          - generic [ref=e49]:
+            - generic [ref=e51]:
+              - textbox "Mar 3, 2026" [ref=e52]
+              - img [ref=e53]
+            - button "Share" [ref=e57] [cursor=pointer]:
+              - img
+              - text: Share
+          - navigation "Progress" [ref=e59]:
+            - generic [ref=e61]:
+              - button [ref=e62] [cursor=pointer]:
+                - img [ref=e63]
+              - generic [ref=e65] [cursor=pointer]:
+                - generic [ref=e66]: Bill Entry
+                - generic [ref=e67]: Add items
+            - generic [ref=e70]:
+              - button [ref=e71] [cursor=pointer]:
+                - img [ref=e72]
+              - generic [ref=e74] [cursor=pointer]:
+                - generic [ref=e75]: People
+                - generic [ref=e76]: Add friends
+            - generic [ref=e79]:
+              - button [ref=e80] [cursor=pointer]:
+                - img [ref=e81]
+              - generic [ref=e83] [cursor=pointer]:
+                - generic [ref=e84]: Assign
+                - generic [ref=e85]: Split items
+            - generic [ref=e88]:
+              - button "4" [ref=e89] [cursor=pointer]:
+                - generic [ref=e90]: "4"
+              - generic [ref=e91] [cursor=pointer]:
+                - generic [ref=e92]: Review
+                - generic [ref=e93]: Finalize
+          - region [ref=e96]:
+            - generic [ref=e97]:
+              - generic [ref=e99]:
+                - generic [ref=e100]:
+                  - img [ref=e101]
+                  - heading "Split Summary" [level=3] [ref=e103]
+                - generic [ref=e104]:
+                  - generic [ref=e105]:
+                    - generic [ref=e107]: Orange
+                    - generic [ref=e108]:
+                      - generic [ref=e109]:
+                        - generic [ref=e110]: "Items:"
+                        - generic [ref=e111]: $20.00
+                      - generic [ref=e112]:
+                        - generic [ref=e113]: "Total:"
+                        - generic [ref=e114]: $20.00
+                  - generic [ref=e115]:
+                    - generic [ref=e117]: Dana
+                    - generic [ref=e118]:
+                      - generic [ref=e119]:
+                        - generic [ref=e120]: "Items:"
+                        - generic [ref=e121]: $20.00
+                      - generic [ref=e122]:
+                        - generic [ref=e123]: "Total:"
+                        - generic [ref=e124]: $20.00
+                    - generic [ref=e125]:
+                      - button "Charge on Venmo" [ref=e126] [cursor=pointer]:
+                        - img
+                        - text: Charge on Venmo
+                      - button "Mark as Settled" [ref=e127] [cursor=pointer]:
+                        - img
+                        - text: Mark as Settled
+              - generic [ref=e129]:
+                - button "Back" [ref=e131] [cursor=pointer]:
+                  - img
+                  - generic [ref=e132]: Back
+                - button "Done" [ref=e134] [cursor=pointer]:
+                  - generic [ref=e135]: Done
+  - iframe [ref=e136]:
+    
+```

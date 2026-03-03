@@ -74,7 +74,6 @@ export default function Dashboard() {
 
     // Delete them silently (no user notification needed)
     if (emptyBills.length > 0) {
-      console.log(`Cleaning up ${emptyBills.length} empty bill(s)`);
       emptyBills.forEach(bill => {
         deleteSession(bill.id, bill.receiptFileName);
       });

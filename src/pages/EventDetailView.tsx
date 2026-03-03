@@ -256,11 +256,11 @@ export default function EventDetailView() {
                     if (!fromName || !toName) {
                       for (const bill of eventBills) {
                         if (!fromName) {
-                          const p = bill.people.find(person => person.id === debt.fromUserId);
+                          const p = bill.people.find(person => person.id === debt.fromUserId || person.id === `user-${debt.fromUserId}`);
                           if (p) fromName = p.name;
                         }
                         if (!toName) {
-                          const p = bill.people.find(person => person.id === debt.toUserId);
+                          const p = bill.people.find(person => person.id === debt.toUserId || person.id === `user-${debt.toUserId}`);
                           if (p) toName = p.name;
                         }
                         if (fromName && toName) break;
@@ -330,7 +330,7 @@ export default function EventDetailView() {
 
                 <button
                   className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-amber-500/[0.03] hover:border-amber-500/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
-                  onClick={() => navigate('/transaction/new', { state: { targetEventId: event.id, targetEventName: event.name }})}
+                  onClick={() => navigate('/transaction/new', { state: { targetEventId: event.id, targetEventName: event.name } })}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                   <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 shadow-sm">

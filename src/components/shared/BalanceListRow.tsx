@@ -43,28 +43,28 @@ export function BalanceListRow({
   const fromFallbackClass = isSettled
     ? 'bg-muted text-muted-foreground'
     : direction === 'you-owe'
-    ? 'bg-destructive/10 text-destructive'
-    : 'bg-muted text-muted-foreground';
+      ? 'bg-destructive/10 text-destructive'
+      : 'bg-muted text-muted-foreground';
 
   const toFallbackClass = isSettled
     ? 'bg-muted text-muted-foreground'
     : direction === 'owes-you'
-    ? 'bg-green-500/10 text-green-600'
-    : 'bg-muted text-muted-foreground';
+      ? 'bg-green-500/10 text-green-600'
+      : 'bg-muted text-muted-foreground';
 
   const amountClass = isSettled
     ? 'text-muted-foreground'
     : direction === 'you-owe'
-    ? 'text-destructive font-semibold'
-    : direction === 'owes-you'
-    ? 'text-green-600 font-semibold'
-    : 'text-muted-foreground';
+      ? 'text-destructive font-semibold'
+      : direction === 'owes-you'
+        ? 'text-green-600 font-semibold'
+        : 'text-muted-foreground';
 
   let owesText: React.ReactNode;
   if (isSettled) {
     const displayFrom = fromLabel.toLowerCase() === 'you' ? 'You' : fromLabel;
     const displayTo = toLabel.toLowerCase() === 'you' ? 'You' : toLabel;
-    
+
     owesText = (
       <>
         <span className="font-medium text-foreground">{displayFrom}</span>
@@ -100,7 +100,7 @@ export function BalanceListRow({
   }
 
   return (
-    <div className="flex items-center justify-between py-2.5 px-3 hover:bg-muted/30 transition-colors">
+    <div data-testid="balance-list-row" className="flex items-center justify-between py-2.5 px-3 hover:bg-muted/30 transition-colors">
       <div className="flex items-center gap-2.5">
         <div className="flex -space-x-2">
           <Avatar className="w-8 h-8 border-2 border-background shadow-sm z-10">
@@ -125,9 +125,8 @@ export function BalanceListRow({
           <Button
             variant={action.variant ?? 'secondary'}
             size="sm"
-            className={`h-7 px-3 text-xs w-[68px] rounded-full ${
-              action.variant === 'default' ? 'bg-primary text-primary-foreground' : ''
-            }`}
+            className={`h-7 px-3 text-xs w-[68px] rounded-full ${action.variant === 'default' ? 'bg-primary text-primary-foreground' : ''
+              }`}
             onClick={action.onClick}
           >
             {action.label}
