@@ -101,6 +101,9 @@ Whenever a bill is initially saved to Firestore or subsequently modified (e.g., 
 > [!NOTE]
 > The simple act of saving the bill draft securely applies the math. The Review Step still exists to summarize the math and allow for Venmo integration, but there are no `ledgerService` calls in the UI.
 
+### Visibility & Querying (Bi-Directional)
+Both event and private bills are fetched via the `participantIds` array-contains filter (`where('participantIds', 'array-contains', user.uid)`). This enables all participants—not just the owner—to see and interact with bills they are part of on their dashboard. A composite index is required for `participantIds` (CONTAINS), `billType` (ASCENDING), and `updatedAt` (DESCENDING).
+
 ### On Bill Deletion
 
 When a user deletes a bill:

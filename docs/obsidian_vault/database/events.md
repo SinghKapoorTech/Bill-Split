@@ -65,6 +65,9 @@ When defining the relationship between Events and Bills, we attach the `eventId`
 
 - **The Solution**: By creating new Bill documents concurrently within the `bills` collection, users never lock the parent Event document. Furthermore, querying by `eventId` allows us to easily paginate and sort bills (e.g., `orderBy('createdAt', 'desc')`) without needing to fetch the entire Event document first or exceeding Firestore's 30-item limit for `in` queries.
 
+### Visibility & Querying
+Events are fetched using the `memberIds` array-contains filter (`where('memberIds', 'array-contains', user.uid)`). This ensures that any user added to the `memberIds` array can see the event on their dashboard, establishing bi-directional visibility between the creator and participants. This requires a composite index on `memberIds` (CONTAINS) and `updatedAt` (DESCENDING).
+
 ## Event Ledger Architecture (`event_balances`)
 
 Just like `friend_balances` tracks global debt between two friends over time, `event_balances` securely tracks the isolated mathematical debt *for a single event*.

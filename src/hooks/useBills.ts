@@ -52,10 +52,10 @@ export function useBills() {
     setIsLoading(true);
     const billsRef = collection(db, 'bills');
 
-    // Query for all bills the user owns, ordered by updatedAt
+    // Query for all bills where the user is a participant, ordered by updatedAt
     const q = query(
       billsRef,
-      where('ownerId', '==', user.uid),
+      where('participantIds', 'array-contains', user.uid),
       where('billType', 'in', ['private', 'event']),
       orderBy('updatedAt', 'desc')
     );
