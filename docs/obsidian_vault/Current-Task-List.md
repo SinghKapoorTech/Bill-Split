@@ -50,7 +50,7 @@ tags:
   _Bug:_ balances out of sync after event settlement.  
   **Acceptance:** friend balances reflect settlements immediately + accurately.
 
-- [ ] **(P0) Events & bills must be bi-directional visibility**  
+- [x] **(P0) Events & bills must be bi-directional visibility**  
   _Bug:_ if I create event + add person, that person must see the event too.  
   **Acceptance:** added users can see event, associated bills, and their balances.
 
