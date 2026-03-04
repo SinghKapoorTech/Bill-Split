@@ -22,7 +22,7 @@ export function useEventManager() {
     const eventsRef = collection(db, EVENTS_COLLECTION);
     const q = query(
       eventsRef,
-      where('ownerId', '==', user.uid),
+      where('memberIds', 'array-contains', user.uid),
       orderBy('updatedAt', 'desc')
     );
 

@@ -207,8 +207,16 @@ service cloud.firestore {
                     (resource == null || request.auth.uid in resource.data.participants);
 
       // allow list: for queries filtering by eventId
+      // We allow reading if the user is a member of the event
       allow list: if request.auth != null &&
-                     request.auth.uid in resource.data.participants;
+                     (
+                       request.auth.uid in resource.data.participants ||
+                       ('eventId' in resource.data && resource.data.eventId != null &&
+                        exists(/databases/$(database)/documents/events/$(resource.data.eventId)) &&
+                        (request.auth.uid == get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.ownerId ||
+                         ('memberIds' in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data &&
+                          request.auth.uid in get(/databases/$(database)/documents/events/$(resource.data.eventId)).data.memberIds)))
+                     );
 
       // Admin-only: server-side ledgerProcessor pipeline writes via Admin SDK
       allow create: if false;
