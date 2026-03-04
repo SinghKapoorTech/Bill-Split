@@ -89,10 +89,10 @@ tags:
 - [x] **(P1) When creating an event, prompt to add users + add “first bill” buttons**  
   **Acceptance:** event wizard includes user add step; post-create shows quick actions.
 
-- [ ] **(P1) Any bill wizard should allow associating with an event**  
+- [x] **(P1) Any bill wizard should allow associating with an event**  
   **Acceptance:** event selection/assignment exists in wizard; can assign later too.
 
-- [ ] **(P1) Simple bill/transaction should be mergeable into an event**  
+- [x] **(P1) Simple bill/transaction should be mergeable into an event**  
   **Acceptance:** can assign existing bill to event; event & bill views update both ways.
 
 - [x] **(P1) “My Bills” should be an expandable list (show 5 initially)**  
