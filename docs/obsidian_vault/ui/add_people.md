@@ -17,6 +17,7 @@ The "Add People" flow is designed to be highly flexible, catering to different s
 ### `PeopleStep.tsx`
 This is the top-level container for this phase of the wizard. 
 - **Responsive Design**: On desktop, it utilizes a `TwoColumnLayout` (receipt preview on the left, people manager on the right). On mobile, it uses a compact vertical layout, showing a small thumbnail of the receipt at the top if one was uploaded.
+- **Event Dropdown**: Located directly within the `StepHeader` next to the "People" title, this `EventSelector` component allows users to assign the bill to an event and automatically import its members.
 - **State Management**: It passes down the list of `people`, the active `billData`, and all the handler functions (add, remove, update) to the `PeopleManager`.
 
 ### `PeopleManager.tsx`
@@ -51,6 +52,15 @@ Below the buttons, the active list of selected people is rendered using `PersonC
   1. **Search/List**: The user sees a list of their squads with a search bar to filter by name. Each squad shows its member count.
   2. **Preview Mode**: Clicking a squad doesn't instantly add them. Instead, it transitions to a preview showing all individual members within that squad.
   3. **Confirmation**: The user confirms by clicking "Add Squad to Bill", injecting all unique members into the current bill.
+
+### Method 4: Event Assignment
+*Handled by `EventSelector.tsx` within the Step Header*
+- **Purpose**: Rapidly associate a bill with a specific event while seamlessly importing all of that event's members into the split.
+- **Data Source**: Uses `useEventManager` to fetch a list of events the current user is a participant of.
+- **Flow**:
+  1. **Selection**: The user clicks the subtle "Event..." dropdown next to the "People" title.
+  2. **Auto-Populate**: Selecting an event immediately fetches all members of that event (via `fetchEventMembers` + `ensureUserInPeople`) and fully overrides the bill's current people list to match the event roster.
+  3. **Bill Type Upgrade**: Behind the scenes, the bill is updated to have `billType: 'event'` and tagged with the selected `eventId`. Selecting "None (Private Bill)" gracefully strips these fields and reverts the bill to a standard private state.
 
 ## 4. Post-Addition Features
 

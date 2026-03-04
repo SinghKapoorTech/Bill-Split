@@ -14,6 +14,8 @@ interface PeopleStepProps {
   canProceed: boolean;
   currentStep: number;
   totalSteps: number;
+  eventId?: string | null;
+  onEventChange?: (eventId: string | null) => void;
 }
 
 export function PeopleStep({
@@ -27,7 +29,9 @@ export function PeopleStep({
   onPrev,
   canProceed,
   currentStep,
-  totalSteps
+  totalSteps,
+  eventId,
+  onEventChange
 }: PeopleStepProps) {
   return (
     <div className="flex flex-col gap-6 p-0 max-w-md mx-auto">
@@ -51,12 +55,14 @@ export function PeopleStep({
         canProceed={canProceed}
         currentStep={currentStep}
         totalSteps={totalSteps}
+        eventId={eventId}
+        onEventChange={onEventChange}
       />
-      
+
       {people.length === 1 && (
-         <div className="text-center text-sm text-amber-600 bg-amber-50 p-3 rounded-md mt-4">
-           You need at least one other person to split an expense.
-         </div>
+        <div className="text-center text-sm text-amber-600 bg-amber-50 p-3 rounded-md mt-4">
+          You need at least one other person to split an expense.
+        </div>
       )}
     </div>
   );

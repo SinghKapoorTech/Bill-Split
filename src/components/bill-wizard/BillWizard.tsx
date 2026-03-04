@@ -67,6 +67,10 @@ interface BillWizardProps {
     // Share functionality (for mobile navigation)
     hasBillData: boolean;
     onShare?: () => void;
+
+    // Event Info
+    eventId?: string | null;
+    onEventChange?: (eventId: string | null) => void;
 }
 
 /**
@@ -92,7 +96,9 @@ export function BillWizard({
     onTitleChange,
     initialPaidById,
     hasBillData,
-    onShare
+    onShare,
+    eventId,
+    onEventChange
 }: BillWizardProps) {
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -540,6 +546,8 @@ export function BillWizard({
                             canProceed={wizard.canProceedFromStep(1)}
                             currentStep={wizard.currentStep}
                             totalSteps={STEPS.length}
+                            eventId={eventId}
+                            onEventChange={onEventChange}
                         />
                     )}
 

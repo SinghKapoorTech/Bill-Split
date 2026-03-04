@@ -100,6 +100,15 @@ export function SimpleTransactionWizard() {
     }
   }, [billId, user, routerState, profile]);
 
+  const handleEventChange = async (newEventId: string | null) => {
+    setExistingEventId(newEventId || undefined);
+    if (!newEventId) return;
+
+    // Fetch members and override people
+    const eventMembers = await fetchEventMembers(newEventId);
+    setPeople(ensureUserInPeople(eventMembers, user, profile));
+  };
+
   useEffect(() => {
     // If we're creating a new transaction, exit early
     if (!billId || billId === 'new') return;
@@ -226,15 +235,15 @@ export function SimpleTransactionWizard() {
           title,
           paidById,
           people,
-          targetEventId,
-          targetSquadId
+          existingEventId || targetEventId,
+          existingSquadId || targetSquadId
         );
       }
 
-      if (targetEventId) {
-        navigate(`/events/${targetEventId}`);
-      } else if (targetSquadId) {
-        navigate(`/squads/${targetSquadId}`);
+      if (existingEventId || targetEventId) {
+        navigate(`/events/${existingEventId || targetEventId}`);
+      } else if (existingSquadId || targetSquadId) {
+        navigate(`/squads/${existingSquadId || targetSquadId}`);
       } else {
         navigate('/dashboard');
       }
@@ -304,6 +313,8 @@ export function SimpleTransactionWizard() {
               canProceed={canProceed()}
               currentStep={currentStep}
               totalSteps={STEPS.length}
+              eventId={existingEventId || null}
+              onEventChange={handleEventChange}
             />
           )}
 

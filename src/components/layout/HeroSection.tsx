@@ -2,7 +2,6 @@ import { Share2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { UI_TEXT } from '@/utils/uiConstants';
-
 interface Props {
   hasBillData: boolean;
   onShare?: () => void;

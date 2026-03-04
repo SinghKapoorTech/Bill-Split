@@ -6,7 +6,7 @@ interface PeopleStepProps {
     people: Person[];
     setPeople: (people: Person[]) => void;
     billData: BillData | null;
-    
+
     // People manager props
     newPersonName: string;
     newPersonVenmoId: string;
@@ -43,6 +43,10 @@ interface PeopleStepProps {
     // Utility
     isMobile: boolean;
     upload: any; // useFileUpload hook result
+
+    // Event info
+    eventId?: string | null;
+    onEventChange?: (eventId: string | null) => void;
 }
 
 /**

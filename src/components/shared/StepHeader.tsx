@@ -18,6 +18,7 @@ interface StepHeaderProps {
     onImageSelected?: (fileOrBase64: File | string) => void;
     onAnalyze?: () => void;
     onRemoveImage?: () => void;
+    actions?: React.ReactNode;
 }
 
 /**
@@ -39,36 +40,43 @@ export function StepHeader({
     upload,
     onImageSelected,
     onAnalyze,
-    onRemoveImage
+    onRemoveImage,
+    actions
 }: StepHeaderProps) {
     return (
-        <div className="section-header">
-            <Icon className="icon-md-responsive icon-primary" />
-            <h3 className="section-title-responsive">{title}</h3>
+        <div className="section-header flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <Icon className="icon-md-responsive icon-primary" />
+                <h3 className="section-title-responsive">{title}</h3>
+            </div>
 
-            {showReceiptThumbnail && (imagePreview || receiptImageUrl) && upload && (
-                <ReceiptUploader
-                    selectedFile={selectedFile || null}
-                    imagePreview={imagePreview || null}
-                    isDragging={isDragging || false}
-                    isUploading={isUploading || false}
-                    isAnalyzing={isAnalyzing || false}
-                    isMobile={isMobile || false}
-                    compactMode={true}
-                    onFileInput={(e) => e.target.files && onImageSelected?.(e.target.files[0])}
-                    onDragOver={upload.handleDragOver}
-                    onDragLeave={upload.handleDragLeave}
-                    onDrop={(e) => {
-                        upload.handleDrop(e);
-                        const file = e.dataTransfer.files?.[0];
-                        if (file) onImageSelected?.(file);
-                    }}
-                    onRemove={onRemoveImage || (() => { })}
-                    onAnalyze={onAnalyze || (() => { })}
-                    onImageSelected={onImageSelected}
-                    fileInputRef={upload.fileInputRef}
-                />
-            )}
+            <div className="flex items-center gap-2">
+                {actions}
+
+                {showReceiptThumbnail && (imagePreview || receiptImageUrl) && upload && (
+                    <ReceiptUploader
+                        selectedFile={selectedFile || null}
+                        imagePreview={imagePreview || null}
+                        isDragging={isDragging || false}
+                        isUploading={isUploading || false}
+                        isAnalyzing={isAnalyzing || false}
+                        isMobile={isMobile || false}
+                        compactMode={true}
+                        onFileInput={(e) => e.target.files && onImageSelected?.(e.target.files[0])}
+                        onDragOver={upload.handleDragOver}
+                        onDragLeave={upload.handleDragLeave}
+                        onDrop={(e) => {
+                            upload.handleDrop(e);
+                            const file = e.dataTransfer.files?.[0];
+                            if (file) onImageSelected?.(file);
+                        }}
+                        onRemove={onRemoveImage || (() => { })}
+                        onAnalyze={onAnalyze || (() => { })}
+                        onImageSelected={onImageSelected}
+                        fileInputRef={upload.fileInputRef}
+                    />
+                )}
+            </div>
         </div>
     );
 }

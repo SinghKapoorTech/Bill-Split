@@ -47,6 +47,7 @@ export default function AIScanView() {
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
   const [title, setTitle] = useState<string>('');
   const [currentStep, setCurrentStep] = useState(0);
+  const [eventId, setEventId] = useState<string | null>(null);
 
   // Share link state
   const [showShareLinkDialog, setShowShareLinkDialog] = useState(false);
@@ -94,10 +95,12 @@ export default function AIScanView() {
         // Pre-populate people with all event members if coming from an event
         const { targetEventId } = location.state || {};
         if (targetEventId) {
+          setEventId(targetEventId);
           fetchEventMembers(targetEventId).then(eventPeople => {
             setPeople(ensureUserInPeople(eventPeople, user, profile));
           });
         } else {
+          setEventId(null);
           setPeople(ensureUserInPeople([], user, profile));
         }
       }
@@ -116,6 +119,7 @@ export default function AIScanView() {
         setSplitEvenly(activeSession.splitEvenly || false);
         setTitle(activeSession.title || '');
         setCurrentStep(activeSession.currentStep || 0);
+        setEventId(activeSession.eventId || null);
         loadedSessionId.current = activeSession.id;
       }
     }
@@ -137,6 +141,7 @@ export default function AIScanView() {
           setSplitEvenly(fetchedBill.splitEvenly || false);
           setTitle(fetchedBill.title || '');
           setCurrentStep(fetchedBill.currentStep || 0);
+          setEventId(fetchedBill.eventId || null);
         }
       });
     }
@@ -235,13 +240,47 @@ export default function AIScanView() {
   const isDraft = !billId;
   const effectiveSession = isDraft ? null : activeSession;
 
-  // Enhance saveSession for JIT event creation
-  const handleSaveSession = async (sessionData: Partial<Bill>, id?: string) => {
-    const { targetEventId } = location.state || {};
+  const handleEventChange = async (newEventId: string | null) => {
+    setEventId(newEventId);
 
-    // If we're creating a draft AND we came from an event page, inject the event metadata
-    if (isDraft && targetEventId && !sessionData.eventId) {
-      sessionData.eventId = targetEventId;
+    // If an event is selected, fetch members and override current people
+    if (newEventId) {
+      const eventMembers = await fetchEventMembers(newEventId);
+      const newPeople = ensureUserInPeople(eventMembers, user, profile);
+      setPeople(newPeople);
+
+      // Clear assignments as people have changed
+      setItemAssignments({});
+
+      // Persist the change
+      const newBillId = await saveSession({
+        eventId: newEventId,
+        billType: 'event',
+        people: newPeople,
+        itemAssignments: {},
+      }, billId || activeSession?.id);
+
+      if (!billId && newBillId) {
+        navigate(`/bill/${newBillId}`, { replace: true });
+      }
+    } else {
+      // If none is selected, convert back to private
+      const newBillId = await saveSession({
+        eventId: deleteField() as any,
+        billType: 'private',
+      }, billId || activeSession?.id);
+
+      if (!billId && newBillId) {
+        navigate(`/bill/${newBillId}`, { replace: true });
+      }
+    }
+  };
+
+  // Enhance saveSession for JIT event creation and state injection
+  const handleSaveSession = async (sessionData: Partial<Bill>, id?: string) => {
+    // Inject the event metadata if it's set in state
+    if (eventId && !sessionData.eventId) {
+      sessionData.eventId = eventId;
       sessionData.billType = 'event';
     }
 
@@ -276,6 +315,8 @@ export default function AIScanView() {
         onTitleChange={setTitle}
         hasBillData={!!billData}
         onShare={handleGenerateShareLink}
+        eventId={eventId}
+        onEventChange={handleEventChange}
       />
 
       {/* Share Link Dialog */}
