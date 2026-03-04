@@ -101,6 +101,14 @@ export interface Bill {
   isSimpleTransaction?: boolean;
   paidById?: string;
 
+  // Airbnb / House
+  isAirbnb?: boolean;
+  airbnbData?: {
+    startDate: string;
+    endDate: string;
+    nights: number;
+  };
+
   // History
   members: BillMember[];
 

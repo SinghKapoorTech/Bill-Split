@@ -10,7 +10,8 @@ import {
   Trash2,
   Play,
   ShoppingBag,
-  Zap
+  Zap,
+  Home
 } from 'lucide-react';
 
 interface DesktopBillCardProps {
@@ -42,13 +43,13 @@ export default function DesktopBillCard({
   isOwner = true
 }: DesktopBillCardProps) {
   const status = getSettlementStatus(bill);
-  
+
   const statusColors = {
     settled: 'text-emerald-700 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/10',
     partial: 'text-amber-700 bg-amber-500/15 dark:text-amber-400 dark:bg-amber-500/10',
     unsettled: 'text-rose-700 bg-rose-500/15 dark:text-rose-400 dark:bg-rose-500/10',
   };
-  
+
   const statusText = {
     settled: 'Settled',
     partial: 'Partial',
@@ -57,15 +58,18 @@ export default function DesktopBillCard({
 
   return (
     <Card
-      className={`desktop-bill-card hover:shadow-lg transition-all ${
-        isLatest ? 'ring-2 ring-primary bg-primary/5' : ''
-      }`}
+      className={`desktop-bill-card hover:shadow-lg transition-all ${isLatest ? 'ring-2 ring-primary bg-primary/5' : ''
+        }`}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start gap-3 mb-2">
           {bill.isSimpleTransaction ? (
             <div className="w-12 h-12 bg-amber-100 rounded-md flex items-center justify-center shrink-0">
               <Zap className="w-6 h-6 text-amber-600" />
+            </div>
+          ) : bill.isAirbnb ? (
+            <div className="w-12 h-12 bg-rose-100 rounded-md flex items-center justify-center shrink-0">
+              <Home className="w-6 h-6 text-rose-600" />
             </div>
           ) : bill.receiptImageUrl ? (
             <img

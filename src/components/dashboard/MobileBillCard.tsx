@@ -1,7 +1,7 @@
 import { Bill } from '@/types/bill.types';
 import { formatCurrency } from '@/utils/format';
 import { getSettlementStatus } from '@/utils/billCalculations';
-import { ChevronRight, Loader2, Play, Trash2, Zap } from 'lucide-react';
+import { ChevronRight, Loader2, Play, Trash2, Zap, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 /**
@@ -47,7 +47,7 @@ export default function MobileBillCard({
   const itemCount = bill.billData?.items?.length || 0;
   const peopleCount = bill.people?.length || 0;
   const total = formatCurrency(bill.billData?.total || 0);
-  
+
   // Build the item names preview (first few items, comma-separated)
   const itemNames = bill.billData?.items
     ?.slice(0, 3)
@@ -56,13 +56,13 @@ export default function MobileBillCard({
   const hasMoreItems = itemCount > 3;
 
   const status = getSettlementStatus(bill);
-  
+
   const statusColors = {
     settled: 'text-emerald-700 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/10',
     partial: 'text-amber-700 bg-amber-500/15 dark:text-amber-400 dark:bg-amber-500/10',
     unsettled: 'text-rose-700 bg-rose-500/15 dark:text-rose-400 dark:bg-rose-500/10',
   };
-  
+
   const statusText = {
     settled: 'Settled',
     partial: 'Partial',
@@ -95,9 +95,11 @@ export default function MobileBillCard({
       <div className="flex-1 min-w-0 py-3">
         {/* Row 1: Title + Latest badge */}
         <div className="flex items-center gap-2 mb-0.5">
-          {bill.isSimpleTransaction && (
+          {bill.isSimpleTransaction ? (
             <Zap className="w-4 h-4 text-amber-500 shrink-0" />
-          )}
+          ) : bill.isAirbnb ? (
+            <Home className="w-4 h-4 text-rose-500 shrink-0" />
+          ) : null}
           <span className="font-medium text-foreground truncate">
             {getBillTitle(bill)}
           </span>
@@ -145,7 +147,7 @@ export default function MobileBillCard({
             )}
           </Button>
         )}
-        
+
         <ChevronRight className="w-5 h-5 text-muted-foreground" />
       </div>
     </div>
