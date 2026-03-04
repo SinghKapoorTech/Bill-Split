@@ -34,7 +34,7 @@ export default function AirbnbView() {
     const [billData, setBillData] = useState<BillData | null>(null);
     const [people, setPeople] = useState<Person[]>([]);
     const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
-    const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
+    const [splitEvenly, setSplitEvenly] = useState<boolean>(true);
     const [title, setTitle] = useState<string>('');
     const [currentStep, setCurrentStep] = useState(0);
     const [eventId, setEventId] = useState<string | null>(null);

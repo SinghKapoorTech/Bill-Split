@@ -129,7 +129,7 @@ tags:
 
 ## 🏡 Phase2 (Not Required)
 
-- [ ] **(P2/Optional) Airbnb/House day-based expense**  
+- [x] **(P2/Optional) Airbnb/House day-based expense**  
   **Acceptance:** per-day split support (date range → daily cost allocation).
 
 ---

@@ -9,6 +9,7 @@ interface UseBillWizardProps {
     itemAssignments: ItemAssignment;
     totalSteps: number;
     initialStep?: number;
+    customValidator?: (step: number) => boolean;
 }
 
 /**
@@ -20,7 +21,8 @@ export function useBillWizard({
     people,
     itemAssignments,
     totalSteps,
-    initialStep = 0
+    initialStep = 0,
+    customValidator
 }: UseBillWizardProps): WizardState {
     const [currentStep, setCurrentStep] = useState(initialStep);
 
@@ -39,6 +41,10 @@ export function useBillWizard({
 
     // Validation for step progression
     const canProceedFromStep = useCallback((step: number): boolean => {
+        if (customValidator) {
+            return customValidator(step);
+        }
+        
         switch (step) {
             case 0: // Bill Entry step (merged Upload + Items)
                 return billData?.items?.length > 0; // Need at least one item
@@ -51,7 +57,7 @@ export function useBillWizard({
             default:
                 return false;
         }
-    }, [billData, people, itemAssignments]);
+    }, [billData, people, itemAssignments, customValidator]);
 
     // Determine which steps can be navigated to
     const canNavigateToStep = useCallback((stepIndex: number): boolean => {

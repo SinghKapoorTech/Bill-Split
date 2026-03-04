@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { billService } from '@/services/billService';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,9 +7,10 @@ import { Stepper, StepContent } from '@/components/ui/stepper';
 import { PillProgress } from '@/components/ui/pill-progress';
 import { SwipeableStepContainer } from '@/components/ui/swipeable-container';
 import { AirbnbEntryStep } from './steps/AirbnbEntryStep';
-import { PeopleStep } from '@/components/bill-wizard/steps/PeopleStep';
-import { AssignmentStep } from '@/components/bill-wizard/steps/AssignmentStep';
-import { ReviewStep } from '@/components/bill-wizard/steps/ReviewStep';
+import { AirbnbGuestsStep } from './steps/AirbnbGuestsStep';
+import { AirbnbSplitMethodStep } from './steps/AirbnbSplitMethodStep';
+import { AirbnbAssignStep } from './steps/AirbnbAssignStep';
+import { AirbnbReviewStep } from './steps/AirbnbReviewStep';
 import { WizardNavigation } from '@/components/bill-wizard/WizardNavigation';
 import { useBillWizard } from '@/components/bill-wizard/hooks/useBillWizard';
 import { useBillSession } from '@/components/bill-wizard/hooks/useBillSession';
@@ -18,13 +19,6 @@ import { useBillSplitter } from '@/hooks/useBillSplitter';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Person, BillData, ItemAssignment } from '@/types';
 import { Step } from '@/components/bill-wizard/types';
-
-const STEPS: Step[] = [
-    { id: 1, label: 'Trip Details', description: 'Dates & Cost' },
-    { id: 2, label: 'Guests', description: 'Add friends' },
-    { id: 3, label: 'Assign', description: 'Split days' },
-    { id: 4, label: 'Review', description: 'Finalize' },
-];
 
 interface AirbnbWizardProps {
     activeSession: any;
@@ -98,13 +92,89 @@ export function AirbnbWizard({
         }
     }, [activeSession?.paidById]);
 
+    const STEPS: Step[] = splitEvenly ? [
+        { id: 1, label: 'Details', description: 'Dates & Cost' },
+        { id: 2, label: 'Guests', description: 'Add guests' },
+        { id: 3, label: 'Method', description: 'How to split' },
+        { id: 4, label: 'Review', description: 'Finalize' },
+    ] : [
+        { id: 1, label: 'Details', description: 'Dates & Cost' },
+        { id: 2, label: 'Guests', description: 'Add guests' },
+        { id: 3, label: 'Method', description: 'How to split' },
+        { id: 4, label: 'Assign', description: 'Nights' },
+        { id: 5, label: 'Review', description: 'Finalize' },
+    ];
+
+    const customValidator = useCallback((step: number) => {
+        if (splitEvenly) {
+            // STEPS: Details (0), Guests (1), Method (2), Review (3)
+            switch (step) {
+                case 0: return !!(billData?.items && billData.items.length > 0 && billData.subtotal > 0);
+                case 1: return people.length > 0;
+                case 2: return true; // Method choice is always valid
+                case 3: return true;
+                default: return false;
+            }
+        } else {
+            // STEPS: Details (0), Guests (1), Method (2), Assign (3), Review (4)
+            switch (step) {
+                case 0: return !!(billData?.items && billData.items.length > 0 && billData.subtotal > 0);
+                case 1: return people.length > 0;
+                case 2: return true; // Method choice is always valid
+                case 3: return bill.allItemsAssigned;
+                case 4: return true;
+                default: return false;
+            }
+        }
+    }, [splitEvenly, billData, people, bill.allItemsAssigned]);
+
     const wizard = useBillWizard({
         billData,
         people,
         itemAssignments,
         totalSteps: STEPS.length,
-        initialStep
+        initialStep,
+        customValidator
     });
+
+    // Make sure wizard.currentStep doesn't exceed new STEPS length if we toggled split evenly
+    useEffect(() => {
+        if (wizard.currentStep >= STEPS.length) {
+            wizard.setCurrentStep(STEPS.length - 1);
+        }
+    }, [splitEvenly, STEPS.length, wizard.currentStep]);
+
+    // Ensure itemAssignments are kept flawlessly in sync if splitEvenly is true
+    // This covers default values, adding/removing guests, or editing items
+    useEffect(() => {
+        if (splitEvenly && billData && billData.items && people.length > 0) {
+            const allPeopleIds = people.map(p => p.id);
+            let needsUpdate = false;
+            
+            // Check if any item is missing an assignment or has wrong number of people
+            for (const item of billData.items) {
+                const assigned = itemAssignments[item.id];
+                if (!assigned || assigned.length !== allPeopleIds.length) {
+                    needsUpdate = true;
+                    break;
+                }
+            }
+            
+            if (needsUpdate) {
+                const newAssignments: ItemAssignment = {};
+                billData.items.forEach(item => {
+                    newAssignments[item.id] = [...allPeopleIds];
+                });
+                setItemAssignments(newAssignments);
+                
+                // Fire off a background save if it's not a brand new draft
+                const id = billId || activeSession?.id;
+                if (id) {
+                    billService.updateBill(id, { itemAssignments: newAssignments }).catch(console.error);
+                }
+            }
+        }
+    }, [splitEvenly, billData, people, itemAssignments, billId, activeSession?.id]);
 
     const { executeSave } = useBillSession({
         billData,
@@ -116,35 +186,38 @@ export function AirbnbWizard({
         activeSession,
         billId,
         saveSession,
-        paidById
+        paidById,
+        baseUrl: '/airbnb'
     });
 
     const handleAtomicAssignment = (itemId: string, personId: string, checked: boolean) => {
         bill.handleItemAssignment(itemId, personId, checked);
         const id = billId || activeSession?.id;
-        if (splitEvenly) {
-            setSplitEvenly(false);
-            if (id) billService.updateBill(id, { splitEvenly: false }).catch(console.error);
-        }
         if (id) {
             billService.toggleItemAssignment(id, itemId, personId, checked).catch(console.error);
         }
     };
 
-    const handleToggleSplitEvenly = () => {
-        bill.toggleSplitEvenly();
-        const newSplitEvenly = !splitEvenly;
+    const handleToggleSplitEvenly = (evenly: boolean) => {
+        if (splitEvenly === evenly) return;
+        
+        setSplitEvenly(evenly);
+        
         const newAssignments: ItemAssignment = {};
-        if (newSplitEvenly && billData && people.length > 0) {
+        if (evenly && billData && people.length > 0) {
             billData.items.forEach(item => {
                 newAssignments[item.id] = people.map(p => p.id);
             });
+            setItemAssignments(newAssignments);
+        } else {
+            setItemAssignments({});
         }
+        
         const id = billId || activeSession?.id;
         if (id) {
             billService.updateBill(id, {
-                splitEvenly: newSplitEvenly,
-                itemAssignments: newAssignments
+                splitEvenly: evenly,
+                itemAssignments: evenly ? newAssignments : {}
             }).catch(console.error);
         }
     };
@@ -158,14 +231,6 @@ export function AirbnbWizard({
                     people: arrayUnion(newPerson) as unknown as Person[]
                 }).catch(console.error);
             }
-        }
-    };
-
-    const handleAtomicPaidByChange = async (newPaidById: string) => {
-        setPaidById(newPaidById);
-        const id = billId || activeSession?.id;
-        if (id) {
-            billService.updateBill(id, { paidById: newPaidById }).catch(console.error);
         }
     };
 
@@ -220,21 +285,9 @@ export function AirbnbWizard({
         }
     };
 
-    // Make mock upload functions that do nothing since we don't upload receipts in Airbnb flow
-    const mockUpload = {
-        imagePreview: null,
-        selectedFile: null,
-        isDragging: false,
-        fileInputRef: { current: null },
-        handleDragEnter: () => { },
-        handleDragLeave: () => { },
-        handleDragOver: () => { },
-        handleDrop: () => { },
-        handleFileSelect: () => { },
-        handleRemoveImage: () => { },
-        setImagePreview: () => { },
-        setSelectedFile: () => { }
-    };
+    // Derived flags for rendering
+    const isReviewStep = wizard.currentStep === STEPS.length - 1;
+    const isAssignStep = !splitEvenly && wizard.currentStep === 3;
 
     return (
         <>
@@ -279,75 +332,52 @@ export function AirbnbWizard({
                     )}
 
                     {wizard.currentStep === 1 && (
-                        <PeopleStep
+                        <AirbnbGuestsStep
                             people={people}
                             setPeople={setPeople}
                             billData={billData}
-                            newPersonName={peopleManager.newPersonName}
-                            newPersonVenmoId={peopleManager.newPersonVenmoId}
-                            onNameChange={peopleManager.setNewPersonName}
-                            onVenmoIdChange={peopleManager.setNewPersonVenmoId}
                             isMobile={isMobile}
-                            upload={mockUpload}
                             onAdd={handleAtomicAddPerson}
-                            paidById={paidById}
-                            onPaidByChange={handleAtomicPaidByChange}
                             onAddFromFriend={handleAtomicAddFromFriend}
                             onRemove={handleRemovePerson}
                             onUpdate={handleUpdatePerson}
-                            onSaveAsFriend={peopleManager.savePersonAsFriend}
-                            onRemoveFriend={peopleManager.removePersonFromFriends}
-                            imagePreview={null}
-                            selectedFile={null}
-                            isUploading={false}
-                            isAnalyzing={false}
-                            receiptImageUrl={undefined}
-                            onImageSelected={() => { }}
-                            onAnalyze={() => { }}
-                            onRemoveImage={() => { }}
                             onNext={wizard.handleNextStep}
                             onPrev={wizard.handlePrevStep}
                             canProceed={wizard.canProceedFromStep(1)}
                             currentStep={wizard.currentStep}
                             totalSteps={STEPS.length}
-                            eventId={eventId}
-                            onEventChange={onEventChange}
                         />
                     )}
 
                     {wizard.currentStep === 2 && (
-                        <AssignmentStep
-                            billData={billData}
-                            setBillData={setBillData}
-                            people={people}
-                            itemAssignments={itemAssignments}
+                        <AirbnbSplitMethodStep
                             splitEvenly={splitEvenly}
-                            onAssign={handleAtomicAssignment}
                             onToggleSplitEvenly={handleToggleSplitEvenly}
-                            removePersonFromAssignments={bill.removePersonFromAssignments}
-                            removeItemAssignments={bill.removeItemAssignments}
-                            imagePreview={null}
-                            selectedFile={null}
-                            isUploading={false}
-                            isAnalyzing={false}
-                            isAIProcessing={false}
-                            receiptImageUrl={undefined}
-                            onImageSelected={() => { }}
-                            onAnalyze={() => { }}
-                            onRemoveImage={() => { }}
                             onNext={wizard.handleNextStep}
                             onPrev={wizard.handlePrevStep}
-                            canProceed={wizard.canProceedFromStep(2)}
                             currentStep={wizard.currentStep}
                             totalSteps={STEPS.length}
                             isMobile={isMobile}
-                            upload={mockUpload}
-                            onTriggerSave={executeSave}
                         />
                     )}
 
-                    {wizard.currentStep === 3 && (
-                        <ReviewStep
+                    {isAssignStep && (
+                        <AirbnbAssignStep
+                            billData={billData}
+                            people={people}
+                            itemAssignments={itemAssignments}
+                            onAssign={handleAtomicAssignment}
+                            onNext={wizard.handleNextStep}
+                            onPrev={wizard.handlePrevStep}
+                            canProceed={wizard.canProceedFromStep(3)}
+                            currentStep={wizard.currentStep}
+                            totalSteps={STEPS.length}
+                            isMobile={isMobile}
+                        />
+                    )}
+
+                    {isReviewStep && (
+                        <AirbnbReviewStep
                             billId={billId || activeSession?.id}
                             billData={billData}
                             people={people}
@@ -357,18 +387,6 @@ export function AirbnbWizard({
                             settledPersonIds={activeSession?.settledPersonIds || []}
                             paidById={paidById}
                             ownerId={activeSession?.ownerId || user?.uid}
-                            receipt={{
-                                imagePreview: null,
-                                selectedFile: null,
-                                isUploading: false,
-                                isAnalyzing: false,
-                                receiptImageUrl: undefined,
-                                onImageSelected: () => { },
-                                onAnalyze: () => { },
-                                onRemoveImage: () => { },
-                                isMobile,
-                                upload: mockUpload,
-                            }}
                             onComplete={handleDone}
                             onPrev={wizard.handlePrevStep}
                             currentStep={wizard.currentStep}

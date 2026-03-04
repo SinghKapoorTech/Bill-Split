@@ -15,6 +15,7 @@ The main user journey of the app follows a wizard-like sequence:
 3. **[[assignment|Item Assignment]]**: The interactive step where receipt line items are assigned to specific people.
 4. **[[review|Review & Split]]**: The final summary screen showing the calculated totals for each person (Subtotal, Tax, Tip).
 5. **[[full_bill_view|Full Bill View]]**: A detailed, read-only view of a completed bill.
+6. **[[airbnb_flow|Airbnb Flow]]**: A specialized wizard tailored for tracking and splitting accommodation costs by nights and fees.
 
 ## Network & Connectivity
 How users find, connect with, and track balances with each other.

@@ -72,14 +72,14 @@ export default function SquadDetailView() {
     };
   }, [squadId, user]);
 
-  const handleViewBill = (billId: string, isSimpleTransaction?: boolean) => {
-    const path = isSimpleTransaction ? `/transaction/${billId}` : `/bill/${billId}`;
+  const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean) => {
+    const path = isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : `/bill/${billId}`;
     navigate(path, { state: { targetSquadId: squad.id, targetSquadName: squad.name } });
   };
 
-  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean) => {
+  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean) => {
     await resumeSession(billId);
-    const path = isSimpleTransaction ? `/transaction/${billId}` : `/bill/${billId}`;
+    const path = isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : `/bill/${billId}`;
     navigate(path, { state: { targetSquadId: squad.id, targetSquadName: squad.name } });
   };
 
@@ -150,8 +150,8 @@ export default function SquadDetailView() {
                   key={b.id}
                   bill={b}
                   isLatest={b.id === activeSession?.id}
-                  onView={(id) => handleViewBill(id, b.isSimpleTransaction)}
-                  onResume={(id) => handleResumeBill(id, b.isSimpleTransaction)}
+                  onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
+                  onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
                   onDelete={(bill) => {
                      if (window.confirm("Are you sure you want to delete this bill?")) {
                        deleteSession(bill.id, bill.receiptFileName);
@@ -176,8 +176,8 @@ export default function SquadDetailView() {
                   key={b.id}
                   bill={b}
                   isLatest={b.id === activeSession?.id}
-                  onView={(id) => handleViewBill(id, b.isSimpleTransaction)}
-                  onResume={(id) => handleResumeBill(id, b.isSimpleTransaction)}
+                  onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
+                  onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
                   onDelete={(bill) => {
                      if (window.confirm("Are you sure you want to delete this bill?")) {
                        deleteSession(bill.id, bill.receiptFileName);

@@ -22,6 +22,9 @@ interface UseBillSessionProps {
 
     // Payment info
     paidById?: string;
+
+    // Optional base URL for draft redirection (e.g. '/airbnb')
+    baseUrl?: string;
 }
 
 /**
@@ -41,7 +44,8 @@ export function useBillSession({
     receiptImageUrl,
     receiptFileName,
     saveSession,
-    paidById
+    paidById,
+    baseUrl
 }: UseBillSessionProps) {
     const navigate = useNavigate();
     const isInitializing = useRef(true);
@@ -50,12 +54,12 @@ export function useBillSession({
 
     // Keep track of latest props for unmount saving
     const latestProps = useRef({
-        billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession, paidById
+        billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession, paidById, baseUrl
     });
 
     useEffect(() => {
         latestProps.current = {
-            billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession, paidById
+            billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession, paidById, baseUrl
         };
     });
 
@@ -129,7 +133,8 @@ export function useBillSession({
                 // Silently swap the URL if this was a draft that just became a real document
                 // Skip the swap if we are actively leaving the page to prevent hijacking navigation
                 if (isDraft && returnedId && !options?.isUnmounting) {
-                    navigate(`/bill/${returnedId}`, { replace: true });
+                    const basePath = props.baseUrl || '/bill';
+                    navigate(`${basePath}/${returnedId}`, { replace: true });
                 }
             };
 

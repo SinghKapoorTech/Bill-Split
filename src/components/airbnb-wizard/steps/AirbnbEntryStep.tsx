@@ -49,12 +49,7 @@ export function AirbnbEntryStep({
     const [totalStayCost, setTotalStayCost] = useState<string>('');
     const [fees, setFees] = useState<Fee[]>([]);
 
-    // Add default fee on first render if empty
-    useEffect(() => {
-        if (fees.length === 0 && !billData?.items.length) {
-            setFees([{ id: `fee-${Date.now()}`, name: 'Cleaning Fee', amount: 0 }]);
-        }
-    }, []);
+    // Default fees removed per user request
 
     // Effect to calculate items when inputs change
     useEffect(() => {
@@ -209,7 +204,7 @@ export function AirbnbEntryStep({
                 <div className="flex flex-col gap-4 mt-2 pt-6 border-t">
                     <div className="flex items-center justify-between">
                         <Label className="text-base font-semibold">Additional Fees</Label>
-                        <Button variant="ghost" size="sm" onClick={handleAddFee} className="text-rose-600 hover:text-rose-700 hover:bg-rose-50">
+                        <Button variant="ghost" size="sm" onClick={handleAddFee} className="text-primary hover:text-primary hover:bg-primary/10">
                             <Plus className="w-4 h-4 mr-1" /> Add Fee
                         </Button>
                     </div>
