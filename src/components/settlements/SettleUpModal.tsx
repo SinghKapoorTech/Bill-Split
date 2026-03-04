@@ -200,14 +200,6 @@ export function SettleUpModal({
               Mark as Settled
             </Button>
 
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full text-xs text-muted-foreground"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
           </div>
         </DialogContent>
       </Dialog>

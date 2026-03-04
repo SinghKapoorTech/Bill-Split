@@ -122,7 +122,7 @@ tags:
 - [x] **(P2) Remove “MY FRIENDS” title under Manage Friends**  
   **Acceptance:** page reads clean without redundant header.
 
-- [ ] **(P2) Remove Cancel button from “Settle Up” dialog**  
+- [x] **(P2) Remove Cancel button from “Settle Up” dialog**  
   **Acceptance:** dialog still has a clear close mechanism (X or outside click), if intended.
 
 ---
