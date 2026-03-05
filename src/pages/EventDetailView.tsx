@@ -299,6 +299,12 @@ export default function EventDetailView() {
                             });
                           }
                         } : undefined}
+                        onClick={() => {
+                          const targetUser = isCurrentUserPaying ? debt.toUserId : debt.fromUserId;
+                          if (user && targetUser) {
+                            navigate(`/events/${eventId}/balances/${targetUser}`);
+                          }
+                        }}
                       />
                     );
                   })}

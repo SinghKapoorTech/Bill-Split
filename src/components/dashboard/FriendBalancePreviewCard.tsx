@@ -76,6 +76,11 @@ export function FriendBalancePreviewCard() {
                         isPaying: !!youOwe,
                       }),
                     } : undefined}
+                    onClick={() => {
+                      if (friend.id) {
+                        navigate(`/balances/${friend.id}`);
+                      }
+                    }}
                   />
                 );
               })}

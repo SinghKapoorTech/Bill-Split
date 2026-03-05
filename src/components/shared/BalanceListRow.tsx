@@ -1,6 +1,7 @@
 import React from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { ChevronRight } from 'lucide-react';
 
 export type BalanceDirection = 'you-owe' | 'owes-you' | 'neutral';
 
@@ -24,6 +25,8 @@ export interface BalanceListRowProps {
     onClick: () => void;
     variant?: 'default' | 'secondary';
   };
+  /** Optional onClick handler for the whole row */
+  onClick?: () => void;
 }
 
 export function BalanceListRow({
@@ -32,6 +35,7 @@ export function BalanceListRow({
   amount,
   direction,
   action,
+  onClick,
 }: BalanceListRowProps) {
   const fromInitials = fromLabel.substring(0, 2).toUpperCase();
   const toInitials = toLabel.substring(0, 2).toUpperCase();
@@ -100,7 +104,11 @@ export function BalanceListRow({
   }
 
   return (
-    <div data-testid="balance-list-row" className="flex items-center justify-between py-2.5 px-3 hover:bg-muted/30 transition-colors">
+    <div 
+      data-testid="balance-list-row" 
+      className={`flex items-center justify-between py-2.5 px-3 hover:bg-muted/30 transition-colors ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex items-center gap-2.5">
         <div className="flex -space-x-2">
           <Avatar className="w-8 h-8 border-2 border-background shadow-sm z-10">
@@ -127,10 +135,18 @@ export function BalanceListRow({
             size="sm"
             className={`h-7 px-3 text-xs w-[68px] rounded-full ${action.variant === 'default' ? 'bg-primary text-primary-foreground' : ''
               }`}
-            onClick={action.onClick}
+            onClick={(e) => {
+              e.stopPropagation();
+              action.onClick();
+            }}
           >
             {action.label}
           </Button>
+        </div>
+      )}
+      {onClick && (
+        <div className="shrink-0 pl-1">
+          <ChevronRight className="w-4 h-4 text-muted-foreground opacity-50" />
         </div>
       )}
     </div>

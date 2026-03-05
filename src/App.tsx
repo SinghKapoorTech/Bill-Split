@@ -26,6 +26,7 @@ import SquadsView from "./pages/SquadsView";
 import SquadDetailView from "./pages/SquadDetailView";
 import SimpleTransactionView from "./pages/SimpleTransactionView";
 import AirbnbView from "./pages/AirbnbView";
+import BalanceDetailView from "./pages/BalanceDetailView";
 
 const queryClient = new QueryClient();
 
@@ -112,6 +113,8 @@ const App = () => (
                 <Route path="events/:eventId" element={<EventDetailView />} />
                 <Route path="squads" element={<SquadsView />} />
                 <Route path="squads/:squadId" element={<SquadDetailView />} />
+                <Route path="balances/:targetUserId" element={<BalanceDetailView />} />
+                <Route path="events/:eventId/balances/:targetUserId" element={<BalanceDetailView />} />
                 <Route path="settings" element={<SettingsView />} />
               </Route>
 
