@@ -71,7 +71,7 @@ tags:
 
 ## 🚀 P1 — Features (High Impact)
 
-- [ ] **(P1) Settlement History + Undo Settlement (Unsettle all related bills)**  
+- [x] **(P1) Settlement History + Undo Settlement (Unsettle all related bills)**  
   **Acceptance:** settlement history list; undo reverses all linked bill states and ledgers.
 
 - [x] **(P1) Paid Status Indicator (Green/Yellow/Red)**  
