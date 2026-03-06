@@ -42,21 +42,23 @@ export interface FriendFootprintInput {
   settledPersonIds: string[];
   /** Set of Firebase UIDs that are linked friends (resolvable to balance docs) */
   linkedFriendUids: Set<string>;
-  /** Firebase UID of the bill owner */
+  /** Firebase UID of the bill owner (kept for context, but no longer the balance anchor) */
   ownerId: string;
-  /** Firebase UID of the person who paid (paidById || ownerId) */
+  /** Firebase UID of the person who paid (paidById || ownerId) - this is the new anchor */
   creditorId: string;
 }
 
 /**
  * Calculates the friend ledger footprint for a bill.
- * Returns a Record<friendUid, amountOwed> representing what each linked friend
- * owes (positive) or is owed (negative) relative to the bill owner.
+ * Returns a Record<debtorUid, amountOwed> representing what each linked friend
+ * owes to the creditor. (A positive amount means they owe the creditor).
  *
  * This is a pure function — no Firestore, no side effects.
  */
 export function calculateFriendFootprint(input: FriendFootprintInput): Record<string, number> {
-  const { people, personTotals, settledPersonIds, linkedFriendUids, ownerId, creditorId } = input;
+  const { people, personTotals, settledPersonIds, linkedFriendUids, creditorId } = input;
+
+  const creditorFirebaseUid = personIdToFirebaseUid(creditorId);
 
   // Map bill-local person ID → raw Firebase UID (or null if not linked)
   const personIdToUserId: Record<string, string | null> = {};
@@ -66,32 +68,18 @@ export function calculateFriendFootprint(input: FriendFootprintInput): Record<st
   }
 
   const footprint: Record<string, number> = {};
-  const isOwnerCreditor = creditorId === ownerId;
-  const creditorFirebaseUid = personIdToFirebaseUid(creditorId);
-
-  // Calculate owner's share (needed when someone else paid)
-  const ownerTotalRecord = personTotals.find(pt => personIdToFirebaseUid(pt.personId) === ownerId);
-  const ownerAmountOwed = ownerTotalRecord && !settledPersonIds.includes(ownerTotalRecord.personId)
-    ? ownerTotalRecord.total
-    : 0;
 
   for (const total of personTotals) {
     const firebaseUid = personIdToFirebaseUid(total.personId);
     const friendUserId = personIdToUserId[total.personId] ?? null;
+    
     if (!friendUserId) continue; // skip unlinked people
+    if (firebaseUid === creditorFirebaseUid) continue; // creditor doesn't owe themselves
 
-    if (isOwnerCreditor) {
-      if (firebaseUid === ownerId) continue; // skip self
-      const amountOwed = settledPersonIds.includes(total.personId) ? 0 : total.total;
+    const amountOwed = settledPersonIds.includes(total.personId) ? 0 : total.total;
+    // Only record if they owe money (amountOwed > 0 matches previous behavior for debtors)
+    if (amountOwed >= 0) {
       footprint[friendUserId] = amountOwed;
-    } else {
-      if (firebaseUid === creditorFirebaseUid) {
-        // This friend paid. The owner owes them the owner's share.
-        footprint[friendUserId] = -ownerAmountOwed;
-      } else if (firebaseUid !== ownerId) {
-        // Another friend. They owe the creditor, not the owner.
-        footprint[friendUserId] = 0;
-      }
     }
   }
 
@@ -99,23 +87,23 @@ export function calculateFriendFootprint(input: FriendFootprintInput): Record<st
 }
 
 /**
- * Converts an owner-relative amount to the single-balance sign convention
+ * Converts an anchor-relative amount to the single-balance sign convention
  * used in friend_balances documents.
  *
  * Sign convention:
  *   balance > 0  →  participants[0] (alphabetically smaller UID) is owed money
  *   balance < 0  →  participants[1] (alphabetically larger UID) is owed money
  *
- * @param ownerId - Firebase UID of the bill owner (the creditor)
- * @param friendId - Firebase UID of the friend (the debtor)
- * @param amountFriendOwes - How much the friend owes the owner (positive = owes)
+ * @param anchorId - Firebase UID of the anchor (the creditor)
+ * @param otherId - Firebase UID of the other person (the debtor)
+ * @param amountOwedToAnchor - How much the other person owes the anchor
  */
 export function toSingleBalance(
-  ownerId: string,
-  friendId: string,
-  amountFriendOwes: number
+  anchorId: string,
+  otherId: string,
+  amountOwedToAnchor: number
 ): number {
-  // If owner sorts first, owner being owed = positive balance
-  // If owner sorts second, owner being owed = negative balance
-  return ownerId < friendId ? amountFriendOwes : -amountFriendOwes;
+  // If anchor sorts first, anchor being owed = positive balance
+  // If anchor sorts second, anchor being owed = negative balance
+  return anchorId < otherId ? amountOwedToAnchor : -amountOwedToAnchor;
 }

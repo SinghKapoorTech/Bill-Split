@@ -18,8 +18,8 @@ All functions are located under `functions/src/` and are deployed via the Fireba
 This is the core engine of the entire application. It runs every time a `Bill` document is created, updated, or deleted.
 
 ### Responsibilities:
-1. **Validation & Calculation:** Reads the bill data and item assignments to compute exactly who owes what (or who paid what). 
-2. **Authoritative Ledger Updates:** Safely commits mathematical footprints (using an Idempotent Delta engine) into the `friend_balances` collection. It completely reverses the old mathematical effect of the bill before applying the new one, ensuring the ledger perfectly reflects the current state of the bill even if the function is triggered multiple times (idempotency).
+1. **Validation & Calculation:** Reads the bill data and item assignments to compute exactly who owes what relative to the `creditorId` (derived from `paidById || ownerId`).
+2. **Authoritative Ledger Updates:** Safely commits mathematical footprints (using an Idempotent Delta engine) into the `friend_balances` collection. It completely reverses the old mathematical effect of the bill before applying the new one. This elegantly handles "Anchor Shifts" if someone edits a bill and changes who paid for it.
 3. **Cache Rebuilding:** If the bill belongs to an Event, it automatically aggregates all bills within that event and overwrites the `event_balances` cache document.
 4. **Loop Prevention:** It carefully inspects the `before` and `after` snapshots. It aborts execution if the only fields modified were backend tracking metadata (like its own `processedBalances` update), preventing an infinite loop hook cycle.
 

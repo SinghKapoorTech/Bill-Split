@@ -11,6 +11,13 @@ The `friend_balances` collection is the **source of truth** for all financial ba
 > [!IMPORTANT]
 > This is a critical design distinction. The balance stored in `user.friends[].balance` is a **read cache** of data pulled from this collection. If they ever conflict, `friend_balances` wins.
 
+## The Creditor Anchor Model (`paidById`)
+
+The ledger mathematically anchors all balances to the **Creditor** of the bill. The creditor is the person who actually paid, derived logically as `paidById || ownerId`.
+- This means if User A creates a bill but assigns User B as having paid (`paidById = User B`), the system will securely calculate that User A owes User B, and User C owes User B.
+- The `ledgerProcessor` handles "Anchor Shifts". If a bill is edited downstream and `paidById` is changed from User B to User C, the backend perfectly zeroes out the balances between User B and the friends, and re-anchors the fresh footprint between User C and the friends.
+
+
 ## Document ID
 
 A deterministic, sorted composite of both participant UIDs:
@@ -106,13 +113,13 @@ Under the unified ledger architecture, the `friend_balances` collection is stric
 ## How Balances Flow
 
 ### 1. The Validation & Calculation Phase
-When a `Bill` document is written, the `ledgerProcessor` detects the change. It reads the bill, computes exact per-person mathematical totals using `shared/ledgerCalculations.ts`, and determines who the creditors are.
+When a `Bill` document is written, the `ledgerProcessor` detects the change. It reads the bill, computes exact per-person mathematical totals using `shared/ledgerCalculations.ts`, and dynamically resolves the anchor `creditorId` (`paidById` or `ownerId`). It then constructs a map of exactly what each debtor owes to the creditor.
 
 ### 2. The Transactional Update Phase (Authoritative)
 The pipeline opens an ACID transaction against Firestore:
 1. It looks at the bill's `processedBalances` property to see what financial footprint was *previously* committed for this bill.
-2. It reverses the old footprint from `friend_balances`.
-3. It applies the newly calculated footprint to `friend_balances`.
+2. It reverses the old footprint from `friend_balances` (reversing against the *previous* creditor if the `paidById` anchor was changed during an edit).
+3. It applies the newly calculated footprint to `friend_balances` anchored to the *current* creditor.
 4. It saves the newly applied footprint back onto the bill's `processedBalances` field.
 
 This system of "Idempotent Deltas" makes the ledger bulletproof against network lag, double-submissions, or race conditions.
