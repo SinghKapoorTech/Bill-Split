@@ -180,25 +180,29 @@ export function SettleUpModal({
             </Button>
 
             {/* Divider */}
-            <div className="flex items-center gap-2 my-0.5">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-muted-foreground">or</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
+            {!isPaying && (
+              <>
+                <div className="flex items-center gap-2 my-0.5">
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-xs text-muted-foreground">or</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
 
-            <Button
-              type="button"
-              className="w-full h-12 text-sm font-semibold rounded-xl"
-              onClick={handleSettleUp}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Banknote className="w-4 h-4 mr-2" />
-              )}
-              Mark as Settled
-            </Button>
+                <Button
+                  type="button"
+                  className="w-full h-12 text-sm font-semibold rounded-xl"
+                  onClick={handleSettleUp}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Banknote className="w-4 h-4 mr-2" />
+                  )}
+                  Mark as Settled
+                </Button>
+              </>
+            )}
 
           </div>
         </DialogContent>

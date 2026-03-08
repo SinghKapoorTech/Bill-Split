@@ -172,18 +172,21 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                 const isMe = isCurrentUser(pt);
                 const creditorId = paidById || ownerId;
                 const didIPay = creditorId && creditorId === user.uid;
-                
+
                 // We check if the card we are rendering is the creditor.
                 const isThisPersonTheCreditor = creditorId && (creditorId === pt.personId || creditorId === (person as any)?.userId || creditorId === `user-${(person as any)?.userId}`);
-                
+
                 let showVenmoButton = false;
+                let showSettleButton = false;
                 let venmoType: 'charge' | 'pay' = 'charge';
-                
+
                 if (didIPay && !isMe) {
                   showVenmoButton = true;
+                  showSettleButton = true; // Only creditors can mark debts as settled
                   venmoType = 'charge';
                 } else if (!didIPay && isThisPersonTheCreditor && !isMe) {
                   showVenmoButton = true;
+                  showSettleButton = false; // Debtors CANNOT mark debts as settled
                   venmoType = 'pay';
                 }
 
@@ -199,11 +202,11 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z" />
                         </svg>
-                        {venmoType === 'charge' ? UI_TEXT.CHARGE_ON_VENMO : 'Pay on Venmo'}
+                        {venmoType === 'charge' ? 'Charge' : 'Pay'}
                       </Button>
                     )}
 
-                    {onMarkAsSettled && showVenmoButton && (
+                    {onMarkAsSettled && showSettleButton && (
                       <Button
                         variant={isSettled ? "outline" : "ghost"}
                         size="sm"
@@ -224,14 +227,14 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                               <path d="M18 6 6 18" />
                               <path d="m6 6 12 12" />
                             </svg>
-                            Undo Settled
+                            Undo
                           </>
                         ) : (
                           <>
                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M20 6 9 17l-5-5" />
                             </svg>
-                            Mark as Settled
+                            Settle
                           </>
                         )}
                       </Button>

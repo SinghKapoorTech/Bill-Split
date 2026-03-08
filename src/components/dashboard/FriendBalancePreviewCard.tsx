@@ -27,16 +27,15 @@ export function FriendBalancePreviewCard() {
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-1.5 px-2">
         <div>
-          <h2 className="text-2xl font-semibold flex items-center gap-2">
-            <Users className="w-6 h-6" />
+          <h2 className="text-[11px] font-semibold tracking-wider uppercase text-muted-foreground/80">
             Friend Balances
           </h2>
         </div>
       </div>
 
-      <Card className="p-0 overflow-hidden flex-1 flex flex-col border-border bg-card shadow-sm">
+      <Card className="p-0 overflow-hidden flex-1 flex flex-col border-border/60 bg-card rounded-xl shadow-sm">
         <div className="flex-1 mb-0">
           {isLoadingFriends ? (
             <p className="text-sm text-muted-foreground text-center py-8">
@@ -71,8 +70,8 @@ export function FriendBalancePreviewCard() {
                     amount={amount}
                     direction={direction}
                     action={hasBalance && friend.id ? {
-                      label: youOwe ? 'Pay' : 'Settle',
-                      variant: youOwe ? 'default' : 'secondary',
+                      label: youOwe ? 'Pay' : 'Settle Up',
+                      variant: youOwe ? 'default' : 'soft-success',
                       onClick: () => setSettleTarget({
                         userId: friend.id!,
                         name: friend.name,
@@ -93,16 +92,21 @@ export function FriendBalancePreviewCard() {
         </div>
 
         {hasMoreFriends && (
-          <div className="border-t border-border flex justify-center">
+          <div className="border-t border-border/50 flex justify-center">
             <Button
               variant="ghost"
-              className="w-full h-11 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-none rounded-b-lg"
+              className="w-full h-9 text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded-none rounded-b-xl group text-xs font-medium"
               onClick={() => setIsExpanded(!isExpanded)}
             >
+              {isExpanded ? 'Collapse' : 'Show More'}
               {isExpanded ? (
-                <ChevronUp className="w-5 h-5" />
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/50 group-hover:bg-muted transition-colors ml-1.5">
+                  <ChevronUp className="w-3 h-3" />
+                </div>
               ) : (
-                <ChevronDown className="w-5 h-5" />
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/50 group-hover:bg-muted transition-colors ml-1.5">
+                  <ChevronDown className="w-3 h-3" />
+                </div>
               )}
             </Button>
           </div>
