@@ -262,65 +262,77 @@ export default function Dashboard() {
             </Card>
           ) : (
             <>
-              {/* Mobile List View - compact, DoorDash-style */}
-              <div className="block md:hidden divide-y divide-border rounded-lg border bg-card">
-                {(isExpanded ? allBills : allBills.slice(0, 3)).map((bill) => (
-                  <MobileBillCard
-                    key={bill.id}
-                    bill={bill}
-                    isLatest={bill.id === activeSession?.id}
-                    onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
-                    onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
-                    onDelete={handleDeleteBill}
-                    isResuming={isResuming}
-                    isDeleting={isDeleting}
-                    formatDate={formatDate}
-                    getBillTitle={getBillTitle}
-                    isOwner={bill.ownerId === user?.uid}
-                  />
-                ))}
-              </div>
-
-              {/* Desktop Grid View - card layout */}
-              <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(isExpanded ? allBills : allBills.slice(0, 3)).map((bill) => (
-                  <DesktopBillCard
-                    key={bill.id}
-                    bill={bill}
-                    isLatest={bill.id === activeSession?.id}
-                    onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
-                    onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
-                    onDelete={handleDeleteBill}
-                    isResuming={isResuming}
-                    isDeleting={isDeleting}
-                    formatDate={formatDate}
-                    getBillTitle={getBillTitle}
-                    isOwner={bill.ownerId === user?.uid}
-                  />
-                ))}
-              </div>
-
-              {allBills.length > 3 && (
-                <div className="mt-6 flex justify-center">
-                  <Button
-                    variant="outline"
-                    className="w-full sm:w-auto rounded-full px-6 py-5 text-muted-foreground hover:text-foreground transition-all duration-300 shadow-sm hover:shadow"
-                    onClick={() => setIsExpanded(!isExpanded)}
-                  >
-                    {isExpanded ? (
-                      <>
-                        <ChevronUp className="w-4 h-4 mr-2" />
-                        Show Less
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="w-4 h-4 mr-2" />
-                        Expand List ({allBills.length - 3} more)
-                      </>
-                    )}
-                  </Button>
+              <div className="flex flex-col gap-4">
+                {/* Mobile List View - compact, DoorDash-style */}
+                <div className="block md:hidden divide-y divide-border rounded-lg border bg-card">
+                  {(isExpanded ? allBills : allBills.slice(0, 3)).map((bill) => (
+                    <MobileBillCard
+                      key={bill.id}
+                      bill={bill}
+                      isLatest={bill.id === activeSession?.id}
+                      onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
+                      onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
+                      onDelete={handleDeleteBill}
+                      isResuming={isResuming}
+                      isDeleting={isDeleting}
+                      formatDate={formatDate}
+                      getBillTitle={getBillTitle}
+                      isOwner={bill.ownerId === user?.uid}
+                    />
+                  ))}
+                  {allBills.length > 3 && (
+                    <div className="flex justify-center border-t border-border">
+                      <Button
+                        variant="ghost"
+                        className="w-full h-11 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-none rounded-b-lg"
+                        onClick={() => setIsExpanded(!isExpanded)}
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="w-5 h-5" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5" />
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* Desktop Grid View - card layout */}
+                <div className="hidden md:flex flex-col">
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    {(isExpanded ? allBills : allBills.slice(0, 3)).map((bill) => (
+                      <DesktopBillCard
+                        key={bill.id}
+                        bill={bill}
+                        isLatest={bill.id === activeSession?.id}
+                        onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
+                        onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
+                        onDelete={handleDeleteBill}
+                        isResuming={isResuming}
+                        isDeleting={isDeleting}
+                        formatDate={formatDate}
+                        getBillTitle={getBillTitle}
+                        isOwner={bill.ownerId === user?.uid}
+                      />
+                    ))}
+                  </div>
+                  {allBills.length > 3 && (
+                    <div className="mt-4 flex justify-center">
+                      <Button
+                        variant="outline"
+                        className="w-full sm:w-auto h-11 px-8 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full"
+                        onClick={() => setIsExpanded(!isExpanded)}
+                      >
+                        {isExpanded ? (
+                          <ChevronUp className="w-5 h-5" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5" />
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </>
           )}
         </div>

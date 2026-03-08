@@ -104,8 +104,8 @@ export function BalanceListRow({
   }
 
   return (
-    <div 
-      data-testid="balance-list-row" 
+    <div
+      data-testid="balance-list-row"
       className={`flex items-center justify-between py-2.5 px-3 hover:bg-muted/30 transition-colors ${onClick ? 'cursor-pointer' : ''}`}
       onClick={onClick}
     >
@@ -128,27 +128,29 @@ export function BalanceListRow({
         </div>
       </div>
 
-      {action && (
-        <div className="shrink-0 pl-2">
-          <Button
-            variant={action.variant ?? 'secondary'}
-            size="sm"
-            className={`h-7 px-3 text-xs w-[68px] rounded-full ${action.variant === 'default' ? 'bg-primary text-primary-foreground' : ''
-              }`}
-            onClick={(e) => {
-              e.stopPropagation();
-              action.onClick();
-            }}
-          >
-            {action.label}
-          </Button>
-        </div>
-      )}
-      {onClick && (
-        <div className="shrink-0 pl-1">
-          <ChevronRight className="w-4 h-4 text-muted-foreground opacity-50" />
-        </div>
-      )}
+      <div className="flex items-center gap-2">
+        {action && (
+          <div className="shrink-0">
+            <Button
+              variant={action.variant ?? 'secondary'}
+              size="sm"
+              className={`h-7 px-3 text-xs w-[68px] rounded-full ${action.variant === 'default' ? 'bg-primary text-primary-foreground' : ''
+                }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                action.onClick();
+              }}
+            >
+              {action.label}
+            </Button>
+          </div>
+        )}
+        {onClick && (
+          <div className="shrink-0 pl-1">
+            <ChevronRight className="w-4 h-4 text-muted-foreground opacity-50" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

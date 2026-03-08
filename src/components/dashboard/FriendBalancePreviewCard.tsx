@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, ChevronRight } from 'lucide-react';
+import { Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -11,15 +11,19 @@ export function FriendBalancePreviewCard() {
   const navigate = useNavigate();
   const { friends, isLoadingFriends, refreshFriends } = useFriendsEditor();
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  const sortedFriends = [...friends].sort((a, b) => {
-    const balA = Math.abs(a.balance || 0);
-    const balB = Math.abs(b.balance || 0);
-    if (balB !== balA) return balB - balA;
-    return (a.name || '').localeCompare(b.name || '');
-  });
+  const sortedFriends = [...friends]
+    .filter(f => Math.abs(f.balance || 0) > 0.005)
+    .sort((a, b) => {
+      const balA = Math.abs(a.balance || 0);
+      const balB = Math.abs(b.balance || 0);
+      if (balB !== balA) return balB - balA;
+      return (a.name || '').localeCompare(b.name || '');
+    });
 
-  const previewFriends = sortedFriends.slice(0, 4);
+  const previewFriends = isExpanded ? sortedFriends : sortedFriends.slice(0, 3);
+  const hasMoreFriends = sortedFriends.length > 3;
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -38,9 +42,9 @@ export function FriendBalancePreviewCard() {
             <p className="text-sm text-muted-foreground text-center py-8">
               Loading friends...
             </p>
-          ) : friends.length === 0 ? (
+          ) : previewFriends.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              No friends saved yet.
+              All settled up! No active balances.
             </p>
           ) : (
             <div className="divide-y divide-border">
@@ -52,8 +56,8 @@ export function FriendBalancePreviewCard() {
                 const direction: BalanceDirection = owesYou
                   ? 'owes-you'
                   : youOwe
-                  ? 'you-owe'
-                  : 'neutral';
+                    ? 'you-owe'
+                    : 'neutral';
 
                 const fromLabel = owesYou ? friend.name : 'You';
                 const toLabel = owesYou ? 'you' : friend.name;
@@ -88,16 +92,21 @@ export function FriendBalancePreviewCard() {
           )}
         </div>
 
-        <div className="p-3 border-t border-border">
-          <Button
-            variant="ghost"
-            className="w-full text-sm text-muted-foreground justify-between"
-            onClick={() => navigate('/settings', { state: { defaultTab: 'friends' } })}
-          >
-            <span>Manage Friends</span>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
+        {hasMoreFriends && (
+          <div className="border-t border-border flex justify-center">
+            <Button
+              variant="ghost"
+              className="w-full h-11 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-none rounded-b-lg"
+              onClick={() => setIsExpanded(!isExpanded)}
+            >
+              {isExpanded ? (
+                <ChevronUp className="w-5 h-5" />
+              ) : (
+                <ChevronDown className="w-5 h-5" />
+              )}
+            </Button>
+          </div>
+        )}
       </Card>
 
       {settleTarget && (
