@@ -47,17 +47,15 @@ test.describe('Bill Creation Wizard', () => {
     await page.getByRole('button', { name: 'Next' }).click();
 
     // ── Step 2: People ──
-    // Click "Add Person" button to open the dialog
-    await page.getByRole('button', { name: 'Add Person' }).click();
+    const searchInput = page.getByPlaceholder('Add a friend or guest...');
 
-    // Fill in the manual entry form in the dialog
-    await page.locator('#manual-name').fill('Alice');
-    await page.getByRole('button', { name: 'Add Guest to Bill' }).click();
+    // Add Alice
+    await searchInput.fill('Alice');
+    await page.getByRole('button', { name: 'Add "Alice" as guest' }).click();
 
-    // Add a second person
-    await page.getByRole('button', { name: 'Add Person' }).click();
-    await page.locator('#manual-name').fill('Bob');
-    await page.getByRole('button', { name: 'Add Guest to Bill' }).click();
+    // Add Bob
+    await searchInput.fill('Bob');
+    await page.getByRole('button', { name: 'Add "Bob" as guest' }).click();
 
     // Verify people appear (use exact: true or first() to avoid toast conflicts)
     await expect(page.locator('.space-y-2').getByText('Alice')).toBeVisible();

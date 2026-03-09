@@ -70,15 +70,7 @@ export function AirbnbReviewStep({
 
     return (
         <div className="flex flex-col gap-6 fade-in max-w-xl mx-auto w-full pb-20">
-            <div className="text-center mb-2">
-                <div className="flex justify-center mb-4">
-                    <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-                        <Check className="h-8 w-8" />
-                    </div>
-                </div>
-                <h2 className="text-2xl font-bold">Review & Finish</h2>
-                <p className="text-muted-foreground mt-1">Here's the final breakdown for everyone.</p>
-            </div>
+            <div className="text-center mb-2" />
 
             {!allItemsAssigned && (
                 <Alert variant="destructive" className="bg-destructive/10 text-destructive border-none">

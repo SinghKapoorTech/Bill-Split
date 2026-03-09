@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { Users } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Person } from '@/types';
 import { PersonCard } from './PersonCard';
-import { AddPersonDialog } from './AddPersonDialog';
-import { AddFromFriendsDialog } from './AddFromFriendsDialog';
+import { InlinePersonSearch } from './InlinePersonSearch';
 import { UserPlus, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AddFromSquadDialog } from '@/components/squads/AddFromSquadDialog';
@@ -14,7 +13,8 @@ import { db } from '@/config/firebase';
 import { convertSquadMembersToPeople } from '@/utils/squadUtils';
 import { SquadMember } from '@/types/squad.types';
 import { generateUserId } from '@/utils/billCalculations';
-import { useFriendSearch } from '@/hooks/useFriendSearch';
+import { useFriendSearch, FriendSuggestion } from '@/hooks/useFriendSearch';
+import { useSquadManager } from '@/hooks/useSquadManager';
 
 interface Friend {
   id?: string;
@@ -61,29 +61,23 @@ export function PeopleManager({
   children
 }: Props) {
   const { user } = useAuth();
-  const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
-  const [friendsDialogOpen, setFriendsDialogOpen] = useState(false);
   const [squadDialogOpen, setSquadDialogOpen] = useState(false);
+  const { friends, filteredFriends, isSearching, loadFriends } = useFriendSearch(newPersonName);
+  const { squads } = useSquadManager();
 
-  const { friends, filteredFriends, setShowSuggestions, loadFriends } = useFriendSearch(newPersonName);
+  const existingPeopleIds = useMemo(
+    () => new Set(people.map(p => p.id)),
+    [people]
+  );
 
-  const handleAdd = () => {
-    onAdd();
-    setShowSuggestions(false);
-  };
-
-  const handleSelectFriend = (friend: Friend) => {
+  const handleAddFromFriend = (friend: FriendSuggestion) => {
     onAddFromFriend(friend);
     onNameChange('');
-    onVenmoIdChange('');
-    // Dialog handles its own close state now
   };
 
-  const handleManualAdd = (name: string, venmoId: string, email?: string) => {
-    onNameChange(name);
-    onVenmoIdChange(venmoId);
-    // Directly pass the name and venmoId to bypass async state update race condition
-    onAdd(name, venmoId);
+  const handleAddGuest = (name: string) => {
+    onAdd(name, '');
+    onNameChange('');
   };
 
   const handleAddSquad = (members: SquadMember[]) => {
@@ -125,37 +119,29 @@ export function PeopleManager({
   return (
     <div className="flex flex-col gap-2">
       {/* Add People Section */}
-      <div className="rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 p-4 shadow-sm mb-2">
-
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="w-full sm:flex-1">
-            <AddPersonDialog
-              isOpen={isAddPersonOpen}
-              setIsOpen={setIsAddPersonOpen}
-              friendSuggestions={filteredFriends}
+      <div className="rounded-2xl bg-card border border-blue-200/60 dark:border-blue-800/40 p-4 shadow-sm mb-2">
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <InlinePersonSearch
+              friends={friends}
+              filteredFriends={filteredFriends}
+              squads={squads}
+              existingPeopleIds={existingPeopleIds}
+              onAddFromFriend={handleAddFromFriend}
+              onAddSquad={handleAddSquad}
+              onAddGuest={handleAddGuest}
+              isSearching={isSearching}
               onSearchChange={onNameChange}
-              onSelectSuggestion={handleSelectFriend}
-              onAddManual={handleManualAdd}
             />
           </div>
-          <div className="flex gap-2 w-full sm:flex-1">
-            <Button
-              onClick={() => setFriendsDialogOpen(true)}
-              variant="outline"
-              className="flex-1 border-border/50 bg-background hover:bg-muted/50 font-medium shadow-sm transition-colors text-foreground"
-            >
-              <UserCheck className="w-4 h-4 mr-2" />
-              Friends
-            </Button>
-            <Button
-              onClick={() => setSquadDialogOpen(true)}
-              variant="outline"
-              className="flex-1 border-border/50 bg-background hover:bg-muted/50 font-medium shadow-sm transition-colors text-foreground"
-            >
-              <Users className="w-4 h-4 mr-2" />
-              Squads
-            </Button>
-          </div>
+          <Button
+            onClick={() => setSquadDialogOpen(true)}
+            variant="outline"
+            className="h-11 px-4 border border-border/50 bg-card hover:bg-muted/50 font-medium shadow-sm transition-colors text-foreground"
+          >
+            <Users className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Squads</span>
+          </Button>
         </div>
       </div>
 
@@ -202,11 +188,7 @@ export function PeopleManager({
         {children}
       </div>
 
-      <AddFromFriendsDialog
-        open={friendsDialogOpen}
-        onOpenChange={setFriendsDialogOpen}
-        onAddPerson={onAddFromFriend}
-      />
+
 
       <AddFromSquadDialog
         open={squadDialogOpen}

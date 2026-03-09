@@ -150,7 +150,7 @@ export function AirbnbWizard({
         if (splitEvenly && billData && billData.items && people.length > 0) {
             const allPeopleIds = people.map(p => p.id);
             let needsUpdate = false;
-            
+
             // Check if any item is missing an assignment or has wrong number of people
             for (const item of billData.items) {
                 const assigned = itemAssignments[item.id];
@@ -159,14 +159,14 @@ export function AirbnbWizard({
                     break;
                 }
             }
-            
+
             if (needsUpdate) {
                 const newAssignments: ItemAssignment = {};
                 billData.items.forEach(item => {
                     newAssignments[item.id] = [...allPeopleIds];
                 });
                 setItemAssignments(newAssignments);
-                
+
                 // Fire off a background save if it's not a brand new draft
                 const id = billId || activeSession?.id;
                 if (id) {
@@ -200,9 +200,9 @@ export function AirbnbWizard({
 
     const handleToggleSplitEvenly = (evenly: boolean) => {
         if (splitEvenly === evenly) return;
-        
+
         setSplitEvenly(evenly);
-        
+
         const newAssignments: ItemAssignment = {};
         if (evenly && billData && people.length > 0) {
             billData.items.forEach(item => {
@@ -212,7 +212,7 @@ export function AirbnbWizard({
         } else {
             setItemAssignments({});
         }
-        
+
         const id = billId || activeSession?.id;
         if (id) {
             billService.updateBill(id, {
@@ -346,6 +346,8 @@ export function AirbnbWizard({
                             canProceed={wizard.canProceedFromStep(1)}
                             currentStep={wizard.currentStep}
                             totalSteps={STEPS.length}
+                            eventId={eventId}
+                            onEventChange={onEventChange}
                         />
                     )}
 

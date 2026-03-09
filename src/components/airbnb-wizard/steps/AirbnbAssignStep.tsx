@@ -38,7 +38,7 @@ export function AirbnbAssignStep({
     // Identify nights vs fees
     const categorizedItems = useMemo(() => {
         if (!billData?.items) return { nights: [], fees: [] };
-        
+
         return {
             nights: billData.items.filter(item => item.id.startsWith('night-')),
             fees: billData.items.filter(item => !item.id.startsWith('night-'))
@@ -53,8 +53,8 @@ export function AirbnbAssignStep({
         return itemAssignments[itemId] && itemAssignments[itemId].length > 0;
     };
 
-    const isAllNightsAssigned = categorizedItems.nights.every(n => isItemFullyAssigned(n.id)) && 
-                                categorizedItems.fees.every(f => isItemFullyAssigned(f.id));
+    const isAllNightsAssigned = categorizedItems.nights.every(n => isItemFullyAssigned(n.id)) &&
+        categorizedItems.fees.every(f => isItemFullyAssigned(f.id));
 
     if (!billData || people.length === 0) {
         return <div className="text-center text-muted-foreground p-8">Missing trip data or guests. Please go back.</div>;
@@ -62,16 +62,6 @@ export function AirbnbAssignStep({
 
     return (
         <div className="flex flex-col gap-6 fade-in max-w-xl mx-auto w-full">
-            <div className="text-center mb-2">
-                <div className="flex justify-center mb-4">
-                    <div className="h-16 w-16 bg-rose-100 rounded-full flex items-center justify-center text-rose-600">
-                        <CalendarDays className="h-8 w-8" />
-                    </div>
-                </div>
-                <h2 className="text-2xl font-bold">Assign Nights</h2>
-                <p className="text-muted-foreground mt-1">Select who stayed each night. Fees can be assigned too.</p>
-            </div>
-
             {!isAllNightsAssigned && (
                 <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-2xl text-amber-800 text-sm border border-amber-200">
                     <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -84,7 +74,7 @@ export function AirbnbAssignStep({
                 {categorizedItems.nights.length > 0 && (
                     <div className="flex flex-col gap-3">
                         <h3 className="font-semibold text-lg flex items-center gap-2">
-                            <Moon className="w-5 h-5 text-indigo-500" /> 
+                            <Moon className="w-5 h-5 text-indigo-500" />
                             Nightly Stays
                         </h3>
                         {categorizedItems.nights.map(night => (
@@ -93,7 +83,7 @@ export function AirbnbAssignStep({
                                 isItemFullyAssigned(night.id) ? "border-green-200 bg-green-50/10" : "border-rose-200 bg-rose-50/10",
                                 expandedItemId === night.id ? "ring-2 ring-primary/20" : ""
                             )}>
-                                <div 
+                                <div
                                     className="p-4 flex items-center justify-between cursor-pointer active:bg-black/5"
                                     onClick={() => handleToggleItem(night.id)}
                                 >
@@ -126,20 +116,20 @@ export function AirbnbAssignStep({
                                         )}
                                     </div>
                                 </div>
-                                
+
                                 {expandedItemId === night.id && (
                                     <div className="border-t bg-card p-4 grid grid-cols-2 gap-3 sm:grid-cols-3 animate-in slide-in-from-top-2">
                                         {people.map(person => {
                                             const isAssigned = (itemAssignments[night.id] || []).includes(person.id);
                                             return (
-                                                <label 
+                                                <label
                                                     key={person.id}
                                                     className={cn(
                                                         "flex items-center p-3 rounded-xl border cursor-pointer transition-all",
                                                         isAssigned ? "bg-primary/5 border-primary" : "hover:bg-muted bg-background"
                                                     )}
                                                 >
-                                                    <Checkbox 
+                                                    <Checkbox
                                                         checked={isAssigned}
                                                         onCheckedChange={(checked) => onAssign(night.id, person.id, !!checked)}
                                                         className="mr-3"
@@ -149,9 +139,9 @@ export function AirbnbAssignStep({
                                             )
                                         })}
                                         <div className="col-span-full mt-2">
-                                            <Button 
-                                                variant="outline" 
-                                                size="sm" 
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
                                                 className="w-full text-xs"
                                                 onClick={() => {
                                                     const isAll = (itemAssignments[night.id] || []).length === people.length;
@@ -180,7 +170,7 @@ export function AirbnbAssignStep({
                                 isItemFullyAssigned(fee.id) ? "border-green-200 bg-green-50/10" : "border-rose-200 bg-rose-50/10",
                                 expandedItemId === fee.id ? "ring-2 ring-primary/20" : ""
                             )}>
-                                <div 
+                                <div
                                     className="p-4 flex items-center justify-between cursor-pointer active:bg-black/5"
                                     onClick={() => handleToggleItem(fee.id)}
                                 >
@@ -208,20 +198,20 @@ export function AirbnbAssignStep({
                                         )}
                                     </div>
                                 </div>
-                                
+
                                 {expandedItemId === fee.id && (
                                     <div className="border-t bg-card p-4 grid grid-cols-2 gap-3 sm:grid-cols-3 animate-in slide-in-from-top-2">
                                         {people.map(person => {
                                             const isAssigned = (itemAssignments[fee.id] || []).includes(person.id);
                                             return (
-                                                <label 
+                                                <label
                                                     key={person.id}
                                                     className={cn(
                                                         "flex items-center p-3 rounded-xl border cursor-pointer transition-all",
                                                         isAssigned ? "bg-primary/5 border-primary" : "hover:bg-muted bg-background"
                                                     )}
                                                 >
-                                                    <Checkbox 
+                                                    <Checkbox
                                                         checked={isAssigned}
                                                         onCheckedChange={(checked) => onAssign(fee.id, person.id, !!checked)}
                                                         className="mr-3"
@@ -231,9 +221,9 @@ export function AirbnbAssignStep({
                                             )
                                         })}
                                         <div className="col-span-full mt-2">
-                                            <Button 
-                                                variant="outline" 
-                                                size="sm" 
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
                                                 className="w-full text-xs"
                                                 onClick={() => {
                                                     const isAll = (itemAssignments[fee.id] || []).length === people.length;

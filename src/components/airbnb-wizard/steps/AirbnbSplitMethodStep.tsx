@@ -33,18 +33,13 @@ export function AirbnbSplitMethodStep({
 
     return (
         <div className="flex flex-col gap-6 fade-in max-w-xl mx-auto w-full">
-            <div className="text-center mb-4">
-                <h2 className="text-2xl font-bold">How do you want to split?</h2>
-                <p className="text-muted-foreground mt-2">Choose how you want to divide the cost of the stay.</p>
-            </div>
-
             <div className="grid grid-cols-1 gap-4">
                 <button
                     onClick={() => handleSelect(true)}
                     className={cn(
                         "group relative flex flex-col items-center gap-4 p-8 rounded-3xl border-2 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]",
-                        splitEvenly 
-                            ? "bg-blue-50/50 border-blue-500 shadow-blue-100" 
+                        splitEvenly
+                            ? "bg-blue-50/50 border-blue-500 shadow-blue-100"
                             : "bg-card border-border/40 hover:border-blue-300 hover:bg-blue-50/30"
                     )}
                 >
@@ -71,8 +66,8 @@ export function AirbnbSplitMethodStep({
                     onClick={() => handleSelect(false)}
                     className={cn(
                         "group relative flex flex-col items-center gap-4 p-8 rounded-3xl border-2 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]",
-                        !splitEvenly 
-                            ? "bg-rose-50/50 border-rose-500 shadow-rose-100" 
+                        !splitEvenly
+                            ? "bg-rose-50/50 border-rose-500 shadow-rose-100"
                             : "bg-card border-border/40 hover:border-rose-300 hover:bg-rose-50/30"
                     )}
                 >

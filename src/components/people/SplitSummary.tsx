@@ -120,7 +120,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
 
   return (
     <>
-      <Card className="p-3 md:p-6">
+      <Card className="p-3 md:p-6 mb-2">
         <div className="flex items-center gap-2 mb-4">
           <DollarSign className="w-4 h-4 md:w-5 md:h-5 text-primary" />
           <h3 className="text-lg md:text-xl font-semibold">{UI_TEXT.SPLIT_SUMMARY}</h3>

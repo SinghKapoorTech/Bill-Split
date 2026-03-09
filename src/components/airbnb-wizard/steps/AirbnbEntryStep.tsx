@@ -125,16 +125,6 @@ export function AirbnbEntryStep({
 
     return (
         <div className="flex flex-col gap-6 fade-in max-w-2xl mx-auto w-full">
-            <div className="text-center mb-2">
-                <div className="flex justify-center mb-4">
-                    <div className="h-16 w-16 bg-rose-100 rounded-full flex items-center justify-center text-rose-600">
-                        <Home className="h-8 w-8" />
-                    </div>
-                </div>
-                <h2 className="text-2xl font-bold">Trip Details</h2>
-                <p className="text-muted-foreground mt-1">Enter dates and total cost to divide the stay.</p>
-            </div>
-
             <Card className="p-5 flex flex-col gap-6">
 
                 {/* Dates */}
