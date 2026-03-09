@@ -132,6 +132,8 @@ export function useBills() {
         if (cleanedData.receiptFileName !== undefined) additionalUpdates.receiptFileName = cleanedData.receiptFileName;
         if (cleanedData.currentStep !== undefined) additionalUpdates.currentStep = cleanedData.currentStep;
         if (cleanedData.title !== undefined) additionalUpdates.title = cleanedData.title;
+        if (cleanedData.isAirbnb !== undefined) additionalUpdates.isAirbnb = cleanedData.isAirbnb;
+        if (cleanedData.isSimpleTransaction !== undefined) additionalUpdates.isSimpleTransaction = cleanedData.isSimpleTransaction;
 
         if (Object.keys(additionalUpdates).length > 0) {
           await billService.updateBill(newBillId, additionalUpdates);

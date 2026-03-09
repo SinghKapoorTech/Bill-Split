@@ -51,6 +51,7 @@ export function useBillSession({
     const isInitializing = useRef(true);
     const lastSavedData = useRef<string | null>(null);
     const pendingSaveTimeout = useRef<NodeJS.Timeout | null>(null);
+    const pendingDraftCreation = useRef<Promise<any> | null>(null);
 
     // Keep track of latest props for unmount saving
     const latestProps = useRef({
@@ -128,13 +129,42 @@ export function useBillSession({
             const targetId = targetBillId || targetActiveId;
 
             const performSaveAndSwap = async () => {
-                const returnedId = await props.saveSession(savePayload, targetId);
+                let actualTargetId = targetId;
 
-                // Silently swap the URL if this was a draft that just became a real document
-                // Skip the swap if we are actively leaving the page to prevent hijacking navigation
-                if (isDraft && returnedId && !options?.isUnmounting) {
-                    const basePath = props.baseUrl || '/bill';
-                    navigate(`${basePath}/${returnedId}`, { replace: true });
+                // If a draft creation is already in progress, wait for it so we can UPDATE it instead of creating another
+                if (!actualTargetId && pendingDraftCreation.current) {
+                    try {
+                        const createdId = await pendingDraftCreation.current;
+                        if (typeof createdId === 'string') {
+                            actualTargetId = createdId;
+                        } else if (latestProps.current.activeSession?.id) {
+                            actualTargetId = latestProps.current.activeSession?.id;
+                        }
+                    } catch (e) {
+                        // ignore error from previous creation, let this one try
+                    }
+                }
+
+                const saveOperation = props.saveSession(savePayload, actualTargetId);
+
+                // Track this promise if it's a creation
+                if (!actualTargetId) {
+                    pendingDraftCreation.current = saveOperation;
+                }
+
+                try {
+                    const returnedId = await saveOperation;
+
+                    // Silently swap the URL if this was a draft that just became a real document
+                    // Skip the swap if we are actively leaving the page to prevent hijacking navigation
+                    if (!actualTargetId && returnedId && !options?.isUnmounting) {
+                        const basePath = props.baseUrl || '/bill';
+                        navigate(`${basePath}/${returnedId}`, { replace: true });
+                    }
+                } finally {
+                    if (!actualTargetId && pendingDraftCreation.current === saveOperation) {
+                        pendingDraftCreation.current = null;
+                    }
                 }
             };
 
