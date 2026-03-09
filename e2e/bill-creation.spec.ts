@@ -9,8 +9,8 @@ test.describe('Bill Creation Wizard', () => {
     // Verify dashboard loads with welcome message
     await expect(page.getByText('Welcome back')).toBeVisible({ timeout: 10000 });
 
-    // Click "Standard Bill" to create a new bill
-    const standardBillButton = page.getByText('Standard Bill');
+    // Click "Standard" to create a new bill
+    const standardBillButton = page.getByRole('button', { name: 'Standard' });
     await expect(standardBillButton).toBeVisible();
     await standardBillButton.click();
 

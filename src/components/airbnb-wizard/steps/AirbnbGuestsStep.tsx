@@ -127,24 +127,18 @@ export function AirbnbGuestsStep({
                 <p className="text-muted-foreground mt-1">Add all the guests staying at the Airbnb.</p>
             </div>
 
-            <Card className="p-1 sm:p-2 border-none shadow-none bg-transparent">
+            <div className="flex flex-col gap-2">
                 {/* Add Guests Section */}
-                <div className="rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 p-4 mb-4">
-                    <div className="flex items-center gap-2 mb-3">
-                        <div className="h-7 w-7 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center">
-                            <UserPlus className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <div className="rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 p-4 shadow-sm mb-2">
+                    {onEventChange && (
+                        <div className="flex justify-end mb-3">
+                            <EventSelector
+                                selectedEventId={eventId}
+                                onSelect={onEventChange}
+                                className="w-auto min-w-[150px] max-w-[200px] h-9 text-xs bg-background/60 backdrop-blur-sm border-white/20 shadow-sm transition-colors hover:bg-background/80"
+                            />
                         </div>
-                        <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">Add Guests</span>
-                        {onEventChange && (
-                            <div className="ml-auto">
-                                <EventSelector
-                                    selectedEventId={eventId}
-                                    onSelect={onEventChange}
-                                    className="w-auto min-w-[150px] max-w-[200px] h-9 text-xs bg-background/60 backdrop-blur-sm border-white/20 shadow-sm transition-colors hover:bg-background/80"
-                                />
-                            </div>
-                        )}
-                    </div>
+                    )}
                     <div className="flex flex-col sm:flex-row gap-2">
                         <div className="w-full sm:flex-1">
                             <AddPersonDialog
@@ -169,17 +163,17 @@ export function AirbnbGuestsStep({
                             <Button
                                 onClick={() => setIsFriendsDialogOpen(true)}
                                 variant="outline"
-                                className="flex-1 h-12 rounded-2xl border-blue-200/60 dark:border-blue-700/40 bg-white/50 dark:bg-blue-950/30 backdrop-blur-sm shadow-sm hover:bg-white/80 dark:hover:bg-blue-900/40 transition-all font-medium focus:ring-2 focus:ring-blue-500/20 active:scale-[0.98]"
+                                className="flex-1 h-12 rounded-2xl border-border/50 bg-background hover:bg-muted/50 transition-all font-medium shadow-sm text-foreground focus:ring-2 focus:ring-border/50 active:scale-[0.98]"
                             >
-                                <UserCheck className="w-5 h-5 mr-2 text-blue-600" />
+                                <UserCheck className="w-5 h-5 mr-2" />
                                 Friends
                             </Button>
                             <Button
                                 onClick={() => setIsSquadDialogOpen(true)}
                                 variant="outline"
-                                className="flex-1 h-12 rounded-2xl border-indigo-200/60 dark:border-indigo-700/40 bg-white/50 dark:bg-indigo-950/30 backdrop-blur-sm shadow-sm hover:bg-white/80 dark:hover:bg-indigo-900/40 transition-all font-medium focus:ring-2 focus:ring-indigo-500/20 active:scale-[0.98]"
+                                className="flex-1 h-12 rounded-2xl border-border/50 bg-background hover:bg-muted/50 transition-all font-medium shadow-sm text-foreground focus:ring-2 focus:ring-border/50 active:scale-[0.98]"
                             >
-                                <Users className="w-5 h-5 mr-2 text-indigo-600" />
+                                <Users className="w-5 h-5 mr-2" />
                                 Squads
                             </Button>
                         </div>
@@ -187,7 +181,7 @@ export function AirbnbGuestsStep({
                 </div>
 
                 {/* Guest List Section */}
-                <div className="rounded-2xl bg-secondary/20 border border-border/50 p-4">
+                <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-4">
                     <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-2">
                             <div className="h-7 w-7 bg-secondary rounded-full flex items-center justify-center">
@@ -226,7 +220,7 @@ export function AirbnbGuestsStep({
                         )}
                     </div>
                 </div>
-            </Card>
+            </div>
 
             <AddFromFriendsDialog
                 open={isFriendsDialogOpen}

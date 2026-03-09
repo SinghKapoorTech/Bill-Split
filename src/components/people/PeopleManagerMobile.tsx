@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Users } from 'lucide-react';
+import { Users, UserPlus } from 'lucide-react';
 import { Person } from '@/types';
 import { SquadMember } from '@/types/squad.types';
 import { Button } from '@/components/ui/button';
@@ -113,22 +113,24 @@ export function PeopleManagerMobile({
     <div className="space-y-3">
       {/* Event + Squad row */}
       <div className="flex items-center gap-2">
-        <div className="flex-1">
+        <div className="flex-1 bg-card">
           {eventSelector}
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setSquadDialogOpen(true)}
-          className="h-9 text-xs border-border/50"
-        >
-          <Users className="w-3.5 h-3.5 mr-1.5" />
-          Squads
-        </Button>
+        <div className="flex-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSquadDialogOpen(true)}
+            className="w-full h-9 text-xs border border-border/50 bg-card hover:bg-muted/50 font-medium shadow-sm transition-colors text-foreground"
+          >
+            <Users className="w-3.5 h-3.5 mr-1.5" />
+            Squads
+          </Button>
+        </div>
       </div>
 
-      {/* Search */}
-      <div className="rounded-xl bg-secondary/20 border border-border/40 p-3">
+      {/* Search & Add */}
+      <div className="rounded-2xl bg-card border border-blue-200/60 dark:border-blue-800/40 p-4 shadow-sm">
         <InlinePersonSearch
           friends={friends}
           filteredFriends={filteredFriends}
@@ -143,7 +145,18 @@ export function PeopleManagerMobile({
       </div>
 
       {/* People list */}
-      <div className="rounded-xl bg-secondary/20 border border-border/40 p-3">
+      <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-4 mt-2">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 bg-secondary rounded-full flex items-center justify-center">
+              <Users className="h-4 w-4 text-foreground/70" />
+            </div>
+            <h3 className="font-semibold text-base">People</h3>
+          </div>
+          <div className="bg-secondary text-secondary-foreground text-xs font-semibold px-2 py-0.5 rounded-full">
+            {people.length}
+          </div>
+        </div>
         {people.length > 0 ? (
           <div className="space-y-1.5">
             {people.map((person) => {
@@ -183,6 +196,6 @@ export function PeopleManagerMobile({
         onOpenChange={setSquadDialogOpen}
         onAddSquad={handleAddSquad}
       />
-    </div>
+    </div >
   );
 }

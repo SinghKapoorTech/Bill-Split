@@ -113,7 +113,7 @@ export function PeopleStepBase({
             <EventSelector
                 selectedEventId={eventId}
                 onSelect={onEventChange}
-                className="w-full h-9 text-xs bg-background hover:bg-accent transition-colors border-border/50"
+                className="w-full h-9 text-xs border border-border/50 hover:bg-muted/50 font-medium shadow-sm transition-colors"
             />
         );
     };

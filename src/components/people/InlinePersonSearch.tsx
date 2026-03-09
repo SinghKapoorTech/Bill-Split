@@ -121,7 +121,7 @@ export function InlinePersonSearch({
           onChange={(e) => handleInputChange(e.target.value)}
           onFocus={() => setIsFocused(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Add a friend, squad, or guest..."
+          placeholder="Add a friend or guest..."
           className="pl-9 pr-10 h-11 text-sm rounded-xl bg-secondary/30 border-border/50 focus:bg-background"
         />
         {isSearching && (
