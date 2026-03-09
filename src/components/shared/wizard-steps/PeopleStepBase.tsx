@@ -1,6 +1,7 @@
 import { Card } from '@/components/ui/card';
 import { Users } from 'lucide-react';
 import { PeopleManager } from '@/components/people/PeopleManager';
+import { PeopleManagerMobile } from '@/components/people/PeopleManagerMobile';
 import { TwoColumnLayout, ReceiptPreview } from '@/components/shared/TwoColumnLayout';
 import { StepFooter } from '@/components/shared/StepFooter';
 import { StepHeader } from '@/components/shared/StepHeader';
@@ -98,28 +99,67 @@ export function PeopleStepBase({
 }: PeopleStepBaseProps) {
     const hasReceipt = !!(imagePreview || receiptImageUrl);
 
-    const renderPeopleManager = () => (
-        <PeopleManager
+    const paidByBanner = (
+        <PaidByBanner
             people={people}
-            newPersonName={newPersonName}
-            newPersonVenmoId={newPersonVenmoId}
-            onNameChange={onNameChange}
-            onVenmoIdChange={onVenmoIdChange}
-            onAdd={onAdd}
-            onAddFromFriend={onAddFromFriend}
-            onRemove={onRemove}
-            onUpdate={onUpdate}
-            onSaveAsFriend={onSaveAsFriend}
-            onRemoveFriend={onRemoveFriend}
-            setPeople={setPeople}
-        >
-            <PaidByBanner
-                people={people}
-                paidById={paidById}
-                onPaidByChange={onPaidByChange}
-            />
-        </PeopleManager>
+            paidById={paidById}
+            onPaidByChange={onPaidByChange}
+        />
     );
+
+    const renderMobileEventSelector = () => {
+        if (!onEventChange) return null;
+        return (
+            <EventSelector
+                selectedEventId={eventId}
+                onSelect={onEventChange}
+                className="w-full h-9 text-xs bg-background hover:bg-accent transition-colors border-border/50"
+            />
+        );
+    };
+
+    const renderPeopleManager = () => {
+        if (isMobile) {
+            return (
+                <PeopleManagerMobile
+                    people={people}
+                    newPersonName={newPersonName}
+                    newPersonVenmoId={newPersonVenmoId}
+                    onNameChange={onNameChange}
+                    onVenmoIdChange={onVenmoIdChange}
+                    onAdd={onAdd}
+                    onAddFromFriend={onAddFromFriend}
+                    onRemove={onRemove}
+                    onUpdate={onUpdate}
+                    onSaveAsFriend={onSaveAsFriend}
+                    onRemoveFriend={onRemoveFriend}
+                    setPeople={setPeople}
+                    eventSelector={renderMobileEventSelector()}
+                >
+                    {paidByBanner}
+                </PeopleManagerMobile>
+            );
+        }
+
+        return (
+            <PeopleManager
+                people={people}
+                newPersonName={newPersonName}
+                newPersonVenmoId={newPersonVenmoId}
+                onNameChange={onNameChange}
+                onVenmoIdChange={onVenmoIdChange}
+                onAdd={onAdd}
+                onAddFromFriend={onAddFromFriend}
+                onRemove={onRemove}
+                onUpdate={onUpdate}
+                onSaveAsFriend={onSaveAsFriend}
+                onRemoveFriend={onRemoveFriend}
+                setPeople={setPeople}
+            >
+                {paidByBanner}
+            </PeopleManager>
+        );
+    };
 
     const renderEventSelector = () => {
         if (!onEventChange) return null;
@@ -138,29 +178,7 @@ export function PeopleStepBase({
     if (isMobile && hasReceipt && hasItems) {
         return (
             <div>
-                <Card className="bill-card-tight">
-                    <StepHeader
-                        icon={Users}
-                        title="People"
-                        actions={renderEventSelector()}
-                        showReceiptThumbnail={true}
-                        selectedFile={selectedFile}
-                        imagePreview={imagePreview}
-                        isDragging={upload?.isDragging}
-                        isUploading={isUploading}
-                        isAnalyzing={isAnalyzing}
-                        isMobile={isMobile}
-                        receiptImageUrl={receiptImageUrl}
-                        upload={upload}
-                        onImageSelected={onImageSelected}
-                        onAnalyze={onAnalyze}
-                        onRemoveImage={onRemoveImage}
-                    />
-
-                    <div className="mobile-hide-child-chrome">
-                        {renderPeopleManager()}
-                    </div>
-                </Card>
+                {renderPeopleManager()}
 
                 {showFooter && (
                     <div className="hidden md:block">
@@ -190,31 +208,31 @@ export function PeopleStepBase({
                 rightColumn={
                     <div className="flex flex-col gap-6">
                         {!hasReceipt ? (
-                            <Card className="bill-card-tight">
-                                <StepHeader icon={Users} title="People" actions={renderEventSelector()} />
-                                <div className="mobile-hide-child-chrome">
+                            isMobile ? (
+                                <div>
                                     {renderPeopleManager()}
                                 </div>
-                            </Card>
+                            ) : (
+                                <Card className="bill-card-tight">
+                                    <StepHeader icon={Users} title="People" actions={renderEventSelector()} />
+                                    {renderPeopleManager()}
+                                </Card>
+                            )
                         ) : (
                             // Desktop with receipt
                             <div className="flex flex-col gap-6">
-                                {/* On desktop we don't need the header inside the card because the wizard has it, 
-                                 but the shared component should probably provide it if not provided by parent */}
-                                {isMobile && (
-                                    <Card className="bill-card-tight">
-                                        <StepHeader icon={Users} title="People" actions={renderEventSelector()} />
-                                        <div className="mobile-hide-child-chrome">
-                                            {renderPeopleManager()}
-                                        </div>
-                                    </Card>
-                                )}
-                                {!isMobile && (
-                                    <div className="w-full flex justify-end mb-2">
-                                        {renderEventSelector()}
+                                {isMobile ? (
+                                    <div>
+                                        {renderPeopleManager()}
                                     </div>
+                                ) : (
+                                    <>
+                                        <div className="w-full flex justify-end mb-2">
+                                            {renderEventSelector()}
+                                        </div>
+                                        {renderPeopleManager()}
+                                    </>
                                 )}
-                                {!isMobile && renderPeopleManager()}
                             </div>
                         )}
                     </div>
