@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Person, BillData, ItemAssignment } from '@/types';
+import { Bill } from '@/types/bill.types';
 
 interface UseBillSessionProps {
     // Data to auto-save
@@ -12,13 +13,13 @@ interface UseBillSessionProps {
     title: string;
 
     // Active session info
-    activeSession: any;
+    activeSession: Bill | null;
     billId?: string;
     receiptImageUrl?: string;
     receiptFileName?: string;
 
     // Save function from context
-    saveSession: (data: any, id?: string) => Promise<string | null | void>;
+    saveSession: (data: Partial<Bill>, id?: string) => Promise<string | null | void>;
 
     // Payment info
     paidById?: string;
@@ -51,7 +52,7 @@ export function useBillSession({
     const isInitializing = useRef(true);
     const lastSavedData = useRef<string | null>(null);
     const pendingSaveTimeout = useRef<NodeJS.Timeout | null>(null);
-    const pendingDraftCreation = useRef<Promise<any> | null>(null);
+    const pendingDraftCreation = useRef<Promise<string | null | void> | null>(null);
 
     // Keep track of latest props for unmount saving
     const latestProps = useRef({
@@ -105,7 +106,7 @@ export function useBillSession({
         const isDifferent = currentData !== lastSavedData.current;
 
         if (isDifferent || options?.isUnmounting || options?.forceSave) {
-            const savePayload: any = {
+            const savePayload: Partial<Bill> = {
                 billData: props.billData,
                 splitEvenly: props.splitEvenly,
                 currentStep: props.currentStep,

@@ -40,7 +40,7 @@ export function usePeopleManager(
 
     // Check if it's an email search
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nameToUse.trim());
-    
+
     if (isEmail) {
       toast({
         title: 'Searching...',
@@ -48,7 +48,7 @@ export function usePeopleManager(
         duration: 1500,
       });
       const globalUser = await userService.getUserByContact(nameToUse.trim());
-      
+
       if (!globalUser) {
         toast({
           title: 'User Not Found',
@@ -57,7 +57,7 @@ export function usePeopleManager(
         });
         return null;
       }
-      
+
       const newPerson: Person = {
         id: generateUserId(globalUser.uid),
         name: globalUser.displayName || 'App User',
@@ -65,12 +65,12 @@ export function usePeopleManager(
       if (globalUser.venmoId) {
         newPerson.venmoId = globalUser.venmoId;
       }
-      
+
       const alreadyExists = people.some(p => p.id === newPerson.id);
       if (!alreadyExists) {
         setPeople([...people, newPerson]);
       }
-      
+
       setNewPersonName('');
       setNewPersonVenmoId('');
       return newPerson;
@@ -117,14 +117,14 @@ export function usePeopleManager(
         return;
       }
     }
-    
+
     setPeople(people.filter(p => p.id !== personId));
   };
 
   const addFromFriend = (friend: { id?: string; name: string; venmoId?: string }): Person | null => {
     // Determine the ID: if friend has an id from global search use it, otherwise generate a generic one
     const personId = friend.id || generatePersonId();
-    
+
     // Check if person already exists in the bill
     const alreadyExists = people.some(p => p.id === personId);
     if (alreadyExists) {
@@ -168,7 +168,7 @@ export function usePeopleManager(
 
     try {
       let friendId = person.id;
-      
+
       // If it's a manually created person during the bill session
       if (friendId.startsWith('person-')) {
         if (!contactInfo) {
@@ -179,7 +179,7 @@ export function usePeopleManager(
           });
           return;
         }
-        
+
         // Resolve user via email/phone (finds existing or creates shadow)
         friendId = await userService.resolveUser(contactInfo, person.name);
       }
@@ -204,10 +204,10 @@ export function usePeopleManager(
         description: `${person.name} has been saved to your friends list.`,
         duration: 1000,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error saving friend',
-        description: error.message || 'Could not save to friends list.',
+        description: (error as Error).message || 'Could not save to friends list.',
         variant: 'destructive',
       });
     }
@@ -217,8 +217,8 @@ export function usePeopleManager(
     if (!user) return;
     try {
       if (friendId.startsWith('person-')) {
-          console.warn('Cannot directly remove a person- ID from friends without resolving. Pass the resolved friend ID.');
-          return;
+        console.warn('Cannot directly remove a person- ID from friends without resolving. Pass the resolved friend ID.');
+        return;
       }
       await updateDoc(doc(db, 'users', user.uid), {
         friends: arrayRemove(friendId)
@@ -228,10 +228,10 @@ export function usePeopleManager(
         description: 'Successfully removed from your friends list.',
         duration: 1000,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error removing friend',
-        description: error.message || 'Could not remove from friends list.',
+        description: (error as Error).message || 'Could not remove from friends list.',
         variant: 'destructive',
       });
     }

@@ -113,7 +113,7 @@ export function SimpleTransactionWizard() {
     // If we're creating a new transaction, exit early
     if (!billId || billId === 'new') return;
 
-    const applyBillData = (bill: any) => {
+    const applyBillData = (bill: import('@/types/bill.types').Bill) => {
       if (bill.title) setTitle(bill.title);
       if (bill.billData?.total) setAmount(bill.billData.total.toString());
       if (bill.paidById) setPaidById(bill.paidById);

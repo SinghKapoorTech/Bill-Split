@@ -24,7 +24,7 @@ interface DesktopBillCardProps {
   onDelete: (bill: Bill) => void;
   isResuming: boolean;
   isDeleting: boolean;
-  formatDate: (timestamp: any) => string;
+  formatDate: (timestamp: { toDate: () => Date } | null | undefined) => string;
   getBillTitle: (bill: Bill) => string;
   isOwner?: boolean;
 }

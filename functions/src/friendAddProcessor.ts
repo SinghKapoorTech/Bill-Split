@@ -40,7 +40,7 @@ const MAX_BILLS_PER_SCAN = 50;
  * Extracts friend UIDs from the friends array.
  * Handles both modern (string[]) and legacy ({ userId, id }) formats.
  */
-function extractFriendUids(friends: any[]): Set<string> {
+function extractFriendUids(friends: Array<string | { userId?: string; id?: string }>): Set<string> {
   const uids = new Set<string>();
   for (const f of friends) {
     const uid = typeof f === 'string' ? f : (f.userId || f.id);

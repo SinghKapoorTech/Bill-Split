@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
-import { BillData, ItemAssignment } from '@/types';
+import { Person, BillData, ItemAssignment } from '@/types';
 import { areAllItemsAssigned } from '@/utils/calculations';
 import { WizardState } from '../types';
 
 interface UseBillWizardProps {
     billData: BillData | null;
-    people: any[];
+    people: Person[];
     itemAssignments: ItemAssignment;
     totalSteps: number;
     initialStep?: number;
@@ -44,7 +44,7 @@ export function useBillWizard({
         if (customValidator) {
             return customValidator(step);
         }
-        
+
         switch (step) {
             case 0: // Bill Entry step (merged Upload + Items)
                 return billData?.items?.length > 0; // Need at least one item

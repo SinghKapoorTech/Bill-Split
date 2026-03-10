@@ -40,7 +40,7 @@ export default function SquadsView() {
     handleTabChange
   } = useSquadEditor();
 
-  const onEditSquad = (squad: any) => {
+  const onEditSquad = (squad: import('@/types/squad.types').HydratedSquad) => {
     handleEdit(squad);
     setCreateDialogOpen(true);
   };
@@ -67,8 +67,8 @@ export default function SquadsView() {
           <p className="text-muted-foreground">Manage your squads</p>
         </div>
         <Dialog open={createDialogOpen} onOpenChange={(open) => {
-            setCreateDialogOpen(open);
-            if (!open) handleTabChange('list');
+          setCreateDialogOpen(open);
+          if (!open) handleTabChange('list');
         }}>
           <DialogTrigger asChild>
             <Button size="icon" className="rounded-full h-10 w-10">
@@ -79,19 +79,19 @@ export default function SquadsView() {
             <DialogHeader>
               <DialogTitle>{editingSquad ? 'Edit Squad' : 'Create New Squad'}</DialogTitle>
             </DialogHeader>
-            <SquadForm 
-                initialName={editingSquad?.name}
-                initialDescription={editingSquad?.description}
-                initialMembers={editingSquad?.members}
-                onSubmit={async (name, desc, members) => {
-                    if (editingSquad) {
-                        await handleUpdate(name, desc, members);
-                    } else {
-                        await handleCreate(name, desc, members);
-                    }
-                    setCreateDialogOpen(false);
-                }}
-                submitLabel={editingSquad ? 'Update' : 'Create'}
+            <SquadForm
+              initialName={editingSquad?.name}
+              initialDescription={editingSquad?.description}
+              initialMembers={editingSquad?.members}
+              onSubmit={async (name, desc, members) => {
+                if (editingSquad) {
+                  await handleUpdate(name, desc, members);
+                } else {
+                  await handleCreate(name, desc, members);
+                }
+                setCreateDialogOpen(false);
+              }}
+              submitLabel={editingSquad ? 'Update' : 'Create'}
             />
           </DialogContent>
         </Dialog>
@@ -113,10 +113,10 @@ export default function SquadsView() {
           </Button>
         </Card>
       ) : (
-        <SquadList 
-            squads={squads} 
-            onEdit={onEditSquad} 
-            onDelete={onDeleteSquad} 
+        <SquadList
+          squads={squads}
+          onEdit={onEditSquad}
+          onDelete={onDeleteSquad}
         />
       )}
 

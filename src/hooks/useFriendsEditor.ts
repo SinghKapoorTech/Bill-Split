@@ -58,7 +58,7 @@ export function useFriendsEditor() {
       try {
         let globalUsers = [];
         const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(search);
-        
+
         if (isEmail) {
           const userByEmail = await userService.getUserByContact(search);
           if (userByEmail) {
@@ -153,10 +153,10 @@ export function useFriendsEditor() {
       setNewFriendVenmoId('');
       setShowSuggestions(false);
       await updateFriends(updatedFriends);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error adding friend',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     }

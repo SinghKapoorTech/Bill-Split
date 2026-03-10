@@ -85,9 +85,9 @@ export function SettleUpModal({
 
       onOpenChange(false);
       onSuccess?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error settling up:', error);
-      const msg = error?.message ?? 'Failed to process settlement. Please try again.';
+      const msg = (error as Error)?.message ?? 'Failed to process settlement. Please try again.';
       toast({
         title: 'Settlement failed',
         description: msg,

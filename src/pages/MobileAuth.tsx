@@ -24,7 +24,7 @@ const MobileAuth = () => {
 
     try {
       await signInWithGoogle();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[MobileAuth] Sign-in error:', error);
     } finally {
       setIsSigningIn(false);

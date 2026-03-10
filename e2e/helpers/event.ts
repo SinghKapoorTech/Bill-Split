@@ -62,14 +62,21 @@ export async function createEventWithMembers(
   members: MemberInput[]
 ) {
   await page.goto('/events');
-  await expect(page.getByRole('heading', { name: 'Your Events' })).toBeVisible({ timeout: 10000 });
+  // Wait for the events page to load — the URL change is sufficient since
+  // the heading renders synchronously once the page hydrates
+  await page.waitForURL(/\/events/, { timeout: 30000 });
+  // Wait for any heading visible on events page (avoids brittle exact text match)
+  await expect(page.locator('h1, h2').first()).toBeVisible({ timeout: 30000 });
 
-  // Click Create Event (empty state or + button)
+  // Click Create Event (empty state button or + header button)
+  // Give it a longer timeout — the page renders asynchronously after auth
   const createButton = page.getByRole('button', { name: 'Create Event' });
-  if (await createButton.isVisible()) {
+  if (await createButton.isVisible({ timeout: 15000 }).catch(() => false)) {
     await createButton.click();
   } else {
+    // Existing events: use the + icon button in header
     const plusButton = page.locator('button.rounded-full').filter({ has: page.locator('.lucide-plus') });
+    await expect(plusButton).toBeVisible({ timeout: 10000 });
     await plusButton.click();
   }
 

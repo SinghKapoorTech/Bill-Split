@@ -27,7 +27,7 @@ export function useEventInvites(eventId: string) {
         description: 'User has been successfully added to the event.',
       });
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error adding existing member:', error);
       toast({
         title: 'Error',
@@ -60,19 +60,20 @@ export function useEventInvites(eventId: string) {
       }
 
       return false;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error inviting member:', error);
 
       let errorMessage = 'Failed to invite member. Please try again.';
+      const typedError = error as { code?: string; message?: string };
 
-      if (error.code === 'functions/already-exists') {
-        errorMessage = error.message;
-      } else if (error.code === 'functions/permission-denied') {
+      if (typedError.code === 'functions/already-exists') {
+        errorMessage = typedError.message || errorMessage;
+      } else if (typedError.code === 'functions/permission-denied') {
         errorMessage = 'You do not have permission to invite members to this event.';
-      } else if (error.code === 'functions/not-found') {
+      } else if (typedError.code === 'functions/not-found') {
         errorMessage = 'Event not found.';
-      } else if (error.code === 'functions/invalid-argument') {
-        errorMessage = error.message || 'Invalid email address.';
+      } else if (typedError.code === 'functions/invalid-argument') {
+        errorMessage = typedError.message || 'Invalid email address.';
       }
 
       toast({

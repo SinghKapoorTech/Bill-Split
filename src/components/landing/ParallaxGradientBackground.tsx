@@ -17,7 +17,7 @@ export function ParallaxGradientBackground() {
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // Debounced resize handler for better performance
-  const debounce = <T extends (...args: any[]) => void>(
+  const debounce = <T extends (...args: Parameters<T>) => void>(
     func: T,
     wait: number
   ): ((...args: Parameters<T>) => void) => {

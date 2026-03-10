@@ -1,6 +1,6 @@
 ---
 title: Airbnb Flow
-date: 2026-03-04
+date: 2026-03-09
 tags: [ui, airbnb, flow, wizard]
 ---
 
@@ -23,12 +23,12 @@ The user can choose between two main methodologies to split the trip:
 
 ### 2. Guests (`AirbnbGuestsStep`)
 - **Action:** Specify who is attending the trip.
-- **Integration:** Uses the standard `PersonCard` component. This means users have immediate access to:
-  - Add people from their personal Friends list.
-  - Import people from specific Squads.
-  - "Save as Friend" (heart icon) for manually added guests.
-  - Edit Venmo Tags directly from this screen.
-- **Event Support:** Features an Event Selector in the top right, allowing users to attach the trip to a specific event right away.
+- **Integration:** Uses `PeopleStepBase` with `InlinePersonSearch` — the same people-adding experience as the Standard bill wizard:
+  - Type a name → select a friend from the dropdown or click "Add [name] as guest"
+  - Friends list quick-add button
+  - Squads quick-add button
+  - Each person shown as a `PersonCard` with Friend/Venmo options
+- **Event Support:** Features an Event Selector in the top right, allowing users to attach the trip to a specific event.
 - **Validation:** At least one guest must be added before proceeding.
 
 ### 3. Split Method (`AirbnbSplitMethodStep`)
@@ -43,4 +43,6 @@ The user can choose between two main methodologies to split the trip:
 ### 5. Review & Finish (`AirbnbReviewStep`)
 - **Action:** Summarizes the grand total and each individual's customized share based on the selected method.
 - **Component:** Leverages the generic `SplitSummary` component used in regular bills.
-- **Features:** Allows users to directly "Charge on Venmo", "Pay on Venmo", or manually "Mark as Settled". The bottom navigation bar provides clear "Back" and "Done" actions.
+- **Settlement:** Each person row shows a compact **Settle** button. When clicked, the row shows a green **Settled** badge and an **Undo Settle** option — consistent with the standard bill Review step.
+- **Venmo:** Direct "Charge on Venmo" / "Pay on Venmo" deep links per person based on their role (creditor or debtor).
+- The bottom navigation bar provides **Back** and **Done** actions.

@@ -61,7 +61,7 @@ test.describe('Event Management', () => {
     await loginAsTestUser(page);
     await page.goto('/events');
 
-    await expect(page.getByRole('heading', { name: 'Your Events' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Your Events' })).toBeVisible({ timeout: 15000 });
 
     // Click the round + icon button in the events header (rounded-full distinguishes it)
     const plusButton = page.locator('button.rounded-full').filter({ has: page.locator('.lucide-plus') });

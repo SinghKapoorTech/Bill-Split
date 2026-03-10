@@ -19,6 +19,7 @@ import { useReceiptAnalyzer } from '@/hooks/useReceiptAnalyzer';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Person, BillData, ItemAssignment } from '@/types';
+import { Bill } from '@/types/bill.types';
 import { Step } from './types';
 import { ScanSuccessAnimation } from '@/components/shared/ScanSuccessAnimation';
 import {
@@ -41,11 +42,11 @@ const STEPS: Step[] = [
 
 interface BillWizardProps {
     // Session context
-    activeSession: any;
+    activeSession: Bill | null;
     billId?: string;
     isUploading: boolean;
-    uploadReceiptImage: (file: File) => Promise<any>;
-    saveSession: (data: any, id?: string) => Promise<string | null | void>;
+    uploadReceiptImage: (file: File) => Promise<{ downloadURL?: string; fileName?: string } | null>;
+    saveSession: (data: Partial<Bill>, id?: string) => Promise<string | null | void>;
     removeReceiptImage: () => Promise<void>;
     deleteSession?: (id: string, receiptFileName?: string) => Promise<void>;
 
@@ -240,7 +241,7 @@ export function BillWizard({
         }
     };
 
-    const handleAtomicAddFromFriend = (friend: any) => {
+    const handleAtomicAddFromFriend = (friend: { id?: string; name: string; venmoId?: string }) => {
         const newPerson = peopleManager.addFromFriend(friend);
         if (newPerson) {
             const id = billId || activeSession?.id;
@@ -373,7 +374,7 @@ export function BillWizard({
                 onTitleChange(newTitle);
             }
 
-            const savePayload: any = {
+            const savePayload: Partial<Bill> & { receiptImageUrl?: string; receiptFileName?: string } = {
                 billData: analyzedBillData,
                 people,
                 itemAssignments,

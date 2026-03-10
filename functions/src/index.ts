@@ -250,9 +250,9 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
       try {
         const auth = getAuth();
         userRecord = await auth.getUserByEmail(email);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // User doesn't exist yet
-        if (error.code !== 'auth/user-not-found') {
+        if ((error as { code?: string }).code !== 'auth/user-not-found') {
           throw error;
         }
       }

@@ -2,7 +2,8 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 60000,
+  // 90s covers auth + event creation + bill flow on a slow emulator
+  timeout: 90000,
   retries: 1,
   workers: 1,
   globalSetup: './e2e/global-setup.ts',

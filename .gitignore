@@ -37,3 +37,4 @@ firebase-debug.*.log
 *.njsproj
 *.sln
 *.sw?
+e2e/.auth-state.json

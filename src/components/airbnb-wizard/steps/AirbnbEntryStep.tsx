@@ -27,7 +27,7 @@ interface AirbnbEntryStepProps {
     currentStep: number;
     totalSteps: number;
     isMobile: boolean;
-    onTriggerSave?: (options?: { overrideData?: Partial<any>, forceSave?: boolean }) => void;
+    onTriggerSave?: (options?: { overrideData?: Partial<import('@/types/bill.types').Bill>; forceSave?: boolean }) => void;
 }
 
 export function AirbnbEntryStep({

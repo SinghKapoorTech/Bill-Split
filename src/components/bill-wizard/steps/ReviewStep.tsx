@@ -19,7 +19,7 @@ export interface ReceiptThumbnailProps {
     onAnalyze?: () => void;
     onRemoveImage?: () => void;
     isMobile: boolean;
-    upload: any;
+    upload: ReturnType<typeof import('@/hooks/useFileUpload').useFileUpload>;
 }
 
 interface ReviewStepProps {

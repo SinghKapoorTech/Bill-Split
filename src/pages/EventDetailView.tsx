@@ -42,7 +42,7 @@ export default function EventDetailView() {
   const { toast } = useToast();
 
   const { netBalances, optimizedDebts, loading: ledgerLoading } = useEventLedger(eventId || '', eventBills);
-  const [memberProfiles, setMemberProfiles] = useState<Record<string, any>>({});
+  const [memberProfiles, setMemberProfiles] = useState<Record<string, import('@/types/person.types').UserProfile>>({});
 
   // Settlement state
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
@@ -72,7 +72,7 @@ export default function EventDetailView() {
     if (userIdsToFetch.size === 0) return;
 
     const fetchProfiles = async () => {
-      const profiles: Record<string, any> = {};
+      const profiles: Record<string, import('@/types/person.types').UserProfile> = {};
       await Promise.all(Array.from(userIdsToFetch).map(async (id) => {
         try {
           const p = await userService.getUserProfile(id);

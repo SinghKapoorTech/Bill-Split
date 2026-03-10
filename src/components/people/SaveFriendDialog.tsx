@@ -34,10 +34,10 @@ export function SaveFriendDialog({ isOpen, onClose, person, onSave }: SaveFriend
             });
             return;
         }
-        
+
         // Basic validation for email or phone
         const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
-        const isPhone = /^[\+0-9\-\(\)\s]{7,20}$/.test(trimmed);
+        const isPhone = /^[+0-9\-()\s]{7,20}$/.test(trimmed);
 
         if (!isEmail && !isPhone) {
             toast({

@@ -20,7 +20,7 @@ interface PeopleStepBaseProps {
     onNameChange: (name: string) => void;
     onVenmoIdChange: (id: string) => void;
     onAdd: (name?: string, venmoId?: string) => void;
-    onAddFromFriend: (friend: any) => void;
+    onAddFromFriend: (friend: { id?: string; name: string; venmoId?: string }) => void;
     onRemove: (personId: string) => void;
     onUpdate: (personId: string, updates: Partial<Person>) => Promise<void>;
     onSaveAsFriend: (person: Person) => void;
@@ -39,7 +39,7 @@ interface PeopleStepBaseProps {
     onImageSelected?: (fileOrBase64: File | string) => void;
     onAnalyze?: () => void;
     onRemoveImage?: () => void;
-    upload?: any;
+    upload?: { handleDragOver: unknown; handleDragLeave: unknown; handleDrop: unknown; handleRemoveImage: unknown };
 
     // Navigation (optional)
     onNext?: () => void;

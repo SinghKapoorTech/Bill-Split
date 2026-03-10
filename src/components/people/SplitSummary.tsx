@@ -62,7 +62,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
   const isCurrentUser = (pt: PersonTotal): boolean => {
     const person = people.find(p => p.id === pt.personId);
     if (!user) return false;
-    if (person?.id === user.uid || (person as any)?.userId === user.uid || person?.id === `user-${user.uid}`) return true;
+    if (person?.id === user.uid || (person as Person & { userId?: string })?.userId === user.uid || person?.id === `user-${user.uid}`) return true;
     if (person?.name === user.displayName) return true;
     if (person?.venmoId && profile?.venmoId && person.venmoId === profile.venmoId) return true;
     return false;
@@ -135,7 +135,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
             const didIPay = creditorId && creditorId === user?.uid;
 
             // We check if the card we are rendering is the creditor.
-            const isThisPersonTheCreditor = creditorId && (creditorId === pt.personId || creditorId === (person as any)?.userId || creditorId === `user-${(person as any)?.userId}`);
+            const isThisPersonTheCreditor = creditorId && (creditorId === pt.personId || creditorId === (person as Person & { userId?: string })?.userId || creditorId === `user-${(person as Person & { userId?: string })?.userId}`);
 
             let showVenmoButton = false;
             let showSettleButton = false;
@@ -202,7 +202,20 @@ function PersonCompactRow({
   onMarkAsSettled,
   setIsSettling,
   isLast
-}: any) {
+}: {
+  pt: PersonTotal;
+  person: Person | undefined;
+  displayName: string;
+  isSettled: boolean;
+  showVenmoButton: boolean;
+  showSettleButton: boolean;
+  venmoType: 'charge' | 'pay';
+  isSettling: Record<string, boolean>;
+  handleChargeOnVenmo: (personTotal: PersonTotal, personVenmoId?: string, type?: 'charge' | 'pay') => void;
+  onMarkAsSettled?: (personId: string, isSettled: boolean) => void;
+  setIsSettling: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  isLast: boolean;
+}) {
 
   return (
     <div className={`p-3 bg-card border shadow-sm rounded-xl transition-all ${isSettled ? 'bg-green-500/10 dark:bg-green-500/20 border-green-500/40 dark:border-green-400/30 shadow-green-500/10' : 'border-border'}`}>

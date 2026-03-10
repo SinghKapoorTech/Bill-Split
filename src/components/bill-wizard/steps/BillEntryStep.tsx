@@ -39,7 +39,7 @@ interface BillEntryStepProps {
     // Utility
     isMobile: boolean;
     removeItemAssignments: (itemId: string) => void;
-    onTriggerSave?: (options?: { overrideData?: Partial<any>, forceSave?: boolean }) => void;
+    onTriggerSave?: (options?: { overrideData?: Partial<import('@/types/bill.types').Bill>; forceSave?: boolean }) => void;
 }
 
 /**

@@ -191,10 +191,10 @@ export default function AIScanView() {
     try {
       // Clear existing code
       await billService.updateBill(activeSession.id, {
-        shareCode: deleteField() as any,
-        shareCodeCreatedAt: deleteField() as any,
-        shareCodeExpiresAt: deleteField() as any,
-        shareCodeCreatedBy: deleteField() as any,
+        shareCode: deleteField() as unknown as string,
+        shareCodeCreatedAt: deleteField() as unknown as import('firebase/firestore').Timestamp,
+        shareCodeExpiresAt: deleteField() as unknown as import('firebase/firestore').Timestamp,
+        shareCodeCreatedBy: deleteField() as unknown as string,
       });
       // Generate new code
       await billService.generateShareCode(activeSession.id, user.uid);
@@ -205,11 +205,11 @@ export default function AIScanView() {
     }
   };
 
-  const formatDate = (timestamp: any) => {
+  const formatDate = (timestamp: { toDate: () => Date } | null | undefined) => {
     if (!timestamp) return new Date().toLocaleDateString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric'
     });
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const date = timestamp.toDate();
     return date.toLocaleDateString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric'
     });
@@ -266,7 +266,7 @@ export default function AIScanView() {
     } else {
       // If none is selected, convert back to private
       const newBillId = await saveSession({
-        eventId: deleteField() as any,
+        eventId: deleteField() as unknown as string,
         billType: 'private',
       }, billId || activeSession?.id);
 

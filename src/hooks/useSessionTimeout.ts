@@ -43,7 +43,7 @@ export function useSessionTimeout({ onTimeout, timeoutMinutes }: UseSessionTimeo
     };
 
     // Register listeners
-    let listenerHandle: any = null;
+    let listenerHandle: { remove: () => Promise<void> } | null = null;
     if (Capacitor.isNativePlatform()) {
       App.addListener('appStateChange', handleAppStateChange).then(handle => {
         listenerHandle = handle;

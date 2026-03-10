@@ -70,7 +70,7 @@ export function ManageFriendsCard() {
   };
 
   // Fallback for ID if the raw friend doesn't have it mapped consistently
-  const getFriendId = (f: any) => f.id || f.userId || '';
+  const getFriendId = (f: { id?: string; userId?: string }) => f.id || f.userId || '';
 
   return (
     <div className="space-y-4 md:space-y-6">

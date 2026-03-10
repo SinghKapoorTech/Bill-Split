@@ -200,8 +200,8 @@ export function useBills() {
         if (storageRef) {
           try {
             await deleteObject(storageRef);
-          } catch (error: any) {
-            if (error.code !== 'storage/object-not-found') {
+          } catch (error: unknown) {
+            if ((error as { code?: string }).code !== 'storage/object-not-found') {
               console.error('Error deleting receipt image by filename:', error);
             }
           }
@@ -265,8 +265,8 @@ export function useBills() {
         if (storageRef) {
           try {
             await deleteObject(storageRef);
-          } catch (error: any) {
-            if (error.code !== 'storage/object-not-found') {
+          } catch (error: unknown) {
+            if ((error as { code?: string }).code !== 'storage/object-not-found') {
               console.error('Error deleting receipt image:', error);
             }
           }
@@ -299,8 +299,8 @@ export function useBills() {
         if (storageRef) {
           try {
             await deleteObject(storageRef);
-          } catch (error: any) {
-            if (error.code !== 'storage/object-not-found') {
+          } catch (error: unknown) {
+            if ((error as { code?: string }).code !== 'storage/object-not-found') {
               console.error('Error deleting receipt image:', error);
             }
           }

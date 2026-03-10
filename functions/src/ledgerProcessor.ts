@@ -24,7 +24,7 @@ import {
   calculateFriendFootprint,
   toSingleBalance,
 } from '../../shared/ledgerCalculations.js';
-import type { PersonTotal } from '../../shared/types.js';
+import type { PersonTotal, BillData } from '../../shared/types.js';
 
 let _db: ReturnType<typeof getFirestore> | null = null;
 function db() {
@@ -46,8 +46,8 @@ const RELEVANT_FIELDS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function hasRelevantChange(
-  before: Record<string, any>,
-  after: Record<string, any>
+  before: Record<string, unknown>,
+  after: Record<string, unknown>
 ): boolean {
   for (const field of RELEVANT_FIELDS) {
     if (JSON.stringify(before[field]) !== JSON.stringify(after[field])) {
@@ -67,7 +67,7 @@ async function resolveEligibleFriends(anchorId: string, ownerId: string): Promis
   // Add all friends of the owner
   const ownerDoc = await db().collection('users').doc(ownerId).get();
   if (ownerDoc.exists) {
-    const friends: any[] = ownerDoc.data()?.friends || [];
+    const friends: Array<string | { userId?: string; id?: string }> = ownerDoc.data()?.friends || [];
     for (const f of friends) {
       const uid = typeof f === 'string' ? f : (f.userId || f.id);
       if (uid) linked.add(uid);
@@ -78,7 +78,7 @@ async function resolveEligibleFriends(anchorId: string, ownerId: string): Promis
   if (anchorId !== ownerId) {
     const anchorDoc = await db().collection('users').doc(anchorId).get();
     if (anchorDoc.exists) {
-      const friends: any[] = anchorDoc.data()?.friends || [];
+      const friends: Array<string | { userId?: string; id?: string }> = anchorDoc.data()?.friends || [];
       for (const f of friends) {
         const uid = typeof f === 'string' ? f : (f.userId || f.id);
         if (uid) linked.add(uid);
@@ -89,13 +89,13 @@ async function resolveEligibleFriends(anchorId: string, ownerId: string): Promis
   return linked;
 }
 
-function computePersonTotals(bill: Record<string, any>): PersonTotal[] {
-  const billData = bill.billData;
-  const people = bill.people || [];
+function computePersonTotals(bill: Record<string, unknown>): PersonTotal[] {
+  const billData = bill.billData as BillData;
+  const people = bill.people as Array<{ id: string; name: string }> || [];
 
   if (bill.splitEvenly) {
     const share = billData.total / people.length;
-    return people.map((p: any) => ({
+    return people.map((p) => ({
       personId: p.id,
       name: p.name,
       itemsSubtotal: share,
@@ -108,7 +108,7 @@ function computePersonTotals(bill: Record<string, any>): PersonTotal[] {
   return calculatePersonTotals(
     billData,
     people,
-    bill.itemAssignments || {},
+    (bill.itemAssignments as Record<string, string[]>) || {},
     billData.tip,
     billData.tax
   );
@@ -472,7 +472,7 @@ export const ledgerProcessor = onDocumentWritten(
     const operation = before ? 'UPDATE' : 'CREATE';
     const ownerId = after.ownerId;
     const creditorId = after.paidById || ownerId;
-    
+
     logger.info('Processing bill', { billId, operation, creditorId, eventId: after.eventId || null });
 
     // Handle Anchor Change (e.g. user edits who paid the bill)
@@ -481,15 +481,15 @@ export const ledgerProcessor = onDocumentWritten(
       const previousAnchorId = before.paidById || before.ownerId;
       if (previousAnchorId !== creditorId) {
         logger.info('Anchor changed, reversing previous balances completely', { previousAnchorId, currentAnchorId: creditorId });
-        
+
         if (before.processedBalances && Object.keys(before.processedBalances).length > 0) {
           await reverseFootprint(billId, previousAnchorId, before.processedBalances);
         }
-        
+
         if (before.eventId && before.processedEventBalances && Object.keys(before.processedEventBalances).length > 0) {
           await reverseEventFootprint(billId, before.eventId, previousAnchorId, before.processedEventBalances);
         }
-        
+
         forceClearPrevious = true;
       }
     }

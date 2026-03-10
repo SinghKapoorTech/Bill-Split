@@ -35,7 +35,7 @@ function DeepLinkHandler() {
 
   useEffect(() => {
     // Listen for deep links
-    let listenerHandle: any = null;
+    let listenerHandle: { remove: () => void } | null = null;
 
     CapApp.addListener('appUrlOpen', (event) => {
       const url = event.url;

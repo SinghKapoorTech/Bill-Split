@@ -7,23 +7,24 @@ export interface BillItem {
 
 /**
  * Creates a standard bill from the dashboard.
- * Handles both empty state ("Standard Bill" button) and
+ * Handles both empty state ("Standard" button) and
  * existing bills ("Create a bill" → "New Bill" dialog flow).
  * Waits for the /bill/ URL to load.
  */
 export async function createStandardBill(page: Page) {
-  const standardBillBtn = page.getByText('Standard Bill');
+  // Empty state shows a compact "Standard" button after isLoadingSessions resolves.
+  // Give it 45s since the Firestore emulator can be slow on cold starts.
+  const standardBillBtn = page.getByRole('button', { name: 'Standard' });
   const createBillBtn = page.getByRole('button', { name: 'Create a bill' });
 
-  // Empty state shows "Standard Bill" directly; otherwise use navbar "Create a bill"
-  if (await standardBillBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+  if (await standardBillBtn.isVisible({ timeout: 45000 }).catch(() => false)) {
     await standardBillBtn.click();
   } else {
     await createBillBtn.click();
     await page.getByText('New Bill').click();
   }
 
-  await page.waitForURL(/\/bill\//, { timeout: 15000 });
+  await page.waitForURL(/\/bill\//, { timeout: 20000 });
 }
 
 /**
@@ -32,7 +33,11 @@ export async function createStandardBill(page: Page) {
  */
 export async function addItemsToBill(page: Page, items: BillItem[]) {
   for (const item of items) {
-    await page.getByRole('button', { name: 'Add Item' }).click();
+    const addItemBtn = page.getByRole('button', { name: 'Add Item' });
+    // Scroll into view to avoid sticky header interception
+    await addItemBtn.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(150);
+    await addItemBtn.click();
     const addRow = page.locator('tr').filter({ has: page.getByPlaceholder('Enter item name') });
     await addRow.getByPlaceholder('Enter item name').fill(item.name);
     await addRow.getByPlaceholder('0.00').fill(item.price);
@@ -44,14 +49,19 @@ export async function addItemsToBill(page: Page, items: BillItem[]) {
 }
 
 /**
- * Adds guest people to a bill by name via the "Add Person" dialog.
+ * Adds guest people to a bill using the InlinePersonSearch input.
  * Must be on the People step.
+ * Type name into "Add a friend or guest..." input, then press Enter.
  */
 export async function addGuestPeopleToBill(page: Page, names: string[]) {
   for (const name of names) {
-    await page.getByRole('button', { name: 'Add Person' }).click();
-    await page.locator('#manual-name').fill(name);
-    await page.getByRole('button', { name: 'Add Guest to Bill' }).click();
+    const searchInput = page.getByPlaceholder('Add a friend or guest...');
+    await searchInput.click();
+    await searchInput.fill(name);
+    // Click the "Add X as guest" option in the dropdown
+    await page.getByText(`Add "${name}" as guest`).click();
+    // Verify the person was added
+    await expect(page.getByText(name).first()).toBeVisible({ timeout: 5000 });
   }
 }
 

@@ -15,7 +15,7 @@ interface InviteMembersDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   event: TripEvent;
-  memberProfiles?: Record<string, any>;
+  memberProfiles?: Record<string, UserProfile>;
 }
 
 export function InviteMembersDialog({ open, onOpenChange, event, memberProfiles }: InviteMembersDialogProps) {
@@ -117,7 +117,7 @@ export function InviteMembersDialog({ open, onOpenChange, event, memberProfiles 
                         <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 mr-3 flex-shrink-0">
                           <User className="h-4 w-4 text-primary" />
                         </div>
-                        
+
                         <div className="flex flex-col flex-1 overflow-hidden">
                           <span className="text-sm font-medium truncate">{user.displayName || user.username}</span>
                           {user.username && (
@@ -132,26 +132,26 @@ export function InviteMembersDialog({ open, onOpenChange, event, memberProfiles 
                 </ScrollArea>
               </div>
             ) : searchInput.trim().length >= 2 && !isSearching ? (
-               <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-md shadow-md flex flex-col items-center justify-center p-4 text-center text-muted-foreground">
-                  {isValidEmail(searchInput) ? (
-                    <div className="w-full flex justify-between items-center px-2">
-                       <span className="text-sm">Invite {searchInput}</span>
-                       <Button size="sm" onClick={handleInviteEmail} disabled={isInviting}>
-                         {isInviting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Invite'}
-                       </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <User className="h-8 w-8 mb-2 opacity-50" />
-                      <p className="text-sm">No users found.</p>
-                      {isEmailInputPattern ? (
-                        <p className="text-xs mt-1 text-destructive">Please enter a valid email address.</p>
-                      ) : (
-                        <p className="text-xs mt-1">Enter a valid email address to invite them.</p>
-                      )}
-                    </>
-                  )}
-               </div>
+              <div className="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-md shadow-md flex flex-col items-center justify-center p-4 text-center text-muted-foreground">
+                {isValidEmail(searchInput) ? (
+                  <div className="w-full flex justify-between items-center px-2">
+                    <span className="text-sm">Invite {searchInput}</span>
+                    <Button size="sm" onClick={handleInviteEmail} disabled={isInviting}>
+                      {isInviting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Invite'}
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <User className="h-8 w-8 mb-2 opacity-50" />
+                    <p className="text-sm">No users found.</p>
+                    {isEmailInputPattern ? (
+                      <p className="text-xs mt-1 text-destructive">Please enter a valid email address.</p>
+                    ) : (
+                      <p className="text-xs mt-1">Enter a valid email address to invite them.</p>
+                    )}
+                  </>
+                )}
+              </div>
             ) : null}
           </div>
 

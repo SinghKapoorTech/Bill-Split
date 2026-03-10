@@ -16,15 +16,12 @@ export function NavigationBar() {
   ];
 
   // Context detection for Quick Expense / New Bill
-  const eventMatch = location.pathname.match(/\/events\/([^\/]+)/);
-  const squadMatch = location.pathname.match(/\/squads\/([^\/]+)/);
-  
-  const eventContext = eventMatch ? { 
+  const eventMatch = location.pathname.match(/\/events\/([^/]+)/);
+  const squadMatch = location.pathname.match(/\/squads\/([^/]+)/);
+
+  const eventContext: { targetEventId: string; targetEventName: string } | undefined = eventMatch ? {
     targetEventId: eventMatch[1],
     targetEventName: '' // Name is hard to get here, but ID is enough for the logic
-  } : squadMatch ? {
-    targetSquadId: squadMatch[1],
-    targetSquadName: ''
   } : undefined;
 
   return (
@@ -38,11 +35,10 @@ export function NavigationBar() {
             <Link
               key={tab.path}
               to={tab.path}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
-                isActive
-                  ? 'bg-primary text-primary-foreground font-semibold'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${isActive
+                ? 'bg-primary text-primary-foreground font-semibold'
+                : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                }`}
             >
               <Icon className="w-4 h-4" />
               <span className="hidden sm:inline">{tab.label}</span>
@@ -51,10 +47,10 @@ export function NavigationBar() {
         })}
       </div>
 
-      <CreateOptionsDialog 
-        open={createDialogOpen} 
-        onOpenChange={setCreateDialogOpen} 
-        eventContext={eventContext as any}
+      <CreateOptionsDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        eventContext={eventContext}
       />
 
       <Button onClick={() => setCreateDialogOpen(true)} className="hidden md:flex gap-2">

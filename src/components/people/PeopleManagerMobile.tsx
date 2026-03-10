@@ -164,7 +164,7 @@ export function PeopleManagerMobile({
                 user && (
                   person.id === user.uid ||
                   person.id === generateUserId(user.uid) ||
-                  (person as any).userId === user.uid
+                  (person as Person & { userId?: string }).userId === user.uid
                 )
               );
               return (

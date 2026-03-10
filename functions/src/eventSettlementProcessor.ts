@@ -64,7 +64,7 @@ function deriveDebtorCreditor(
   return { creditorUid: sorted[1], debtorUid: sorted[0] };
 }
 
-function findPersonId(people: any[], targetUid: string): string | null {
+function findPersonId(people: Array<{ id: string }>, targetUid: string): string | null {
   for (const p of people) {
     if (toUid(p.id) === targetUid) return p.id;
   }

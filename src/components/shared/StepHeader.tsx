@@ -14,7 +14,7 @@ interface StepHeaderProps {
     isAnalyzing?: boolean;
     isMobile?: boolean;
     receiptImageUrl?: string;
-    upload?: any; // useFileUpload hook result
+    upload?: ReturnType<typeof import('@/hooks/useFileUpload').useFileUpload>; // useFileUpload hook result
     onImageSelected?: (fileOrBase64: File | string) => void;
     onAnalyze?: () => void;
     onRemoveImage?: () => void;

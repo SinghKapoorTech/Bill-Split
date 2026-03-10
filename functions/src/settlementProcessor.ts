@@ -67,7 +67,7 @@ function deriveDebtorCreditor(
 /**
  * Finds the bill-local person ID that maps to a given Firebase UID.
  */
-function findPersonId(people: any[], targetUid: string): string | null {
+function findPersonId(people: { id: string }[], targetUid: string): string | null {
   for (const p of people) {
     if (toUid(p.id) === targetUid) return p.id;
   }

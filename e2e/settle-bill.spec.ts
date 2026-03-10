@@ -30,10 +30,11 @@ test.describe('Bill-Level Settlement', () => {
     await expect(totalElements.first()).toBeVisible();
 
     // ── Mark Charlie as settled ──
-    // Find Charlie's card and click "Mark as Settled"
-    const charlieCard = page.locator('.rounded-lg').filter({ hasText: 'Charlie' });
-    const markSettledButton = charlieCard.getByText('Mark as Settled');
-    await markSettledButton.click();
+    // Find Charlie's card and click the compact "Settle" button
+    const charlieCard = page.locator('.rounded-xl').filter({ hasText: 'Charlie' }).first();
+    const settleButton = charlieCard.getByRole('button', { name: 'Settle' });
+    await settleButton.scrollIntoViewIfNeeded();
+    await settleButton.click();
 
     // Verify the green "Settled" badge appears on Charlie's card
     await expect(charlieCard.getByText('Settled')).toBeVisible({ timeout: 5000 });

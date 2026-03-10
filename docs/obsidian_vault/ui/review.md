@@ -1,6 +1,6 @@
 ---
 title: Bill-Split Review Flow
-date: 2026-02-20
+date: 2026-03-09
 tags: [architecture, ui, feature, review, venmo, bill-split]
 ---
 
@@ -71,16 +71,26 @@ The Review step no longer manages complex ledger math directly. Under the new **
 - `VenmoChargeDialog.tsx`: The modal that facilitates the deep link or API call to Venmo.
 - `ProfileSettings.tsx`: Invoked dynamically if the user is missing prerequisite profile data.
 
-## 6. Mark as Settled Flow
+## 6. Settle Flow
 
-On the review page or the collaborative session view, the person who created the bill can manually check off users to mark their portion of the bill as "Settled".
+On the review page (and the collaborative session view), the bill creator can mark individual participants as settled.
 
-### User Interface Interaction
-- **Active State:** When marked as settled, the user's card background turns green and displays a checkmark.
-- **Toggle Action:** Tapping the card triggers `handleMarkAsSettled(personId, isSettled)`.
+### User Interface
+
+Each person is shown in a compact `PersonCompactRow` card (`.rounded-xl`):
+- **Settle button**: A small pill-shaped button on each non-owner row. Visible when the person has not yet settled.
+- **Settled badge**: When a person is marked settled, their row shows a green **"Settled"** badge in place of their amount owed.
+- **Undo Settle button**: Appears next to the Settled badge, allowing the creator to reverse a settlement.
+
+Example flow:
+```
+Alice  $12.50  [Settle]
+  ↓ click Settle
+Alice  🟢 Settled  [Undo Settle]
+```
 
 ### How the Pipeline Handles It
-- Marking a person as settled simply pushes their `personId` into the `settledPersonIds` array on the Firestore bill document.
+- Marking a person as settled pushes their `personId` into the `settledPersonIds` array on the Firestore bill document.
 - The backend `ledgerProcessor` Cloud Function detects this modification and re-runs.
-- Because they are now in the `settledPersonIds` array, the server calculates their debt on the bill as `$0`.
+- Because they are in `settledPersonIds`, the server calculates their debt as `$0`.
 - The server reverses their old footprint and safely applies the new `$0` footprint to the global ledger, instantly marking them paid without any complex client-side logic.

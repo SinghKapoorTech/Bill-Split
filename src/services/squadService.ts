@@ -156,11 +156,11 @@ export async function saveSquad(userId: string, input: CreateSquadInput): Promis
       const identifier = member.email || member.phoneNumber || member.venmoId; // VenmoID valid identifier? Maybe not for auth, but let's assume valid for now if we want to support it. 
       // Actually, userService.resolveUser checks getUserByContact which checks email/phone. VenmoID isn't indexed there yet. 
       // Let's assume input has email/phone as valid identifiers.
-      
+
       if (identifier) {
         return userService.resolveUser(identifier, member.name);
       }
-      
+
       // Fallback: If no identifier, create a shadow user with just the name? 
       // This might create duplicates easily. But necessary if user only provides name.
       // But user requirement says "put in their email/phonenumber".
@@ -221,37 +221,37 @@ export async function updateSquad(userId: string, squadId: string, updates: Upda
   try {
     const squadRef = doc(db, 'squads', squadId);
     const squadDoc = await getDoc(squadRef);
-    
+
     if (!squadDoc.exists()) throw new Error("Squad not found");
     const currentMemberIds = squadDoc.data().memberIds || [];
-    
-    const updateData: any = {
+
+    const updateData: Record<string, unknown> = {
       updatedAt: Timestamp.now()
     };
 
     if (updates.name) updateData.name = updates.name.trim();
     if (updates.description !== undefined) updateData.description = updates.description?.trim();
-    
+
     let newMemberIds = currentMemberIds;
 
     if (updates.members) {
-       const memberIdPromises = updates.members.map(async (member) => {
-          if (member.id) return member.id;
-          const identifier = member.email || member.phoneNumber;
-          if (identifier) {
-            return userService.resolveUser(identifier, member.name);
-          }
-          return userService.createShadowUser(member.name, member.name);
-        });
-        newMemberIds = await Promise.all(memberIdPromises);
-        
-        // Add squad to new members, remove from removed members
-        // This is complex in a single `updateSquad` call without batching properly or transactions.
-        // For simplicity, we'll just update the squad doc memberIds list. 
-        // Ideally we should sync the `users` collections too.
-        // Let's do a best-effort sync.
-        
-        updateData.memberIds = newMemberIds;
+      const memberIdPromises = updates.members.map(async (member) => {
+        if (member.id) return member.id;
+        const identifier = member.email || member.phoneNumber;
+        if (identifier) {
+          return userService.resolveUser(identifier, member.name);
+        }
+        return userService.createShadowUser(member.name, member.name);
+      });
+      newMemberIds = await Promise.all(memberIdPromises);
+
+      // Add squad to new members, remove from removed members
+      // This is complex in a single `updateSquad` call without batching properly or transactions.
+      // For simplicity, we'll just update the squad doc memberIds list. 
+      // Ideally we should sync the `users` collections too.
+      // Let's do a best-effort sync.
+
+      updateData.memberIds = newMemberIds;
     }
 
     // Atomically update squad doc + sync all member profiles in one batch
@@ -259,19 +259,19 @@ export async function updateSquad(userId: string, squadId: string, updates: Upda
     batch.update(squadRef, updateData);
 
     if (updates.members) {
-        const addedMembers = newMemberIds.filter((id: string) => !currentMemberIds.includes(id));
-        const removedMembers = currentMemberIds.filter((id: string) => !newMemberIds.includes(id));
+      const addedMembers = newMemberIds.filter((id: string) => !currentMemberIds.includes(id));
+      const removedMembers = currentMemberIds.filter((id: string) => !newMemberIds.includes(id));
 
-        for (const id of addedMembers) {
-          if (id.startsWith('guest_')) continue;
-          const userRef = doc(db, 'users', id);
-          batch.update(userRef, { squadIds: arrayUnion(squadId) });
-        }
-        for (const id of removedMembers) {
-          if (id.startsWith('guest_')) continue;
-          const userRef = doc(db, 'users', id);
-          batch.update(userRef, { squadIds: arrayRemove(squadId) });
-        }
+      for (const id of addedMembers) {
+        if (id.startsWith('guest_')) continue;
+        const userRef = doc(db, 'users', id);
+        batch.update(userRef, { squadIds: arrayUnion(squadId) });
+      }
+      for (const id of removedMembers) {
+        if (id.startsWith('guest_')) continue;
+        const userRef = doc(db, 'users', id);
+        batch.update(userRef, { squadIds: arrayRemove(squadId) });
+      }
     }
 
     await batch.commit();
@@ -293,7 +293,7 @@ export async function deleteSquad(userId: string, squadId: string): Promise<void
     const squadRef = doc(db, 'squads', squadId);
     const squadDoc = await getDoc(squadRef);
     if (!squadDoc.exists()) return;
-    
+
     const memberIds = squadDoc.data().memberIds || [];
 
     // Atomically delete squad doc + remove squadId from all member profiles
@@ -324,7 +324,7 @@ export async function getSquadById(userId: string, squadId: string): Promise<Hyd
   try {
     const squadRef = doc(db, 'squads', squadId);
     const squadDoc = await getDoc(squadRef);
-    
+
     if (!squadDoc.exists()) {
       return null;
     }

@@ -26,7 +26,7 @@ export function useShareSession() {
     try {
       const ownerId = user?.uid || 'anonymous';
       const ownerName = user?.displayName || 'Anonymous';
-      
+
       // Create a new bill
       const billId = await billService.createBill(
         ownerId,
@@ -94,11 +94,11 @@ export function useShareSession() {
         );
 
         // Update additional fields that createBill doesn't handle directly
-        const updates: any = {
+        const updates: Partial<Bill> = {
           itemAssignments: privateSession.itemAssignments || {},
           splitEvenly: privateSession.splitEvenly || false,
         };
-        
+
         // Only include receipt fields if they exist
         if (privateSession.receiptImageUrl) {
           updates.receiptImageUrl = privateSession.receiptImageUrl;
@@ -106,7 +106,7 @@ export function useShareSession() {
         if (privateSession.receiptFileName) {
           updates.receiptFileName = privateSession.receiptFileName;
         }
-        
+
         await billService.updateBill(billId, updates);
 
         // Generate share code

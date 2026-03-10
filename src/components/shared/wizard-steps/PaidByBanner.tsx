@@ -35,7 +35,7 @@ export function PaidByBanner({
         </SelectTrigger>
         <SelectContent>
           {people.map((person: Person) => {
-            const isMe = person.id === user?.uid || (person as any).userId === user?.uid || person.id === `user-${user?.uid}`;
+            const isMe = person.id === user?.uid || (person as Person & { userId?: string }).userId === user?.uid || person.id === `user-${user?.uid}`;
             const optionValue = isMe && user ? user.uid : person.id;
 
             return (

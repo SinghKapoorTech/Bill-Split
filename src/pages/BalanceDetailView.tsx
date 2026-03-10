@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBills } from '@/hooks/useBills';
 import { userService } from '@/services/userService';
+import { Bill } from '@/types/bill.types';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
 import { useBillContext } from '@/contexts/BillSessionContext';
@@ -15,14 +16,14 @@ export default function BalanceDetailView() {
   const { user } = useAuth();
   const { activeSession, savedSessions, isLoadingSessions } = useBills();
   const [targetUserName, setTargetUserName] = useState<string>('Friend');
-  
+
   const {
     isDeleting,
     isResuming,
     deleteSession,
     resumeSession
   } = useBillContext();
-  
+
   useEffect(() => {
     if (!targetUserId) return;
     userService.getUserProfile(targetUserId).then(profile => {
@@ -43,10 +44,10 @@ export default function BalanceDetailView() {
     ...savedSessions
   ].filter(bill => {
     if (eventId && bill.eventId !== eventId) return false;
-    
+
     // We only want bills where the target user was a participant.
-    const isTargetParticipant = bill.participantIds?.includes(targetUserId || '') || 
-                               bill.people?.some(p => p.id === targetUserId || p.id === `user-${targetUserId}`);
+    const isTargetParticipant = bill.participantIds?.includes(targetUserId || '') ||
+      bill.people?.some(p => p.id === targetUserId || p.id === `user-${targetUserId}`);
     if (!isTargetParticipant) return false;
 
     // Filter out settled bills
@@ -94,17 +95,17 @@ export default function BalanceDetailView() {
     }
   };
 
-  const handleDeleteBill = async (bill: any) => {
+  const handleDeleteBill = async (bill: Bill) => {
     await deleteSession(bill.id, bill.receiptFileName);
   };
 
-  const formatDate = (timestamp: any) => {
+  const formatDate = (timestamp: { toDate: () => Date } | null | undefined) => {
     if (!timestamp) return 'Unknown date';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const date = timestamp.toDate();
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const getBillTitle = (bill: any) => {
+  const getBillTitle = (bill: Bill) => {
     return bill.title || bill.billData?.restaurantName || formatDate(bill.createdAt);
   };
 

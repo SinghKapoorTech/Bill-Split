@@ -4,7 +4,7 @@ import { PeopleStepBase } from '@/components/shared/wizard-steps/PeopleStepBase'
 interface PeopleStepProps {
   people: Person[];
   setPeople: (people: Person[]) => void;
-  peopleManager: any; // Return type of usePeopleManager
+  peopleManager: ReturnType<typeof import('@/hooks/usePeopleManager').usePeopleManager>; // Return type of usePeopleManager
   isMobile: boolean;
   paidById: string;
   setPaidById: (val: string) => void;
@@ -33,6 +33,13 @@ export function PeopleStep({
   eventId,
   onEventChange
 }: PeopleStepProps) {
+  const handleUpdatePerson = async (personId: string, updates: Partial<Person>) => {
+    const updatedPeople = people.map(p =>
+      p.id === personId ? { ...p, ...updates } : p
+    );
+    setPeople(updatedPeople);
+  };
+
   return (
     <div className="flex flex-col gap-6 p-0 max-w-md mx-auto">
       <PeopleStepBase
@@ -45,7 +52,7 @@ export function PeopleStep({
         onAdd={peopleManager.addPerson}
         onAddFromFriend={peopleManager.addFromFriend}
         onRemove={peopleManager.removePerson}
-        onUpdate={peopleManager.updatePerson}
+        onUpdate={handleUpdatePerson}
         onSaveAsFriend={peopleManager.savePersonAsFriend}
         paidById={paidById}
         onPaidByChange={setPaidById}

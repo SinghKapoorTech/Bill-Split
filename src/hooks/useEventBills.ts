@@ -48,7 +48,7 @@ export function useEventBills(eventId: string) {
     return () => unsubscribe();
   }, [eventId, user]);
 
-  const createTransaction = useCallback(async (data: any) => {
+  const createTransaction = useCallback(async (data: Partial<Bill>) => {
     if (!user || !eventId) throw new Error('User or event not specified.');
 
     const billId = await billService.createBill(
@@ -61,7 +61,7 @@ export function useEventBills(eventId: string) {
     );
 
     if (data.itemAssignments || data.splitEvenly || data.receiptImageUrl || data.receiptFileName) {
-      const updates: any = {};
+      const updates: Partial<Bill> = {};
       if (data.itemAssignments) updates.itemAssignments = data.itemAssignments;
       if (data.splitEvenly !== undefined) updates.splitEvenly = data.splitEvenly;
       if (data.receiptImageUrl) updates.receiptImageUrl = data.receiptImageUrl;

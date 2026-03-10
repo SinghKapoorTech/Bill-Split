@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Login Flow', () => {
+  // This test checks the unauthenticated UI — override the global storageState
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test('navigates from landing page to auth page and shows Google sign-in', async ({ page }) => {
     // 1. Go to the landing page
     await page.goto('/');

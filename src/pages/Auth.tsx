@@ -40,7 +40,7 @@ const Auth = () => {
 
     try {
       await signInWithGoogle();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Auth] Sign-in error:', error);
     } finally {
       setIsSigningIn(false);

@@ -33,7 +33,7 @@ async function generateUniqueUsername(name: string): Promise<string> {
   while (!isUnique) {
     const q = query(usersRef, where('username', '==', username), limit(1));
     const snapshot = await getDocs(q);
-    
+
     if (snapshot.empty) {
       isUnique = true;
     } else {
@@ -87,7 +87,7 @@ export const userService = {
       await setDoc(userRef, newProfile);
     } else {
       // Update last login and basic info
-      const updates: any = {
+      const updates: Record<string, unknown> = {
         lastLoginAt: now,
         // Update basic info if changed
         email: user.email || '',
@@ -110,11 +110,11 @@ export const userService = {
    */
   async getUserByContact(contact: string): Promise<UserProfile | null> {
     const usersRef = collection(db, USERS_COLLECTION);
-    
+
     // Try by email
     const emailQuery = query(usersRef, where('email', '==', contact), limit(1));
     const emailSnap = await getDocs(emailQuery);
-    
+
     if (!emailSnap.empty) {
       return emailSnap.docs[0].data() as UserProfile;
     }
@@ -136,20 +136,20 @@ export const userService = {
    */
   async searchUsersByUsername(queryStr: string): Promise<UserProfile[]> {
     if (!queryStr || queryStr.length < 2) return [];
-    
+
     // Normalize query string (assuming usernames are lowercase)
     const normalizedQuery = queryStr.trim().toLowerCase();
-    
+
     const usersRef = collection(db, USERS_COLLECTION);
-    
+
     // Firestore prefix query pattern: field >= query and field <= query + '\uf8ff'
     const q = query(
-      usersRef, 
-      where('username', '>=', normalizedQuery), 
+      usersRef,
+      where('username', '>=', normalizedQuery),
       where('username', '<=', normalizedQuery + '\uf8ff'),
       limit(5)
     );
-    
+
     try {
       const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => doc.data() as UserProfile);
@@ -168,12 +168,12 @@ export const userService = {
     if (!userProfile || !userProfile.friends || userProfile.friends.length === 0) return [];
 
     // Handle legacy data: user.friends might be string[] OR legacy [{userId, balance}] objects.
-    const friendIds: string[] = (userProfile.friends as any[])
+    const friendIds: string[] = (userProfile.friends as Array<string | { userId?: string; id?: string }>)
       .map(f => typeof f === 'string' ? f : (f.userId || f.id))
-      .filter(Boolean);
+      .filter(Boolean) as string[];
 
     const balanceMap: Record<string, number> = {};
-    
+
     if (includeBalances) {
       // Fetch all balance documents for this user in one query
       const balancesRef = collection(db, 'friend_balances');
@@ -234,7 +234,7 @@ export const userService = {
    */
   async createShadowUser(contact: string, name?: string): Promise<string> {
     const usersRef = collection(db, USERS_COLLECTION);
-    
+
     // Check if user already exists with this contact to avoid duplicates
     const existingUser = await this.getUserByContact(contact);
     if (existingUser) {
@@ -243,11 +243,11 @@ export const userService = {
 
     const newUserId = doc(usersRef).id; // Auto-generate ID
     const now = Timestamp.now();
-    
+
     const isEmail = contact.includes('@');
     const username = await generateUniqueUsername(name || (isEmail ? contact.split('@')[0] : 'user'));
-    
-    const newProfile: any = {
+
+    const newProfile: Partial<UserProfile> & { isShadow: boolean } = {
       uid: newUserId,
       displayName: name || contact,
       username,

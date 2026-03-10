@@ -162,7 +162,7 @@ export function PeopleManager({
         {people.length > 0 ? (
           <div className="space-y-2 mb-4">
             {people.map((person) => {
-              const isCurrentUser = Boolean(user && (person.id === user.uid || person.id === generateUserId(user.uid) || (person as any).userId === user.uid));
+              const isCurrentUser = Boolean(user && (person.id === user.uid || person.id === generateUserId(user.uid) || (person as Person & { userId?: string }).userId === user.uid));
               return (
                 <div key={person.id} className="rounded-2xl border border-border/40 bg-card/60 backdrop-blur-md shadow-sm transition-all hover:shadow-md overflow-hidden">
                   <PersonCard

@@ -13,7 +13,7 @@ interface PeopleStepProps {
     onNameChange: (name: string) => void;
     onVenmoIdChange: (id: string) => void;
     onAdd: (name?: string, venmoId?: string) => void;
-    onAddFromFriend: (friend: any) => void;
+    onAddFromFriend: (friend: { id?: string; name: string; venmoId?: string }) => void;
     onRemove: (personId: string) => void;
     onUpdate: (personId: string, updates: Partial<Person>) => Promise<void>;
     onSaveAsFriend: (person: Person) => void;
@@ -42,7 +42,7 @@ interface PeopleStepProps {
 
     // Utility
     isMobile: boolean;
-    upload: any; // useFileUpload hook result
+    upload: ReturnType<typeof import('@/hooks/useFileUpload').useFileUpload>; // useFileUpload hook result
 
     // Event info
     eventId?: string | null;

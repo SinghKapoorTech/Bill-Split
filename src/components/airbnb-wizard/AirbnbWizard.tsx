@@ -18,12 +18,13 @@ import { usePeopleManager } from '@/hooks/usePeopleManager';
 import { useBillSplitter } from '@/hooks/useBillSplitter';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Person, BillData, ItemAssignment } from '@/types';
+import { Bill } from '@/types/bill.types';
 import { Step } from '@/components/bill-wizard/types';
 
 interface AirbnbWizardProps {
-    activeSession: any;
+    activeSession: Bill | null;
     billId?: string;
-    saveSession: (data: any, id?: string) => Promise<string | null | void>;
+    saveSession: (data: Partial<Bill>, id?: string) => Promise<string | null | void>;
     deleteSession?: (id: string) => Promise<void>;
     initialBillData: BillData | null;
     initialPeople: Person[];
@@ -234,7 +235,7 @@ export function AirbnbWizard({
         }
     };
 
-    const handleAtomicAddFromFriend = (friend: any) => {
+    const handleAtomicAddFromFriend = (friend: { id?: string; name: string; venmoId?: string }) => {
         const newPerson = peopleManager.addFromFriend(friend);
         if (newPerson) {
             const id = billId || activeSession?.id;

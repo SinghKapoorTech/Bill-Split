@@ -43,8 +43,8 @@ interface AssignmentStepProps {
 
     // Utility
     isMobile: boolean;
-    upload: any;
-    onTriggerSave?: (options?: { overrideData?: Partial<any>, forceSave?: boolean }) => void;
+    upload: ReturnType<typeof import('@/hooks/useFileUpload').useFileUpload>;
+    onTriggerSave?: (options?: { overrideData?: Partial<import('@/types/bill.types').Bill>; forceSave?: boolean }) => void;
 }
 
 /**

@@ -13,7 +13,7 @@ export function SettlementHistoryCard() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { friends, isLoadingFriends } = useFriendsEditor();
-  
+
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [loading, setLoading] = useState(true);
   const [reversingId, setReversingId] = useState<string | null>(null);
@@ -24,10 +24,10 @@ export function SettlementHistoryCard() {
     try {
       const data = await settlementService.getSettlementsForUser(user.uid);
       setSettlements(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error loading history',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     } finally {
@@ -48,10 +48,10 @@ export function SettlementHistoryCard() {
         description: `Successfully restored ${result.billsReversed} bill(s).`,
       });
       fetchSettlements();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error reversing settlement',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     } finally {
@@ -62,7 +62,7 @@ export function SettlementHistoryCard() {
   const getFriendName = (otherUserId: string) => {
     if (isLoadingFriends) return 'Loading...';
     // The `friends` array comes from `useFriendsEditor`. The `id` property normally maps to `uid`.
-    const friend = friends.find((f: any) => f.id === otherUserId || f.userId === otherUserId);
+    const friend = friends.find((f: { id?: string; userId?: string; name?: string }) => f.id === otherUserId || f.userId === otherUserId);
     return friend?.name || 'Unknown Friend';
   };
 
@@ -73,8 +73,8 @@ export function SettlementHistoryCard() {
           <History className="w-5 h-5 md:w-6 md:h-6 text-primary" />
           <h2 className="text-xl md:text-2xl font-semibold">Settlement History</h2>
         </div>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           size="sm"
           onClick={fetchSettlements}
           disabled={loading || reversingId !== null}
@@ -99,9 +99,9 @@ export function SettlementHistoryCard() {
               const isPayer = settlement.fromUserId === user?.uid;
               const otherUserId = isPayer ? settlement.toUserId : settlement.fromUserId;
               const otherUserName = getFriendName(otherUserId);
-              
+
               return (
-                <div 
+                <div
                   key={settlement.id}
                   className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 bg-secondary/30 rounded-lg border border-border transition-all gap-3"
                 >
@@ -124,13 +124,13 @@ export function SettlementHistoryCard() {
                       {settlement.settledBillIds?.length || 0} bill(s)
                     </p>
                   </div>
-                  
+
                   <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
                     <p className={`font-semibold text-lg ${isPayer ? 'text-green-500' : 'text-red-500'}`}>
                       {/* Usually, when you pay, you lose money, but standardly we show amount transferred */}
                       ${(settlement.amount || 0).toFixed(2)}
                     </p>
-                    
+
                     <Button
                       variant="outline"
                       size="sm"

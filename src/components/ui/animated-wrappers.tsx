@@ -28,7 +28,7 @@ export const AnimatedButtonWrapper = forwardRef<HTMLDivElement, AnimatedButtonWr
         if (disabled) {
             // No animation when disabled
             return (
-                <div ref={ref} className={className} {...props as any}>
+                <div ref={ref} className={className} {...(props as unknown as React.HTMLAttributes<HTMLDivElement>)}>
                     {children}
                 </div>
             );

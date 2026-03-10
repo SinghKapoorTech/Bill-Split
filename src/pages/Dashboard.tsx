@@ -112,13 +112,14 @@ export default function Dashboard() {
 
       // Navigate to the newly created bill
       navigate(`/bill/${billId}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating new bill:', error);
-      console.error('Error message:', error?.message);
-      console.error('Error code:', error?.code);
+      const err = error as { message?: string; code?: string };
+      console.error('Error message:', err?.message);
+      console.error('Error code:', err?.code);
       toast({
         title: 'Error',
-        description: error?.message || 'Failed to create new bill. Please try again.',
+        description: err?.message || 'Failed to create new bill. Please try again.',
         variant: 'destructive'
       });
     } finally {
@@ -162,9 +163,9 @@ export default function Dashboard() {
     }
   };
 
-  const formatDate = (timestamp: any) => {
+  const formatDate = (timestamp: { toDate: () => Date } | null | undefined) => {
     if (!timestamp) return 'Unknown date';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const date = timestamp.toDate();
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 

@@ -8,7 +8,7 @@
 const isNative = (): boolean => {
     return typeof window !== 'undefined' &&
         'Capacitor' in window &&
-        (window as any).Capacitor?.isNativePlatform?.();
+        (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
 };
 
 // Haptic impact styles
@@ -16,7 +16,8 @@ export type HapticStyle = 'light' | 'medium' | 'heavy';
 export type NotificationType = 'success' | 'warning' | 'error';
 
 // Lazy load Capacitor Haptics plugin
-let hapticsModule: any = null;
+type HapticsModule = typeof import('@capacitor/haptics');
+let hapticsModule: HapticsModule | null = null;
 
 async function getHaptics() {
     if (!isNative()) return null;

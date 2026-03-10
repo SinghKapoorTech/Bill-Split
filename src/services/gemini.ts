@@ -42,14 +42,15 @@ export async function analyzeBillImage(base64Image: string): Promise<BillData> {
     const result = await analyzeBill({ base64Image });
 
     return result.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error analyzing bill:', error);
 
     // Handle Firebase Functions errors
     if (error && typeof error === 'object') {
       // Check for specific error codes
-      const code = error.code;
-      const message = error.message;
+      const typedError = error as { code?: string; message?: string };
+      const code = typedError.code;
+      const message = typedError.message;
 
       if (code === 'unauthenticated') {
         throw new Error('Please sign in to analyze receipts');

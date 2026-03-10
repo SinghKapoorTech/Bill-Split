@@ -13,7 +13,7 @@ interface AirbnbGuestsStepProps {
     onAdd: (name?: string, venmoId?: string) => void;
     onRemove: (id: string) => void;
     onUpdate: (id: string, updates: Partial<Person>) => void;
-    onAddFromFriend: (friend: any) => void;
+    onAddFromFriend: (friend: { id?: string; name: string; venmoId?: string }) => void;
     onNext: () => void;
     onPrev: () => void;
     canProceed: boolean;

@@ -84,7 +84,7 @@ export async function processSettlementReversalCore(
       const unsettlingUid = creditorUid === toUserId ? fromUserId : toUserId;
 
       const person = (bill.people || []).find(
-        (p: any) => personIdToFirebaseUid(p.id) === unsettlingUid
+        (p: { id: string }) => personIdToFirebaseUid(p.id) === unsettlingUid
       );
       if (!person) continue;
 

@@ -253,8 +253,8 @@ export const billService = {
         const settledPersonIds = new Set<string>(billData?.settledPersonIds || []);
         const settledUids = new Set<string>(
           (billData?.people || [])
-            .filter((p: any) => settledPersonIds.has(p.id))
-            .map((p: any) => p.id.startsWith('user-') ? p.id.slice(5) : p.id)
+            .filter((p: Person) => settledPersonIds.has(p.id))
+            .map((p: Person) => p.id.startsWith('user-') ? p.id.slice(5) : p.id)
         );
         const unsettledDerived = derived.filter(uid => !settledUids.has(uid));
         updates = { ...updates, participantIds: derived, unsettledParticipantIds: unsettledDerived };
@@ -451,7 +451,7 @@ export const billService = {
       const members = billData.members || [];
       const memberIndex = members.findIndex(m => m.userId === personId);
 
-      const updatePayload: any = {
+      const updatePayload: { people: Person[]; updatedAt: ReturnType<typeof serverTimestamp>; lastActivity: ReturnType<typeof serverTimestamp>; members?: BillMember[] } = {
         people: updatedPeople,
         updatedAt: serverTimestamp(),
         lastActivity: serverTimestamp()

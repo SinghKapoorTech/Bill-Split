@@ -88,8 +88,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Custom auth state implementation with timeout (replaces useAuthState hook)
   useEffect(() => {
     // Dev-only: allow test user injection for E2E tests
-    if (import.meta.env.DEV && (window as any).__TEST_USER__) {
-      setUser((window as any).__TEST_USER__ as User);
+    if (import.meta.env.DEV && (window as { __TEST_USER__?: unknown }).__TEST_USER__) {
+      setUser((window as { __TEST_USER__?: unknown }).__TEST_USER__ as User);
       setLoading(false);
       return;
     }
@@ -161,21 +161,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           description: 'Successfully signed in with Google.',
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Auth] Sign-in error:', error);
+      const typedError = error as { code?: string; message?: string };
 
       // Handle user cancellation gracefully
       if (
-        error.code === 'auth/cancelled-popup-request' ||
-        error.code === 'auth/popup-closed-by-user' ||
-        error.message?.includes('cancel')
+        typedError.code === 'auth/cancelled-popup-request' ||
+        typedError.code === 'auth/popup-closed-by-user' ||
+        typedError.message?.includes('cancel')
       ) {
         return; // Don't show error toast for cancellation
       }
 
       toast({
         title: 'Sign in failed',
-        description: error.message || 'Could not sign in with Google. Please try again.',
+        description: typedError.message || 'Could not sign in with Google. Please try again.',
         variant: 'destructive',
       });
     }
@@ -188,11 +189,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         title: 'Signed out',
         description: 'You have been signed out successfully.',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error signing out:', error);
       toast({
         title: 'Sign out failed',
-        description: error.message || 'Could not sign out. Please try again.',
+        description: (error as Error).message || 'Could not sign out. Please try again.',
         variant: 'destructive',
       });
     }

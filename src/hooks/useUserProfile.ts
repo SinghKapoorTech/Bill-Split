@@ -42,7 +42,7 @@ export function useUserProfile() {
         // The onSnapshot will fire again after the setDoc, no need to setState here
       }
       setLoading(false);
-    }, (error: any) => {
+    }, (error: Error) => {
       console.error('Error listening to profile:', error);
       toast({
         title: 'Error loading profile',
@@ -72,11 +72,11 @@ export function useUserProfile() {
         title: 'Venmo ID saved',
         description: 'Your Venmo ID has been updated successfully.',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating Venmo ID:', error);
       toast({
         title: 'Error updating Venmo ID',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     }
@@ -87,7 +87,7 @@ export function useUserProfile() {
 
     try {
       const docRef = doc(db, 'users', user.uid);
-      
+
       // Store only the Firebase UIDs — balances live in friend_balances collection
       const friendIds: string[] = friends.map(f => f.id!).filter(Boolean);
 
@@ -100,11 +100,11 @@ export function useUserProfile() {
         title: 'Friends saved',
         description: 'Your friends list has been updated successfully.',
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating friends:', error);
       toast({
         title: 'Error updating friends',
-        description: error.message,
+        description: (error as Error).message,
         variant: 'destructive',
       });
     }
