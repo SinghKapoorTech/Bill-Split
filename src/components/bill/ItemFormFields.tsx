@@ -50,7 +50,7 @@ export function ItemFormFields({
             value={itemName}
             onChange={(e) => onNameChange(e.target.value)}
             onKeyPress={(e) => handleKeyPress(e, !!canSubmit)}
-            className="h-8"
+            className="h-8 text-base md:text-sm"
           />
         </TableCell>
         <TableCell className="text-right">
@@ -65,7 +65,7 @@ export function ItemFormFields({
               value={itemPrice}
               onChange={(e) => onPriceChange(e.target.value)}
               onKeyPress={(e) => handleKeyPress(e, !!canSubmit)}
-              className="h-8 text-right pl-5"
+              className="h-8 text-right pl-5 text-base md:text-sm"
               step="0.01"
               min="0"
             />
@@ -108,7 +108,7 @@ export function ItemFormFields({
             value={itemName}
             onChange={(e) => onNameChange(e.target.value)}
             onKeyPress={(e) => handleKeyPress(e, !!canSubmit)}
-            className="text-sm h-9"
+            className="text-base md:text-sm h-9"
           />
         </div>
         <div className="w-24 md:w-full">
@@ -126,7 +126,7 @@ export function ItemFormFields({
               value={itemPrice}
               onChange={(e) => onPriceChange(e.target.value)}
               onKeyPress={(e) => handleKeyPress(e, !!canSubmit)}
-              className="text-sm h-9 text-right pl-6"
+              className="text-base md:text-sm h-9 text-right pl-6"
               step="0.01"
               min="0"
             />

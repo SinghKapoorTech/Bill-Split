@@ -98,7 +98,7 @@ export function ShareLinkDialog({
           <div className="space-y-2">
             <label className="text-sm font-medium">Share Link</label>
             <div className="flex gap-2">
-              <Input value={shareUrl} readOnly className="text-sm" />
+              <Input value={shareUrl} readOnly className="text-base md:text-sm" />
               <Button
                 variant="outline"
                 size="icon"
