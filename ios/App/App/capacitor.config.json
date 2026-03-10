@@ -24,6 +24,7 @@
 		"AppPlugin",
 		"CAPCameraPlugin",
 		"FilesystemPlugin",
+		"HapticsPlugin",
 		"SplashScreenPlugin",
 		"StatusBarPlugin"
 	]

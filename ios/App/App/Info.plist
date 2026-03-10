@@ -64,5 +64,7 @@
 	<string>Bill Split saves receipt images for later analysis</string>
 	<key>GIDClientID</key>
 	<string>162777511812-2dps8kd79tucfc5si56act9lanueshcl.apps.googleusercontent.com</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
