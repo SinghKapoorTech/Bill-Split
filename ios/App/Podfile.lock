@@ -12,9 +12,8 @@ PODS:
   - CapacitorCamera (7.0.2):
     - Capacitor
   - CapacitorCordova (7.4.3)
-  - CapacitorFilesystem (7.1.4):
+  - CapacitorFilesystem (6.0.4):
     - Capacitor
-    - IONFilesystemLib (~> 1.0.1)
   - CapacitorFirebaseAuthentication (7.3.1):
     - Capacitor
     - CapacitorFirebaseAuthentication/Lite (= 7.3.1)
@@ -80,7 +79,6 @@ PODS:
     - AppAuth/Core (~> 1.7)
     - GTMSessionFetcher/Core (< 4.0, >= 3.3)
   - GTMSessionFetcher/Core (3.5.0)
-  - IONFilesystemLib (1.0.1)
   - RecaptchaInterop (100.0.0)
 
 DEPENDENCIES:
@@ -108,7 +106,6 @@ SPEC REPOS:
     - GoogleUtilities
     - GTMAppAuth
     - GTMSessionFetcher
-    - IONFilesystemLib
     - RecaptchaInterop
 
 EXTERNAL SOURCES:
@@ -137,7 +134,7 @@ SPEC CHECKSUMS:
   CapacitorApp: 26587c2ce485d88ddb39adb21cac64f8e481afe3
   CapacitorCamera: f9e54db0a18bb218a8dc360907d63aaefe9209ff
   CapacitorCordova: 435121e81a2df4d0034f0fb11fcefab5104cfdb5
-  CapacitorFilesystem: f9bd850c41e048180e5dc0cbb90f2033ede9d2cc
+  CapacitorFilesystem: 5b9aec35c0212bd0064e26d278c93e925864f212
   CapacitorFirebaseAuthentication: d966e29421168f94621b8df9bc8ddf602b261fc7
   CapacitorHaptics: 4df2c625445cef39b67ea635a21802bc92df3b82
   CapacitorSplashScreen: e388b8e0ed0e982a9d3a40417f478e7a018a8763
@@ -152,7 +149,6 @@ SPEC CHECKSUMS:
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   GTMAppAuth: f69bd07d68cd3b766125f7e072c45d7340dea0de
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
-  IONFilesystemLib: 89258b8e3e85465da93127d25d7ce37f977e8a6f
   RecaptchaInterop: 7d1a4a01a6b2cb1610a47ef3f85f0c411434cb21
 
 PODFILE CHECKSUM: a2aa22b17aacca68bd1e8b765495441ab4d27c6d
