@@ -15,7 +15,7 @@
     "build:mobile": "npm run build && cap sync android",
     "ios": "npm run build && cap sync && cap open ios",
     "android": "npm run build:mobile && cap open android",
-    "ci:ios": "npm run build && npx cap sync ios && cd ios/App && pod install"
+    "ci:ios": "npm run build && npx cap sync ios && cd ios/App && pod install && cd .. && npm run cap:ios"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^7.3.1",
