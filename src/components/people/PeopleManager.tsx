@@ -5,7 +5,6 @@ import { Person } from '@/types';
 import { PersonCard } from './PersonCard';
 import { AddPersonDialog } from './AddPersonDialog';
 import { AddFromFriendsDialog } from './AddFromFriendsDialog';
-import { UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AddFromSquadDialog } from '@/components/squads/AddFromSquadDialog';
 import { useAuth } from '@/contexts/AuthContext';
@@ -160,9 +159,11 @@ export function PeopleManager({
       )}
 
       {people.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-3">
-          Add people to start splitting the bill
-        </p>
+        <div className="text-center py-6">
+          <Users className="w-10 h-10 mx-auto text-muted-foreground/30 mb-2" />
+          <p className="text-sm text-muted-foreground mb-1">No one here yet</p>
+          <p className="text-xs text-muted-foreground/70">Add friends, a squad, or someone new below</p>
+        </div>
       )}
 
       {/* Bottom add row */}
@@ -183,7 +184,7 @@ export function PeopleManager({
                          transition-colors cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
-              Add another person
+              {people.length > 0 ? 'Add another person' : 'Add a person'}
             </button>
           }
         />
@@ -193,12 +194,14 @@ export function PeopleManager({
         open={friendsDialogOpen}
         onOpenChange={setFriendsDialogOpen}
         onAddPerson={onAddFromFriend}
+        addedPeople={people}
       />
 
       <AddFromSquadDialog
         open={squadDialogOpen}
         onOpenChange={setSquadDialogOpen}
         onAddSquad={handleAddSquad}
+        addedPeople={people}
       />
 
       {children}

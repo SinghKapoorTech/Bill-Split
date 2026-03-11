@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Heart, Trash2, Edit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Person } from '@/types';
+import { getInitials } from '@/utils/nameUtils';
 import { UserVenmoIdEditor } from './UserVenmoIdEditor';
 import { EditPersonDialog } from './EditPersonDialog';
 import { SaveFriendDialog } from './SaveFriendDialog';
@@ -56,18 +58,28 @@ export function PersonCard({
         await onUpdate(person.id, updates);
     };
 
+    const initials = getInitials(person.name);
+
     return (
         <div
-            className={`flex items-center justify-between p-2 md:p-3 ${isCurrentUser
+            className={`slide-in-up flex items-center gap-3 p-2.5 md:p-3 rounded-xl ${isCurrentUser
                     ? 'bg-primary/10 border border-primary/20'
-                    : 'bg-secondary/50'
+                    : 'bg-secondary/50 border border-border/50'
                 }`}
         >
-            <div className="flex-1">
+            <Avatar className="h-8 w-8 shrink-0">
+                <AvatarFallback className={`text-xs font-semibold ${isCurrentUser
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-primary/15 text-primary'
+                }`}>
+                    {initials}
+                </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm md:text-base font-medium">{person.name}</span>
+                    <span className="text-sm md:text-base font-medium truncate">{person.name}</span>
                     {isCurrentUser && (
-                        <span className="px-2 py-0.5 text-xs font-semibold bg-primary text-primary-foreground rounded-full">
+                        <span className="px-2 py-0.5 text-xs font-semibold bg-primary text-primary-foreground rounded-full shrink-0">
                             You
                         </span>
                     )}
@@ -76,8 +88,8 @@ export function PersonCard({
                     <UserVenmoIdEditor currentVenmoId={person.venmoId} />
                 ) : (
                     person.venmoId && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                            (@{person.venmoId.replace(/^@+/, '')})
+                        <span className="text-xs text-muted-foreground">
+                            @{person.venmoId.replace(/^@+/, '')}
                         </span>
                     )
                 )}
@@ -89,7 +101,7 @@ export function PersonCard({
                         size="sm"
                         onClick={() => setIsEditDialogOpen(true)}
                         title="Edit details"
-                        className="hover:bg-transparent"
+                        className="hover:bg-muted/50"
                     >
                         <Edit2 className="w-4 h-4 text-muted-foreground" />
                     </Button>
@@ -114,7 +126,7 @@ export function PersonCard({
                             }
                         }}
                         title={optimisticIsFriend ? "Remove friend" : "Save as friend"}
-                        className="hover:bg-transparent"
+                        className="hover:bg-muted/50"
                     >
                         <Heart className={`w-4 h-4 text-red-500 ${optimisticIsFriend ? 'fill-red-500' : ''}`} />
                     </Button>

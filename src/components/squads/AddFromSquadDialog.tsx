@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Users, UserPlus, Search } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Users, UserPlus, Search, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -9,16 +9,20 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useSquadManager } from '@/hooks/useSquadManager';
 import { HydratedSquad, SquadMember } from '@/types/squad.types';
+import { Person } from '@/types';
+import { getInitials } from '@/utils/nameUtils';
 
 interface AddFromSquadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddSquad: (members: SquadMember[]) => void;
+  addedPeople?: Person[];
 }
 
-export function AddFromSquadDialog({ open, onOpenChange, onAddSquad }: AddFromSquadDialogProps) {
+export function AddFromSquadDialog({ open, onOpenChange, onAddSquad, addedPeople = [] }: AddFromSquadDialogProps) {
   const { squads, loading, loadSquads } = useSquadManager();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSquad, setSelectedSquad] = useState<HydratedSquad | null>(null);
@@ -74,7 +78,7 @@ export function AddFromSquadDialog({ open, onOpenChange, onAddSquad }: AddFromSq
           ) : squads.length === 0 ? (
             <EmptySquadsMessage />
           ) : selectedSquad ? (
-            <SquadPreview squad={selectedSquad} />
+            <SquadPreview squad={selectedSquad} addedPeople={addedPeople} />
           ) : (
             <>
               <SquadSearchInput value={searchQuery} onChange={setSearchQuery} />
@@ -165,9 +169,15 @@ function SquadSelectionList({ squads, onSelect, searchQuery }: SquadSelectionLis
 
 interface SquadPreviewProps {
   squad: HydratedSquad;
+  addedPeople?: Person[];
 }
 
-function SquadPreview({ squad }: SquadPreviewProps) {
+function SquadPreview({ squad, addedPeople = [] }: SquadPreviewProps) {
+  const addedNames = useMemo(
+    () => new Set(addedPeople.map(p => p.name.toLowerCase())),
+    [addedPeople]
+  );
+
   return (
     <div className="space-y-4">
       <div className="border border-border rounded-lg p-4">
@@ -179,18 +189,32 @@ function SquadPreview({ squad }: SquadPreviewProps) {
           <p className="text-sm font-medium">
             Members ({squad.members.length}):
           </p>
-          <div className="space-y-1 max-h-[200px] overflow-y-auto">
-            {squad.members.map((member, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-2 bg-secondary/30 rounded"
-              >
-                <span className="text-sm">{member.name}</span>
-                {member.venmoId && (
-                  <span className="text-xs text-muted-foreground">@{member.venmoId}</span>
-                )}
-              </div>
-            ))}
+          <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+            {squad.members.map((member, index) => {
+              const alreadyAdded = addedNames.has(member.name.toLowerCase());
+              return (
+                <div
+                  key={index}
+                  className={`flex items-center gap-2.5 p-2 rounded-lg ${alreadyAdded ? 'bg-secondary/20 opacity-60' : 'bg-secondary/30'}`}
+                >
+                  <Avatar className="h-7 w-7 shrink-0">
+                    <AvatarFallback className="text-[10px] font-semibold bg-primary/15 text-primary">
+                      {getInitials(member.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm flex-1 truncate">{member.name}</span>
+                  {member.venmoId && (
+                    <span className="text-xs text-muted-foreground">@{member.venmoId}</span>
+                  )}
+                  {alreadyAdded && (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                      <Check className="w-3 h-3" />
+                      Added
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

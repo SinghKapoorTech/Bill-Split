@@ -10,10 +10,10 @@ import {
   DialogTrigger,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { getInitials } from '@/utils/nameUtils';
 
 interface Friend {
   id?: string;
@@ -138,9 +138,11 @@ export function AddPersonDialog({
                         onClick={() => handleSelect(friend)}
                         className="w-full text-left flex items-center p-2 rounded-md border border-border/40 bg-card hover:border-primary/30 hover:bg-accent/50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all mb-1.5 cursor-pointer h-12"
                       >
-                        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 mr-3 flex-shrink-0">
-                          <User className="h-4 w-4 text-primary" />
-                        </div>
+                        <Avatar className="h-8 w-8 mr-3 flex-shrink-0">
+                          <AvatarFallback className="text-xs font-semibold bg-primary/15 text-primary">
+                            {getInitials(friend.name)}
+                          </AvatarFallback>
+                        </Avatar>
                         
                         <div className="flex flex-col flex-1 overflow-hidden">
                           <span className="text-sm font-medium truncate">{friend.name}</span>
