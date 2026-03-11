@@ -49,17 +49,18 @@ export async function addItemsToBill(page: Page, items: BillItem[]) {
 }
 
 /**
- * Adds guest people to a bill using the InlinePersonSearch input.
+ * Adds guest people to a bill using the AddPersonDialog.
  * Must be on the People step.
- * Type name into "Add a friend or guest..." input, then press Enter.
+ * Opens the "Add Person" dialog, fills in the name, and submits.
  */
 export async function addGuestPeopleToBill(page: Page, names: string[]) {
   for (const name of names) {
-    const searchInput = page.getByPlaceholder('Add a friend or guest...');
-    await searchInput.click();
-    await searchInput.fill(name);
-    // Click the "Add X as guest" option in the dropdown
-    await page.getByText(`Add "${name}" as guest`).click();
+    // Open the Add Person dialog
+    await page.getByRole('button', { name: 'Add Person' }).click();
+    // Fill in the name field
+    await page.getByPlaceholder('Name').fill(name);
+    // Submit
+    await page.getByRole('button', { name: 'Add Guest to Bill' }).click();
     // Verify the person was added
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 5000 });
   }

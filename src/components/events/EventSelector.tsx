@@ -39,11 +39,11 @@ export function EventSelector({ selectedEventId, onSelect, className }: EventSel
                     variant="ghost"
                     role="combobox"
                     aria-expanded={open}
-                    className={cn('w-auto h-8 px-2 text-xs font-normal text-black hover:text-foreground justify-between', className)}
+                    className={cn('w-auto h-8 px-2 text-xs font-normal text-muted-foreground hover:text-foreground justify-between', className)}
                 >
                     <div className="flex items-center gap-1.5 truncate">
                         <Calendar className="h-4 w-4 shrink-0 opacity-50" />
-                        <span className="truncate ">
+                        <span className="truncate">
                             {loading
                                 ? 'Loading events...'
                                 : selectedEvent
@@ -62,7 +62,7 @@ export function EventSelector({ selectedEventId, onSelect, className }: EventSel
                         <CommandGroup>
                             <CommandItem
                                 value="none"
-                                className="text-foreground italic"
+                                className="text-muted-foreground italic"
                                 onSelect={() => {
                                     onSelect(null);
                                     setOpen(false);

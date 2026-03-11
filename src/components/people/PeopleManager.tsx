@@ -1,20 +1,18 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Users } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Person } from '@/types';
 import { PersonCard } from './PersonCard';
-import { InlinePersonSearch } from './InlinePersonSearch';
-import { UserPlus, UserCheck } from 'lucide-react';
+import { AddPersonDialog } from './AddPersonDialog';
+import { AddFromFriendsDialog } from './AddFromFriendsDialog';
+import { UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AddFromSquadDialog } from '@/components/squads/AddFromSquadDialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/config/firebase';
 import { convertSquadMembersToPeople } from '@/utils/squadUtils';
 import { SquadMember } from '@/types/squad.types';
 import { generateUserId } from '@/utils/billCalculations';
-import { useFriendSearch, FriendSuggestion } from '@/hooks/useFriendSearch';
-import { useSquadManager } from '@/hooks/useSquadManager';
+import { useFriendSearch } from '@/hooks/useFriendSearch';
 
 interface Friend {
   id?: string;
@@ -40,11 +38,6 @@ interface Props {
   children?: React.ReactNode;
 }
 
-/**
- * PeopleManager Component (Refactored)
- * Orchestrates person management using PersonCard and AddPersonForm
- * Reduced from 394 lines to ~150 lines
- */
 export function PeopleManager({
   people,
   newPersonName,
@@ -61,23 +54,22 @@ export function PeopleManager({
   children
 }: Props) {
   const { user } = useAuth();
+  const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
+  const [friendsDialogOpen, setFriendsDialogOpen] = useState(false);
   const [squadDialogOpen, setSquadDialogOpen] = useState(false);
-  const { friends, filteredFriends, isSearching, loadFriends } = useFriendSearch(newPersonName);
-  const { squads } = useSquadManager();
 
-  const existingPeopleIds = useMemo(
-    () => new Set(people.map(p => p.id)),
-    [people]
-  );
+  const { friends, filteredFriends, setShowSuggestions, loadFriends } = useFriendSearch(newPersonName);
 
-  const handleAddFromFriend = (friend: FriendSuggestion) => {
+  const handleSelectFriend = (friend: Friend) => {
     onAddFromFriend(friend);
     onNameChange('');
+    onVenmoIdChange('');
   };
 
-  const handleAddGuest = (name: string) => {
-    onAdd(name, '');
-    onNameChange('');
+  const handleManualAdd = (name: string, venmoId: string, email?: string) => {
+    onNameChange(name);
+    onVenmoIdChange(venmoId);
+    onAdd(name, venmoId);
   };
 
   const handleAddSquad = (members: SquadMember[]) => {
@@ -109,86 +101,83 @@ export function PeopleManager({
       return false;
     });
     if (friend?.id) {
-      await onRemoveFriend(friend.id);
-      await loadFriends();
+       await onRemoveFriend(friend.id);
+       await loadFriends();
     }
   };
 
   const existingNames = people.map(p => p.name);
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Add People Section */}
-      <div className="rounded-2xl bg-card border border-blue-200/60 dark:border-blue-800/40 p-4 shadow-sm mb-2">
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <InlinePersonSearch
-              friends={friends}
-              filteredFriends={filteredFriends}
-              squads={squads}
-              existingPeopleIds={existingPeopleIds}
-              onAddFromFriend={handleAddFromFriend}
-              onAddSquad={handleAddSquad}
-              onAddGuest={handleAddGuest}
-              isSearching={isSearching}
-              onSearchChange={onNameChange}
-            />
-          </div>
+    <Card className="bill-card-tight">
+      <div className="section-header">
+        <Users className="icon-md-responsive icon-primary" />
+        <h3 className="section-title-responsive">People</h3>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+        <div className="w-full sm:flex-1">
+          <AddPersonDialog
+            isOpen={isAddPersonOpen}
+            setIsOpen={setIsAddPersonOpen}
+            friendSuggestions={filteredFriends}
+            onSearchChange={onNameChange}
+            onSelectSuggestion={handleSelectFriend}
+            onAddManual={handleManualAdd}
+          />
+        </div>
+        <div className="flex gap-2 w-full sm:flex-1">
           <Button
-            onClick={() => setSquadDialogOpen(true)}
-            variant="outline"
-            className="h-11 px-4 border border-border/50 bg-card hover:bg-muted/50 font-medium shadow-sm transition-colors text-foreground"
+              onClick={() => setFriendsDialogOpen(true)}
+              variant="outline"
+              className="flex-1"
           >
-            <Users className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Squads</span>
+              <UserCheck className="w-4 h-4 mr-2" />
+              Friends
+          </Button>
+          <Button
+              onClick={() => setSquadDialogOpen(true)}
+              variant="outline"
+              className="flex-1"
+          >
+              <Users className="w-4 h-4 mr-2" />
+              Squads
           </Button>
         </div>
       </div>
 
-      {/* People List Section */}
-      <div className="rounded-2xl bg-card border border-border/50 shadow-sm p-4">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 bg-secondary rounded-full flex items-center justify-center">
-              <Users className="h-4 w-4 text-foreground/70" />
-            </div>
-            <h3 className="font-semibold text-base">People</h3>
-          </div>
-          <div className="bg-secondary text-secondary-foreground text-xs font-semibold px-2 py-0.5 rounded-full">
-            {people.length}
-          </div>
+      {people.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {people.map((person) => {
+            const isCurrentUser = Boolean(user && (person.id === user.uid || person.id === generateUserId(user.uid) || (person as Person & { userId?: string }).userId === user.uid));
+            return (
+              <PersonCard
+                key={person.id}
+                person={person}
+                isCurrentUser={!!isCurrentUser}
+                isInFriends={isPersonInFriends(person)}
+                onRemove={onRemove}
+                onUpdate={onUpdate}
+                onSaveAsFriend={handleSaveAsFriend}
+                onRemoveFriend={handleRemoveFriend}
+                existingNames={existingNames}
+              />
+            );
+          })}
         </div>
+      )}
 
-        {people.length > 0 ? (
-          <div className="space-y-2 mb-4">
-            {people.map((person) => {
-              const isCurrentUser = Boolean(user && (person.id === user.uid || person.id === generateUserId(user.uid) || (person as Person & { userId?: string }).userId === user.uid));
-              return (
-                <div key={person.id} className="rounded-2xl border border-border/40 bg-card/60 backdrop-blur-md shadow-sm transition-all hover:shadow-md overflow-hidden">
-                  <PersonCard
-                    person={person}
-                    isCurrentUser={!!isCurrentUser}
-                    isInFriends={isPersonInFriends(person)}
-                    onRemove={onRemove}
-                    onUpdate={onUpdate}
-                    onSaveAsFriend={handleSaveAsFriend}
-                    onRemoveFriend={handleRemoveFriend}
-                    existingNames={existingNames}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Add people to start splitting the bill
-          </p>
-        )}
+      {people.length === 0 && (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          Add people to start splitting the bill
+        </p>
+      )}
 
-        {children}
-      </div>
-
-
+      <AddFromFriendsDialog
+        open={friendsDialogOpen}
+        onOpenChange={setFriendsDialogOpen}
+        onAddPerson={onAddFromFriend}
+      />
 
       <AddFromSquadDialog
         open={squadDialogOpen}
@@ -196,6 +185,7 @@ export function PeopleManager({
         onAddSquad={handleAddSquad}
       />
 
-    </div>
+      {children}
+    </Card>
   );
 }

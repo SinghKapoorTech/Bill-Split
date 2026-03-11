@@ -1,7 +1,6 @@
 import { Card } from '@/components/ui/card';
 import { Users } from 'lucide-react';
 import { PeopleManager } from '@/components/people/PeopleManager';
-import { PeopleManagerMobile } from '@/components/people/PeopleManagerMobile';
 import { TwoColumnLayout, ReceiptPreview } from '@/components/shared/TwoColumnLayout';
 import { StepFooter } from '@/components/shared/StepFooter';
 import { StepHeader } from '@/components/shared/StepHeader';
@@ -20,7 +19,7 @@ interface PeopleStepBaseProps {
     onNameChange: (name: string) => void;
     onVenmoIdChange: (id: string) => void;
     onAdd: (name?: string, venmoId?: string) => void;
-    onAddFromFriend: (friend: { id?: string; name: string; venmoId?: string }) => void;
+    onAddFromFriend: (friend: any) => void;
     onRemove: (personId: string) => void;
     onUpdate: (personId: string, updates: Partial<Person>) => Promise<void>;
     onSaveAsFriend: (person: Person) => void;
@@ -39,7 +38,7 @@ interface PeopleStepBaseProps {
     onImageSelected?: (fileOrBase64: File | string) => void;
     onAnalyze?: () => void;
     onRemoveImage?: () => void;
-    upload?: { handleDragOver: unknown; handleDragLeave: unknown; handleDrop: unknown; handleRemoveImage: unknown };
+    upload?: any;
 
     // Navigation (optional)
     onNext?: () => void;
@@ -99,67 +98,28 @@ export function PeopleStepBase({
 }: PeopleStepBaseProps) {
     const hasReceipt = !!(imagePreview || receiptImageUrl);
 
-    const paidByBanner = (
-        <PaidByBanner
+    const renderPeopleManager = () => (
+        <PeopleManager
             people={people}
-            paidById={paidById}
-            onPaidByChange={onPaidByChange}
-        />
-    );
-
-    const renderMobileEventSelector = () => {
-        if (!onEventChange) return null;
-        return (
-            <EventSelector
-                selectedEventId={eventId}
-                onSelect={onEventChange}
-                className="w-full h-9 text-xs border border-border/50 hover:bg-muted/50 font-medium shadow-sm transition-colors"
-            />
-        );
-    };
-
-    const renderPeopleManager = () => {
-        if (isMobile) {
-            return (
-                <PeopleManagerMobile
-                    people={people}
-                    newPersonName={newPersonName}
-                    newPersonVenmoId={newPersonVenmoId}
-                    onNameChange={onNameChange}
-                    onVenmoIdChange={onVenmoIdChange}
-                    onAdd={onAdd}
-                    onAddFromFriend={onAddFromFriend}
-                    onRemove={onRemove}
-                    onUpdate={onUpdate}
-                    onSaveAsFriend={onSaveAsFriend}
-                    onRemoveFriend={onRemoveFriend}
-                    setPeople={setPeople}
-                    eventSelector={renderMobileEventSelector()}
-                >
-                    {paidByBanner}
-                </PeopleManagerMobile>
-            );
-        }
-
-        return (
-            <PeopleManager
+            newPersonName={newPersonName}
+            newPersonVenmoId={newPersonVenmoId}
+            onNameChange={onNameChange}
+            onVenmoIdChange={onVenmoIdChange}
+            onAdd={onAdd}
+            onAddFromFriend={onAddFromFriend}
+            onRemove={onRemove}
+            onUpdate={onUpdate}
+            onSaveAsFriend={onSaveAsFriend}
+            onRemoveFriend={onRemoveFriend}
+            setPeople={setPeople}
+        >
+            <PaidByBanner
                 people={people}
-                newPersonName={newPersonName}
-                newPersonVenmoId={newPersonVenmoId}
-                onNameChange={onNameChange}
-                onVenmoIdChange={onVenmoIdChange}
-                onAdd={onAdd}
-                onAddFromFriend={onAddFromFriend}
-                onRemove={onRemove}
-                onUpdate={onUpdate}
-                onSaveAsFriend={onSaveAsFriend}
-                onRemoveFriend={onRemoveFriend}
-                setPeople={setPeople}
-            >
-                {paidByBanner}
-            </PeopleManager>
-        );
-    };
+                paidById={paidById}
+                onPaidByChange={onPaidByChange}
+            />
+        </PeopleManager>
+    );
 
     const renderEventSelector = () => {
         if (!onEventChange) return null;
@@ -178,7 +138,29 @@ export function PeopleStepBase({
     if (isMobile && hasReceipt && hasItems) {
         return (
             <div>
-                {renderPeopleManager()}
+                <Card className="bill-card-tight">
+                    <StepHeader
+                        icon={Users}
+                        title="People"
+                        actions={renderEventSelector()}
+                        showReceiptThumbnail={true}
+                        selectedFile={selectedFile}
+                        imagePreview={imagePreview}
+                        isDragging={upload?.isDragging}
+                        isUploading={isUploading}
+                        isAnalyzing={isAnalyzing}
+                        isMobile={isMobile}
+                        receiptImageUrl={receiptImageUrl}
+                        upload={upload}
+                        onImageSelected={onImageSelected}
+                        onAnalyze={onAnalyze}
+                        onRemoveImage={onRemoveImage}
+                    />
+
+                    <div className="mobile-hide-child-chrome">
+                        {renderPeopleManager()}
+                    </div>
+                </Card>
 
                 {showFooter && (
                     <div className="hidden md:block">
@@ -208,31 +190,29 @@ export function PeopleStepBase({
                 rightColumn={
                     <div className="flex flex-col gap-6">
                         {!hasReceipt ? (
-                            isMobile ? (
-                                <div>
+                            <Card className="bill-card-tight">
+                                <StepHeader icon={Users} title="People" actions={renderEventSelector()} />
+                                <div className="mobile-hide-child-chrome">
                                     {renderPeopleManager()}
                                 </div>
-                            ) : (
-                                <Card className="bill-card-tight">
-                                    <StepHeader icon={Users} title="People" actions={renderEventSelector()} />
-                                    {renderPeopleManager()}
-                                </Card>
-                            )
+                            </Card>
                         ) : (
                             // Desktop with receipt
                             <div className="flex flex-col gap-6">
-                                {isMobile ? (
-                                    <div>
-                                        {renderPeopleManager()}
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="w-full flex justify-end mb-2">
-                                            {renderEventSelector()}
+                                {isMobile && (
+                                    <Card className="bill-card-tight">
+                                        <StepHeader icon={Users} title="People" actions={renderEventSelector()} />
+                                        <div className="mobile-hide-child-chrome">
+                                            {renderPeopleManager()}
                                         </div>
-                                        {renderPeopleManager()}
-                                    </>
+                                    </Card>
                                 )}
+                                {!isMobile && (
+                                    <div className="w-full flex justify-end mb-2">
+                                        {renderEventSelector()}
+                                    </div>
+                                )}
+                                {!isMobile && renderPeopleManager()}
                             </div>
                         )}
                     </div>
