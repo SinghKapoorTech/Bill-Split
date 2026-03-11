@@ -3,6 +3,7 @@ import { formatCurrency } from '@/utils/format';
 import { getSettlementStatus } from '@/utils/billCalculations';
 import { ChevronRight, Loader2, Play, Trash2, Zap, Home, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 /**
  * Props interface for MobileBillCard
@@ -85,64 +86,59 @@ export default function MobileBillCard({
 
   return (
     <div
-      className="mobile-bill-item relative flex items-center gap-3 py-2 px-3 mx-1 my-0.5 bg-card border border-border/50 rounded-lg shadow-sm cursor-pointer hover:bg-muted/40 hover:border-border transition-all duration-200 active:scale-[0.98]"
+      className="mobile-bill-item flex items-center justify-between h-[72px] px-3 bg-card border border-border shadow-sm rounded-xl hover:bg-muted/30 transition-colors cursor-pointer"
       onClick={handleRowClick}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && handleRowClick()}
     >
       {/* Left section: Content */}
-      <div className="flex-1 min-w-0 py-1.5">
-        {/* Row 1: Title + Latest badge */}
-        <div className="flex items-center gap-2 mb-0">
-          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-muted/50 shrink-0">
+      <div className="flex items-center gap-2.5 overflow-hidden">
+        <Avatar className="w-8 h-8 border-2 border-background shadow-sm shrink-0">
+          <AvatarFallback className={
+            bill.isSimpleTransaction ? "bg-amber-100 text-amber-600" :
+            bill.isAirbnb ? "bg-rose-100 text-rose-600" :
+            "bg-blue-100 text-blue-600"
+          }>
             {bill.isSimpleTransaction ? (
-              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              <Zap className="w-4 h-4" />
             ) : bill.isAirbnb ? (
-              <Home className="w-3.5 h-3.5 text-rose-500" />
+              <Home className="w-4 h-4" />
             ) : (
-              <Receipt className="w-3.5 h-3.5 text-primary/70" />
+              <Receipt className="w-4 h-4" />
             )}
-          </div>
-          <span className="font-medium text-[13px] tracking-tight text-foreground truncate max-w-[140px]">
-            {getBillTitle(bill)}
-          </span>
-          {isLatest && (
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wide uppercase bg-primary text-primary-foreground shrink-0 shadow-sm">
-              Latest
+          </AvatarFallback>
+        </Avatar>
+
+        <div className="flex flex-col min-w-0 pr-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-foreground truncate">
+              {getBillTitle(bill)}
             </span>
-          )}
-          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wide uppercase shrink-0 ${statusColors[status]}`}>
-            {statusText[status]}
+            {isLatest && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground shrink-0">
+                Latest
+              </span>
+            )}
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${statusColors[status]}`}>
+              {statusText[status]}
+            </span>
+          </div>
+          <span className="text-xs text-muted-foreground truncate">
+            {total}
           </span>
         </div>
-
-        {/* Row 2: Consolidated meta line - DoorDash style */}
-        <div className="mobile-bill-meta flex items-center gap-1 text-[11px] font-medium text-muted-foreground ml-9 mt-0">
-          <span className="text-foreground/80">{total}</span>
-          <span className="text-muted-foreground/40">•</span>
-          <span>{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
-          <span className="text-muted-foreground/40">•</span>
-          <span>{peopleCount} {peopleCount === 1 ? 'person' : 'people'}</span>
-        </div>
-
-        {/* Row 3: Item names preview (if any items exist) */}
-        {itemNames && !bill.isSimpleTransaction && (
-          <div className="text-[10px] text-muted-foreground/60 truncate max-w-[200px] ml-9 mt-0">
-            {itemNames}{hasMoreItems && ' ...'}
-          </div>
-        )}
       </div>
 
       {/* Right section: Actions */}
-      <div className="flex items-center gap-2 shrink-0 pr-1">
+      <div className="flex items-center gap-1 shrink-0">
         {isOwner && (
           <Button
             onClick={handleDeleteClick}
             disabled={isDeleting}
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
           >
             {isDeleting ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -151,8 +147,6 @@ export default function MobileBillCard({
             )}
           </Button>
         )}
-
-        <ChevronRight className="w-4 h-4 text-muted-foreground opacity-50" />
       </div>
     </div>
   );

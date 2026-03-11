@@ -53,7 +53,7 @@ export function ManageFriendsCard() {
       const balA = Math.abs(a.balance || 0);
       const balB = Math.abs(b.balance || 0);
       if (balB !== balA) return balB - balA;
-
+      
       // Second priority: Name
       return (a.name || '').localeCompare(b.name || '');
     });
@@ -93,8 +93,8 @@ export function ManageFriendsCard() {
             submitLabel="Save Friend"
             showEmailField={true}
             trigger={
-              <Button
-                variant="outline"
+              <Button 
+                variant="outline" 
                 size="sm"
                 className="gap-2"
               >
@@ -176,7 +176,7 @@ export function ManageFriendsCard() {
                               <p className="text-[10px] uppercase font-bold text-muted-foreground">Settled</p>
                             )}
                           </div>
-
+                          
                           <div className="flex items-center gap-1">
                             {friend.balance && friend.balance !== 0 ? (
                               <Button
@@ -190,10 +190,10 @@ export function ManageFriendsCard() {
                                   isPaying: friend.balance! < 0,
                                 })}
                               >
-                                {friend.balance! < 0 ? 'Pay' : 'Settle'}
+                                Settle Up
                               </Button>
                             ) : null}
-
+                            
                             <Button
                               variant="ghost"
                               size="sm"
@@ -236,7 +236,7 @@ export function ManageFriendsCard() {
                             </div>
                           )}
                         </div>
-
+                        
                         <div className="flex justify-end gap-2 mt-4">
                           <Button
                             variant="ghost"
@@ -272,7 +272,7 @@ export function ManageFriendsCard() {
                   Load {sortedFriends.length - 3} more friends
                 </Button>
               )}
-
+              
               {showAllFriends && sortedFriends.length > 3 && (
                 <Button
                   variant="ghost"

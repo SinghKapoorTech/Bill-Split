@@ -195,15 +195,15 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="container mx-auto px-2 md:px-4 py-2 md:py-4 max-w-7xl">
+    <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
       {/* Header - added dashboard-header class for mobile CSS targeting */}
-      <div className="dashboard-header mb-3 md:mb-4 px-1">
-        <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-foreground/90">
+      <div className="dashboard-header mb-4 md:mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold mb-2">
           Welcome back{user?.displayName ? `, ${user.displayName.split(' ')[0]}` : ''}
         </h1>
       </div>
 
-      <div className="flex flex-col gap-4 md:gap-6">
+      <div className="flex flex-col gap-6 md:gap-10">
         {/* Top Section: Friend Balances */}
         <div>
           <FriendBalancePreviewCard />
@@ -211,54 +211,60 @@ export default function Dashboard() {
 
         {/* Bottom Section: My Bills */}
         <div>
-          <div className="flex items-center justify-between mb-1.5 px-2">
+          <div className="flex items-center justify-between mb-1 ml-1">
             <div>
-              <h2 className="text-[11px] font-semibold tracking-wider uppercase text-muted-foreground/80">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                 My Bills
               </h2>
             </div>
           </div>
 
           {allBills.length === 0 ? (
-            <Card className="p-2 md:p-3 bg-card border-border/60 shadow-sm rounded-xl mx-1 md:mx-0">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-2">
-                <div className="text-xs font-medium text-muted-foreground ml-1">No bills yet.</div>
-                <div className="flex w-full md:w-auto gap-1.5">
-                  <Button
-                    variant="outline"
-                    className="flex-1 md:flex-none h-8 px-2.5 gap-1.5 bg-primary/5 hover:bg-primary/10 border-primary/20 text-foreground text-[11px]"
+            <Card className="p-4 md:p-6 overflow-hidden">
+              <div className="text-center max-w-2xl mx-auto">
+                <h3 className="font-semibold mb-4">Create your first bill</h3>
+
+                <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-border border rounded-lg">
+                  <button
+                    className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-primary/5 transition-colors group"
                     onClick={handleNewBill}
                   >
-                    <ReceiptText className="w-4 h-4 text-primary" />
-                    Standard
-                  </Button>
+                    <ReceiptText className="w-5 h-5 text-primary" />
+                    <div className="text-left">
+                      <div className="font-medium text-sm">Standard Bill</div>
+                      <div className="text-[10px] text-muted-foreground">Scan receipt</div>
+                    </div>
+                  </button>
 
-                  <Button
-                    variant="outline"
-                    className="flex-1 md:flex-none h-8 px-2.5 gap-1.5 bg-amber-500/5 hover:bg-amber-500/10 border-amber-500/20 text-foreground text-[11px]"
+                  <button
+                    className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-blue-500/5 transition-colors group"
                     onClick={() => navigate('/transaction/new')}
                   >
-                    <Zap className="w-4 h-4 text-amber-500" />
-                    Quick
-                  </Button>
+                    <Zap className="w-5 h-5 text-blue-500" />
+                    <div className="text-left">
+                      <div className="font-medium text-sm">Quick Expense</div>
+                      <div className="text-[10px] text-muted-foreground">No items</div>
+                    </div>
+                  </button>
 
-                  <Button
-                    variant="outline"
-                    className="flex-1 md:flex-none h-8 px-2.5 gap-1.5 bg-rose-500/5 hover:bg-rose-500/10 border-rose-500/20 text-foreground text-[11px]"
+                  <button
+                    className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-orange-500/5 transition-colors group"
                     onClick={() => navigate('/events')}
                   >
-                    <CalendarDays className="w-4 h-4 text-rose-500" />
-                    Trip
-                  </Button>
+                    <CalendarDays className="w-5 h-5 text-orange-500" />
+                    <div className="text-left">
+                      <div className="font-medium text-sm">Event / Trip</div>
+                      <div className="text-[10px] text-muted-foreground">Group bills</div>
+                    </div>
+                  </button>
                 </div>
               </div>
             </Card>
           ) : (
             <>
-              <div className="flex flex-col gap-3">
-                {/* Mobile List View - extremely compact */}
-                <div className="block md:hidden divide-y divide-border/50 rounded-xl mx-1 border border-border/60 bg-card shadow-sm overflow-hidden">
-                  {(isExpanded ? allBills : allBills.slice(0, 3)).map((bill) => (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2 p-1">
+                  {allBills.map((bill) => (
                     <MobileBillCard
                       key={bill.id}
                       bill={bill}
@@ -273,62 +279,6 @@ export default function Dashboard() {
                       isOwner={bill.ownerId === user?.uid}
                     />
                   ))}
-                  {allBills.length > 3 && (
-                    <div className="flex justify-center border-t border-border">
-                      <Button
-                        variant="ghost"
-                        className="w-full h-9 text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded-none rounded-b-xl group"
-                        onClick={() => setIsExpanded(!isExpanded)}
-                      >
-                        {isExpanded ? (
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/50 group-hover:bg-muted transition-colors">
-                            <ChevronUp className="w-3 h-3" />
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/50 group-hover:bg-muted transition-colors">
-                            <ChevronDown className="w-3 h-3" />
-                          </div>
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Desktop Grid View - card layout */}
-                <div className="hidden md:flex flex-col">
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    {(isExpanded ? allBills : allBills.slice(0, 3)).map((bill) => (
-                      <DesktopBillCard
-                        key={bill.id}
-                        bill={bill}
-                        isLatest={bill.id === activeSession?.id}
-                        onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
-                        onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
-                        onDelete={handleDeleteBill}
-                        isResuming={isResuming}
-                        isDeleting={isDeleting}
-                        formatDate={formatDate}
-                        getBillTitle={getBillTitle}
-                        isOwner={bill.ownerId === user?.uid}
-                      />
-                    ))}
-                  </div>
-                  {allBills.length > 3 && (
-                    <div className="mt-3 flex justify-center">
-                      <Button
-                        variant="outline"
-                        className="w-full sm:w-auto h-9 px-6 text-muted-foreground hover:text-foreground border-border/60 bg-background/50 hover:bg-muted/50 rounded-full shadow-sm group text-xs font-medium"
-                        onClick={() => setIsExpanded(!isExpanded)}
-                      >
-                        {isExpanded ? 'Collapse' : 'Show More'}
-                        {isExpanded ? (
-                          <ChevronUp className="w-3 h-3 ml-1.5 group-hover:-translate-y-0.5 transition-transform" />
-                        ) : (
-                          <ChevronDown className="w-3 h-3 ml-1.5 group-hover:translate-y-0.5 transition-transform" />
-                        )}
-                      </Button>
-                    </div>
-                  )}
                 </div>
               </div>
             </>

@@ -22,31 +22,38 @@ export function FriendBalancePreviewCard() {
       return (a.name || '').localeCompare(b.name || '');
     });
 
-  const previewFriends = isExpanded ? sortedFriends : sortedFriends.slice(0, 3);
-  const hasMoreFriends = sortedFriends.length > 3;
+  const previewFriends = isExpanded ? sortedFriends : sortedFriends.slice(0, 4);
+  const hasMoreFriends = sortedFriends.length > 4;
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex items-center justify-between mb-1.5 px-2">
-        <div>
-          <h2 className="text-[11px] font-semibold tracking-wider uppercase text-muted-foreground/80">
-            Friend Balances
-          </h2>
-        </div>
+      <div className="flex items-center justify-between mb-1 ml-1">
+        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+          Balances
+        </h2>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-7 px-2.5 text-[11px] gap-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 border-none font-medium transition-all"
+          onClick={() => navigate('/settings', { state: { defaultTab: 'friends' } })}
+        >
+          <Users className="h-3 w-3" />
+          Friends
+        </Button>
       </div>
 
-      <Card className="p-0 overflow-hidden flex-1 flex flex-col border-border/60 bg-card rounded-xl shadow-sm">
+      <Card className="p-0 overflow-hidden flex-1 flex flex-col border-none bg-transparent shadow-none">
         <div className="flex-1 mb-0">
           {isLoadingFriends ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              Loading friends...
+              Loading balances...
             </p>
           ) : previewFriends.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               All settled up! No active balances.
             </p>
           ) : (
-            <div className="divide-y divide-border">
+            <div className="flex flex-col gap-2 p-1">
               {previewFriends.map((friend, index) => {
                 const owesYou = friend.balance && friend.balance > 0;
                 const youOwe = friend.balance && friend.balance < 0;
@@ -70,8 +77,8 @@ export function FriendBalancePreviewCard() {
                     amount={amount}
                     direction={direction}
                     action={hasBalance && friend.id ? {
-                      label: youOwe ? 'Pay' : 'Settle Up',
-                      variant: youOwe ? 'default' : 'soft-success',
+                      label: youOwe ? 'Pay' : 'Settle',
+                      variant: youOwe ? 'default' : 'secondary',
                       onClick: () => setSettleTarget({
                         userId: friend.id!,
                         name: friend.name,
@@ -92,21 +99,16 @@ export function FriendBalancePreviewCard() {
         </div>
 
         {hasMoreFriends && (
-          <div className="border-t border-border/50 flex justify-center">
+          <div className="border-t border-border flex justify-center">
             <Button
               variant="ghost"
-              className="w-full h-9 text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded-none rounded-b-xl group text-xs font-medium"
+              className="w-full h-11 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-none rounded-b-lg"
               onClick={() => setIsExpanded(!isExpanded)}
             >
-              {isExpanded ? 'Collapse' : 'Show More'}
               {isExpanded ? (
-                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/50 group-hover:bg-muted transition-colors ml-1.5">
-                  <ChevronUp className="w-3 h-3" />
-                </div>
+                <ChevronUp className="w-5 h-5" />
               ) : (
-                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted/50 group-hover:bg-muted transition-colors ml-1.5">
-                  <ChevronDown className="w-3 h-3" />
-                </div>
+                <ChevronDown className="w-5 h-5" />
               )}
             </Button>
           </div>
