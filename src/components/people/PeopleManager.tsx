@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users } from 'lucide-react';
+import { Users, UserPlus, UsersRound } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Person } from '@/types';
 import { PersonCard } from './PersonCard';
@@ -115,39 +115,31 @@ export function PeopleManager({
         <h3 className="section-title-responsive">People</h3>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2 mb-4">
-        <div className="w-full sm:flex-1">
-          <AddPersonDialog
-            isOpen={isAddPersonOpen}
-            setIsOpen={setIsAddPersonOpen}
-            friendSuggestions={filteredFriends}
-            onSearchChange={onNameChange}
-            onSelectSuggestion={handleSelectFriend}
-            onAddManual={handleManualAdd}
-          />
-        </div>
-        <div className="flex gap-2 w-full sm:flex-1">
-          <Button
-              onClick={() => setFriendsDialogOpen(true)}
-              variant="outline"
-              className="flex-1"
-          >
-              <UserCheck className="w-4 h-4 mr-2" />
-              Friends
-          </Button>
-          <Button
-              onClick={() => setSquadDialogOpen(true)}
-              variant="outline"
-              className="flex-1"
-          >
-              <Users className="w-4 h-4 mr-2" />
-              Squads
-          </Button>
-        </div>
+      {/* Quick-add shortcuts */}
+      <div className="flex gap-3 mb-4">
+        <Button
+          onClick={() => setFriendsDialogOpen(true)}
+          variant="outline"
+          size="sm"
+          className="flex-1 h-10 gap-2 text-sm"
+        >
+          <UserPlus className="w-4 h-4" />
+          Friends
+        </Button>
+        <Button
+          onClick={() => setSquadDialogOpen(true)}
+          variant="outline"
+          size="sm"
+          className="flex-1 h-10 gap-2 text-sm"
+        >
+          <UsersRound className="w-4 h-4" />
+          Squads
+        </Button>
       </div>
 
+      {/* People list */}
       {people.length > 0 && (
-        <div className="space-y-2 mb-4">
+        <div className="space-y-2 mb-3">
           {people.map((person) => {
             const isCurrentUser = Boolean(user && (person.id === user.uid || person.id === generateUserId(user.uid) || (person as Person & { userId?: string }).userId === user.uid));
             return (
@@ -168,10 +160,34 @@ export function PeopleManager({
       )}
 
       {people.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-4">
+        <p className="text-sm text-muted-foreground text-center py-3">
           Add people to start splitting the bill
         </p>
       )}
+
+      {/* Bottom add row */}
+      <div className="mb-3">
+        <AddPersonDialog
+          isOpen={isAddPersonOpen}
+          setIsOpen={setIsAddPersonOpen}
+          friendSuggestions={filteredFriends}
+          onSearchChange={onNameChange}
+          onSelectSuggestion={handleSelectFriend}
+          onAddManual={handleManualAdd}
+          trigger={
+            <button
+              className="w-full flex items-center justify-center gap-2 py-3
+                         border-2 border-dashed border-primary/40 rounded-lg
+                         text-sm text-primary font-medium
+                         hover:border-primary hover:bg-primary/10
+                         transition-colors cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              Add another person
+            </button>
+          }
+        />
+      </div>
 
       <AddFromFriendsDialog
         open={friendsDialogOpen}
