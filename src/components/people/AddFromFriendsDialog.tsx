@@ -52,7 +52,6 @@ export function AddFromFriendsDialog({ open, onOpenChange, onAddPerson }: Props)
 
   const handleAddFriend = (friend: Friend) => {
     onAddPerson(friend);
-    onOpenChange(false);
   };
 
   return (
