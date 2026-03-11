@@ -122,7 +122,7 @@ export function InlinePersonSearch({
           onFocus={() => setIsFocused(true)}
           onKeyDown={handleKeyDown}
           placeholder="Add a friend or guest..."
-          className="pl-9 pr-10 h-11 text-sm rounded-xl bg-secondary/30 border-border/50 focus:bg-background"
+          className="pl-9 pr-10 h-11 text-base rounded-xl bg-secondary/30 border-border/50 focus:bg-background"
         />
         {isSearching && (
           <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
