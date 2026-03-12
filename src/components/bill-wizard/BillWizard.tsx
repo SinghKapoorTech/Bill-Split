@@ -164,7 +164,7 @@ export function BillWizard({
         initialStep
     });
 
-    const { executeSave } = useBillSession({
+    const { executeSave, skipNextStepSave, registerExternalCreation } = useBillSession({
         billData,
         people,
         itemAssignments,
@@ -380,6 +380,7 @@ export function BillWizard({
                 itemAssignments,
                 splitEvenly,
                 paidById,
+                currentStep: 1, // Save with target step so refetch loads correct step
             };
 
             if (uploadResult?.downloadURL) {
@@ -396,7 +397,20 @@ export function BillWizard({
                 savePayload.title = titleToSave;
             }
 
-            await saveSession(savePayload, billId || activeSession?.id);
+            // Register the save promise so useBillSession knows a creation is
+            // in progress and won't try to create a second bill.
+            const savePromise = saveSession(savePayload, billId || activeSession?.id);
+            registerExternalCreation(savePromise);
+            const newId = await savePromise;
+
+            // Swap URL so billId is set for all future saves
+            if (!billId && newId) {
+                navigate(`/bill/${newId}`, { replace: true });
+            }
+
+            // Skip the auto-save that would fire from the step change,
+            // since we just saved above. Prevents duplicate bill creation.
+            skipNextStepSave();
 
             // Navigate to People step after save completes
             wizard.setCurrentStep(1);

@@ -89,7 +89,8 @@ export default function AIScanView() {
         setSplitEvenly(false);
         setTitle('');
         setCurrentStep(0);
-        removeReceiptImage(); // Clear any stale image from previous sessions
+        // Note: no need to call removeReceiptImage() here — local state is already
+        // cleared above, and there is no Firestore bill to update for a fresh draft.
         loadedSessionId.current = 'draft';
 
         // Pre-populate people with all event members if coming from an event
