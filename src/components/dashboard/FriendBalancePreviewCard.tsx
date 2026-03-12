@@ -6,12 +6,14 @@ import { useNavigate } from 'react-router-dom';
 import { useFriendsEditor } from '@/hooks/useFriendsEditor';
 import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
 import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
+import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
 
 export function FriendBalancePreviewCard() {
   const navigate = useNavigate();
   const { friends, isLoadingFriends, refreshFriends } = useFriendsEditor();
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const sortedFriends = [...friends]
     .filter(f => Math.abs(f.balance || 0) > 0.005)
@@ -22,8 +24,9 @@ export function FriendBalancePreviewCard() {
       return (a.name || '').localeCompare(b.name || '');
     });
 
-  const previewFriends = isExpanded ? sortedFriends : sortedFriends.slice(0, 4);
-  const hasMoreFriends = sortedFriends.length > 4;
+  const previewFriends = isExpanded ? sortedFriends : sortedFriends.slice(0, 3);
+  const hasMoreFriends = sortedFriends.length > 3;
+  const hiddenCount = sortedFriends.length - 3;
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -49,9 +52,22 @@ export function FriendBalancePreviewCard() {
               Loading balances...
             </p>
           ) : previewFriends.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              All settled up! No active balances.
-            </p>
+            <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+              <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center mb-3">
+                <Users className="w-6 h-6 text-emerald-600" />
+              </div>
+              <h3 className="font-semibold text-foreground mb-1">All settled up!</h3>
+              <p className="text-sm text-muted-foreground mb-4 max-w-[200px]">
+                You have no active balances. Split a new expense to get started.
+              </p>
+              <Button
+                size="sm"
+                className="rounded-full shadow-sm"
+                onClick={() => setIsCreateDialogOpen(true)}
+              >
+                Add an expense
+              </Button>
+            </div>
           ) : (
             <div className="flex flex-col gap-2 p-1">
               {previewFriends.map((friend, index) => {
@@ -106,9 +122,15 @@ export function FriendBalancePreviewCard() {
               onClick={() => setIsExpanded(!isExpanded)}
             >
               {isExpanded ? (
-                <ChevronUp className="w-5 h-5" />
+                <>
+                  <span className="text-xs font-medium mr-2">Show less</span>
+                  <ChevronUp className="w-5 h-5" />
+                </>
               ) : (
-                <ChevronDown className="w-5 h-5" />
+                <>
+                  <span className="text-xs font-medium mr-2">Show {hiddenCount} more {hiddenCount === 1 ? 'person' : 'people'}</span>
+                  <ChevronDown className="w-5 h-5" />
+                </>
               )}
             </Button>
           </div>
@@ -126,6 +148,11 @@ export function FriendBalancePreviewCard() {
           onSuccess={() => { setSettleTarget(null); refreshFriends(); }}
         />
       )}
+
+      <CreateOptionsDialog 
+        open={isCreateDialogOpen} 
+        onOpenChange={setIsCreateDialogOpen} 
+      />
     </div>
   );
 }

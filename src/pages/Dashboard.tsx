@@ -30,6 +30,7 @@ import { useToast } from '@/hooks/use-toast';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
 import { FriendBalancePreviewCard } from '@/components/dashboard/FriendBalancePreviewCard';
+import { useFriendsEditor } from '@/hooks/useFriendsEditor';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -38,6 +39,7 @@ export default function Dashboard() {
   const [isCreatingBill, setIsCreatingBill] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [billToDelete, setBillToDelete] = useState<{ id: string; receiptFileName?: string; title: string } | null>(null);
+  const { friends, isLoadingFriends } = useFriendsEditor();
   const {
     activeSession,
     savedSessions,
@@ -186,7 +188,10 @@ export default function Dashboard() {
     return hasItems || hasReceipt;
   });
 
-  if (isLoadingSessions) {
+  const hasActiveBalances = friends.some(f => Math.abs(f.balance || 0) > 0.005);
+  const isCompletelyEmpty = allBills.length === 0 && !hasActiveBalances;
+
+  if (isLoadingSessions || isLoadingFriends) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-200px)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -203,26 +208,16 @@ export default function Dashboard() {
         </h1>
       </div>
 
-      <div className="flex flex-col gap-6 md:gap-10">
-        {/* Top Section: Friend Balances */}
-        <div>
-          <FriendBalancePreviewCard />
-        </div>
-
-        {/* Bottom Section: My Bills */}
-        <div>
-          <div className="flex items-center justify-between mb-1 ml-1">
-            <div>
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                My Bills
-              </h2>
-            </div>
-          </div>
-
-          {allBills.length === 0 ? (
-            <Card className="p-4 md:p-6 overflow-hidden">
-              <div className="text-center max-w-2xl mx-auto">
-                <h3 className="font-semibold mb-4">Create your first bill</h3>
+      <div className="flex flex-col gap-3 md:gap-6 min-h-[calc(100vh-12rem)]">
+        {isCompletelyEmpty ? (
+          <div className="flex-1 flex items-center justify-center">
+            <Card className="p-4 md:p-6 overflow-hidden w-full max-w-2xl">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <ReceiptText className="w-6 h-6 text-primary" />
+                </div>
+                <h3 className="font-semibold text-lg mb-1">Make your first bill</h3>
+                <p className="text-sm text-muted-foreground mb-6">Split expenses, record simple transactions, or start a group trip to effortlessly track who owes what.</p>
 
                 <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-border border rounded-lg">
                   <button
@@ -260,31 +255,50 @@ export default function Dashboard() {
                 </div>
               </div>
             </Card>
-          ) : (
-            <>
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2 p-1">
-                  {allBills.map((bill) => (
-                    <MobileBillCard
-                      key={bill.id}
-                      bill={bill}
-                      isLatest={bill.id === activeSession?.id}
-                      onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
-                      onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
-                      onDelete={handleDeleteBill}
-                      isResuming={isResuming}
-                      isDeleting={isDeleting}
-                      formatDate={formatDate}
-                      getBillTitle={getBillTitle}
-                      isOwner={bill.ownerId === user?.uid}
-                    />
-                  ))}
+          </div>
+        ) : (
+          <>
+            {/* Top Section: Friend Balances */}
+            {hasActiveBalances && (
+              <div className={allBills.length > 0 ? "min-h-[30vh] flex flex-col" : "flex flex-col"}>
+                <FriendBalancePreviewCard />
+              </div>
+            )}
+
+            {/* Bottom Section: My Bills */}
+            {(allBills.length > 0) && (
+              <div>
+                <div className="flex items-center justify-between mb-1 ml-1">
+                  <div>
+                    <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                      My Bills
+                    </h2>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2 p-1">
+                    {allBills.map((bill) => (
+                      <MobileBillCard
+                        key={bill.id}
+                        bill={bill}
+                        isLatest={bill.id === activeSession?.id}
+                        onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
+                        onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
+                        onDelete={handleDeleteBill}
+                        isResuming={isResuming}
+                        isDeleting={isDeleting}
+                        formatDate={formatDate}
+                        getBillTitle={getBillTitle}
+                        isOwner={bill.ownerId === user?.uid}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
-            </>
-          )}
-        </div>
-
+            )}
+          </>
+        )}
       </div>
 
 
