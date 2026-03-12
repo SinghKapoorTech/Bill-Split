@@ -179,7 +179,7 @@ service cloud.firestore {
     }
 
     // ========== Friend Balances Collection ==========
-    match /friend_balances/{balanceId} {
+    match /balances/{balanceId} {
       // allow get: handles both existing docs and non-existent docs.
       // resource == null is required so that runTransaction's transaction.get()
       // on a brand-new (not-yet-created) document doesn't throw a null-ref error.
@@ -200,7 +200,7 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ========== Event Balances Collection (per-pair, mirrors friend_balances) ==========
+    // ========== Event Balances Collection (per-pair, mirrors balances) ==========
     match /event_balances/{balanceId} {
       // allow get: handles both existing docs and non-existent docs (transaction reads)
       allow get: if request.auth != null &&

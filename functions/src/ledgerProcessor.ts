@@ -5,10 +5,10 @@
  *
  * The heart of the ledger pipeline. When a bill is created, updated, or deleted:
  *   Stage 1: Validate & calculate personTotals from trusted server-side data
- *   Stage 2: Apply single-balance delta to friend_balances (authoritative, in transaction)
+ *   Stage 2: Apply single-balance delta to balances (authoritative, in transaction)
  *   Stage 3: Apply single-balance delta to event_balances per-pair docs (in transaction)
  *
- * Balance schema (same for friend_balances and event_balances):
+ * Balance schema (same for balances and event_balances):
  *   { balance: number, unsettledBillIds: string[], participants: [uid1, uid2] }
  *   balance > 0 → participants[0] (alphabetically smaller UID) is owed
  *   balance < 0 → participants[1] is owed
@@ -33,7 +33,7 @@ function db() {
 }
 
 const BILLS_COLLECTION = 'bills';
-const FRIEND_BALANCES_COLLECTION = 'friend_balances';
+const FRIEND_BALANCES_COLLECTION = 'balances';
 const EVENT_BALANCES_COLLECTION = 'event_balances';
 
 // Fields that require pipeline re-processing when changed.
@@ -85,6 +85,16 @@ async function resolveEligibleFriends(anchorId: string, ownerId: string): Promis
       }
     }
   }
+
+  // Also include any shadow users created by the owner OR anchor
+  const shadowQuery = await db().collection('users')
+    .where('isShadow', '==', true)
+    .where('createdById', 'in', [ownerId, anchorId])
+    .get();
+
+  shadowQuery.forEach(doc => {
+    linked.add(doc.id);
+  });
 
   return linked;
 }

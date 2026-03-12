@@ -27,7 +27,7 @@ How users find, connect with, and track balances with each other.
 - **[[search|User Search]]**: The underlying mechanism for finding users globally.
 - **[[settings|Settings Tab]]**: Profile configuration.
 - **[[manage_friends|Manage Friends]]**: Curating a personal list of friends, viewing balances, and creating "Shadow Users" for easy access during the Add People step.
-- **[[dashboard_friend_balances|Dashboard Balance Card]]**: At-a-glance balance summary on the dashboard, powered by the [[../database/friend_balances|friend_balances]] shared ledger.
+- **[[dashboard_balances|Dashboard Balance Card]]**: At-a-glance balance summary on the dashboard, powered by the [[../database/balances|balances]] shared ledger.
 
 ## Testing
 - **[[../testing/e2e_testing|E2E Testing Guide]]**: How to run Playwright end-to-end tests with Firebase Emulators. Covers setup, running tests, troubleshooting, and writing new tests.

@@ -6,7 +6,7 @@
  * When a user adds a new friend, this function retroactively triggers the
  * ledger pipeline for all shared bills between the two users. This ensures
  * that historical bills (created before the friendship was established)
- * correctly appear in friend_balances.
+ * correctly appear in balances.
  *
  * How it works:
  *   1. Diffs before.friends vs after.friends to detect newly added UIDs
@@ -14,7 +14,7 @@
  *      (uses existing participantIds + ownerId composite index)
  *   3. Touches each bill with _friendScanTrigger to re-trigger the pipeline
  *   4. The ledgerProcessor fires, now sees the new friend in resolveLinkedFriends(),
- *      computes the footprint delta, and updates friend_balances
+ *      computes the footprint delta, and updates balances
  *
  * Only processes bills owned by the user who added the friend.
  * Bills owned by the new friend are processed when/if the friend adds

@@ -1,15 +1,15 @@
 ---
 title: Friend Balances Collection Schema
 date: 2026-02-21
-tags: [database, schema, firestore, friend_balances, balances]
+tags: [database, schema, firestore, balances, balances]
 ---
 
-# `friend_balances` Collection
+# `balances` Collection
 
-The `friend_balances` collection is the **source of truth** for all financial balances between pairs of users. It implements a **symmetrical shared ledger** — meaning when User A creates a bill involving User B, both users see the exact same balance change automatically, without requiring either to be friends with the other.
+The `balances` collection is the **source of truth** for all financial balances between pairs of users. It implements a **symmetrical shared ledger** — meaning when User A creates a bill involving User B, both users see the exact same balance change automatically, without requiring either to be friends with the other.
 
 > [!IMPORTANT]
-> This is a critical design distinction. The balance stored in `user.friends[].balance` is a **read cache** of data pulled from this collection. If they ever conflict, `friend_balances` wins.
+> This is a critical design distinction. The balance stored in `user.friends[].balance` is a **read cache** of data pulled from this collection. If they ever conflict, `balances` wins.
 
 ## The Creditor Anchor Model (`paidById`)
 
@@ -71,7 +71,7 @@ The two values always sum to zero: `balances[A] + balances[B] === 0`.
 ## Security Rules
 
 ```javascript
-match /friend_balances/{balanceId} {
+match /balances/{balanceId} {
   // resource == null allows transaction.get() to read non-existent docs
   allow read: if request.auth != null &&
                  (resource == null || request.auth.uid in resource.data.participants);
@@ -94,9 +94,9 @@ All writes to this collection are performed exclusively by the **`ledgerProcesso
 
 This transactional approach guarantees that even if a bill is rapidly edited by multiple users concurrently, the running balance remains perfectly mathematically accurate.
 
-## When `friend_balances` Gets Updated
+## When `balances` Gets Updated
 
-Under the unified ledger architecture, the `friend_balances` collection is strictly updated via the backend to establish a single source of truth and eliminate race conditions.
+Under the unified ledger architecture, the `balances` collection is strictly updated via the backend to establish a single source of truth and eliminate race conditions.
 
 | Trigger | What fires | When it runs |
 |---------|-----------|--------------|
@@ -106,7 +106,7 @@ Under the unified ledger architecture, the `friend_balances` collection is stric
 | **Adding a New Friend** | `friendAddProcessor` Cloud Function | When a user's `friends` array changes, the backend retroactively triggers all historical shared bills to backfill the ledger. |
 
 > [!IMPORTANT]
-> Client code **cannot** modify `friend_balances` directly. All UI mutations (creating, editing, deleting a bill) simply save the bill to Firestore, and the backend guarantees the ledger is perfectly updated.
+> Client code **cannot** modify `balances` directly. All UI mutations (creating, editing, deleting a bill) simply save the bill to Firestore, and the backend guarantees the ledger is perfectly updated.
 
 ---
 
@@ -118,14 +118,14 @@ When a `Bill` document is written, the `ledgerProcessor` detects the change. It 
 ### 2. The Transactional Update Phase (Authoritative)
 The pipeline opens an ACID transaction against Firestore:
 1. It looks at the bill's `processedBalances` property to see what financial footprint was *previously* committed for this bill.
-2. It reverses the old footprint from `friend_balances` (reversing against the *previous* creditor if the `paidById` anchor was changed during an edit).
-3. It applies the newly calculated footprint to `friend_balances` anchored to the *current* creditor.
+2. It reverses the old footprint from `balances` (reversing against the *previous* creditor if the `paidById` anchor was changed during an edit).
+3. It applies the newly calculated footprint to `balances` anchored to the *current* creditor.
 4. It saves the newly applied footprint back onto the bill's `processedBalances` field.
 
 This system of "Idempotent Deltas" makes the ledger bulletproof against network lag, double-submissions, or race conditions.
 
 ### 3. The Cache Rebuild Phase (Best-Effort)
-After the transaction successfully commits to `friend_balances`, the backend rebuilds the associated `event_balances` cache document (if the bill was part of an event).
+After the transaction successfully commits to `balances`, the backend rebuilds the associated `event_balances` cache document (if the bill was part of an event).
 
 > [!NOTE]
 > If the bill was never reviewed (no `processedBalances`), `reverseBillBalancesIdempotent` returns immediately — there is nothing to reverse.
@@ -135,5 +135,5 @@ After the transaction successfully commits to `friend_balances`, the backend reb
 
 ## Relationships
 
-- **[Bills](bills.md)**: Each `friend_balances` doc is updated when a bill is finalized or deleted.
+- **[Bills](bills.md)**: Each `balances` doc is updated when a bill is finalized or deleted.
 - **[Users](users.md)**: The `user.friends[]` array caches balance totals read from this collection.

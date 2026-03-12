@@ -8,7 +8,7 @@
  *   2. Deletes the settlement record
  *
  * The ledgerProcessor pipeline auto-fires for each modified bill and recalculates
- * friend_balances (single balance + unsettledBillIds). No direct friend_balances
+ * balances (single balance + unsettledBillIds). No direct balances
  * writes are needed here.
  */
 

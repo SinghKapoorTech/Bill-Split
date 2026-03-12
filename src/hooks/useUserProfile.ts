@@ -88,7 +88,7 @@ export function useUserProfile() {
     try {
       const docRef = doc(db, 'users', user.uid);
 
-      // Store only the Firebase UIDs — balances live in friend_balances collection
+      // Store only the Firebase UIDs — balances live in balances collection
       const friendIds: string[] = friends.map(f => f.id!).filter(Boolean);
 
       const updatedProfile = { ...profile, friends: friendIds };

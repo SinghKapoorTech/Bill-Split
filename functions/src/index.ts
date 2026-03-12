@@ -337,7 +337,7 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
  * Cloud Function: Ledger Pipeline
  *
  * Firestore onDocumentWritten trigger on bills/{billId}.
- * Handles all ledger mutations server-side: friend_balances (authoritative)
+ * Handles all ledger mutations server-side: balances (authoritative)
  * and event_balances per-pair docs (delta-based).
  */
 export { ledgerProcessor } from './ledgerProcessor.js';
@@ -347,7 +347,7 @@ export { ledgerProcessor } from './ledgerProcessor.js';
  *
  * Firestore onDocumentUpdated trigger on users/{userId}.
  * When a user adds a new friend, retroactively triggers the ledger pipeline
- * for all shared bills between the two users, backfilling friend_balances.
+ * for all shared bills between the two users, backfilling balances.
  */
 export { friendAddProcessor } from './friendAddProcessor.js';
 
@@ -356,14 +356,14 @@ export { friendAddProcessor } from './friendAddProcessor.js';
  *
  * Firestore onDocumentDeleted trigger on events/{eventId}.
  * Cascade-deletes orphaned bills, event_balances pair docs, and invitations.
- * Bill deletions auto-trigger the ledger pipeline to reverse friend_balances.
+ * Bill deletions auto-trigger the ledger pipeline to reverse balances.
  */
 export { eventDeleteProcessor } from './eventDeleteProcessor.js';
 
 /**
  * Cloud Function: Settle all outstanding bills with a friend.
  *
- * Reads unsettledBillIds from friend_balances, marks each bill settled,
+ * Reads unsettledBillIds from balances, marks each bill settled,
  * zeros the balance, and writes a settlement record — all in one transaction.
  */
 export const processSettlement = onCall<import('./settlementProcessor.js').SettleRequest>(
@@ -383,7 +383,7 @@ export const processSettlement = onCall<import('./settlementProcessor.js').Settl
  *
  * Reads unsettledBillIds from the event pair balance, marks each bill settled,
  * zeros the event balance, and writes a settlement record — all in one transaction.
- * The friend_balances are updated automatically via the ledgerProcessor flow-through.
+ * The balances are updated automatically via the ledgerProcessor flow-through.
  */
 export const processEventSettlement = onCall<import('./eventSettlementProcessor.js').EventSettleRequest>(
   { timeoutSeconds: 60, memory: '256MiB' },
@@ -401,7 +401,7 @@ export const processEventSettlement = onCall<import('./eventSettlementProcessor.
  * Cloud Function: Reverse a settlement.
  *
  * Un-settles bills and deletes the settlement record. The ledgerProcessor
- * pipeline auto-fires for each modified bill to recalculate friend_balances.
+ * pipeline auto-fires for each modified bill to recalculate balances.
  */
 export const reverseSettlement = onCall<import('./settlementReversal.js').ReversalRequest>(
   { timeoutSeconds: 60, memory: '256MiB' },

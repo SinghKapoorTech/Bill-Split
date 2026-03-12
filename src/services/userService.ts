@@ -161,7 +161,7 @@ export const userService = {
 
   /**
    * Gets a user's friends with full profiles hydrated.
-   * Reads balances directly from the `friend_balances` collection (source of truth) if includeBalances is true.
+   * Reads balances directly from the `balances` collection (source of truth) if includeBalances is true.
    */
   async getHydratedFriends(userId: string, includeBalances: boolean = true): Promise<Friend[]> {
     const userProfile = await this.getUserProfile(userId);
@@ -176,7 +176,7 @@ export const userService = {
 
     if (includeBalances) {
       // Fetch all balance documents for this user in one query
-      const balancesRef = collection(db, 'friend_balances');
+      const balancesRef = collection(db, 'balances');
       const balanceSnap = await getDocs(query(balancesRef, where('participants', 'array-contains', userId)));
 
       // Build a quick lookup: friendId -> balance (positive = they owe you)
@@ -232,22 +232,27 @@ export const userService = {
   /**
    * Creates a shadow user for an invited member
    */
-  async createShadowUser(contact: string, name?: string): Promise<string> {
+  async createShadowUser(contact: string, name?: string, creatorId?: string): Promise<string> {
     const usersRef = collection(db, USERS_COLLECTION);
 
     // Check if user already exists with this contact to avoid duplicates
-    const existingUser = await this.getUserByContact(contact);
-    if (existingUser) {
-      return existingUser.uid;
+    // But only if the contact is an email or phone number. If it's just a name, bypass this.
+    const isEmail = contact.includes('@');
+    const isPhone = /^\+?[0-9\s\-()]{7,20}$/.test(contact);
+    
+    if (isEmail || isPhone) {
+      const existingUser = await this.getUserByContact(contact);
+      if (existingUser) {
+        return existingUser.uid;
+      }
     }
 
     const newUserId = doc(usersRef).id; // Auto-generate ID
     const now = Timestamp.now();
 
-    const isEmail = contact.includes('@');
     const username = await generateUniqueUsername(name || (isEmail ? contact.split('@')[0] : 'user'));
 
-    const newProfile: Partial<UserProfile> & { isShadow: boolean } = {
+    const newProfile: Partial<UserProfile> & { isShadow: boolean; createdById?: string } = {
       uid: newUserId,
       displayName: name || contact,
       username,
@@ -260,12 +265,40 @@ export const userService = {
 
     if (isEmail) {
       newProfile.email = contact;
-    } else {
+    } else if (isPhone) {
       newProfile.phoneNumber = contact;
+    }
+    
+    if (creatorId) {
+      newProfile.createdById = creatorId;
     }
 
     await setDoc(doc(db, USERS_COLLECTION, newUserId), newProfile);
     return newUserId;
+  },
+
+  /**
+   * Finds an existing shadow user created by a specific user with a specific name
+   */
+  async resolveShadowUserByName(name: string, creatorId: string): Promise<string> {
+    const usersRef = collection(db, USERS_COLLECTION);
+    
+    const q = query(
+      usersRef, 
+      where('createdById', '==', creatorId),
+      where('isShadow', '==', true),
+      where('displayName', '==', name),
+      limit(1)
+    );
+    
+    const snapshot = await getDocs(q);
+    
+    if (!snapshot.empty) {
+      return snapshot.docs[0].id;
+    }
+    
+    // Create new shadow user using the name as the dummy contact
+    return this.createShadowUser(name, name, creatorId);
   },
 
   /**
@@ -287,5 +320,71 @@ export const userService = {
 
     // 3. Create a shadow user
     return this.createShadowUser(identifier, name);
+  },
+  
+  /**
+   * Gets all active balances for a user directly from the ledger.
+   * Includes friends, shadow users, and non-friend app users.
+   */
+  async getActiveBalances(userId: string): Promise<Friend[]> {
+    const balancesRef = collection(db, 'balances');
+    const balanceSnap = await getDocs(query(balancesRef, where('participants', 'array-contains', userId)));
+
+    const balanceMap: Record<string, number> = {};
+    const relatedUserIds = new Set<string>();
+
+    balanceSnap.docs.forEach(docSnap => {
+      const data = docSnap.data();
+      const participants: string[] = data.participants || [];
+      const relatedId = participants.find(p => p !== userId);
+      if (!relatedId) return;
+
+      const rawBalance: number = data.balance ?? 0;
+      
+      // Skip 0 balances early
+      if (Math.abs(rawBalance) < 0.005) return;
+      
+      const sortedParticipants = [...participants].sort();
+      const userIsFirst = sortedParticipants[0] === userId;
+      
+      // If user is first sorted and balance > 0, user is owed (positive)
+      // If user is second sorted, negate to get user-relative view
+      balanceMap[relatedId] = userIsFirst ? rawBalance : -rawBalance;
+      relatedUserIds.add(relatedId);
+    });
+
+    const userIdsArray = Array.from(relatedUserIds);
+    if (userIdsArray.length === 0) return [];
+
+    // Batch-fetch profiles using documentId() in queries (max 30 per batch).
+    const profileMap: Record<string, UserProfile> = {};
+    const usersRef = collection(db, USERS_COLLECTION);
+    const BATCH_SIZE = 30; // Firestore 'in' operator limit
+
+    for (let i = 0; i < userIdsArray.length; i += BATCH_SIZE) {
+      const batch = userIdsArray.slice(i, i + BATCH_SIZE);
+      const q = query(usersRef, where(documentId(), 'in', batch));
+      const snap = await getDocs(q);
+      snap.docs.forEach(d => {
+        profileMap[d.id] = d.data() as UserProfile;
+      });
+    }
+
+    const balancesList: Friend[] = [];
+    for (const relatedId of userIdsArray) {
+      const profile = profileMap[relatedId];
+      if (profile) {
+        balancesList.push({
+          id: profile.uid,
+          name: profile.displayName || 'Unknown',
+          email: profile.email,
+          username: profile.username,
+          venmoId: profile.venmoId,
+          balance: balanceMap[relatedId] ?? 0,
+        });
+      }
+    }
+
+    return balancesList;
   }
 };

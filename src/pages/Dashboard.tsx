@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -29,16 +29,19 @@ import { billService } from '@/services/billService';
 import { useToast } from '@/hooks/use-toast';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import { FriendBalancePreviewCard } from '@/components/dashboard/FriendBalancePreviewCard';
-import { useFriendsEditor } from '@/hooks/useFriendsEditor';
+import { useActiveBalances } from '@/hooks/useActiveBalances';
+import { PullToRefresh } from '@/components/layout/PullToRefresh';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
   const [isCreatingBill, setIsCreatingBill] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [billToDelete, setBillToDelete] = useState<{ id: string; receiptFileName?: string; title: string } | null>(null);
-  const { friends, isLoadingFriends } = useFriendsEditor();
+  const { balances, isLoading: isLoadingBalances, refreshBalances } = useActiveBalances();
   const {
     activeSession,
     savedSessions,
@@ -49,6 +52,27 @@ export default function Dashboard() {
     deleteSession,
     resumeSession
   } = useBillContext();
+
+  // Refresh balances automatically when routing back to the dashboard, 
+  // e.g. after finishing a simple transaction wizard.
+  useEffect(() => {
+    refreshBalances();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
+
+  const handleRefresh = async () => {
+    setIsManualRefreshing(true);
+    try {
+      // Add a slight artificial delay (min 600ms) to ensure the user clearly sees 
+      // the whole screen refresh taking place. Let both the fetch and delay finish.
+      await Promise.all([
+        refreshBalances(),
+        new Promise(resolve => setTimeout(resolve, 600))
+      ]);
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  };
 
   // Cleanup: Auto-delete empty bills on Dashboard mount
   useEffect(() => {
@@ -82,7 +106,6 @@ export default function Dashboard() {
   }, [user, isLoadingSessions, activeSession, savedSessions, deleteSession]);
 
   const handleNewBill = async () => {
-
     if (!user) {
       toast({
         title: 'Error',
@@ -187,10 +210,10 @@ export default function Dashboard() {
     return hasItems || hasReceipt;
   });
 
-  const hasActiveBalances = friends.some(f => Math.abs(f.balance || 0) > 0.005);
+  const hasActiveBalances = balances.some(b => Math.abs(b.balance || 0) > 0.005);
   const isCompletelyEmpty = allBills.length === 0 && !hasActiveBalances;
 
-  if (isLoadingSessions || isLoadingFriends) {
+  if (isLoadingSessions || (isLoadingBalances && balances.length === 0)) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-200px)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -199,129 +222,135 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
-      {/* Header - added dashboard-header class for mobile CSS targeting */}
-      <div className="dashboard-header mb-4 md:mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold mb-2">
-          Welcome back{user?.displayName ? `, ${user.displayName.split(' ')[0]}` : ''}
-        </h1>
-      </div>
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
+        {/* Header - added dashboard-header class for mobile CSS targeting */}
+        <div className="dashboard-header mb-4 md:mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold mb-2">
+            Welcome back{user?.displayName ? `, ${user.displayName.split(' ')[0]}` : ''}
+          </h1>
+        </div>
 
-      <div className="flex flex-col gap-3 md:gap-6 min-h-[calc(100vh-12rem)]">
-        {isCompletelyEmpty ? (
-          <div className="flex-1 flex items-center justify-center">
-            <Card className="p-4 md:p-6 overflow-hidden w-full max-w-2xl">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <ReceiptText className="w-6 h-6 text-primary" />
-                </div>
-                <h3 className="font-semibold text-lg mb-1">Make your first bill</h3>
-                <p className="text-sm text-muted-foreground mb-6">Split expenses, record simple transactions, or start a group trip to effortlessly track who owes what.</p>
+        <div className="flex flex-col gap-3 md:gap-6 min-h-[calc(100vh-12rem)]">
+          {isCompletelyEmpty ? (
+            <div className="flex-1 flex items-center justify-center">
+              <Card className="p-4 md:p-6 overflow-hidden w-full max-w-2xl">
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ReceiptText className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-1">Make your first bill</h3>
+                  <p className="text-sm text-muted-foreground mb-6">Split expenses, record simple transactions, or start a group trip to effortlessly track who owes what.</p>
 
-                <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-border border rounded-lg">
-                  <button
-                    className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-primary/5 transition-colors group"
-                    onClick={handleNewBill}
-                  >
-                    <ReceiptText className="w-5 h-5 text-primary" />
-                    <div className="text-left">
-                      <div className="font-medium text-sm">Standard Bill</div>
-                      <div className="text-[10px] text-muted-foreground">Scan receipt</div>
-                    </div>
-                  </button>
+                  <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-border border rounded-lg">
+                    <button
+                      className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-primary/5 transition-colors group"
+                      onClick={handleNewBill}
+                    >
+                      <ReceiptText className="w-5 h-5 text-primary" />
+                      <div className="text-left">
+                        <div className="font-medium text-sm">Standard Bill</div>
+                        <div className="text-[10px] text-muted-foreground">Scan receipt</div>
+                      </div>
+                    </button>
 
-                  <button
-                    className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-blue-500/5 transition-colors group"
-                    onClick={() => navigate('/transaction/new')}
-                  >
-                    <Zap className="w-5 h-5 text-blue-500" />
-                    <div className="text-left">
-                      <div className="font-medium text-sm">Quick Expense</div>
-                      <div className="text-[10px] text-muted-foreground">No items</div>
-                    </div>
-                  </button>
+                    <button
+                      className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-blue-500/5 transition-colors group"
+                      onClick={() => navigate('/transaction/new')}
+                    >
+                      <Zap className="w-5 h-5 text-blue-500" />
+                      <div className="text-left">
+                        <div className="font-medium text-sm">Quick Expense</div>
+                        <div className="text-[10px] text-muted-foreground">No items</div>
+                      </div>
+                    </button>
 
-                  <button
-                    className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-orange-500/5 transition-colors group"
-                    onClick={() => navigate('/events')}
-                  >
-                    <CalendarDays className="w-5 h-5 text-orange-500" />
-                    <div className="text-left">
-                      <div className="font-medium text-sm">Event / Trip</div>
-                      <div className="text-[10px] text-muted-foreground">Group bills</div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </Card>
-          </div>
-        ) : (
-          <>
-            {/* Top Section: Friend Balances */}
-            {hasActiveBalances && (
-              <div className={allBills.length > 0 ? "min-h-[30vh] flex flex-col" : "flex flex-col"}>
-                <FriendBalancePreviewCard />
-              </div>
-            )}
-
-            {/* Bottom Section: My Bills */}
-            {(allBills.length > 0) && (
-              <div>
-                <div className="flex items-center justify-between mb-1 ml-1">
-                  <div>
-                    <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                      My Bills
-                    </h2>
+                    <button
+                      className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-orange-500/5 transition-colors group"
+                      onClick={() => navigate('/events')}
+                    >
+                      <CalendarDays className="w-5 h-5 text-orange-500" />
+                      <div className="text-left">
+                        <div className="font-medium text-sm">Event / Trip</div>
+                        <div className="text-[10px] text-muted-foreground">Group bills</div>
+                      </div>
+                    </button>
                   </div>
                 </div>
+              </Card>
+            </div>
+          ) : (
+            <>
+              {/* Top Section: Friend Balances */}
+            <div className={allBills.length > 0 ? "min-h-[30vh] flex flex-col" : "flex flex-col"}>
+              <FriendBalancePreviewCard isRefreshing={isManualRefreshing} />
+            </div>
 
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-2 p-1">
-                    {allBills.map((bill) => (
-                      <MobileBillCard
-                        key={bill.id}
-                        bill={bill}
-                        isLatest={bill.id === activeSession?.id}
-                        onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
-                        onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
-                        onDelete={handleDeleteBill}
-                        isResuming={isResuming}
-                        isDeleting={isDeleting}
-                        formatDate={formatDate}
-                        getBillTitle={getBillTitle}
-                        isOwner={bill.ownerId === user?.uid}
-                      />
-                    ))}
+              {/* Bottom Section: My Bills */}
+              {(allBills.length > 0) && (
+                <div>
+                  <div className="flex items-center justify-between mb-1 ml-1">
+                    <div>
+                      <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                        My Bills
+                      </h2>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-2 p-1">
+                      {isManualRefreshing ? (
+                        <div className="flex justify-center items-center py-8">
+                          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : (
+                        allBills.map((bill) => (
+                          <MobileBillCard
+                            key={bill.id}
+                            bill={bill}
+                            isLatest={bill.id === activeSession?.id}
+                            onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
+                            onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
+                            onDelete={handleDeleteBill}
+                            isResuming={isResuming}
+                            isDeleting={isDeleting}
+                            formatDate={formatDate}
+                            getBillTitle={getBillTitle}
+                            isOwner={bill.ownerId === user?.uid}
+                          />
+                        ))
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              )}
+            </>
+          )}
+        </div>
+
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!billToDelete} onOpenChange={(open) => !open && setBillToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete "{billToDelete?.title}" and all associated data.
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-destructive hover:bg-destructive/90"
+              >
+                Delete Permanently
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
-
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!billToDelete} onOpenChange={(open) => !open && setBillToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete "{billToDelete?.title}" and all associated data.
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              Delete Permanently
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+    </PullToRefresh>
   );
 }

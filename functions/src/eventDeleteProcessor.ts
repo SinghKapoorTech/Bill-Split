@@ -4,7 +4,7 @@
  * Cloud Function: Firestore onDocumentDeleted trigger on events/{eventId}
  *
  * When an event is deleted, this function:
- *   1. Explicitly reverses ledger footprints for each bill (friend_balances + event_balances)
+ *   1. Explicitly reverses ledger footprints for each bill (balances + event_balances)
  *      — the same reversal that happens when a single bill is deleted
  *   2. Deletes all bills associated with the event
  *   3. Deletes all event_balances pair documents for the event
@@ -85,7 +85,7 @@ export const eventDeleteProcessor = onDocumentDeleted(
 
       if (!ownerId) continue;
 
-      // Stage 2: Reverse friend_balances (same as single bill delete)
+      // Stage 2: Reverse balances (same as single bill delete)
       const processedBalances = bill.processedBalances;
       if (processedBalances && Object.keys(processedBalances).length > 0) {
         try {

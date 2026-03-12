@@ -1,21 +1,21 @@
 import { useState } from 'react';
-import { Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { useFriendsEditor } from '@/hooks/useFriendsEditor';
+import { useActiveBalances } from '@/hooks/useActiveBalances';
 import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
 import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
 import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
 
-export function FriendBalancePreviewCard() {
+export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: boolean } = {}) {
   const navigate = useNavigate();
-  const { friends, isLoadingFriends, refreshFriends } = useFriendsEditor();
+  const { balances, isLoading, refreshBalances } = useActiveBalances();
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
-  const sortedFriends = [...friends]
+  const sortedFriends = [...balances]
     .filter(f => Math.abs(f.balance || 0) > 0.005)
     .sort((a, b) => {
       const balA = Math.abs(a.balance || 0);
@@ -47,10 +47,10 @@ export function FriendBalancePreviewCard() {
 
       <Card className="p-0 overflow-hidden flex-1 flex flex-col border-none bg-transparent shadow-none">
         <div className="flex-1 mb-0">
-          {isLoadingFriends ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Loading balances...
-            </p>
+          {isLoading || isRefreshing ? (
+            <div className="flex justify-center items-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
           ) : previewFriends.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
               <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center mb-3">
@@ -145,7 +145,7 @@ export function FriendBalancePreviewCard() {
           targetUserName={settleTarget.name}
           isPaying={settleTarget.isPaying}
           balanceAmount={settleTarget.amount}
-          onSuccess={() => { setSettleTarget(null); refreshFriends(); }}
+          onSuccess={() => { setSettleTarget(null); refreshBalances(); }}
         />
       )}
 

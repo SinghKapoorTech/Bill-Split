@@ -167,7 +167,7 @@ The app uses a **custom hooks architecture** where each major feature domain has
 - **`useShareSession`** - Shareable link generation
 
 **Settlements & Balances:**
-- **`useFriendsEditor`** - Friend list management with hydrated balances from `friend_balances`
+- **`useFriendsEditor`** - Friend list management with hydrated balances from `balances`
 
 **AI & Media:**
 - **`useReceiptAnalyzer`** - Gemini AI integration for receipt analysis
@@ -194,8 +194,8 @@ These hooks are composed together in pages and components.
 **Events (Multi-Receipt Groups):**
 1. **Event Creation**: User creates event → `useEventManager.createEvent()` → Firestore `events` collection
 2. **Multiple Bills**: Event members add receipts → Each bill has `eventId` → Per-pair balance tracking
-3. **Balance Pipeline**: Bill changes trigger `ledgerProcessor` → Updates `friend_balances` (Stage 2) and `event_balances` per-pair docs (Stage 3) via idempotent deltas
-4. **Event Settlement**: User settles within event → `processEventSettlement` Cloud Function → Only settles bills in that event → Flow-through updates `friend_balances` automatically
+3. **Balance Pipeline**: Bill changes trigger `ledgerProcessor` → Updates `balances` (Stage 2) and `event_balances` per-pair docs (Stage 3) via idempotent deltas
+4. **Event Settlement**: User settles within event → `processEventSettlement` Cloud Function → Only settles bills in that event → Flow-through updates `balances` automatically
 5. **Sharing**: Event owner invites members by email → Members view/contribute
 
 **Squads:**
@@ -273,7 +273,7 @@ bills/{billId}/                          # All bills (private + event)
     }
   - splitEvenly: boolean
   - settledPersonIds?: string[]          # Bill-local person IDs who have paid
-  - processedBalances?: Record<uid, number>  # Last footprint written to friend_balances
+  - processedBalances?: Record<uid, number>  # Last footprint written to balances
   - processedEventBalances?: Record<uid, number>  # Last footprint written to event_balances
   - _ledgerVersion?: number              # Incremented by pipeline each pass
   - _friendScanTrigger?: timestamp       # Touched to re-trigger pipeline on friend add
@@ -305,7 +305,7 @@ events/{eventId}/                        # Multi-receipt events
   - createdAt: timestamp
   - updatedAt: timestamp
 
-friend_balances/{uid1_uid2}/             # Bilateral balance between two friends
+balances/{uid1_uid2}/             # Bilateral balance between two friends
   - id: string                           # Sorted composite: [uid1, uid2].sort().join('_')
   - participants: [uid1, uid2]           # Sorted alphabetically
   - balance: number                      # >0 → participants[0] is owed; <0 → participants[1] is owed
@@ -313,11 +313,11 @@ friend_balances/{uid1_uid2}/             # Bilateral balance between two friends
   - lastUpdatedAt: timestamp
   - lastBillId: string
 
-event_balances/{eventId_uid1_uid2}/      # Per-pair balance within an event (mirrors friend_balances)
+event_balances/{eventId_uid1_uid2}/      # Per-pair balance within an event (mirrors balances)
   - id: string                           # "{eventId}_{sorted uid pair}"
   - eventId: string
   - participants: [uid1, uid2]           # Sorted alphabetically
-  - balance: number                      # Same sign convention as friend_balances
+  - balance: number                      # Same sign convention as balances
   - unsettledBillIds: string[]           # Bill IDs from this event between this pair
   - lastUpdatedAt: timestamp
   - lastBillId: string
@@ -408,7 +408,7 @@ receipts/collaborative/{fileName}        # Shared receipt images
 
 **User Service (`src/services/userService.ts`):**
 - `getUserProfile(userId)` - Fetches user profile
-- `getHydratedFriends(userId)` - Queries `friend_balances` to build friends list with balance data
+- `getHydratedFriends(userId)` - Queries `balances` to build friends list with balance data
 
 **Event Ledger Service (`src/services/eventLedgerService.ts`):**
 - Defines `EventPairBalance` type for per-pair event balance documents
@@ -494,13 +494,13 @@ See `shared/calculations.ts` for implementation (shared between client and Cloud
 
 ### Ledger Pipeline (`functions/src/ledgerProcessor.ts`)
 
-Server-side Cloud Function triggered on every `bills/{billId}` write. No client ever writes to `friend_balances` or `event_balances` directly.
+Server-side Cloud Function triggered on every `bills/{billId}` write. No client ever writes to `balances` or `event_balances` directly.
 
 **3-stage pipeline:**
 
 1. **Stage 1 — Validate & Calculate**: Computes `personTotals` server-side. Skips if no relevant fields changed (`billData`, `people`, `itemAssignments`, `settledPersonIds`, `paidById`, `splitEvenly`, `ownerId`, `_friendScanTrigger`).
 
-2. **Stage 2 — Friend Ledger** (authoritative, transactional): Computes `calculateFriendFootprint()` → diffs against `bill.processedBalances` (old footprint) → applies delta to `friend_balances/{uid1_uid2}` docs. Only processes people who are linked friends of the owner.
+2. **Stage 2 — Friend Ledger** (authoritative, transactional): Computes `calculateFriendFootprint()` → diffs against `bill.processedBalances` (old footprint) → applies delta to `balances/{uid1_uid2}` docs. Only processes people who are linked friends of the owner.
 
 3. **Stage 3 — Event Pair Ledger** (transactional): If bill has `eventId`, computes footprint for event participants (event members + linked friends) → diffs against `bill.processedEventBalances` → applies delta to `event_balances/{eventId_uid1_uid2}` per-pair docs.
 
@@ -511,9 +511,9 @@ Server-side Cloud Function triggered on every `bills/{billId}` write. No client 
 ### Settlement Flow
 
 **Global Settlement** (`processSettlement` Cloud Function):
-1. Reads `friend_balances/{uid1_uid2}` to get `balance` and `unsettledBillIds`
+1. Reads `balances/{uid1_uid2}` to get `balance` and `unsettledBillIds`
 2. For each bill: marks debtor as settled (`settledPersonIds`), zeros `processedBalances[debtorUid]`
-3. Zeros `friend_balances` balance
+3. Zeros `balances` balance
 4. Writes immutable `settlements` record
 5. Pipeline re-fires from `settledPersonIds` change → updates `event_balances` via flow-through
 
@@ -521,7 +521,7 @@ Server-side Cloud Function triggered on every `bills/{billId}` write. No client 
 1. Reads `event_balances/{eventId_uid1_uid2}` to get `unsettledBillIds`
 2. For each bill: marks debtor as settled, zeros `processedEventBalances[debtorUid]`
 3. Zeros event pair balance
-4. Does NOT touch `processedBalances` — pipeline re-fires and updates `friend_balances` via flow-through
+4. Does NOT touch `processedBalances` — pipeline re-fires and updates `balances` via flow-through
 5. **One settle action reduces both event and global friend balances**
 
 **Settlement Reversal** (`reverseSettlement` Cloud Function):

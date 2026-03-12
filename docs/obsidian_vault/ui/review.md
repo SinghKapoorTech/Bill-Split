@@ -59,12 +59,12 @@ The Review step no longer manages complex ledger math directly. Under the new **
 
 1. When a bill is created, edited, or reviewed, the app simply saves the state of the bill document to the `bills` collection.
 2. The backend **`ledgerProcessor` Cloud Function** instantly detects the write via an `onDocumentWritten` trigger.
-3. The server-side pipeline securely validates the bill, computes exact per-person totals, and atomically updates the authoritative **[[../database/friend_balances|friend_balances]]** ledger.
+3. The server-side pipeline securely validates the bill, computes exact per-person totals, and atomically updates the authoritative **[[../database/balances|balances]]** ledger.
 4. The pipeline then automatically rebuilds the `event_balances` cache for the associated event.
 
 ### Why this is better
 - **No Client Race Conditions:** Users can immediately tap "Charge on Venmo" and close the app. The backend guarantees the ledger completely updates regardless of the user's connection status.
-- **Security:** The app doesn't need to write to `friend_balances`, locking down the database from malicious client updates.
+- **Security:** The app doesn't need to write to `balances`, locking down the database from malicious client updates.
 
 ## 5. Dependencies
 

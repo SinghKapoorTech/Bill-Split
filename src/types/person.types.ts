@@ -39,7 +39,7 @@ export interface UserProfile {
   phoneNumber?: string;
   username?: string;
   
-  // List of friend Firebase UIDs. Balances are stored in the separate `friend_balances` collection.
+  // List of friend Firebase UIDs. Balances are stored in the separate `balances` collection.
   friends: string[];
   squadIds: string[];
   

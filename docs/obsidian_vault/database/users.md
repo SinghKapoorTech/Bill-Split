@@ -22,7 +22,7 @@ String — matches the Firebase Auth `uid`.
 | `photoURL`    | String (Optional) | URL to the user's avatar.                                                             |
 | `phoneNumber` | String (Optional) | User's phone number.                                                                  |
 | `venmoId`     | String (Optional) | User's Venmo handle for payments (without the `@`).                                   |
-| `friends`     | Array of String   | Firebase UIDs of saved friends. Balances are stored separately in **[[friend_balances]]**, not here. |
+| `friends`     | Array of String   | Firebase UIDs of saved friends. Balances are stored separately in **[[balances]]**, not here. |
 | `squadIds`    | Array of String   | IDs referencing documents in the **[Squads](squads.md)** collection.                  |
 | `createdAt`   | Timestamp         | When the profile was created.                                                         |
 | `lastLoginAt` | Timestamp         | Last time the user authenticated.                                                     |
@@ -33,11 +33,11 @@ String — matches the Firebase Auth `uid`.
 `friends: string[]` — a plain array of Firebase UIDs representing the user's saved friends.
 
 > [!NOTE]
-> There is **no balance data** embedded in this array. Balances live exclusively in the **[[friend_balances]]** collection. `userService.getHydratedFriends(userId)` queries both `users` (for names/emails/venmoId) and `friend_balances` (for balance amounts) at read time to construct the full `Friend[]` displayed in the UI.
+> There is **no balance data** embedded in this array. Balances live exclusively in the **[[balances]]** collection. `userService.getHydratedFriends(userId)` queries both `users` (for names/emails/venmoId) and `balances` (for balance amounts) at read time to construct the full `Friend[]` displayed in the UI.
 
 ## Relationships & Usage
 
-- **[[friend_balances]]**: Source of truth for balance amounts. `friends[]` here just says *who* your friends are, not *how much* they owe.
+- **[[balances]]**: Source of truth for balance amounts. `friends[]` here just says *who* your friends are, not *how much* they owe.
 - **[Squads](squads.md)**: The `squadIds` array is a two-way sync. When a user joins or creates a Squad, its ID is appended here.
 - **[Bills](bills.md)**: `friends[]` is used during bill finalization to resolve bill-local person IDs to real Firebase UIDs.
 

@@ -49,16 +49,16 @@ When you edit a bill, the engine:
 
 While Client-Side Idempotent Deltas solved the mathematical scaling issues, allowing the client to execute these transactions directly uncovered significant architectural flaws:
 
-1. **Security Vulnerabilities**: To allow the client to update `friend_balances` and `event_balances`, those collections had to be practically wide open in Firestore Security Rules. A malicious user could theoretically write arbitrary balances to any ledger they were a participant in.
+1. **Security Vulnerabilities**: To allow the client to update `balances` and `event_balances`, those collections had to be practically wide open in Firestore Security Rules. A malicious user could theoretically write arbitrary balances to any ledger they were a participant in.
 2. **Client-Side Complexity & Race Conditions**: The client was responsible for orchestrating complex, multi-document ACID transactions across different ledgers. If the user closed the app right after creating a bill but before the transaction finished, the ledger would be permanently out of sync.
-3. **Dual Source of Truth**: The client was maintaining two separate authorities (`friend_balances` and `event_balances`) via simultaneous writes.
+3. **Dual Source of Truth**: The client was maintaining two separate authorities (`balances` and `event_balances`) via simultaneous writes.
 
 **The Solution:** We migrated the Idempotent Delta Engine entirely to a backend **Server-Side Pipeline** powered by Firebase Cloud Functions. (See [[../backend/cloud_functions|Cloud Functions Overview]] for details on triggers and behavior).
 
 **Why this is better:**
-- **Rock-Solid Security:** `friend_balances` and `event_balances` are now completely locked down (`allow write: if false`) to client requests. Only the secure Admin SDK on the backend can mutate balances.
+- **Rock-Solid Security:** `balances` and `event_balances` are now completely locked down (`allow write: if false`) to client requests. Only the secure Admin SDK on the backend can mutate balances.
 - **Guaranteed Consistency:** The client's only job is to save the `Bill` document. The backend `onDocumentWritten` trigger handles the rest. If the user closes the app, loses service, or crashes, the backend pipeline still guarantees the ledger is perfectly updated.
-- **Single Source of Truth:** `friend_balances` is the sole authoritative source of truth. `event_balances` has been demoted to a rebuildable cache. If the cache is deleted, the pipeline simply rebuilds it from the original bills.
+- **Single Source of Truth:** `balances` is the sole authoritative source of truth. `event_balances` has been demoted to a rebuildable cache. If the cache is deleted, the pipeline simply rebuilds it from the original bills.
 
 ---
 
@@ -74,13 +74,13 @@ While Client-Side Idempotent Deltas solved the mathematical scaling issues, allo
 ### 2. Bills with Non-Friends (Shadow Users) + Retroactive Friend Scan
 **Scenario:** You go on a trip with Dave. Dave is not your friend in the app yet, but you split 10 bills with him via his phone number.
 **Behavior:**
-- The ledger pipeline only creates `friend_balances` entries for participants who are in the bill owner's friends list (`resolveLinkedFriends`).
-- While Dave isn't your friend, bills are saved normally but no `friend_balances` entry is created for Dave.
+- The ledger pipeline only creates `balances` entries for participants who are in the bill owner's friends list (`resolveLinkedFriends`).
+- While Dave isn't your friend, bills are saved normally but no `balances` entry is created for Dave.
 - When you add Dave as a friend, the `friendAddProcessor` Cloud Function fires:
   - Detects the newly added friend UID by diffing `before.friends` vs `after.friends`
   - Queries all bills you own that include Dave (via `participantIds` array-contains index)
   - Touches each bill with `_friendScanTrigger` to re-trigger the ledger pipeline
-  - The pipeline re-fires, now sees Dave in `resolveLinkedFriends()`, and backfills `friend_balances`
+  - The pipeline re-fires, now sees Dave in `resolveLinkedFriends()`, and backfills `balances`
 - Dave instantly appears on your Dashboard with the correctly calculated history.
 - **Note:** Only bills you own are processed when you add Dave. Bills Dave owns that include you are processed when Dave adds you as a friend (owner controls ledger entries).
 
@@ -91,10 +91,10 @@ While Client-Side Idempotent Deltas solved the mathematical scaling issues, allo
 - Wait, does it just do a blind delta? No! We implemented **Cascading Settlements**.
 - The settlement processor (`settlementProcessor.ts`) queries your oldest unsettled bills and calculates the exact amount you owe on each.
 - **Forgiveness Bills:** Bills where you are the *creditor* (owed money) are processed first and inflate the virtual cash pool, enabling a single settlement to clear debts in both directions simultaneously.
-- **`paidById`-Aware Creditor Resolution:** The creditor is resolved via `paidById` (falling back to `ownerId`) so that bills where someone other than the owner paid are settled against the correct `friend_balances` pair.
-- For each fully-covered bill, it pushes your `personId` into the `settledPersonIds` array and updates `friend_balances` atomically in a single transaction. The bill is also removed from `contributingBillIds` on `friend_balances` once fully settled.
+- **`paidById`-Aware Creditor Resolution:** The creditor is resolved via `paidById` (falling back to `ownerId`) so that bills where someone other than the owner paid are settled against the correct `balances` pair.
+- For each fully-covered bill, it pushes your `personId` into the `settledPersonIds` array and updates `balances` atomically in a single transaction. The bill is also removed from `contributingBillIds` on `balances` once fully settled.
 - The ledger pipeline auto-fires for each modified bill and rebuilds the `event_balances` cache.
-- Any remaining partial payment left over is applied directly to `friend_balances` as an idempotent deduction.
+- Any remaining partial payment left over is applied directly to `balances` as an idempotent deduction.
 - The settlement processor does **not** write to `event_balances` — the pipeline handles that as a cache rebuild.
 - Settlements can be **reversed** via the `reverseSettlement` Cloud Function, which un-settles bills and restores balances atomically. The reversal also uses `paidById`-aware creditor resolution to correctly identify which party was unsettled.
 
@@ -144,7 +144,7 @@ interface Settlement {
   settledBillIds?: string[]; // Bill IDs fully settled by this payment (enables reversal)
 ```
 
-### `friend_balances` Collection
+### `balances` Collection
 Pairwise running balance between two users. Written exclusively by the server-side pipeline (Admin SDK).
 ```typescript
 interface FriendBalance {
@@ -188,7 +188,7 @@ Core calculation logic is extracted into framework-agnostic pure modules under `
 ## Server-Side Ledger Pipeline
 
 > [!NOTE]
-> **Migration complete.** Client-side ledger writes have been removed and security rules locked down. The pipeline (`ledgerProcessor`) is the sole writer to `friend_balances` and `event_balances`.
+> **Migration complete.** Client-side ledger writes have been removed and security rules locked down. The pipeline (`ledgerProcessor`) is the sole writer to `balances` and `event_balances`.
 
 All ledger mutations are moving to a **server-side pipeline** — a Firestore `onDocumentWritten` trigger on `bills/{billId}`. The client only writes bill documents; the pipeline handles all downstream ledger effects.
 
@@ -208,7 +208,7 @@ Bill Create/Edit/Delete  →  Firestore bills/{billId}
               │  Stage 2: FRIEND LEDGER             │
               │  [authoritative, in transaction]     │
               │  - Compute footprint → delta         │
-              │  - Apply to friend_balances          │
+              │  - Apply to balances          │
               │  - Save processedBalances on bill    │
               ├─────────────────────────────────────┤
               │  Stage 3: EVENT CACHE               │
@@ -220,13 +220,13 @@ Bill Create/Edit/Delete  →  Firestore bills/{billId}
 
 **Key design decisions:**
 - **Stage 2 is a Firestore transaction** — atomic, retries on contention, authoritative
-- **Stage 3 is outside the transaction** — it's just a cache rebuild. If it fails, friend_balances (the authority) is still correct. Cache rebuilds on the next bill change.
+- **Stage 3 is outside the transaction** — it's just a cache rebuild. If it fails, balances (the authority) is still correct. Cache rebuilds on the next bill change.
 - **Loop prevention:** `hasRelevantChange()` compares only bill-content fields (`billData`, `people`, `itemAssignments`, `settledPersonIds`, `paidById`, `splitEvenly`, `ownerId`, `_friendScanTrigger`). The pipeline's own `processedBalances` write is excluded, preventing infinite trigger loops.
-- **Delete handling:** reads footprint from `before` snapshot, reverses friend_balances, rebuilds event cache without the deleted bill.
+- **Delete handling:** reads footprint from `before` snapshot, reverses balances, rebuilds event cache without the deleted bill.
 
 ### `friendAddProcessor` Cloud Function (`functions/src/friendAddProcessor.ts`)
 
-Retroactive friend scan — when a user adds a new friend, backfills `friend_balances` for historical shared bills.
+Retroactive friend scan — when a user adds a new friend, backfills `balances` for historical shared bills.
 
 ```
 User adds friend  →  Firestore users/{userId} update
@@ -243,7 +243,7 @@ User adds friend  →  Firestore users/{userId} update
             │     - Touch each bill with            │
             │       _friendScanTrigger: Timestamp    │
             │  3. ledgerProcessor auto-fires →       │
-            │     backfills friend_balances          │
+            │     backfills balances          │
             └──────────────────────────────────────┘
 ```
 
@@ -255,7 +255,7 @@ User adds friend  →  Firestore users/{userId} update
 
 ### Client-Side Write Path — REMOVED
 
-The client no longer writes to `friend_balances` or `event_balances` directly. All ledger mutations flow through the server-side pipeline. The client only writes bill documents to Firestore.
+The client no longer writes to `balances` or `event_balances` directly. All ledger mutations flow through the server-side pipeline. The client only writes bill documents to Firestore.
 
 - `friendBalanceService.ts` — deleted
 - `eventLedgerService.ts` — write functions removed, retained only for `EventLedger` type + `OptimizedDebt` re-export
@@ -268,7 +268,7 @@ With the pipeline as the sole writer, Firestore security rules now block all cli
 
 | Collection | Client Read | Client Write | Server (Admin SDK) |
 |-----------|-------------|-------------|-------------------|
-| `friend_balances` | Participants only | **Blocked** (`if false`) | Full access |
+| `balances` | Participants only | **Blocked** (`if false`) | Full access |
 | `event_balances` | Event members only | **Blocked** (`if false`) | Full access |
 
 The `isSettlementUpdate()` helper on bills was tightened to only allow `settledPersonIds` — `processedBalances` is written exclusively by the server pipeline.

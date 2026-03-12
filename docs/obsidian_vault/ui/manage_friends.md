@@ -6,7 +6,7 @@ tags: [ui, friends, settings, search, balances]
 
 # Manage Friends Tab
 
-The "Friends" tab (accessed via Settings) allows users to manage their personal address book of friends for bill splitting. It also displays the **live balance** owed between you and each friend, powered by the **[[friend_balances]]** shared ledger.
+The "Friends" tab (accessed via Settings) allows users to manage their personal address book of friends for bill splitting. It also displays the **live balance** owed between you and each friend, powered by the **[[balances]]** shared ledger.
 
 ## Overview
 
@@ -25,7 +25,7 @@ Each friend row shows:
 - **You owe** (red amount) — you have a net debt to the friend.
 - **Settled** (muted) — the balance is zero.
 
-These values are read from the `user.friends[].balance` cache field, which is kept in sync with the **[[friend_balances]]** shared ledger automatically whenever a bill is finalized or deleted.
+These values are read from the `user.friends[].balance` cache field, which is kept in sync with the **[[balances]]** shared ledger automatically whenever a bill is finalized or deleted.
 
 > [!NOTE]
 > The balance updates in real-time via Firestore's `onSnapshot` listener on the user profile document. No page reload is needed after completing a bill.
@@ -43,7 +43,7 @@ Results display the user's name, username, and email. Clicking a result adds the
 
 ### Adding from Search
 
-When a user is added from search results, `recalculateSingleFriendBalance()` is called in the background to immediately pull any pre-existing balance from the **[[friend_balances]]** collection (e.g., if they already created bills involving you before you added them).
+When a user is added from search results, `recalculateSingleFriendBalance()` is called in the background to immediately pull any pre-existing balance from the **[[balances]]** collection (e.g., if they already created bills involving you before you added them).
 
 ---
 
@@ -85,12 +85,12 @@ A scrollable list of all saved friends:
 - **Username** or **email** shown in smaller text below the name.
 - **Balance** shown on the right: "Owes you $X.XX" (green), "You owe $X.XX" (red), or "Settled" (muted).
 - **Edit** (pencil icon) — opens inline edit for name, email, Venmo ID.
-- **Delete** (trash icon) — removes the friend from your list. Does **not** delete the `friend_balances` document (outstanding balances are preserved).
+- **Delete** (trash icon) — removes the friend from your list. Does **not** delete the `balances` document (outstanding balances are preserved).
 
 ---
 
 ## Related
 
-- [[friend_balances]] — Database schema for the shared ledger
+- [[balances]] — Database schema for the shared ledger
 - [[settings]] — Parent settings page
 - [[search]] — Detailed search implementation docs

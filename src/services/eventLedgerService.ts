@@ -13,7 +13,7 @@ export type { OptimizedDebt } from '@shared/optimizeDebts';
 
 /**
  * Per-pair balance document within an event.
- * Mirrors the friend_balances schema but scoped to a single event.
+ * Mirrors the balances schema but scoped to a single event.
  */
 export interface EventPairBalance {
   id: string;

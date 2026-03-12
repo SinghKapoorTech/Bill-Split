@@ -34,7 +34,7 @@ Manage your own personal identity on the platform.
 
 Interface to curate your friends list and view what each person owes you (or vice versa).
 
-- **Live Balances**: Each friend row shows the net balance from the **[[friend_balances]]** shared ledger — "Owes you $X", "You owe $X", or "Settled".
+- **Live Balances**: Each friend row shows the net balance from the **[[balances]]** shared ledger — "Owes you $X", "You owe $X", or "Settled".
 - **Search App Users**: Find any registered user by email or username prefix.
 - **Shadow Users**: Add friends not on the app yet by providing their name + email.
 

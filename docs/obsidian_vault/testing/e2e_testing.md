@@ -228,7 +228,7 @@ http://localhost:4000
 ```
 
 This gives you a live dashboard:
-- **Firestore tab** → browse all collections (`bills`, `events`, `users`, `friend_balances`) and their documents in real time
+- **Firestore tab** → browse all collections (`bills`, `events`, `users`, `balances`) and their documents in real time
 - **Auth tab** → see all test users that were created during the test run
 
 ### Capturing Browser Console Logs

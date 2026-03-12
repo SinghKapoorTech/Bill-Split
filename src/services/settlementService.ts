@@ -13,7 +13,7 @@ export const settlementService = {
   /**
    * Settles all outstanding bills with a friend via the Cloud Function.
    * Atomically marks all shared unsettled bills as settled, zeros the
-   * friend_balances balance, and writes a settlement record.
+   * balances balance, and writes a settlement record.
    */
   async requestSettlement(friendUserId: string): Promise<SettleResult> {
     const fn = httpsCallable<
@@ -27,7 +27,7 @@ export const settlementService = {
 
   /**
    * Settles all outstanding bills with a friend within a specific event.
-   * Only bills in that event are settled. The global friend_balances are
+   * Only bills in that event are settled. The global balances are
    * updated automatically via the ledgerProcessor flow-through.
    */
   async requestEventSettlement(eventId: string, friendUserId: string): Promise<SettleResult> {

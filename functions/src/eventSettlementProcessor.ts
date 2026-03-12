@@ -12,7 +12,7 @@
  *
  * Flow-through: Does NOT zero processedBalances on the bill — so when
  * the ledgerProcessor fires from the settledPersonIds change, it updates
- * friend_balances automatically. One settle action reduces both event
+ * balances automatically. One settle action reduces both event
  * and global friend balances.
  */
 
@@ -127,7 +127,7 @@ export async function processEventSettlementCore(
     //    Zero processedEventBalances[debtorUid] to prevent ledgerProcessor
     //    from re-applying a delta to event_balances.
     //    Do NOT touch processedBalances — the ledgerProcessor will fire
-    //    and update friend_balances automatically (flow-through).
+    //    and update balances automatically (flow-through).
     const settledBillIds: string[] = [];
     const now = Timestamp.now();
 

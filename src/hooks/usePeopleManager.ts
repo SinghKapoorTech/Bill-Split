@@ -87,15 +87,31 @@ export function usePeopleManager(
       return null;
     }
 
+    // Default to a generated ephemeral person ID if not logged in
+    let newPersonId = generatePersonId();
+
+    // If logged in, generate or retrieve a permanent shadow user ID
+    if (user) {
+      toast({
+        title: 'Saving...',
+        description: `Adding ${nameToUse.trim()}...`,
+        duration: 1000,
+      });
+      newPersonId = await userService.resolveShadowUserByName(nameToUse.trim(), user.uid);
+    }
+
     // Create person object with proper venmoId handling
     const personData = createPersonObject(nameToUse, venmoIdToUse);
 
     const newPerson: Person = {
-      id: generatePersonId(),
+      id: newPersonId,
       ...personData,
     };
 
-    setPeople([...people, newPerson]);
+    const alreadyExistsByName = people.some(p => p.id === newPerson.id);
+    if (!alreadyExistsByName) {
+      setPeople([...people, newPerson]);
+    }
 
     // Reset form
     setNewPersonName('');

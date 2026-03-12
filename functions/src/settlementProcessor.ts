@@ -4,10 +4,10 @@
  * Cloud Function: processSettlement
  *
  * Settles all outstanding bills between two users in a single transaction.
- *   1. Reads friend_balances to get balance and unsettledBillIds
+ *   1. Reads balances to get balance and unsettledBillIds
  *   2. Fetches each bill by ID (no broad queries)
  *   3. Marks each bill settled (settledPersonIds + unsettledParticipantIds)
- *   4. Zeros the friend_balances balance and clears unsettledBillIds
+ *   4. Zeros the balances balance and clears unsettledBillIds
  *   5. Writes an immutable settlement record
  *
  * The ledgerProcessor pipeline does NOT need to re-fire here because we
@@ -27,7 +27,7 @@ function db() {
 }
 
 const BILLS_COLLECTION = 'bills';
-const FRIEND_BALANCES_COLLECTION = 'friend_balances';
+const FRIEND_BALANCES_COLLECTION = 'balances';
 const SETTLEMENTS_COLLECTION = 'settlements';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ export async function processSettlementCore(
   let amountSettled = 0;
 
   await db().runTransaction(async (tx) => {
-    // 1. Read friend_balances
+    // 1. Read balances
     const balanceSnap = await tx.get(balanceRef);
     if (!balanceSnap.exists) {
       return; // No balance document → nothing to settle
@@ -127,7 +127,7 @@ export async function processSettlementCore(
     //    CRITICAL: Also update processedBalances to zero the debtor's entry.
     //    Without this, the ledgerProcessor would fire (settledPersonIds changed),
     //    see a non-zero processedBalances, compute a delta, and re-apply it on
-    //    top of the already-zeroed friend_balances — causing a double-count.
+    //    top of the already-zeroed balances — causing a double-count.
     const settledBillIds: string[] = [];
     const now = Timestamp.now();
 

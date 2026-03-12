@@ -1,7 +1,7 @@
 ---
 title: Dashboard — Friend Balances Card
 date: 2026-02-21
-tags: [ui, dashboard, balances, friend_balances]
+tags: [ui, dashboard, balances, balances]
 ---
 
 # Dashboard — Friend Balances Card
@@ -14,7 +14,7 @@ The **Friend Balances** card on the dashboard gives users a quick, at-a-glance s
 
 ## Data Source
 
-Reads from `user.friends[]` in the **[Users](../database/users.md)** collection — the denormalized cache that is kept in sync with the **[[../database/friend_balances|friend_balances]]** ledger.
+Reads from `user.friends[]` in the **[Users](../database/users.md)** collection — the denormalized cache that is kept in sync with the **[[../database/balances|balances]]** ledger.
 
 Because `useUserProfile` uses a Firestore `onSnapshot` real-time listener, this card **updates automatically** whenever:
 - A bill is finalized (balances added).
@@ -44,14 +44,14 @@ If the user has no friends with outstanding balances (or no friends at all), the
 Bill finalized
     └── ledgerService.applyBillToLedgers()
             └── friendBalanceService.applyBillBalancesIdempotent()
-                    └── runTransaction on friend_balances doc
-                            └── onSnapshot fires on friend_balances collection
+                    └── runTransaction on balances doc
+                            └── onSnapshot fires on balances collection
                                     └── getHydratedFriends() re-fetches
                                             └── FriendBalancePreviewCard re-renders ✓
 ```
 
 ## Related
 
-- [[../database/friend_balances|friend_balances]] — The shared ledger powering these numbers
+- [[../database/balances|balances]] — The shared ledger powering these numbers
 - [[manage_friends]] — Where friends are added/managed
 - [[settings]] — Parent page of the Friends tab
