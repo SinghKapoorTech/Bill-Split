@@ -53,6 +53,7 @@ export function useBillSession({
     const lastSavedData = useRef<string | null>(null);
     const pendingSaveTimeout = useRef<NodeJS.Timeout | null>(null);
     const pendingDraftCreation = useRef<Promise<string | null | void> | null>(null);
+    const skipNextAutoSave = useRef(false);
 
     // Keep track of latest props for unmount saving
     const latestProps = useRef({
@@ -200,6 +201,12 @@ export function useBillSession({
         // Don't auto-save during initialization
         if (isInitializing.current) return;
 
+        // Skip if a direct save just happened (e.g. after receipt analysis)
+        if (skipNextAutoSave.current) {
+            skipNextAutoSave.current = false;
+            return;
+        }
+
         // Execute save immediately when navigating to a new step
         executeSave();
 
@@ -208,6 +215,10 @@ export function useBillSession({
 
     return {
         isInitializing: isInitializing.current,
-        executeSave
+        executeSave,
+        skipNextStepSave: () => { skipNextAutoSave.current = true; },
+        registerExternalCreation: (promise: Promise<string | null | void>) => {
+            pendingDraftCreation.current = promise;
+        },
     };
 }

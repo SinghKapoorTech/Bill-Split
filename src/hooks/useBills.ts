@@ -164,18 +164,6 @@ export function useBills() {
       const snapshot = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(snapshot.ref);
 
-      // Delete old image if exists
-      if (activeSession?.receiptFileName) {
-        const oldStorageRef = getStorageRef(activeSession.receiptFileName);
-        if (oldStorageRef) {
-          deleteObject(oldStorageRef).catch(err => {
-            if (err.code !== 'storage/object-not-found') {
-              console.error('Failed to delete old image', err);
-            }
-          });
-        }
-      }
-
       return { downloadURL, fileName };
     } catch (error) {
       console.error('Error uploading image:', error);

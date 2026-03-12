@@ -39,9 +39,7 @@ function DeepLinkHandler() {
 
     CapApp.addListener('appUrlOpen', (event) => {
       const url = event.url;
-
-      // Parse the URL to extract the path
-      // Expected format: https://bill-split-lemon.vercel.app/join/sessionId?code=ABC123
+      
       try {
         const urlObj = new URL(url);
         const path = urlObj.pathname + urlObj.search;
