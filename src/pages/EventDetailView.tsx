@@ -1,17 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Receipt, UserPlus, Plus, Loader2 } from 'lucide-react';
+import { ArrowLeft, Receipt, UserPlus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { InviteMembersDialog } from '@/components/events/InviteMembersDialog';
 import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useIsMobile } from '@/hooks/use-mobile';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { TripEvent } from '@/types/event.types';
-import { Person, Bill } from '@/types';
+import { Bill } from '@/types';
 import { NAVIGATION } from '@/utils/uiConstants';
 import { Zap } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,7 +16,6 @@ import { useToast } from '@/hooks/use-toast';
 import { billService } from '@/services/billService';
 import { userService } from '@/services/userService';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
-import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useEventLedger } from '@/hooks/useEventLedger';
 import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
@@ -31,17 +27,15 @@ const EVENTS_COLLECTION = 'events';
 export default function EventDetailView() {
   const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
   const [event, setEvent] = useState<TripEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [isCreatingBill, setIsCreatingBill] = useState(false);
   const [eventBills, setEventBills] = useState<Bill[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const { netBalances, optimizedDebts, loading: ledgerLoading } = useEventLedger(eventId || '', eventBills);
+  const { optimizedDebts, loading: ledgerLoading } = useEventLedger(eventId || '', eventBills);
   const [memberProfiles, setMemberProfiles] = useState<Record<string, import('@/types/person.types').UserProfile>>({});
 
   // Settlement state
@@ -181,7 +175,7 @@ export default function EventDetailView() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl mb-20">
+    <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl mb-20" style={{ fontFamily: "'Outfit', sans-serif" }}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
           <Button
@@ -192,21 +186,26 @@ export default function EventDetailView() {
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="text-3xl md:text-4xl font-bold">
             {event.name}
           </h1>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={() => setInviteDialogOpen(true)} variant="ghost" size="icon" className="h-8 w-8">
-            <UserPlus className="w-4 h-4 text-muted-foreground" />
+          <Button
+            onClick={() => setInviteDialogOpen(true)}
+            variant="outline"
+            className="h-9 px-4 text-sm gap-2 rounded-full"
+          >
+            <UserPlus className="w-4 h-4" />
+            Invite
           </Button>
           <Button
             onClick={() => setCreateDialogOpen(true)}
-            size="icon"
-            className="h-8 w-8 rounded-full"
+            className="h-9 px-4 text-sm gap-2 rounded-full"
           >
             <Plus className="w-4 h-4" />
+            Add Bill
           </Button>
         </div>
       </div>
@@ -228,24 +227,22 @@ export default function EventDetailView() {
         memberProfiles={memberProfiles}
       />
 
-      <div className="space-y-8">
+      <div className="flex flex-col gap-6 md:gap-10">
         {/* Balances Section */}
         {!ledgerLoading && (
-          <div className="space-y-3">
-            <h3 className="font-semibold text-lg tracking-tight px-1">Balances</h3>
-            <Card className="p-0 overflow-hidden border-border bg-card shadow-sm">
+          <div>
+            <div className="flex items-center justify-between mb-1 ml-1">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                Balances
+              </h2>
+            </div>
+            <Card className="p-0 overflow-hidden flex-1 flex flex-col border-none bg-transparent shadow-none">
               {optimizedDebts.length === 0 ? (
-                <div className="text-center py-10 px-4">
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500/10 flex items-center justify-center">
-                    <Receipt className="w-6 h-6 text-green-600" />
-                  </div>
-                  <h3 className="text-base font-medium mb-1">You're all settled up!</h3>
-                  <p className="text-xs text-muted-foreground">
-                    There are no outstanding debts.
-                  </p>
-                </div>
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  All settled up! No outstanding balances.
+                </p>
               ) : (
-                <div className="divide-y divide-border">
+                <div className="flex flex-col gap-2 p-1">
                   {optimizedDebts.map((debt, idx) => {
                     const fromProfile = memberProfiles[debt.fromUserId];
                     const toProfile = memberProfiles[debt.toUserId];
@@ -315,9 +312,13 @@ export default function EventDetailView() {
         )}
 
         {/* Bills Section */}
-        <div className="space-y-3">
-          <h3 className="font-semibold text-lg tracking-tight px-1">Bills</h3>
-          <div className="space-y-4">
+        <div>
+          <div className="flex items-center justify-between mb-1 ml-1">
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+              Bills
+            </h2>
+          </div>
+          <div className="flex flex-col gap-4">
             {eventBills.length === 0 ? (
               <div className="flex flex-col gap-3">
                 <button
@@ -349,51 +350,27 @@ export default function EventDetailView() {
                 </button>
               </div>
             ) : (
-              <>
-                {/* Mobile List View */}
-                <div className="block md:hidden divide-y divide-border rounded-lg border bg-card shadow-sm overflow-hidden">
-                  {eventBills.map((b) => (
-                    <MobileBillCard
-                      key={b.id}
-                      bill={b}
-                      isLatest={b.id === activeSession?.id}
-                      onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
-                      onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
-                      onDelete={handleDeleteBill}
-                      isResuming={isResuming}
-                      isDeleting={isDeleting}
-                      formatDate={(timestamp) => {
-                        if (!timestamp) return 'Unknown date';
-                        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                      }}
-                      getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
-                    />
-                  ))}
-                </div>
-
-                {/* Desktop Grid View */}
-                <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {eventBills.map((b) => (
-                    <DesktopBillCard
-                      key={b.id}
-                      bill={b}
-                      isLatest={b.id === activeSession?.id}
-                      onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
-                      onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
-                      onDelete={handleDeleteBill}
-                      isResuming={isResuming}
-                      isDeleting={isDeleting}
-                      formatDate={(timestamp) => {
-                        if (!timestamp) return 'Unknown date';
-                        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                      }}
-                      getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
-                    />
-                  ))}
-                </div>
-              </>
+              <div className="flex flex-col gap-2 p-1">
+                {eventBills.map((b) => (
+                  <MobileBillCard
+                    key={b.id}
+                    bill={b}
+                    isLatest={b.id === activeSession?.id}
+                    onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
+                    onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
+                    onDelete={handleDeleteBill}
+                    isResuming={isResuming}
+                    isDeleting={isDeleting}
+                    isOwner={b.ownerId === user?.uid}
+                    formatDate={(timestamp) => {
+                      if (!timestamp) return 'Unknown date';
+                      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    }}
+                    getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </div>

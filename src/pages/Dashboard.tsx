@@ -28,7 +28,6 @@ import { Bill } from '@/types/bill.types';
 import { billService } from '@/services/billService';
 import { useToast } from '@/hooks/use-toast';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
-import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
 import { FriendBalancePreviewCard } from '@/components/dashboard/FriendBalancePreviewCard';
 
 export default function Dashboard() {
