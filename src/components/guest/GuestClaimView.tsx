@@ -293,6 +293,29 @@ export function GuestClaimView({
         </Card>
       )}
 
+      {/* Guest Upsell Card */}
+      {!user && currentPerson && (
+        <Card className="p-5 mt-8 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+          <div className="flex flex-col space-y-3">
+            <h3 className="font-semibold text-lg flex items-center gap-2">
+              Want to save this bill?
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Create an account to track balances with friends, settle up with one tap via Venmo, and keep a history of all your receipts.
+            </p>
+            <Button 
+              className="w-full mt-2" 
+              onClick={() => {
+                // Navigate to auth with the claimGuestId parameter
+                navigate(`/auth?claimGuestId=${currentPerson.id}`);
+              }}
+            >
+              Create Account
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <VenmoChargeDialog
         charge={currentCharge}
         open={chargeDialogOpen}

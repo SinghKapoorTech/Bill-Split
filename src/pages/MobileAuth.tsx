@@ -11,11 +11,39 @@ const MobileAuth = () => {
   const navigate = useNavigate();
   const [isSigningIn, setIsSigningIn] = useState(false);
 
-  // Redirect to dashboard if already logged in
+  // Use localStorage to persist guest claim ID across OAuth redirects
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
+    const params = new URLSearchParams(window.location.search);
+    const claimGuestId = params.get('claimGuestId');
+    if (claimGuestId) {
+      localStorage.setItem('pending_claim_guest_id', claimGuestId);
     }
+  }, []);
+
+  // Redirect to dashboard if already logged in, handling shadow user claims first
+  useEffect(() => {
+    const processUserAndRedirect = async () => {
+      if (user) {
+        const pendingClaimId = localStorage.getItem('pending_claim_guest_id');
+        
+        if (pendingClaimId) {
+          try {
+            setIsSigningIn(true);
+            const { billService } = await import('@/services/billService');
+            await billService.claimShadowUser(pendingClaimId);
+            localStorage.removeItem('pending_claim_guest_id');
+          } catch (error) {
+            console.error('Error claiming shadow user:', error);
+          } finally {
+            setIsSigningIn(false);
+          }
+        }
+        
+        navigate('/dashboard');
+      }
+    };
+
+    processUserAndRedirect();
   }, [user, navigate]);
 
   // Handle sign-in

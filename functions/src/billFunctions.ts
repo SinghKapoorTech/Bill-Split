@@ -386,3 +386,152 @@ export const updateGuestName = onCall(
     return { success: true };
   }
 );
+
+export const claimShadowUser = onCall(
+  {
+    cors: true,
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated to claim a shadow user');
+    }
+
+    const db = getFirestore();
+    const { shadowUserId } = request.data;
+    const realUserId = request.auth.uid;
+
+    if (!shadowUserId) {
+      throw new HttpsError('invalid-argument', 'Missing shadowUserId');
+    }
+
+    // 1. Verify shadow user exists and is a shadow user
+    const shadowUserRef = db.collection('users').doc(shadowUserId);
+    const shadowUserSnap = await shadowUserRef.get();
+    
+    if (!shadowUserSnap.exists) {
+      throw new HttpsError('not-found', 'Shadow user not found');
+    }
+    
+    if (shadowUserSnap.data()?.isShadow !== true) {
+      throw new HttpsError('permission-denied', 'Cannot claim a standard user account');
+    }
+
+    // 2. Find all bills where the shadow user is a participant
+    const billsSnapshot = await db.collection(BILLS_COLLECTION)
+      .where('participantIds', 'array-contains', shadowUserId)
+      .get();
+
+    // 3. Update all bills in a batch
+    const batch = db.batch();
+
+    billsSnapshot.docs.forEach((docSnap) => {
+      const billData = docSnap.data();
+      const billRef = docSnap.ref;
+
+      // Update participantIds and unsettledParticipantIds
+      let participantIds = billData.participantIds || [];
+      if (participantIds.includes(shadowUserId)) {
+        participantIds = participantIds.filter((id: string) => id !== shadowUserId);
+        if (!participantIds.includes(realUserId)) participantIds.push(realUserId);
+      }
+
+      let unsettledParticipantIds = billData.unsettledParticipantIds || [];
+      if (unsettledParticipantIds.includes(shadowUserId)) {
+        unsettledParticipantIds = unsettledParticipantIds.filter((id: string) => id !== shadowUserId);
+        if (!unsettledParticipantIds.includes(realUserId)) unsettledParticipantIds.push(realUserId);
+      }
+
+      let settledPersonIds = billData.settledPersonIds || [];
+      if (settledPersonIds.includes(shadowUserId)) {
+        settledPersonIds = settledPersonIds.filter((id: string) => id !== shadowUserId);
+        if (!settledPersonIds.includes(realUserId)) settledPersonIds.push(realUserId);
+      }
+
+      // Update members
+      const members = billData.members || [];
+      const updatedMembers = members.map((m: any) => {
+        if (m.userId === shadowUserId) {
+          return { ...m, userId: realUserId, isAnonymous: false }; // clear anonymous flag
+        }
+        return m;
+      });
+
+      // Update people
+      const people = billData.people || [];
+      const updatedPeople = people.map((p: any) => {
+        if (p.id === shadowUserId || p.id === `user-${shadowUserId}`) {
+          // Migrate shadow ID to real user's prefixed ID
+          return { ...p, id: `user-${realUserId}` };
+        }
+        return p;
+      });
+
+      // Deduplicate people matching by exact ID
+      const uniquePeopleMap = new Map();
+      updatedPeople.forEach((p: any) => {
+        if (!uniquePeopleMap.has(p.id)) {
+          uniquePeopleMap.set(p.id, p);
+        }
+      });
+      const finalPeople = Array.from(uniquePeopleMap.values());
+
+      // Deduplicate members matching by exact userId
+      const uniqueMembersMap = new Map();
+      updatedMembers.forEach((m: any) => {
+        if (!uniqueMembersMap.has(m.userId)) {
+          uniqueMembersMap.set(m.userId, m);
+        }
+      });
+      const finalMembers = Array.from(uniqueMembersMap.values());
+
+      // Update itemAssignments
+      const itemAssignments = { ...(billData.itemAssignments || {}) };
+      let assignmentsChanged = false;
+      for (const [itemId, assignees] of Object.entries(itemAssignments)) {
+        const arr = (assignees as string[]);
+        if (arr.includes(shadowUserId) || arr.includes(`user-${shadowUserId}`)) {
+          // Remove shadow id, add real id (avoiding duplicates)
+          const newArr = arr.filter(id => id !== shadowUserId && id !== `user-${shadowUserId}`);
+          if (!newArr.includes(realUserId) && !newArr.includes(`user-${realUserId}`)) {
+            newArr.push(`user-${realUserId}`); // Use user- prefix for item assignments consistently
+          }
+          itemAssignments[itemId] = newArr;
+          assignmentsChanged = true;
+        }
+      }
+
+      const updates: any = {
+        participantIds,
+        unsettledParticipantIds,
+        settledPersonIds,
+        members: finalMembers,
+        people: finalPeople,
+        updatedAt: Timestamp.now(),
+        lastActivity: Timestamp.now()
+      };
+
+      // Handle paidById if the guest was marked as payer
+      if (billData.paidById === shadowUserId || billData.paidById === `user-${shadowUserId}`) {
+        updates.paidById = `user-${realUserId}`;
+      }
+
+      if (assignmentsChanged) {
+        updates.itemAssignments = itemAssignments;
+      }
+
+      batch.update(billRef, updates);
+    });
+
+    // 4. Delete the shadow user profile
+    batch.delete(shadowUserRef);
+
+    // 5. Commit all changes
+    // Firestore batch limits to 500 operations. Highly unlikely a shadow user is on >499 bills, 
+    // plus 1 delete = max 499 bills.
+    await batch.commit();
+
+    return { success: true, claimedBills: billsSnapshot.size };
+  }
+);

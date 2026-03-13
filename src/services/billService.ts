@@ -458,6 +458,15 @@ export const billService = {
     const fn = httpsCallable<any, { success: boolean }>(functions, 'updateGuestName');
     await fn({ billId, shareCode, shadowUserId, newName });
   },
+
+  /**
+   * Claims a shadow user's history and merges it into the current authenticated user
+   */
+  async claimShadowUser(shadowUserId: string): Promise<{ success: boolean; claimedBills: number }> {
+    const fn = httpsCallable<any, { success: boolean; claimedBills: number }>(functions, 'claimShadowUser');
+    const result = await fn({ shadowUserId });
+    return result.data;
+  },
 };
 
 

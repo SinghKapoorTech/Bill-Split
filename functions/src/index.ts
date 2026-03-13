@@ -421,4 +421,4 @@ export const reverseSettlement = onCall<import('./settlementReversal.js').Revers
  * Atomically creates a bill document and updates friend balances
  * in a single transaction.
  */
-export { createBill, joinBillAsGuest, leaveBillAsGuest, updateGuestName } from './billFunctions.js';
+export { createBill, joinBillAsGuest, leaveBillAsGuest, updateGuestName, claimShadowUser } from './billFunctions.js';
