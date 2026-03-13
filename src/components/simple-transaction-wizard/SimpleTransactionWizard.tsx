@@ -44,6 +44,8 @@ export function SimpleTransactionWizard() {
   const [existingSquadId, setExistingSquadId] = useState<string | undefined>();
   const [existingItemId, setExistingItemId] = useState<string | undefined>();
 
+  const isOwner = !activeSession || !activeSession.ownerId || activeSession.ownerId === user?.uid;
+
   const getTargetContext = () => {
     if (billId && billId !== 'new') {
       return { eventId: existingEventId, squadId: existingSquadId };
@@ -152,7 +154,7 @@ export function SimpleTransactionWizard() {
   // ── Auto-save existing transactions (Debounced) ───────────
   // Automatically saves edits to Amount, Title, and People if this transaction already exists in the database.
   useEffect(() => {
-    if (!billId || billId === 'new' || !user || !hasLoadedBillId.current) return;
+    if (!billId || billId === 'new' || !user || !hasLoadedBillId.current || !isOwner) return;
 
     const timeoutId = setTimeout(() => {
       const numAmount = Number(amount);
@@ -187,19 +189,33 @@ export function SimpleTransactionWizard() {
   }, [amount, title, paidById, people, billId, user, existingEventId, existingSquadId, existingItemId]);
 
   const handleNextStep = () => {
-    if (currentStep < STEPS.length - 1 && canProceed()) {
+    if (currentStep < STEPS.length - 1 && canProceed() && isOwner) {
       setCurrentStep(s => s + 1);
     }
   };
 
   const handlePrevStep = () => {
-    if (currentStep > 0) {
+    if (currentStep > 0 && isOwner) {
       setCurrentStep(s => s - 1);
     }
   };
 
   const handleComplete = async () => {
     if (!user) return;
+    
+    // If not owner, just exit without saving
+    if (!isOwner) {
+      const { eventId: targetEventId, squadId: targetSquadId } = getTargetContext();
+      if (existingEventId || targetEventId) {
+        navigate(`/events/${existingEventId || targetEventId}`);
+      } else if (existingSquadId || targetSquadId) {
+        navigate(`/squads/${existingSquadId || targetSquadId}`);
+      } else {
+        navigate('/dashboard');
+      }
+      return;
+    }
+
     setIsSaving(true);
     try {
       const numAmount = Number(amount);
@@ -262,9 +278,9 @@ export function SimpleTransactionWizard() {
             steps={STEPS}
             currentStep={currentStep}
             onStepClick={(step) => {
-              if (step <= currentStep) setCurrentStep(step);
+              if (isOwner && step <= currentStep) setCurrentStep(step);
             }}
-            canNavigateToStep={(step) => step <= currentStep}
+            canNavigateToStep={(step) => isOwner && step <= currentStep}
           />
         ) : (
           <Stepper
@@ -272,18 +288,18 @@ export function SimpleTransactionWizard() {
             currentStep={currentStep}
             orientation="horizontal"
             onStepClick={(step) => {
-              if (step < currentStep) setCurrentStep(step);
+              if (isOwner && step < currentStep) setCurrentStep(step);
             }}
-            canNavigateToStep={(step) => step <= currentStep}
+            canNavigateToStep={(step) => isOwner && step <= currentStep}
           />
         )}
       </div>
 
       <SwipeableStepContainer
-        onSwipeLeft={canProceed() ? handleNextStep : undefined}
-        onSwipeRight={currentStep > 0 ? handlePrevStep : undefined}
-        canSwipeLeft={canProceed()}
-        canSwipeRight={currentStep > 0}
+        onSwipeLeft={canProceed() && isOwner ? handleNextStep : undefined}
+        onSwipeRight={currentStep > 0 && isOwner ? handlePrevStep : undefined}
+        canSwipeLeft={canProceed() && isOwner}
+        canSwipeRight={currentStep > 0 && isOwner}
         className={isMobile ? 'pb-[140px] relative' : ''}
       >
         <StepContent stepKey={currentStep}>
@@ -331,6 +347,7 @@ export function SimpleTransactionWizard() {
               totalSteps={STEPS.length}
               billId={billId !== 'new' ? billId : undefined}
               settledPersonIds={activeSession?.settledPersonIds || []}
+              isOwner={isOwner}
             />
           )}
         </StepContent>

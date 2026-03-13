@@ -151,12 +151,14 @@ export default function Dashboard() {
     }
   };
 
-  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean) => {
+  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
     await resumeSession(billId);
     if (isSimpleTransaction) {
       navigate(`/transaction/${billId}`);
     } else if (isAirbnb) {
       navigate(`/airbnb/${billId}`);
+    } else if (!isOwner) {
+      navigate(`/session/${billId}`);
     } else {
       navigate(`/bill/${billId}`);
     }
@@ -177,11 +179,13 @@ export default function Dashboard() {
     setBillToDelete(null);
   };
 
-  const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean) => {
+  const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
     if (isSimpleTransaction) {
       navigate(`/transaction/${billId}`);
     } else if (isAirbnb) {
       navigate(`/airbnb/${billId}`);
+    } else if (!isOwner) {
+      navigate(`/session/${billId}`);
     } else {
       navigate(`/bill/${billId}`);
     }

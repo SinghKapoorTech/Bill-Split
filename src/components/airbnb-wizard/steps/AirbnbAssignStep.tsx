@@ -14,11 +14,13 @@ interface AirbnbAssignStepProps {
     itemAssignments: ItemAssignment;
     onAssign: (itemId: string, personId: string, checked: boolean) => void;
     onNext: () => void;
-    onPrev: () => void;
+    onPrev?: () => void;
     canProceed: boolean;
     currentStep: number;
     totalSteps: number;
     isMobile: boolean;
+    isOwner?: boolean;
+    currentUserId?: string;
 }
 
 export function AirbnbAssignStep({
@@ -31,7 +33,9 @@ export function AirbnbAssignStep({
     canProceed,
     currentStep,
     totalSteps,
-    isMobile
+    isMobile,
+    isOwner = true,
+    currentUserId
 }: AirbnbAssignStepProps) {
     const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
@@ -55,6 +59,12 @@ export function AirbnbAssignStep({
 
     const isAllNightsAssigned = categorizedItems.nights.every(n => isItemFullyAssigned(n.id)) &&
         categorizedItems.fees.every(f => isItemFullyAssigned(f.id));
+
+    const canEditPerson = (personId: string) => {
+        if (isOwner) return true;
+        if (!currentUserId) return false;
+        return personId === currentUserId || personId === `user-${currentUserId}`;
+    };
 
     if (!billData || people.length === 0) {
         return <div className="text-center text-muted-foreground p-8">Missing trip data or guests. Please go back.</div>;
@@ -133,24 +143,27 @@ export function AirbnbAssignStep({
                                                         checked={isAssigned}
                                                         onCheckedChange={(checked) => onAssign(night.id, person.id, !!checked)}
                                                         className="mr-3"
+                                                        disabled={!canEditPerson(person.id)}
                                                     />
-                                                    <span className="font-medium truncate">{person.name}</span>
+                                                    <span className={cn("font-medium truncate", !canEditPerson(person.id) && "opacity-50")}>{person.name}</span>
                                                 </label>
                                             )
                                         })}
-                                        <div className="col-span-full mt-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="w-full text-xs"
-                                                onClick={() => {
-                                                    const isAll = (itemAssignments[night.id] || []).length === people.length;
-                                                    people.forEach(p => onAssign(night.id, p.id, !isAll));
-                                                }}
-                                            >
-                                                {(itemAssignments[night.id] || []).length === people.length ? "Deselect All" : "Select All Guests"}
-                                            </Button>
-                                        </div>
+                                        {isOwner && (
+                                            <div className="col-span-full mt-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="w-full text-xs"
+                                                    onClick={() => {
+                                                        const isAll = (itemAssignments[night.id] || []).length === people.length;
+                                                        people.forEach(p => onAssign(night.id, p.id, !isAll));
+                                                    }}
+                                                >
+                                                    {(itemAssignments[night.id] || []).length === people.length ? "Deselect All" : "Select All Guests"}
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </Card>
@@ -215,24 +228,27 @@ export function AirbnbAssignStep({
                                                         checked={isAssigned}
                                                         onCheckedChange={(checked) => onAssign(fee.id, person.id, !!checked)}
                                                         className="mr-3"
+                                                        disabled={!canEditPerson(person.id)}
                                                     />
-                                                    <span className="font-medium truncate">{person.name}</span>
+                                                    <span className={cn("font-medium truncate", !canEditPerson(person.id) && "opacity-50")}>{person.name}</span>
                                                 </label>
                                             )
                                         })}
-                                        <div className="col-span-full mt-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="w-full text-xs"
-                                                onClick={() => {
-                                                    const isAll = (itemAssignments[fee.id] || []).length === people.length;
-                                                    people.forEach(p => onAssign(fee.id, p.id, !isAll));
-                                                }}
-                                            >
-                                                {(itemAssignments[fee.id] || []).length === people.length ? "Deselect All" : "Select All Guests"}
-                                            </Button>
-                                        </div>
+                                        {isOwner && (
+                                            <div className="col-span-full mt-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="w-full text-xs"
+                                                    onClick={() => {
+                                                        const isAll = (itemAssignments[fee.id] || []).length === people.length;
+                                                        people.forEach(p => onAssign(fee.id, p.id, !isAll));
+                                                    }}
+                                                >
+                                                    {(itemAssignments[fee.id] || []).length === people.length ? "Deselect All" : "Select All Guests"}
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </Card>

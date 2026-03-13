@@ -61,6 +61,7 @@ export function AirbnbWizard({
     const navigate = useNavigate();
     const { user } = useAuth();
     const isMobile = useIsMobile();
+    const isOwner = !activeSession || !activeSession.ownerId || activeSession.ownerId === user?.uid;
 
     const [people, setPeople] = useState<Person[]>(initialPeople);
     const [billData, setBillData] = useState<BillData | null>(initialBillData);
@@ -129,12 +130,14 @@ export function AirbnbWizard({
         }
     }, [splitEvenly, billData, people, bill.allItemsAssigned]);
 
+    const derivedInitialStep = isOwner ? initialStep : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2);
+
     const wizard = useBillWizard({
         billData,
         people,
         itemAssignments,
         totalSteps: STEPS.length,
-        initialStep,
+        initialStep: derivedInitialStep,
         customValidator
     });
 
@@ -286,6 +289,32 @@ export function AirbnbWizard({
         }
     };
 
+    const handleNext = () => {
+        if (!isOwner && wizard.currentStep === STEPS.length - 1) {
+             handleDone();
+             return;
+        }
+        wizard.handleNextStep();
+    }
+
+    const canNavigateToStep = (step: number) => {
+        if (!isOwner) {
+            const minStep = splitEvenly ? STEPS.length - 1 : STEPS.length - 2;
+            if (step < minStep) return false;
+            if (step === STEPS.length - 1 && !wizard.canProceedFromStep(STEPS.length - 2)) return false;
+            return true;
+        }
+        return wizard.canNavigateToStep(step);
+    };
+
+    const canSwipeRight = () => {
+        if (!isOwner) {
+            const minStep = splitEvenly ? STEPS.length - 1 : STEPS.length - 2;
+            return wizard.currentStep > minStep;
+        }
+        return wizard.currentStep > 0;
+    };
+
     // Derived flags for rendering
     const isReviewStep = wizard.currentStep === STEPS.length - 1;
     const isAssignStep = !splitEvenly && wizard.currentStep === 3;
@@ -297,25 +326,25 @@ export function AirbnbWizard({
                     <PillProgress
                         steps={STEPS}
                         currentStep={wizard.currentStep}
-                        onStepClick={wizard.setCurrentStep}
-                        canNavigateToStep={wizard.canNavigateToStep}
+                        onStepClick={(s) => canNavigateToStep(s) && wizard.setCurrentStep(s)}
+                        canNavigateToStep={canNavigateToStep}
                     />
                 ) : (
                     <Stepper
                         steps={STEPS}
                         currentStep={wizard.currentStep}
                         orientation="horizontal"
-                        onStepClick={wizard.setCurrentStep}
-                        canNavigateToStep={wizard.canNavigateToStep}
+                        onStepClick={(s) => canNavigateToStep(s) && wizard.setCurrentStep(s)}
+                        canNavigateToStep={canNavigateToStep}
                     />
                 )}
             </div>
 
             <SwipeableStepContainer
-                onSwipeLeft={wizard.canProceedFromStep(wizard.currentStep) ? wizard.handleNextStep : undefined}
-                onSwipeRight={wizard.currentStep > 0 ? wizard.handlePrevStep : undefined}
+                onSwipeLeft={wizard.canProceedFromStep(wizard.currentStep) ? handleNext : undefined}
+                onSwipeRight={canSwipeRight() ? wizard.handlePrevStep : undefined}
                 canSwipeLeft={wizard.canProceedFromStep(wizard.currentStep)}
-                canSwipeRight={wizard.currentStep > 0}
+                canSwipeRight={canSwipeRight()}
                 className={isMobile ? 'pb-[140px] relative' : ''}
             >
                 <StepContent stepKey={wizard.currentStep}>
@@ -356,7 +385,7 @@ export function AirbnbWizard({
                         <AirbnbSplitMethodStep
                             splitEvenly={splitEvenly}
                             onToggleSplitEvenly={handleToggleSplitEvenly}
-                            onNext={wizard.handleNextStep}
+                            onNext={handleNext}
                             onPrev={wizard.handlePrevStep}
                             currentStep={wizard.currentStep}
                             totalSteps={STEPS.length}
@@ -370,12 +399,14 @@ export function AirbnbWizard({
                             people={people}
                             itemAssignments={itemAssignments}
                             onAssign={handleAtomicAssignment}
-                            onNext={wizard.handleNextStep}
-                            onPrev={wizard.handlePrevStep}
+                            onNext={handleNext}
+                            onPrev={canSwipeRight() ? wizard.handlePrevStep : undefined}
                             canProceed={wizard.canProceedFromStep(3)}
                             currentStep={wizard.currentStep}
                             totalSteps={STEPS.length}
                             isMobile={isMobile}
+                            isOwner={isOwner}
+                            currentUserId={user?.uid}
                         />
                     )}
 
@@ -391,7 +422,7 @@ export function AirbnbWizard({
                             paidById={paidById}
                             ownerId={activeSession?.ownerId || user?.uid}
                             onComplete={handleDone}
-                            onPrev={wizard.handlePrevStep}
+                            onPrev={canSwipeRight() ? wizard.handlePrevStep : undefined}
                             currentStep={wizard.currentStep}
                             totalSteps={STEPS.length}
                         />
@@ -403,8 +434,8 @@ export function AirbnbWizard({
                 <WizardNavigation
                     currentStep={wizard.currentStep}
                     totalSteps={STEPS.length}
-                    onBack={wizard.handlePrevStep}
-                    onNext={wizard.handleNextStep}
+                    onBack={canSwipeRight() ? wizard.handlePrevStep : undefined}
+                    onNext={handleNext}
                     onComplete={handleDone}
                     onExit={handleDone}
                     exitLabel={targetEventId ? 'Event' : 'Dashboard'}

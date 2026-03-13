@@ -20,6 +20,7 @@ interface ReviewStepProps {
   totalSteps: number;
   billId?: string;
   settledPersonIds?: string[];
+  isOwner?: boolean;
 }
 
 export function ReviewStep({
@@ -33,7 +34,8 @@ export function ReviewStep({
   currentStep,
   totalSteps,
   billId,
-  settledPersonIds
+  settledPersonIds,
+  isOwner = true
 }: ReviewStepProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -118,9 +120,9 @@ export function ReviewStep({
         <StepFooter
             currentStep={currentStep}
             totalSteps={totalSteps}
-            onBack={onPrev}
+            onBack={isOwner ? onPrev : undefined}
             onComplete={onComplete}
-            completeLabel="Done"
+            completeLabel={isOwner ? "Done" : "Back"}
         />
       </div>
     </div>

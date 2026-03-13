@@ -132,10 +132,21 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
             const isSettled = settledPersonIds.includes(pt.personId);
             const isMe = isCurrentUser(pt);
             const creditorId = paidById || ownerId;
-            const didIPay = creditorId && creditorId === user?.uid;
+            const didIPay = creditorId && (
+              creditorId === user?.uid || 
+              creditorId === `user-${user?.uid}`
+            );
 
             // We check if the card we are rendering is the creditor.
-            const isThisPersonTheCreditor = creditorId && (creditorId === pt.personId || creditorId === (person as Person & { userId?: string })?.userId || creditorId === `user-${(person as Person & { userId?: string })?.userId}`);
+            // pt.personId almost always has the "user-" prefix for app users, 
+            // but creditorId (paidById or ownerId) is usually just the raw Firebase UID.
+            const isThisPersonTheCreditor = creditorId && (
+              creditorId === pt.personId || 
+              `user-${creditorId}` === pt.personId ||
+              creditorId === `user-${pt.personId}` ||
+              creditorId === (person as Person & { userId?: string })?.userId || 
+              creditorId === `user-${(person as Person & { userId?: string })?.userId}`
+            );
 
             let showVenmoButton = false;
             let showSettleButton = false;
