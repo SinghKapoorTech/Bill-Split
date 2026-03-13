@@ -57,36 +57,22 @@ function hasRelevantChange(
   return false;
 }
 
-async function resolveEligibleFriends(anchorId: string, ownerId: string): Promise<Set<string>> {
+async function resolveEligibleFriends(anchorId: string, ownerId: string, billParticipants: string[]): Promise<Set<string>> {
   const linked = new Set<string>();
 
-  // Implicitly, both the anchor and the owner can participate in balances
-  linked.add(anchorId);
-  linked.add(ownerId);
-
-  // Add all friends of the owner
-  const ownerDoc = await db().collection('users').doc(ownerId).get();
-  if (ownerDoc.exists) {
-    const friends: Array<string | { userId?: string; id?: string }> = ownerDoc.data()?.friends || [];
-    for (const f of friends) {
-      const uid = typeof f === 'string' ? f : (f.userId || f.id);
-      if (uid) linked.add(uid);
+  // Use the pre-computed participantIds from the bill if available, 
+  // otherwise fallback to the anchor/owner set.
+  if (billParticipants && billParticipants.length > 0) {
+    for (const id of billParticipants) {
+      linked.add(id);
     }
+  } else {
+    linked.add(anchorId);
+    linked.add(ownerId);
   }
 
-  // Add all friends of the anchor if different
-  if (anchorId !== ownerId) {
-    const anchorDoc = await db().collection('users').doc(anchorId).get();
-    if (anchorDoc.exists) {
-      const friends: Array<string | { userId?: string; id?: string }> = anchorDoc.data()?.friends || [];
-      for (const f of friends) {
-        const uid = typeof f === 'string' ? f : (f.userId || f.id);
-        if (uid) linked.add(uid);
-      }
-    }
-  }
-
-  // Also include any shadow users created by the owner OR anchor
+  // Also include any shadow users created by the owner OR anchor 
+  // (though they should already be in participantIds from the bill)
   const shadowQuery = await db().collection('users')
     .where('isShadow', '==', true)
     .where('createdById', 'in', [ownerId, anchorId])
@@ -521,7 +507,8 @@ export const ledgerProcessor = onDocumentWritten(
     }
 
     // ── Stage 2: FRIEND LEDGER (authoritative, in transaction) ──────────────
-    const linkedFriendUids = await resolveEligibleFriends(creditorId, ownerId);
+    const participantIds = after.participantIds || [];
+    const linkedFriendUids = await resolveEligibleFriends(creditorId, ownerId, participantIds);
     let stage2Wrote = false;
 
     if (linkedFriendUids.size > 0) {

@@ -97,21 +97,30 @@ export function ensureUserInPeople(
     return people;
   }
 
-  const userId = generateUserId(user.uid);
-  const userExists = people.some(person => person.id === userId);
+  const prefixedId = generateUserId(user.uid);
+  const rawId = user.uid;
   
-  if (userExists) {
-    // Update venmoId if it changed
-    return people.map(person =>
-      person.id === userId
-        ? { ...person, venmoId: profile?.venmoId }
-        : person
-    );
+  // Find if user exists in either format
+  const existingIndex = people.findIndex(p => p.id === prefixedId || p.id === rawId);
+  
+  if (existingIndex !== -1) {
+    const existing = people[existingIndex];
+    // If it exists but with the wrong ID format, or if venmoId needs updating
+    if (existing.id !== prefixedId || existing.venmoId !== profile?.venmoId) {
+      const updatedPeople = [...people];
+      updatedPeople[existingIndex] = {
+        ...existing,
+        id: prefixedId, // normalize to prefixed version
+        venmoId: profile?.venmoId
+      };
+      return updatedPeople;
+    }
+    return people;
   }
 
   // Add user at the beginning
   const currentUser: Person = {
-    id: userId,
+    id: prefixedId,
     name: user.displayName,
     venmoId: profile?.venmoId,
   };

@@ -15,7 +15,8 @@ import {
   orderBy,
   runTransaction
 } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '@/config/firebase';
 import { Bill, BillData, BillType, BillMember, BillStatus } from '@/types/bill.types';
 import { Person } from '@/types/person.types';
 import { removeUndefinedFields } from '@/utils/firestoreHelpers';
@@ -56,38 +57,18 @@ export const billService = {
     squadId?: string,
     status: BillStatus = 'active'
   ): Promise<string> {
-    const newBillRef = doc(collection(db, BILLS_COLLECTION));
-    const now = Timestamp.now();
-
-    const ownerMember: BillMember = {
-      userId: ownerId,
-      name: ownerName,
-      joinedAt: now,
-      isAnonymous: false
-    };
-
-    const participantIds = extractParticipantIds(ownerId, people);
-    const newBill: Bill = {
-      id: newBillRef.id,
-      billType,
-      status,
+    const fn = httpsCallable<any, { billId: string }>(functions, 'createBill');
+    const result = await fn({
       ownerId,
-      ...(eventId && { eventId }),
-      ...(squadId && { squadId }),
+      ownerName,
+      billType,
       billData,
-      itemAssignments: {},
       people,
-      participantIds,
-      unsettledParticipantIds: participantIds,
-      splitEvenly: false,
-      members: [ownerMember],
-      createdAt: now,
-      updatedAt: now,
-      lastActivity: now
-    };
-
-    await setDoc(newBillRef, removeUndefinedFields(newBill));
-    return newBillRef.id;
+      eventId,
+      squadId,
+      status
+    });
+    return result.data.billId;
   },
 
   /**
@@ -104,17 +85,6 @@ export const billService = {
     squadId?: string,
     status: BillStatus = 'active'
   ): Promise<string> {
-    const newBillRef = doc(collection(db, BILLS_COLLECTION));
-    const now = Timestamp.now();
-
-    const ownerMember: BillMember = {
-      userId: ownerId,
-      name: ownerName,
-      joinedAt: now,
-      isAnonymous: false
-    };
-
-    // A simple transaction has exactly one dummy item
     const dummyItemId = `item-${Date.now()}`;
     const billData: BillData = {
       items: [
@@ -131,35 +101,22 @@ export const billService = {
       restaurantName: title
     };
 
-    // Assign to everyone by default
-    const itemAssignments = {
-      [dummyItemId]: people.map(p => p.id)
-    };
-
-    const newBill: Bill = {
-      id: newBillRef.id,
-      billType: eventId ? 'event' : 'private',
-      status,
+    const fn = httpsCallable<any, { billId: string }>(functions, 'createBill');
+    const result = await fn({
       ownerId,
-      ...(eventId && { eventId }),
-      ...(squadId && { squadId }),
-      isSimpleTransaction: true,
-      paidById,
-      title,
+      ownerName,
+      billType: eventId ? 'event' : 'private',
       billData,
-      itemAssignments,
       people,
-      participantIds: extractParticipantIds(ownerId, people),
-      unsettledParticipantIds: extractParticipantIds(ownerId, people),
+      paidById,
+      eventId,
+      squadId,
+      status,
       splitEvenly: true,
-      members: [ownerMember],
-      createdAt: now,
-      updatedAt: now,
-      lastActivity: now
-    };
-
-    await setDoc(newBillRef, removeUndefinedFields(newBill));
-    return newBillRef.id;
+      isSimpleTransaction: true
+    });
+    
+    return result.data.billId;
   },
 
   /**
@@ -325,8 +282,9 @@ export const billService = {
     }
 
     // Create person object for the people array (for item assignment)
+    // Normalize to user-{uid} format for the people array
     const newPerson = {
-      id: userId,
+      id: userId.startsWith('user-') ? userId : `user-${userId}`,
       name: userName,
     };
 

@@ -79,13 +79,22 @@ export default function JoinSession() {
       return;
     }
 
+    // Check if authenticated user already exists in either format
+    const userId = user?.uid;
+    const prefixedId = userId ? `user-${userId}` : null;
+    
+    const existingById = userId ? sessionData?.people?.find(
+      p => p.id === userId || p.id === prefixedId
+    ) : null;
+    
     // Check for duplicate name (case-insensitive)
     const existingPerson = sessionData?.people?.find(
       p => p.name.toLowerCase() === name.toLowerCase()
     );
-    
-    if (existingPerson) {
-      setError(`"${existingPerson.name}" is already on this bill. Please use a different name.`);
+
+    if (existingById || existingPerson) {
+      // If we already exist, just navigate to the session
+      navigate(`/session/${sessionId}`);
       return;
     }
 

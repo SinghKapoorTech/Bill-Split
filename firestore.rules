@@ -111,7 +111,7 @@ service cloud.firestore {
       // Helper: Only settlement-related fields are being changed.
       // processedBalances is written exclusively by the server-side pipeline.
       function isSettlementUpdate() {
-        return onlyUpdating(['settledPersonIds']);
+        return onlyUpdating(['settledPersonIds', 'updatedAt', 'lastActivity']);
       }
       
 
@@ -161,10 +161,10 @@ service cloud.firestore {
           hasSquadIdAndMember(resource.data) ||
           // Legacy: authenticated members can update specific fields
           (isBillMember(resource.data) && isGuestUpdate()) ||
-          // Linked participant can mark settlement (null-safe for pre-migration bills)
+          // Linked participant can perform guest updates (claim items, touch bill) or mark settlement
           ('participantIds' in resource.data &&
            request.auth.uid in resource.data.participantIds &&
-           isSettlementUpdate())
+           (isGuestUpdate() || isSettlementUpdate()))
         ));
       
       // DELETE: Only owner can delete
