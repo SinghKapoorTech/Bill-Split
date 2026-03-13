@@ -15,6 +15,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["Outfit", "sans-serif"],
+      },
       fontSize: {
         'fluid-xs': 'clamp(0.75rem, 2vw, 0.875rem)',
         'fluid-sm': 'clamp(0.875rem, 2.5vw, 1rem)',

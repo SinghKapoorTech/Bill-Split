@@ -175,7 +175,7 @@ export default function EventDetailView() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl mb-20" style={{ fontFamily: "'Outfit', sans-serif" }}>
+    <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl mb-20">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
           <Button
@@ -362,9 +362,9 @@ export default function EventDetailView() {
                     isResuming={isResuming}
                     isDeleting={isDeleting}
                     isOwner={b.ownerId === user?.uid}
-                    formatDate={(timestamp) => {
+                    formatDate={(timestamp: any) => {
                       if (!timestamp) return 'Unknown date';
-                      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp as any);
                       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                     }}
                     getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}

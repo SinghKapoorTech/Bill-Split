@@ -227,7 +227,7 @@ export default function Dashboard() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
+      <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl">
         {/* Header - added dashboard-header class for mobile CSS targeting */}
         <div className="dashboard-header mb-4 md:mb-8">
           <h1 className="text-3xl md:text-4xl font-bold mb-2">
