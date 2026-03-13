@@ -7,6 +7,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Receipt, Zap, Home } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { X } from "lucide-react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/config/firebase";
 
 interface CreateOptionsDialogProps {
   open: boolean;
@@ -19,8 +23,42 @@ interface CreateOptionsDialogProps {
 
 export function CreateOptionsDialog({ open, onOpenChange, eventContext }: CreateOptionsDialogProps) {
   const navigate = useNavigate();
+  const [activeEventContext, setActiveEventContext] = useState<typeof eventContext>();
+
+  useEffect(() => {
+    let isMounted = true;
+    
+    if (open) {
+      if (eventContext?.targetEventId && !eventContext.targetEventName) {
+        // Fetch event name if only ID is provided
+        const fetchEventName = async () => {
+          try {
+            const eventDoc = await getDoc(doc(db, 'events', eventContext.targetEventId));
+            if (eventDoc.exists() && isMounted) {
+              setActiveEventContext({
+                targetEventId: eventContext.targetEventId,
+                targetEventName: eventDoc.data().name || 'Event'
+              });
+            }
+          } catch (error) {
+            console.error("Failed to fetch event name for badge:", error);
+            if (isMounted) setActiveEventContext(eventContext);
+          }
+        };
+        fetchEventName();
+      } else {
+        setActiveEventContext(eventContext);
+      }
+    } else {
+      // Reset when closed
+      setActiveEventContext(eventContext);
+    }
+    
+    return () => { isMounted = false; };
+  }, [eventContext, open]);
+
   const handleAction = (path: string) => {
-    navigate(path, { state: eventContext });
+    navigate(path, { state: activeEventContext });
     onOpenChange(false);
   };
 
@@ -28,9 +66,23 @@ export function CreateOptionsDialog({ open, onOpenChange, eventContext }: Create
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-center text-xl font-bold pb-2">Create New</DialogTitle>
+          <DialogTitle className="text-center text-xl font-bold pb-1">Create New</DialogTitle>
+          {activeEventContext && activeEventContext.targetEventName && (
+            <div className="flex justify-center pb-0">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 text-primary text-sm font-medium rounded-full border border-primary/20">
+                <span>Event: {activeEventContext.targetEventName}</span>
+                <button 
+                  onClick={() => setActiveEventContext(undefined)}
+                  className="p-0.5 hover:bg-primary/20 rounded-full transition-colors focus:outline-none"
+                  aria-label="Remove event association"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
         </DialogHeader>
-        <div className="flex flex-col gap-3 py-2">
+        <div className="flex flex-col gap-3 pt-0 pb-2">
           <button
             className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-primary/[0.03] hover:border-primary/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
             onClick={() => handleAction('/bill/new')}
