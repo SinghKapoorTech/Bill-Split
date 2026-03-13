@@ -414,3 +414,11 @@ export const reverseSettlement = onCall<import('./settlementReversal.js').Revers
     return processSettlementReversalCore(request.auth.uid, request.data);
   }
 );
+
+/**
+ * Cloud Function: Create Bill (Atomic)
+ *
+ * Atomically creates a bill document and updates friend balances
+ * in a single transaction.
+ */
+export { createBill } from './billFunctions.js';
