@@ -49,10 +49,12 @@ export function EditPersonDialog({
     try {
       setIsSaving(true);
       setError(null);
-      await onSave({
-        name: trimmedName,
-        venmoId: venmoId.trim() || undefined
-      });
+      const updates: Partial<Person> = { name: trimmedName };
+      const trimmedVenmo = venmoId.trim();
+      if (trimmedVenmo) {
+        updates.venmoId = trimmedVenmo;
+      }
+      await onSave(updates);
       onClose();
     } catch (error) {
       console.error("Failed to update person:", error);

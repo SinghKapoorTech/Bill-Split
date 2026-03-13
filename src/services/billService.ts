@@ -282,9 +282,9 @@ export const billService = {
     }
 
     // Create person object for the people array (for item assignment)
-    // Normalize to user-{uid} format for the people array
+    // Keep guest IDs as-is; only prefix actual Firebase UIDs with user-
     const newPerson = {
-      id: userId.startsWith('user-') ? userId : `user-${userId}`,
+      id: userId.startsWith('user-') || userId.startsWith('guest-') ? userId : `user-${userId}`,
       name: userName,
     };
 
@@ -401,10 +401,14 @@ export const billService = {
       if (personIndex === -1) throw new Error('Person not found on this bill');
 
       const updatedPeople = [...people];
-      updatedPeople[personIndex] = {
-        ...updatedPeople[personIndex],
-        ...updates
-      };
+      // Merge updates, then strip any undefined values (Firestore rejects them)
+      const merged = { ...updatedPeople[personIndex], ...updates };
+      Object.keys(merged).forEach(key => {
+        if (merged[key as keyof typeof merged] === undefined) {
+          delete merged[key as keyof typeof merged];
+        }
+      });
+      updatedPeople[personIndex] = merged;
 
       // 3. Write back the updated people array
       // Also update member record if this person is a member

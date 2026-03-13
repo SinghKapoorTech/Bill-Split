@@ -307,15 +307,10 @@ export default function CollaborativeSessionView() {
         <div className="mb-6 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold">
-              {session.billData?.restaurantName || 'Split Bill'}
+              {session.billData?.restaurantName || 'Divit'}
             </h2>
-            <CollaborativeBadge memberCount={session.members.length} />
+            <CollaborativeBadge memberCount={session.people?.length || 0} />
           </div>
-          <Alert>
-            <AlertDescription>
-              Claim the items you're paying for. Your selections sync in real-time.
-            </AlertDescription>
-          </Alert>
         </div>
 
         <GuestClaimView
@@ -323,6 +318,7 @@ export default function CollaborativeSessionView() {
           onAddSelfToPeople={handleAddSelfToPeople}
           onClaimItem={handleClaimItem}
           onUpdatePerson={handleUpdatePerson}
+          onRemovePerson={handleRemovePerson}
         />
       </div>
     );
@@ -342,7 +338,7 @@ export default function CollaborativeSessionView() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <CollaborativeBadge memberCount={session.members.length} />
+          <CollaborativeBadge memberCount={session.people?.length || 0} />
           <ShareButton onClick={() => setShowShareModal(true)} />
         </div>
 

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "testing/e2e_testing.md",
+                "file": "Current-Task-List.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "e2e_testing"
+              "title": "Current-Task-List"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "testing/e2e_testing.md",
+                "file": "Current-Task-List.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for e2e_testing"
+              "title": "Backlinks for Current-Task-List"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "testing/e2e_testing.md",
+                "file": "Current-Task-List.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from e2e_testing"
+              "title": "Outgoing links from Current-Task-List"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "testing/e2e_testing.md",
+                "file": "Current-Task-List.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of e2e_testing"
+              "title": "Outline of Current-Task-List"
             }
           }
         ]
@@ -185,10 +185,12 @@
   },
   "active": "45201408b0140992",
   "lastOpenFiles": [
+    "More Bugs (03-12-2026).md",
+    "ui/airbnb_flow.md",
+    "testing/e2e_testing.md",
     "ui/bill_entry.md",
     "Tasks-2-26.md",
     "Current-Task-List.md",
-    "testing/e2e_testing.md",
     "testing"
   ]
 }
