@@ -56,7 +56,7 @@ export function useBills() {
     const q = query(
       billsRef,
       where('participantIds', 'array-contains', user.uid),
-      where('billType', 'in', ['private', 'event']),
+      where('billType', 'in', ['private', 'event', 'squad']),
       orderBy('updatedAt', 'desc')
     );
 
