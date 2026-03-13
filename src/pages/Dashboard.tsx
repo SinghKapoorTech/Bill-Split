@@ -179,6 +179,10 @@ export default function Dashboard() {
 
     await deleteSession(billToDelete.id, billToDelete.receiptFileName);
     setBillToDelete(null);
+    
+    // Explicitly refresh balances to ensure the UI reflects the change 
+    // without requiring a manual refresh or navigation.
+    refreshBalances();
   };
 
   const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {

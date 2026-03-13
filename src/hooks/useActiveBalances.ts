@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '@/config/firebase';
 import { useUserProfile } from './useUserProfile';
 import { userService } from '@/services/userService';
 import { Friend } from '@/types/person.types';
@@ -25,7 +27,29 @@ export function useActiveBalances() {
   };
 
   useEffect(() => {
+    if (!profile?.uid) {
+      setBalances([]);
+      setIsLoading(false);
+      return;
+    }
+
+    // Initial fetch
     refreshBalances();
+
+    // Set up real-time listener to re-fetch when any balance doc involving the user changes.
+    // This ensures that after a bill is deleted and the Cloud Function updates the ledger,
+    // the UI "relooks" the values automatically.
+    const q = query(
+      collection(db, 'balances'),
+      where('participants', 'array-contains', profile.uid)
+    );
+
+    const unsubscribe = onSnapshot(q, () => {
+      // Trigger a refresh of the hydrated balances list whenever the ledger changes
+      refreshBalances();
+    });
+
+    return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.uid]);
 
