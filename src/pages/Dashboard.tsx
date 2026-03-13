@@ -31,6 +31,7 @@ import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import { FriendBalancePreviewCard } from '@/components/dashboard/FriendBalancePreviewCard';
 import { useActiveBalances } from '@/hooks/useActiveBalances';
 import { PullToRefresh } from '@/components/layout/PullToRefresh';
+import { Separator } from '@/components/ui/separator';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -288,9 +289,15 @@ export default function Dashboard() {
           ) : (
             <>
               {/* Top Section: Friend Balances */}
-            <div className={allBills.length > 0 ? "min-h-[30vh] flex flex-col" : "flex flex-col"}>
+            <div className="flex flex-col">
               <FriendBalancePreviewCard isRefreshing={isManualRefreshing} />
             </div>
+
+            {allBills.length > 0 && (
+              <div className="px-1 py-2">
+                <Separator className="bg-border/60" />
+              </div>
+            )}
 
               {/* Bottom Section: My Bills */}
               {(allBills.length > 0) && (
@@ -323,6 +330,7 @@ export default function Dashboard() {
                             formatDate={formatDate}
                             getBillTitle={getBillTitle}
                             isOwner={bill.ownerId === user?.uid}
+                            currentUserId={user?.uid}
                           />
                         ))
                       )}

@@ -137,3 +137,30 @@ export function getSettlementStatus(bill: Bill): 'settled' | 'partial' | 'unsett
   }
   return 'unsettled';
 }
+
+/**
+ * Per-viewer settlement status.
+ * - Owner sees aggregate: settled / partial / unsettled based on how many debtors settled.
+ * - Debtor sees their own status: settled if their UID is no longer in unsettledParticipantIds.
+ */
+export function getSettlementStatusForUser(bill: Bill, userId: string): 'settled' | 'partial' | 'unsettled' {
+  const isOwner = bill.ownerId === userId;
+
+  if (isOwner) {
+    return getSettlementStatus(bill);
+  }
+
+  // Debtor: check their personal settlement state
+  if (bill.unsettledParticipantIds !== undefined) {
+    const isUnsettled = bill.unsettledParticipantIds.some(
+      id => id === userId || id === `user-${userId}`
+    );
+    return isUnsettled ? 'unsettled' : 'settled';
+  }
+
+  // Legacy fallback: check settledPersonIds for this user
+  const userSettled = bill.settledPersonIds?.some(
+    id => id === userId || id === `user-${userId}`
+  );
+  return userSettled ? 'settled' : 'unsettled';
+}

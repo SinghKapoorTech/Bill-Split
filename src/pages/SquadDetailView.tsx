@@ -165,6 +165,7 @@ export default function SquadDetailView() {
                      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                   }}
                   getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
+                  currentUserId={user?.uid}
                 />
               ))}
             </div>
@@ -191,6 +192,7 @@ export default function SquadDetailView() {
                      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                   }}
                   getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
+                  currentUserId={user?.uid}
                 />
               ))}
             </div>

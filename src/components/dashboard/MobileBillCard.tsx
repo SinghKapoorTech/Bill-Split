@@ -1,6 +1,6 @@
 import { Bill } from '@/types/bill.types';
 import { formatCurrency } from '@/utils/format';
-import { getSettlementStatus } from '@/utils/billCalculations';
+import { getSettlementStatus, getSettlementStatusForUser } from '@/utils/billCalculations';
 import { ChevronRight, Loader2, Play, Trash2, Zap, Home, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -27,6 +27,7 @@ interface MobileBillCardProps {
   formatDate: (timestamp: { toDate: () => Date } | null | undefined) => string;
   getBillTitle: (bill: Bill) => string;
   isOwner?: boolean;
+  currentUserId?: string;
 }
 
 /**
@@ -42,7 +43,8 @@ export default function MobileBillCard({
   isDeleting,
   formatDate,
   getBillTitle,
-  isOwner = true
+  isOwner = true,
+  currentUserId
 }: MobileBillCardProps) {
   // Build the consolidated info line: "$XX.XX • X items • X people"
   const itemCount = bill.billData?.items?.length || 0;
@@ -56,7 +58,7 @@ export default function MobileBillCard({
     .join(' • ') || '';
   const hasMoreItems = itemCount > 3;
 
-  const status = getSettlementStatus(bill);
+  const status = currentUserId ? getSettlementStatusForUser(bill, currentUserId) : getSettlementStatus(bill);
 
   const statusColors = {
     draft: 'text-slate-700 bg-slate-500/15 dark:text-slate-400 dark:bg-slate-500/10',

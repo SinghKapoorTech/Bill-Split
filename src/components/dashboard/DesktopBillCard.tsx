@@ -1,6 +1,6 @@
 import { Bill } from '@/types/bill.types';
 import { formatCurrency } from '@/utils/format';
-import { getSettlementStatus } from '@/utils/billCalculations';
+import { getSettlementStatus, getSettlementStatusForUser } from '@/utils/billCalculations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +25,7 @@ interface DesktopBillCardProps {
   formatDate: (timestamp: { toDate: () => Date } | null | undefined) => string;
   getBillTitle: (bill: Bill) => string;
   isOwner?: boolean;
+  currentUserId?: string;
 }
 
 /**
@@ -40,9 +41,10 @@ export default function DesktopBillCard({
   isDeleting,
   formatDate,
   getBillTitle,
-  isOwner = true
+  isOwner = true,
+  currentUserId
 }: DesktopBillCardProps) {
-  const status = getSettlementStatus(bill);
+  const status = currentUserId ? getSettlementStatusForUser(bill, currentUserId) : getSettlementStatus(bill);
 
   const statusColors = {
     settled: 'text-emerald-700 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/10',

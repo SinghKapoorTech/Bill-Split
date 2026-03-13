@@ -362,6 +362,7 @@ export default function EventDetailView() {
                     isResuming={isResuming}
                     isDeleting={isDeleting}
                     isOwner={b.ownerId === user?.uid}
+                    currentUserId={user?.uid}
                     formatDate={(timestamp: any) => {
                       if (!timestamp) return 'Unknown date';
                       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp as any);

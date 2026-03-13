@@ -55,12 +55,20 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
   };
   const [paidById, setPaidById] = useState<string>(user?.uid || '');
   const [people, setPeople] = useState<Person[]>([]);
+
+  // paidById initializes before auth resolves — sync it once user loads
+  useEffect(() => {
+    if (user?.uid && !paidById) {
+      setPaidById(user.uid);
+    }
+  }, [user?.uid]);
   const [isSaving, setIsSaving] = useState(false);
   const [existingEventId, setExistingEventId] = useState<string | undefined>();
   const [existingSquadId, setExistingSquadId] = useState<string | undefined>();
   const [existingItemId, setExistingItemId] = useState<string | undefined>();
 
-  const isOwner = !activeSession || !activeSession.ownerId || activeSession.ownerId === user?.uid;
+  const relevantSession = activeSession?.id === activeBillId.current ? activeSession : null;
+  const isOwner = !relevantSession || !relevantSession.ownerId || relevantSession.ownerId === user?.uid;
   const { isNative } = usePlatform();
 
   // Hardware back button handling
@@ -198,6 +206,12 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
     return true;
   };
 
+  const handleNextStep = () => {
+    if (currentStep < STEPS.length - 1 && canProceed() && isOwner) {
+      setCurrentStep(s => s + 1);
+    }
+  };
+
   // ── Auto-save transactions (Debounced) ───────────
   // Automatically saves edits to Amount, Title, and People.
   useEffect(() => {
@@ -252,12 +266,6 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
 
     return () => clearTimeout(timeoutId);
   }, [amount, title, paidById, people, billId, user, existingEventId, existingSquadId, existingItemId]);
-
-  const handleNextStep = () => {
-    if (currentStep < STEPS.length - 1 && canProceed() && isOwner) {
-      setCurrentStep(s => s + 1);
-    }
-  };
 
   const handlePrevStep = () => {
     if (currentStep > 0 && isOwner) {

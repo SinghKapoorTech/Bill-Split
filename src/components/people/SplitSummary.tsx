@@ -171,6 +171,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                 person={person}
                 displayName={displayNames[pt.personId] || pt.name}
                 isSettled={isSettled}
+                isMe={isMe}
                 showVenmoButton={showVenmoButton}
                 showSettleButton={showSettleButton}
                 venmoType={venmoType}
@@ -205,6 +206,7 @@ function PersonCompactRow({
   person,
   displayName,
   isSettled,
+  isMe,
   showVenmoButton,
   showSettleButton,
   venmoType,
@@ -218,6 +220,7 @@ function PersonCompactRow({
   person: Person | undefined;
   displayName: string;
   isSettled: boolean;
+  isMe: boolean;
   showVenmoButton: boolean;
   showSettleButton: boolean;
   venmoType: 'charge' | 'pay';
@@ -229,13 +232,18 @@ function PersonCompactRow({
 }) {
 
   return (
-    <div className={`p-3 bg-card border shadow-sm rounded-xl transition-all ${isSettled ? 'bg-green-500/10 dark:bg-green-500/20 border-green-500/40 dark:border-green-400/30 shadow-green-500/10' : 'border-border'}`}>
+    <div className={`p-3 border shadow-sm rounded-xl transition-all ${isSettled ? 'bg-green-500/10 dark:bg-green-500/20 border-green-500/40 dark:border-green-400/30 shadow-green-500/10' : isMe ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800' : 'bg-card border-border'}`}>
 
       <div className="flex justify-between items-center gap-3">
         {/* Left: Name and Actions */}
         <div className="flex flex-col justify-center gap-1.5 min-w-0">
           <div className="flex items-center gap-2">
             <span className={`font-semibold text-base md:text-lg leading-none truncate ${isSettled ? 'text-green-800 dark:text-green-200' : ''}`}>{displayName}</span>
+            {isMe && !isSettled && (
+              <span className="text-[10px] font-bold tracking-wider uppercase text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.5 rounded-sm shrink-0">
+                Me
+              </span>
+            )}
             {isSettled && (
               <span className="text-[10px] font-bold tracking-wider uppercase text-green-700 dark:text-green-300 bg-green-500/20 px-1.5 py-0.5 rounded-sm shrink-0">
                 Settled

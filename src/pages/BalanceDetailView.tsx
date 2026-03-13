@@ -9,6 +9,7 @@ import { Bill } from '@/types/bill.types';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
 import { useBillContext } from '@/contexts/BillSessionContext';
+import { getSettlementStatusForUser } from '@/utils/billCalculations';
 
 export default function BalanceDetailView() {
   const { targetUserId, eventId } = useParams<{ targetUserId: string; eventId?: string }>();
@@ -59,22 +60,10 @@ export default function BalanceDetailView() {
   });
 
   // Determine which bills are "unsettled" for the filter toggle.
+  // Uses the same logic as the badge to avoid showing "Settled" bills in the unsettled list.
   const isUnsettledForTarget = (bill: Bill): boolean => {
-    const target = targetUserId || '';
     const currentUser = user?.uid || '';
-
-    if (bill.unsettledParticipantIds) {
-      // Unsettled if EITHER party in the pair hasn't settled yet
-      return bill.unsettledParticipantIds.some(id =>
-        matchesTargetId(id, target) || matchesTargetId(id, currentUser)
-      );
-    }
-
-    // Fallback for older bills: check settledPersonIds
-    const settledIds = bill.settledPersonIds || [];
-    const targetSettled = settledIds.some(id => matchesTargetId(id, target));
-    const currentUserSettled = settledIds.some(id => matchesTargetId(id, currentUser));
-    return !(targetSettled && currentUserSettled);
+    return getSettlementStatusForUser(bill, currentUser) !== 'settled';
   };
 
   const displayedBills = showAll
@@ -108,13 +97,13 @@ export default function BalanceDetailView() {
     await deleteSession(bill.id, bill.receiptFileName);
   };
 
-  const handleShowAll = () => {
-    if (showAll) return;
+  const handleTabSwitch = (all: boolean) => {
+    if (showAll === all) return;
     setIsTabLoading(true);
     setTimeout(() => {
-      setShowAll(true);
+      setShowAll(all);
       setIsTabLoading(false);
-    }, 500);
+    }, 250);
   };
 
   const formatDate = (timestamp: { toDate: () => Date } | null | undefined) => {
@@ -148,7 +137,7 @@ export default function BalanceDetailView() {
       <div className="flex justify-center mb-5">
         <div className="flex items-center bg-muted rounded-full p-0.5">
           <button
-            onClick={() => setShowAll(false)}
+            onClick={() => handleTabSwitch(false)}
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               !showAll
                 ? 'bg-background text-foreground shadow-sm'
@@ -158,7 +147,7 @@ export default function BalanceDetailView() {
             Unsettled
           </button>
           <button
-            onClick={handleShowAll}
+            onClick={() => handleTabSwitch(true)}
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               showAll
                 ? 'bg-background text-foreground shadow-sm'
@@ -190,7 +179,7 @@ export default function BalanceDetailView() {
           </p>
           {!showAll && settledCount > 0 && (
             <button
-              onClick={handleShowAll}
+              onClick={() => handleTabSwitch(true)}
               className="mt-3 text-xs font-semibold text-primary hover:underline"
             >
               Show all bills →
@@ -214,6 +203,7 @@ export default function BalanceDetailView() {
                 formatDate={formatDate}
                 getBillTitle={getBillTitle}
                 isOwner={b.ownerId === user?.uid}
+                currentUserId={user?.uid}
               />
             ))}
           </div>
@@ -232,6 +222,7 @@ export default function BalanceDetailView() {
                 formatDate={formatDate}
                 getBillTitle={getBillTitle}
                 isOwner={b.ownerId === user?.uid}
+                currentUserId={user?.uid}
               />
             ))}
           </div>
