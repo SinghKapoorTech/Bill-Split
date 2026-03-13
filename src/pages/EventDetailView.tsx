@@ -4,8 +4,9 @@ import { ArrowLeft, Receipt, UserPlus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { InviteMembersDialog } from '@/components/events/InviteMembersDialog';
+import { ManageEventMembersDialog } from '@/components/events/ManageEventMembersDialog';
 import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayRemove } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { TripEvent } from '@/types/event.types';
 import { Bill } from '@/types';
@@ -30,6 +31,7 @@ export default function EventDetailView() {
   const [event, setEvent] = useState<TripEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [manageMembersDialogOpen, setManageMembersDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [eventBills, setEventBills] = useState<Bill[]>([]);
   const { user } = useAuth();
@@ -138,7 +140,33 @@ export default function EventDetailView() {
     navigate(path, { state: { targetEventId: event.id, targetEventName: event.name } });
   };
 
-
+  const handleRemoveMember = async (memberIdToRemove: string) => {
+    if (!eventId || !event) return;
+    
+    try {
+      const eventRef = doc(db, EVENTS_COLLECTION, eventId);
+      await updateDoc(eventRef, {
+        memberIds: arrayRemove(memberIdToRemove)
+      });
+      
+      toast({
+        title: "Success",
+        description: "Member removed from event.",
+      });
+      
+      // If the current user removed themselves, redirect out
+      if (memberIdToRemove === user?.uid) {
+        navigate('/events');
+      }
+    } catch (error) {
+      console.error("Failed to remove member:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove member. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleCreateEventBill = async () => {
     if (!user || !event) {
@@ -176,41 +204,65 @@ export default function EventDetailView() {
 
   return (
     <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl mb-20">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+        <div className="flex items-center gap-3 max-w-full">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0"
+            className="h-10 w-10 shrink-0"
             onClick={() => navigate('/events')}
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-6 h-6" />
           </Button>
-          <h1 className="text-3xl md:text-4xl font-bold">
-            {event.name}
-          </h1>
+          <div className="flex flex-col min-w-0">
+            <h1 className="text-3xl md:text-4xl font-bold break-words line-clamp-2 md:line-clamp-none">
+              {event.name}
+            </h1>
+            {event.memberIds && event.memberIds.length > 0 && (
+              <button 
+                onClick={() => setManageMembersDialogOpen(true)}
+                className="text-sm text-primary hover:underline transition-colors text-left flex flex-wrap items-center mt-1"
+                title="View and manage members"
+              >
+                <span>
+                  ({(() => {
+                    const allNames = event.memberIds
+                      .map(id => memberProfiles[id]?.displayName || memberProfiles[id]?.username)
+                      .filter(Boolean)
+                      .join(', ');
+                      
+                    // Use a slightly smaller max length for mobile safety
+                    if (allNames.length > 45) {
+                      return allNames.substring(0, 45).trim() + '...';
+                    }
+                    return allNames || '...';
+                  })()})
+                </span>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Button
             onClick={() => setInviteDialogOpen(true)}
             variant="outline"
-            className="h-9 px-4 text-sm gap-2 rounded-full"
+            className="h-9 px-4 text-sm gap-2 rounded-full whitespace-nowrap"
           >
-            <UserPlus className="w-4 h-4" />
+            <UserPlus className="w-4 h-4 shrink-0" />
             Invite
           </Button>
           <Button
             onClick={() => setCreateDialogOpen(true)}
-            className="h-9 px-4 text-sm gap-2 rounded-full"
+            className="h-9 px-4 text-sm gap-2 rounded-full whitespace-nowrap"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             Add Bill
           </Button>
         </div>
       </div>
       {event.description && (
-        <p className="text-sm text-muted-foreground pl-11 mb-6">{event.description}</p>
+        <p className="text-sm text-muted-foreground pl-11 mb-6 mt-2">{event.description}</p>
       )}
 
       {/* Reusing CreateOptionsDialog with event context */}
@@ -226,6 +278,19 @@ export default function EventDetailView() {
         event={event}
         memberProfiles={memberProfiles}
       />
+
+      {user && (
+        <ManageEventMembersDialog
+          open={manageMembersDialogOpen}
+          onOpenChange={setManageMembersDialogOpen}
+          memberProfiles={memberProfiles}
+          memberIds={event.memberIds}
+          ownerId={event.ownerId}
+          currentUserId={user.uid}
+          onRemoveMember={handleRemoveMember}
+          eventName={event.name}
+        />
+      )}
 
       <div className="flex flex-col gap-6 md:gap-10">
         {/* Balances Section */}
