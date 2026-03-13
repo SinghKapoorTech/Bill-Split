@@ -120,15 +120,24 @@ export default {
             "background-position": "0% 50%",
           },
           "50%": {
-            "background-size": "400% 400%",
             "background-position": "100% 50%",
           },
+        },
+        "toast-in": {
+          from: { transform: "translateX(100vw)" },
+          to: { transform: "translateX(0)" },
+        },
+        "toast-out": {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(-100vw)" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "gradient-xy": "gradient-xy 15s ease infinite",
+        "toast-in": "toast-in 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
+        "toast-out": "toast-out 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
       },
     },
   },
