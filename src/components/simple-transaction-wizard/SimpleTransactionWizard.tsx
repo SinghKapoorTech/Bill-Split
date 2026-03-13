@@ -28,7 +28,12 @@ const STEPS = [
   { id: 3, label: 'Review', description: 'Confirm' },
 ];
 
-export function SimpleTransactionWizard() {
+export interface SimpleTransactionWizardProps {
+  externalTitle?: string;
+  setExternalTitle?: (title: string) => void;
+}
+
+export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: SimpleTransactionWizardProps = {}) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isMobile = useIsMobile();
@@ -38,7 +43,15 @@ export function SimpleTransactionWizard() {
 
   const [currentStep, setCurrentStep] = useState(0);
   const [amount, setAmount] = useState<string>('');
-  const [title, setTitle] = useState<string>('');
+  const [internalTitle, setInternalTitle] = useState<string>('');
+  
+  const title = externalTitle !== undefined ? externalTitle : internalTitle;
+  const setTitle = (newTitle: string) => {
+    setInternalTitle(newTitle);
+    if (setExternalTitle) {
+      setExternalTitle(newTitle);
+    }
+  };
   const [paidById, setPaidById] = useState<string>(user?.uid || '');
   const [people, setPeople] = useState<Person[]>([]);
   const [isSaving, setIsSaving] = useState(false);
