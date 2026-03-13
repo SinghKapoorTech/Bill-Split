@@ -237,13 +237,19 @@ export default function CollaborativeSessionView() {
 
     // 2. Atomic update via service
     if (session) {
-      // We need to import billService to use its static method
-      // But since we are using useBillSession, we might not have direct access to the service method 
-      // if it's not exposed by the hook. 
-      // Let's check imports. billService is imported in the file? No.
-      // We should probably add the method to useBillSession or import billService directly.
-      // Importing billService directly is easier for now as per plan.
       const { billService } = await import('@/services/billService');
+      
+      // If a guest without an account is editing their name, we must update the shadow user profile too
+      if (!user && updates.name && session.shareCode) {
+        try {
+          await billService.updateGuestName(session.id, session.shareCode, personId, updates.name);
+          return;
+        } catch (error) {
+          console.error("Failed to update guest name", error);
+        }
+      }
+      
+      // Fallback or normal execution for standard profiles/owner changing things
       await billService.updatePersonDetails(session.id, personId, updates);
     }
   };

@@ -114,20 +114,28 @@ export function useBillSession(billId: string | null) {
   /**
    * Adds the current user as a member of the session
    * @param anonymousName - Optional name for anonymous users
+   * @param shareCode - Required for anonymous users to create a shadow user
    * @returns The userId that was used to join (useful for anonymous users)
    */
   const joinSession = useCallback(
-    async (anonymousName?: string): Promise<string | undefined> => {
+    async (anonymousName?: string, shareCode?: string): Promise<string | undefined> => {
       if (!billId) return undefined;
 
       try {
-        // Generate unique ID for anonymous users
-        const guestId = `guest-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const userId = user?.uid || guestId;
         const userName = user?.displayName || anonymousName || 'Anonymous';
-        const email = user?.email;
+        let userId: string;
 
-        await billService.joinBill(billId, userId, userName, email);
+        if (user) {
+          // Authenticated user
+          userId = user.uid;
+          await billService.joinBill(billId, userId, userName, user.email || undefined);
+        } else {
+          // Unauthenticated guest: create a shadow user via Cloud Function
+          if (!shareCode) {
+            throw new Error('Share code is required for guest access');
+          }
+          userId = await billService.joinBillAsGuest(billId, shareCode, userName);
+        }
 
         toast({
           title: 'Joined Session',
@@ -142,7 +150,7 @@ export function useBillSession(billId: string | null) {
           description: 'Could not join session.',
           variant: 'destructive',
         });
-        return undefined;
+        throw error;
       }
     },
     [billId, user, toast]

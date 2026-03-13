@@ -65,8 +65,8 @@ export function GuestClaimView({
       const prefixedId = `user-${user.uid}`;
       return session.people.find(p => p.id === user.uid || p.id === prefixedId);
     } else if (guestId) {
-      // Anonymous user: match by stored guest ID
-      return session.people.find(p => p.id === guestId);
+      // Anonymous user: match by stored guest ID (checking both raw and prefixed formats)
+      return session.people.find(p => p.id === guestId || p.id === `user-${guestId}`);
     }
     return null;
   }, [session.people, user, guestId]);
@@ -86,8 +86,18 @@ export function GuestClaimView({
     setShowRemoveDialog(true);
   };
 
-  const handleConfirmRemove = () => {
+  const handleConfirmRemove = async () => {
     if (!currentPerson) return;
+
+    if (!user && session.shareCode) {
+      try {
+        const { billService } = await import('@/services/billService');
+        await billService.leaveBillAsGuest(session.id, session.shareCode, currentPerson.id);
+      } catch (e) {
+        console.error("Failed to delete guest shadow user", e);
+      }
+    }
+
     onRemovePerson(currentPerson.id);
     setGuestId(null);
     localStorage.removeItem(`guest-id-${session.id}`);
@@ -148,18 +158,11 @@ export function GuestClaimView({
   const items = session.billData?.items || [];
   const itemAssignments = session.itemAssignments || {};
 
-  // If user not in people list, redirect back to join page
-  useEffect(() => {
-    if (!currentPerson) {
-      navigate(`/join/${session.id}${session.shareCode ? `?code=${session.shareCode}` : ''}`, { replace: true });
-    }
-  }, [currentPerson, session.id, session.shareCode, navigate]);
-
   if (!currentPerson) {
     return (
       <div className="flex flex-col items-center justify-center py-12 space-y-4">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-muted-foreground">Redirecting to join...</p>
+        <p className="text-muted-foreground">Loading your session...</p>
       </div>
     );
   }

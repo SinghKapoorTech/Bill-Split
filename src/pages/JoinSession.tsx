@@ -93,7 +93,14 @@ export default function JoinSession() {
     );
 
     if (existingById || existingPerson) {
-      // If we already exist, just navigate to the session
+      // If we already exist, ensure localStorage is set for anonymous users before navigating
+      if (!user && existingPerson && sessionId) {
+        // The ID might have a 'user-' prefix, we should store the raw ID
+        const rawId = existingPerson.id.startsWith('user-') ? existingPerson.id.substring(5) : existingPerson.id;
+        localStorage.setItem(`guest-id-${sessionId}`, rawId);
+      }
+      
+      // Navigate to the session
       navigate(`/session/${sessionId}`);
       return;
     }
@@ -102,7 +109,8 @@ export default function JoinSession() {
     setError(null);
 
     try {
-      const userId = await joinSession(anonymousName.trim());
+      const shareCode = shareCodeFromUrl || sessionData?.shareCode;
+      const userId = await joinSession(anonymousName.trim(), shareCode);
       
       // Store guestId in localStorage for anonymous users so they can be identified later
       if (!user && userId && sessionId) {

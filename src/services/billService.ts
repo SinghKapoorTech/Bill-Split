@@ -433,6 +433,31 @@ export const billService = {
       tx.update(billRef, updatePayload);
     });
   },
+
+  /**
+   * Joins a bill as a guest via Cloud Function, creating a shadow user
+   */
+  async joinBillAsGuest(billId: string, shareCode: string, guestName: string): Promise<string> {
+    const fn = httpsCallable<any, { userId: string }>(functions, 'joinBillAsGuest');
+    const result = await fn({ billId, shareCode, guestName });
+    return result.data.userId;
+  },
+
+  /**
+   * Leaves a bill as a guest, deleting the shadow user
+   */
+  async leaveBillAsGuest(billId: string, shareCode: string, shadowUserId: string): Promise<void> {
+    const fn = httpsCallable<any, { success: boolean }>(functions, 'leaveBillAsGuest');
+    await fn({ billId, shareCode, shadowUserId });
+  },
+
+  /**
+   * Updates the name of a guest shadow user
+   */
+  async updateGuestName(billId: string, shareCode: string, shadowUserId: string, newName: string): Promise<void> {
+    const fn = httpsCallable<any, { success: boolean }>(functions, 'updateGuestName');
+    await fn({ billId, shareCode, shadowUserId, newName });
+  },
 };
 
 
