@@ -208,9 +208,6 @@ export default function Dashboard() {
     ...(activeSession ? [activeSession] : []),
     ...savedSessions
   ].filter(bill => {
-    // Hide event bills from Dashboard
-    if (bill.billType !== 'private') return false;
-
     const hasItems = bill.billData?.items && bill.billData.items.length > 0;
     const hasReceipt = !!bill.receiptImageUrl;
     const hasTitle = !!bill.title && bill.title.trim().length > 0;

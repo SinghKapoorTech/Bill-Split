@@ -204,17 +204,17 @@ export default function EventDetailView() {
 
   return (
     <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl mb-20">
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-        <div className="flex items-center gap-3 max-w-full">
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-2">
+        <div className="flex items-start gap-3 max-w-full">
           <Button
             variant="ghost"
             size="icon"
-            className="h-10 w-10 shrink-0"
+            className="h-10 w-10 mt-1 shrink-0 text-muted-foreground hover:text-foreground -ml-2"
             onClick={() => navigate('/events')}
           >
             <ArrowLeft className="w-6 h-6" />
           </Button>
-          <div className="flex flex-col min-w-0">
+          <div className="flex flex-col min-w-0 max-w-full">
             <h1 className="text-3xl md:text-4xl font-bold break-words line-clamp-2 md:line-clamp-none">
               {event.name}
             </h1>

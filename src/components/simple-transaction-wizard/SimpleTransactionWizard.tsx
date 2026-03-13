@@ -141,6 +141,7 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
       const { targetEventId, targetSquadId } = routerState || {};
 
       if (targetEventId) {
+        setExistingEventId(targetEventId);
         fetchEventMembers(targetEventId).then(eventPeople => {
           setPeople(ensureUserInPeople(eventPeople, user, profile));
         });
