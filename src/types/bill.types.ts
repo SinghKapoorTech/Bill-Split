@@ -107,6 +107,8 @@ export interface Bill {
     startDate: string;
     endDate: string;
     nights: number;
+    totalStayCost?: number;
+    fees?: { id: string; name: string; amount: number }[];
   };
 
   // History

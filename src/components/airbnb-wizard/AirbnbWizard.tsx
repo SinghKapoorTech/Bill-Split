@@ -38,6 +38,7 @@ interface AirbnbWizardProps {
     onShare?: () => void;
     eventId?: string | null;
     onEventChange?: (eventId: string | null) => void;
+    initialAirbnbData?: Bill['airbnbData'];
 }
 
 export function AirbnbWizard({
@@ -56,7 +57,8 @@ export function AirbnbWizard({
     hasBillData,
     onShare,
     eventId,
-    onEventChange
+    onEventChange,
+    initialAirbnbData
 }: AirbnbWizardProps) {
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -68,6 +70,7 @@ export function AirbnbWizard({
     const [itemAssignments, setItemAssignments] = useState<ItemAssignment>(initialItemAssignments);
     const [splitEvenly, setSplitEvenly] = useState<boolean>(initialSplitEvenly);
     const [paidById, setPaidById] = useState<string | undefined>(activeSession?.paidById);
+    const [airbnbData, setAirbnbData] = useState<Bill['airbnbData']>(initialAirbnbData);
 
     const peopleManager = usePeopleManager(people, setPeople);
     const bill = useBillSplitter({
@@ -93,6 +96,10 @@ export function AirbnbWizard({
             setPaidById(activeSession.paidById);
         }
     }, [activeSession?.paidById]);
+
+    useEffect(() => {
+        if (initialAirbnbData) setAirbnbData(initialAirbnbData);
+    }, [initialAirbnbData]);
 
     const STEPS: Step[] = splitEvenly ? [
         { id: 1, label: 'Details', description: 'Dates & Cost' },
@@ -193,7 +200,9 @@ export function AirbnbWizard({
         billId,
         saveSession,
         paidById,
-        baseUrl: '/airbnb'
+        baseUrl: '/airbnb',
+        isAirbnb: true,
+        airbnbData
     });
 
     const handleAtomicAssignment = (itemId: string, personId: string, checked: boolean) => {
@@ -284,6 +293,16 @@ export function AirbnbWizard({
     const targetEventId = activeSession?.eventId || routerState?.targetEventId;
 
     const handleDone = async () => {
+        // Set the bill status to 'active' on completion
+        const id = billId || activeSession?.id;
+        if (id) {
+            try {
+                await billService.updateBill(id, { status: 'active' });
+            } catch (e) {
+                console.error("Failed to mark bill as active", e);
+            }
+        }
+
         if (targetEventId) {
             navigate(`/events/${targetEventId}`);
         } else {
@@ -354,6 +373,8 @@ export function AirbnbWizard({
                         <AirbnbEntryStep
                             billData={billData}
                             setBillData={setBillData}
+                            airbnbData={airbnbData}
+                            setAirbnbData={setAirbnbData}
                             onNext={wizard.handleNextStep}
                             canProceed={wizard.canProceedFromStep(0)}
                             currentStep={wizard.currentStep}

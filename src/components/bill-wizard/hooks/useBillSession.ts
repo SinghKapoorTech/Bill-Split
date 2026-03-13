@@ -26,6 +26,10 @@ interface UseBillSessionProps {
 
     // Optional base URL for draft redirection (e.g. '/airbnb')
     baseUrl?: string;
+
+    // Airbnb specific
+    isAirbnb?: boolean;
+    airbnbData?: Bill['airbnbData'];
 }
 
 /**
@@ -46,7 +50,9 @@ export function useBillSession({
     receiptFileName,
     saveSession,
     paidById,
-    baseUrl
+    baseUrl,
+    isAirbnb,
+    airbnbData
 }: UseBillSessionProps) {
     const navigate = useNavigate();
     const isInitializing = useRef(true);
@@ -57,12 +63,12 @@ export function useBillSession({
 
     // Keep track of latest props for unmount saving
     const latestProps = useRef({
-        billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession, paidById, baseUrl
+        billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession, paidById, baseUrl, isAirbnb, airbnbData
     });
 
     useEffect(() => {
         latestProps.current = {
-            billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession, paidById, baseUrl
+            billData, people, itemAssignments, splitEvenly, currentStep, title, activeSession, billId, receiptImageUrl, receiptFileName, saveSession, paidById, baseUrl, isAirbnb, airbnbData
         };
     });
 
@@ -96,6 +102,7 @@ export function useBillSession({
             currentStep: props.currentStep,
             title: props.title,
             paidById: props.paidById,
+            airbnbData: props.airbnbData,
             ...(props.splitEvenly ? { itemAssignments: props.itemAssignments } : {})
         });
 
@@ -132,6 +139,8 @@ export function useBillSession({
             if (props.receiptFileName) savePayload.receiptFileName = props.receiptFileName;
             if (props.title) savePayload.title = props.title;
             if (props.paidById) savePayload.paidById = props.paidById;
+            if (props.isAirbnb) savePayload.isAirbnb = props.isAirbnb;
+            if (props.airbnbData) savePayload.airbnbData = props.airbnbData;
 
             const targetId = targetBillId || targetActiveId;
 

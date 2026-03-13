@@ -38,6 +38,7 @@ export default function AirbnbView() {
     const [title, setTitle] = useState<string>('');
     const [currentStep, setCurrentStep] = useState(0);
     const [eventId, setEventId] = useState<string | null>(null);
+    const [airbnbData, setAirbnbData] = useState<Bill['airbnbData']>(undefined);
 
     const [showShareLinkDialog, setShowShareLinkDialog] = useState(false);
     const [isGeneratingShareCode, setIsGeneratingShareCode] = useState(false);
@@ -73,6 +74,7 @@ export default function AirbnbView() {
                 setSplitEvenly(false);
                 setTitle('');
                 setCurrentStep(0);
+                setAirbnbData(undefined);
                 loadedSessionId.current = 'draft';
 
                 const { targetEventId } = location.state || {};
@@ -99,6 +101,7 @@ export default function AirbnbView() {
                 setTitle(activeSession.title || '');
                 setCurrentStep(activeSession.currentStep || 0);
                 setEventId(activeSession.eventId || null);
+                setAirbnbData(activeSession.airbnbData);
                 loadedSessionId.current = activeSession.id;
             }
         }
@@ -118,6 +121,7 @@ export default function AirbnbView() {
                     setTitle(fetchedBill.title || '');
                     setCurrentStep(fetchedBill.currentStep || 0);
                     setEventId(fetchedBill.eventId || null);
+                    setAirbnbData(fetchedBill.airbnbData);
                 }
             });
         }
@@ -273,6 +277,7 @@ export default function AirbnbView() {
                 onShare={handleGenerateShareLink}
                 eventId={eventId}
                 onEventChange={handleEventChange}
+                initialAirbnbData={airbnbData}
             />
 
             {effectiveSession && (

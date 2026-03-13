@@ -28,6 +28,8 @@ interface AirbnbEntryStepProps {
     totalSteps: number;
     isMobile: boolean;
     onTriggerSave?: (options?: { overrideData?: Partial<import('@/types/bill.types').Bill>; forceSave?: boolean }) => void;
+    airbnbData?: import('@/types/bill.types').Bill['airbnbData'];
+    setAirbnbData: (data: import('@/types/bill.types').Bill['airbnbData']) => void;
 }
 
 export function AirbnbEntryStep({
@@ -38,16 +40,23 @@ export function AirbnbEntryStep({
     currentStep,
     totalSteps,
     isMobile,
-    onTriggerSave
+    onTriggerSave,
+    airbnbData,
+    setAirbnbData
 }: AirbnbEntryStepProps) {
     // State
     const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
-        // Init from existing billData if available (would need custom parsing if stored, but let's keep it simple for now)
+        if (airbnbData?.startDate && airbnbData?.endDate) {
+            return {
+                from: new Date(airbnbData.startDate),
+                to: new Date(airbnbData.endDate)
+            };
+        }
         return undefined;
     });
 
-    const [totalStayCost, setTotalStayCost] = useState<string>('');
-    const [fees, setFees] = useState<Fee[]>([]);
+    const [totalStayCost, setTotalStayCost] = useState<string>(airbnbData?.totalStayCost?.toString() || '');
+    const [fees, setFees] = useState<Fee[]>(airbnbData?.fees || []);
 
     // Default fees removed per user request
 
@@ -102,6 +111,15 @@ export function AirbnbEntryStep({
         };
 
         setBillData(newBillData);
+
+        // Update airbnbData for persistence
+        setAirbnbData({
+            startDate: dateRange.from.toISOString(),
+            endDate: dateRange.to.toISOString(),
+            nights: nights,
+            totalStayCost: stayCostNum,
+            fees: fees
+        });
 
     }, [dateRange, totalStayCost, fees]);
 
