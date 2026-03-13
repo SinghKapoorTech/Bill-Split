@@ -57,22 +57,41 @@ function hasRelevantChange(
   return false;
 }
 
-async function resolveEligibleFriends(anchorId: string, ownerId: string, billParticipants: string[]): Promise<Set<string>> {
+async function resolveEligibleFriends(
+  anchorId: string, 
+  ownerId: string, 
+  billParticipants: string[],
+  billPeople: Array<{ id: string }> = []
+): Promise<Set<string>> {
   const linked = new Set<string>();
 
-  // Use the pre-computed participantIds from the bill if available, 
-  // otherwise fallback to the anchor/owner set.
+  // 1. Add from pre-computed participantIds (real Firebase UIDs)
   if (billParticipants && billParticipants.length > 0) {
     for (const id of billParticipants) {
       linked.add(id);
     }
-  } else {
+  }
+
+  // 2. Add from people array (extracting real Firebase UIDs)
+  // This acts as a fallback/sync in case participantIds specifically is out of sync.
+  if (billPeople && billPeople.length > 0) {
+    for (const person of billPeople) {
+      const uid = person.id.startsWith('user-') ? person.id.slice(5) : person.id;
+      // Filter out guest IDs and anonymous IDs (legacy)
+      if (uid && !uid.startsWith('guest-') && uid !== 'anonymous') {
+        linked.add(uid);
+      }
+    }
+  }
+
+  // 3. Fallback to anchor/owner if still empty
+  if (linked.size === 0) {
     linked.add(anchorId);
     linked.add(ownerId);
   }
 
-  // Also include any shadow users created by the owner OR anchor 
-  // (though they should already be in participantIds from the bill)
+  // 4. Also include any shadow users created by the owner OR anchor 
+  // (though they should already be in participantIds/people)
   const shadowQuery = await db().collection('users')
     .where('isShadow', '==', true)
     .where('createdById', 'in', [ownerId, anchorId])
@@ -508,7 +527,7 @@ export const ledgerProcessor = onDocumentWritten(
 
     // ── Stage 2: FRIEND LEDGER (authoritative, in transaction) ──────────────
     const participantIds = after.participantIds || [];
-    const linkedFriendUids = await resolveEligibleFriends(creditorId, ownerId, participantIds);
+    const linkedFriendUids = await resolveEligibleFriends(creditorId, ownerId, participantIds, people);
     let stage2Wrote = false;
 
     if (linkedFriendUids.size > 0) {

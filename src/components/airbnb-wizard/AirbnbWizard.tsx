@@ -242,8 +242,10 @@ export function AirbnbWizard({
         if (newPerson) {
             const id = billId || activeSession?.id;
             if (id) {
+                // Pass the full people array so billService.updateBill can correctly
+                // derive and update the participantIds field for ledger/search.
                 billService.updateBill(id, {
-                    people: arrayUnion(newPerson) as unknown as Person[]
+                    people: [...people, newPerson]
                 }).catch(console.error);
             }
         }
@@ -255,7 +257,7 @@ export function AirbnbWizard({
             const id = billId || activeSession?.id;
             if (id) {
                 billService.updateBill(id, {
-                    people: arrayUnion(newPerson) as unknown as Person[]
+                    people: [...people, newPerson]
                 }).catch(console.error);
             }
         }

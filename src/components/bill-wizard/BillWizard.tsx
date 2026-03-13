@@ -226,8 +226,10 @@ export function BillWizard({
         if (newPerson) {
             const id = billId || activeSession?.id;
             if (id) {
+                // Pass the full people array so billService.updateBill can correctly
+                // derive and update the participantIds field for ledger/search.
                 billService.updateBill(id, {
-                    people: arrayUnion(newPerson) as unknown as Person[]
+                    people: [...people, newPerson]
                 }).catch(console.error);
             }
         }
@@ -247,7 +249,7 @@ export function BillWizard({
             const id = billId || activeSession?.id;
             if (id) {
                 billService.updateBill(id, {
-                    people: arrayUnion(newPerson) as unknown as Person[]
+                    people: [...people, newPerson]
                 }).catch(console.error);
             }
         }
@@ -264,16 +266,15 @@ export function BillWizard({
         if (uniqueNewPeople.length === 0) return;
 
         // Optimistic local update
-        setPeople(prev => [...prev, ...uniqueNewPeople]);
+        const updatedPeople = [...people, ...uniqueNewPeople];
+        setPeople(updatedPeople);
 
-        // Persist each new person atomically so they survive the Firestore re-sync
+        // Persist the full people array so participantIds syncs correctly
         const id = billId || activeSession?.id;
         if (id) {
-            uniqueNewPeople.forEach(person => {
-                billService.updateBill(id, {
-                    people: arrayUnion(person) as unknown as Person[]
-                }).catch(console.error);
-            });
+            billService.updateBill(id, {
+                people: updatedPeople
+            }).catch(console.error);
         }
     };
 
