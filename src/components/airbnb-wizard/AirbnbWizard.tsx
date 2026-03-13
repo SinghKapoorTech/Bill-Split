@@ -130,7 +130,8 @@ export function AirbnbWizard({
         }
     }, [splitEvenly, billData, people, bill.allItemsAssigned]);
 
-    const derivedInitialStep = isOwner ? initialStep : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2);
+    const derivedMinStep = isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2);
+    const derivedInitialStep = isOwner ? initialStep : derivedMinStep;
 
     const wizard = useBillWizard({
         billData,
@@ -138,6 +139,7 @@ export function AirbnbWizard({
         itemAssignments,
         totalSteps: STEPS.length,
         initialStep: derivedInitialStep,
+        minStep: derivedMinStep,
         customValidator
     });
 

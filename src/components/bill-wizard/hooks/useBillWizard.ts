@@ -1,7 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Person, BillData, ItemAssignment } from '@/types';
 import { areAllItemsAssigned } from '@/utils/calculations';
 import { WizardState } from '../types';
+import { App } from '@capacitor/app';
+import { usePlatform } from '@/hooks/usePlatform';
 
 interface UseBillWizardProps {
     billData: BillData | null;
@@ -9,6 +11,7 @@ interface UseBillWizardProps {
     itemAssignments: ItemAssignment;
     totalSteps: number;
     initialStep?: number;
+    minStep?: number;
     customValidator?: (step: number) => boolean;
 }
 
@@ -22,9 +25,42 @@ export function useBillWizard({
     itemAssignments,
     totalSteps,
     initialStep = 0,
+    minStep = 0,
     customValidator
 }: UseBillWizardProps): WizardState {
     const [currentStep, setCurrentStep] = useState(initialStep);
+    const { isNative } = usePlatform();
+
+    // Store currentStep in a ref for the back button listener
+    const stepRef = useRef(currentStep);
+    useEffect(() => {
+        stepRef.current = currentStep;
+    }, [currentStep]);
+
+    // Handle hardware back button for Android
+    useEffect(() => {
+        if (!isNative) return;
+
+        let listenerHandle: any = null;
+
+        App.addListener('backButton', () => {
+            if (stepRef.current > minStep) {
+                // Go back a step in the wizard
+                setCurrentStep(prev => prev - 1);
+            } else {
+                // At minimum step, fallback to default behavior (exit or go back in history)
+                window.history.back();
+            }
+        }).then(handle => {
+            listenerHandle = handle;
+        });
+
+        return () => {
+            if (listenerHandle) {
+                listenerHandle.remove();
+            }
+        };
+    }, [isNative]);
 
     // Step navigation
     const handleNextStep = useCallback(() => {
@@ -34,10 +70,10 @@ export function useBillWizard({
     }, [currentStep, totalSteps]);
 
     const handlePrevStep = useCallback(() => {
-        if (currentStep > 0) {
+        if (currentStep > minStep) {
             setCurrentStep(currentStep - 1);
         }
-    }, [currentStep]);
+    }, [currentStep, minStep]);
 
     // Validation for step progression
     const canProceedFromStep = useCallback((step: number): boolean => {

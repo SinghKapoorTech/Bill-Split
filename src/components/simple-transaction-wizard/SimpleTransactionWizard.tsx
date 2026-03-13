@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { App } from '@capacitor/app';
+import { usePlatform } from '@/hooks/usePlatform';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
 import { Person } from '@/types';
 import { billService } from '@/services/billService';
@@ -45,6 +47,35 @@ export function SimpleTransactionWizard() {
   const [existingItemId, setExistingItemId] = useState<string | undefined>();
 
   const isOwner = !activeSession || !activeSession.ownerId || activeSession.ownerId === user?.uid;
+  const { isNative } = usePlatform();
+
+  // Hardware back button handling
+  const stepRef = useRef(currentStep);
+  useEffect(() => {
+    stepRef.current = currentStep;
+  }, [currentStep]);
+
+  useEffect(() => {
+    if (!isNative) return;
+
+    let listenerHandle: any = null;
+
+    App.addListener('backButton', () => {
+      if (stepRef.current > 0 && isOwner) {
+        setCurrentStep(prev => prev - 1);
+      } else {
+        window.history.back();
+      }
+    }).then(handle => {
+      listenerHandle = handle;
+    });
+
+    return () => {
+      if (listenerHandle) {
+        listenerHandle.remove();
+      }
+    };
+  }, [isNative, isOwner]);
 
   const getTargetContext = () => {
     if (billId && billId !== 'new') {
