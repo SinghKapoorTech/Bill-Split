@@ -9,22 +9,16 @@ service cloud.firestore {
       allow read: if request.auth != null;
       // Allow user to write only to their own profile, OR if they are creating/updating a shadow user
       allow create: if request.auth != null && (request.auth.uid == userId || request.resource.data.isShadow == true);
-      allow update: if request.auth != null && (request.auth.uid == userId || (resource.data.isShadow == true && request.resource.data.isShadow == true));
+      allow update: if request.auth != null && (
+        request.auth.uid == userId ||
+        (resource.data.isShadow == true && request.resource.data.isShadow == true) ||
+        // Allow any authenticated user to update only squadIds (for squad membership sync)
+        onlyUpdating(['squadIds'])
+      );
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Squads collection - users can read/write squads they are members of
-    match /squads/{squadId} {
-      allow read: if request.auth != null && 
-                     (resource == null || request.auth.uid in resource.data.memberIds);
-      allow create: if request.auth != null && 
-                       request.auth.uid in request.resource.data.memberIds;
-      allow update: if request.auth != null && 
-                       request.auth.uid in resource.data.memberIds &&
-                       request.auth.uid in request.resource.data.memberIds;
-      allow delete: if request.auth != null && 
-                       request.auth.uid in resource.data.memberIds;
-    }
+
 
     // Events collection - users can read events they own or are members of
     match /events/{eventId} {

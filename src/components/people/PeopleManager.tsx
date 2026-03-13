@@ -34,6 +34,7 @@ interface Props {
   onSaveAsFriend: (person: Person, contactInfo?: string) => void;
   onRemoveFriend?: (friendId: string) => void;
   setPeople: React.Dispatch<React.SetStateAction<Person[]>>;
+  onAddSquad?: (members: Person[]) => void;
   children?: React.ReactNode;
 }
 
@@ -50,6 +51,7 @@ export function PeopleManager({
   onSaveAsFriend,
   onRemoveFriend,
   setPeople,
+  onAddSquad,
   children
 }: Props) {
   const { user } = useAuth();
@@ -73,9 +75,15 @@ export function PeopleManager({
 
   const handleAddSquad = (members: SquadMember[]) => {
     const newPeople = convertSquadMembersToPeople(members);
-    const existingIds = new Set(people.map(p => p.id));
-    const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p.id));
-    setPeople([...people, ...uniqueNewPeople]);
+    if (onAddSquad) {
+      // Use the parent's atomic handler so members are persisted to Firestore
+      onAddSquad(newPeople);
+    } else {
+      // Fallback: direct local state update (for non-bill contexts)
+      const existingIds = new Set(people.map(p => p.id));
+      const uniqueNewPeople = newPeople.filter(p => !existingIds.has(p.id));
+      setPeople([...people, ...uniqueNewPeople]);
+    }
   };
 
   const isPersonInFriends = (person: Person): boolean => {

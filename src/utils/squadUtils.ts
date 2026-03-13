@@ -1,5 +1,6 @@
 import { Person } from '@/types';
 import { SquadMember } from '@/types/squad.types';
+import { generateUserId } from '@/utils/billCalculations';
 
 /**
  * Validates a squad name
@@ -38,7 +39,10 @@ export function convertPeopleToSquadMembers(people: Person[]): SquadMember[] {
  */
 export function convertSquadMembersToPeople(members: SquadMember[]): Person[] {
   return members.map(member => ({
-    id: `person-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+    // If member has a resolved Firebase UID, format it as `user-{uid}` to match
+    // the ID format used by ensureUserInPeople / generateUserId everywhere in bills.
+    // This ensures the current user (and any real app user) is correctly deduplicated.
+    id: member.id ? generateUserId(member.id) : `person-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
     name: member.name,
     ...(member.venmoId && { venmoId: member.venmoId }),
   }));

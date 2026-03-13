@@ -253,6 +253,30 @@ export function BillWizard({
         }
     };
 
+    const handleAtomicAddSquad = (newMembers: Person[]) => {
+        // Deduplicate by ID and by name (case-insensitive) to handle both real
+        // users (matched by Firebase UID) and shadow users (matched by name)
+        const existingIds = new Set(people.map(p => p.id));
+        const existingNames = new Set(people.map(p => p.name.toLowerCase()));
+        const uniqueNewPeople = newMembers.filter(
+            p => !existingIds.has(p.id) && !existingNames.has(p.name.toLowerCase())
+        );
+        if (uniqueNewPeople.length === 0) return;
+
+        // Optimistic local update
+        setPeople(prev => [...prev, ...uniqueNewPeople]);
+
+        // Persist each new person atomically so they survive the Firestore re-sync
+        const id = billId || activeSession?.id;
+        if (id) {
+            uniqueNewPeople.forEach(person => {
+                billService.updateBill(id, {
+                    people: arrayUnion(person) as unknown as Person[]
+                }).catch(console.error);
+            });
+        }
+    };
+
     // Event handlers
     const handleRemovePerson = async (personId: string) => {
         // 1. Optimistic update
@@ -554,6 +578,7 @@ export function BillWizard({
                             paidById={paidById}
                             onPaidByChange={handleAtomicPaidByChange}
                             onAddFromFriend={handleAtomicAddFromFriend}
+                            onAddSquad={handleAtomicAddSquad}
                             onRemove={handleRemovePerson}
                             onUpdate={handleUpdatePerson}
                             onSaveAsFriend={peopleManager.savePersonAsFriend}

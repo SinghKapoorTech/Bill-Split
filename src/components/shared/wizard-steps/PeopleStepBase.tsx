@@ -20,6 +20,7 @@ interface PeopleStepBaseProps {
     onVenmoIdChange: (id: string) => void;
     onAdd: (name?: string, venmoId?: string) => void;
     onAddFromFriend: (friend: any) => void;
+    onAddSquad?: (members: Person[]) => void;
     onRemove: (personId: string) => void;
     onUpdate: (personId: string, updates: Partial<Person>) => Promise<void>;
     onSaveAsFriend: (person: Person) => void;
@@ -74,6 +75,7 @@ export function PeopleStepBase({
     onUpdate,
     onSaveAsFriend,
     onRemoveFriend,
+    onAddSquad,
     imagePreview,
     selectedFile,
     isUploading = false,
@@ -107,6 +109,7 @@ export function PeopleStepBase({
             onVenmoIdChange={onVenmoIdChange}
             onAdd={onAdd}
             onAddFromFriend={onAddFromFriend}
+            onAddSquad={onAddSquad}
             onRemove={onRemove}
             onUpdate={onUpdate}
             onSaveAsFriend={onSaveAsFriend}

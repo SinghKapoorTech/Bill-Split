@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +16,7 @@ export default function BalanceDetailView() {
   const { user } = useAuth();
   const { activeSession, savedSessions, isLoadingSessions } = useBills();
   const [targetUserName, setTargetUserName] = useState<string>('Friend');
+  const [showAll, setShowAll] = useState(false);
 
   const {
     isDeleting,
@@ -31,48 +32,51 @@ export default function BalanceDetailView() {
         setTargetUserName(profile.displayName);
       } else if (profile?.username) {
         setTargetUserName(profile.username);
-      } else {
-        // Fallback or retry logic if needed, but 'Friend' is default
       }
     }).catch(e => {
       console.warn('Could not fetch target user profile', e);
     });
   }, [targetUserId]);
 
-  const allBills = [
+  // Helper – checks if a raw uid matches this bill's target-user slot,
+  // accounting for both 'user-{uid}' and raw-uid storage patterns.
+  const matchesTargetId = (id: string, target: string) =>
+    id === target || id === `user-${target}`;
+
+  const allBillsWithTarget = [
     ...(activeSession ? [activeSession] : []),
     ...savedSessions
   ].filter(bill => {
     if (eventId && bill.eventId !== eventId) return false;
 
-    // We only want bills where the target user was a participant.
-    const isTargetParticipant = bill.participantIds?.includes(targetUserId || '') ||
-      bill.people?.some(p => p.id === targetUserId || p.id === `user-${targetUserId}`);
-    if (!isTargetParticipant) return false;
+    // Include bill only if target is a participant (by participantIds or people array)
+    const isTargetParticipant =
+      bill.participantIds?.some(id => matchesTargetId(id, targetUserId || '')) ||
+      bill.people?.some(p => matchesTargetId(p.id, targetUserId || ''));
 
-    // Filter out settled bills
-    const unsettledIds = bill.unsettledParticipantIds || bill.participantIds || [];
-    let targetUnsettled = unsettledIds.includes(targetUserId || '');
-    let meUnsettled = user?.uid ? unsettledIds.includes(user.uid) : false;
-
-    // Fallback for older bills that might not have unsettledParticipantIds mapped
-    if (!bill.unsettledParticipantIds) {
-      const settledIds = bill.settledPersonIds || [];
-      targetUnsettled = !(settledIds.includes(targetUserId || '') || settledIds.includes(`user-${targetUserId}`));
-      meUnsettled = !(settledIds.includes(user?.uid || '') || settledIds.includes(`user-${user?.uid}`));
-    }
-
-    if (bill.ownerId === user?.uid) {
-      if (!targetUnsettled) return false;
-    } else if (bill.ownerId === targetUserId) {
-      if (!meUnsettled) return false;
-    } else {
-      if (bill.billType === 'private') return false;
-      if (!targetUnsettled && !meUnsettled) return false;
-    }
-
-    return true;
+    return isTargetParticipant;
   });
+
+  // Determine which bills are "unsettled" for the filter toggle.
+  const isUnsettledForTarget = (bill: Bill): boolean => {
+    const target = targetUserId || '';
+
+    if (bill.unsettledParticipantIds) {
+      // Bill is unsettled only if the target person hasn't settled yet
+      return bill.unsettledParticipantIds.some(id => matchesTargetId(id, target));
+    }
+
+    // Fallback for older bills: check settledPersonIds
+    const settledIds = bill.settledPersonIds || [];
+    const targetSettled = settledIds.some(id => matchesTargetId(id, target));
+    return !targetSettled;
+  };
+
+  const displayedBills = showAll
+    ? allBillsWithTarget
+    : allBillsWithTarget.filter(isUnsettledForTarget);
+
+  const settledCount = allBillsWithTarget.length - allBillsWithTarget.filter(isUnsettledForTarget).length;
 
   const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean) => {
     await resumeSession(billId);
@@ -111,7 +115,8 @@ export default function BalanceDetailView() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl mb-20">
-      <div className="flex items-center gap-3 mb-6">
+      {/* Row 1: back button + title */}
+      <div className="flex items-center gap-3 mb-2">
         <Button
           variant="ghost"
           size="icon"
@@ -120,31 +125,71 @@ export default function BalanceDetailView() {
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="text-2xl font-bold tracking-tight truncate">
           Bills with {targetUserName}
         </h1>
+      </div>
+
+      {/* Row 2: toggle pill, right-aligned */}
+      <div className="flex justify-center mb-5">
+        <div className="flex items-center bg-muted rounded-full p-0.5">
+          <button
+            onClick={() => setShowAll(false)}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+              !showAll
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Unsettled
+          </button>
+          <button
+            onClick={() => setShowAll(true)}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+              showAll
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            All
+          </button>
+        </div>
       </div>
 
       {isLoadingSessions ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      ) : allBills.length === 0 ? (
+      ) : displayedBills.length === 0 ? (
         <div className="text-center py-12 px-4 border border-border/40 rounded-2xl bg-card">
           <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
             <Receipt className="w-6 h-6 text-primary" />
           </div>
-          <h3 className="font-medium text-lg mb-1">No bills found</h3>
+          <h3 className="font-medium text-lg mb-1">
+            {!showAll && settledCount > 0 ? 'All settled up!' : 'No bills found'}
+          </h3>
           <p className="text-sm text-muted-foreground">
-            You don't have any bills with {targetUserName} {eventId ? 'in this event' : ''}.
+            {!showAll && settledCount > 0
+              ? `You have ${settledCount} settled bill${settledCount !== 1 ? 's' : ''} with ${targetUserName}.`
+              : `You don't have any bills with ${targetUserName}${eventId ? ' in this event' : ''}.`
+            }
           </p>
+          {!showAll && settledCount > 0 && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="mt-3 text-xs font-semibold text-primary hover:underline"
+            >
+              Show all bills →
+            </button>
+          )}
         </div>
       ) : (
         <>
-          <div className="block md:hidden divide-y divide-border rounded-lg border bg-card shadow-sm overflow-hidden">
-            {allBills.map((b) => (
+          {/* Mobile — matches Dashboard card style */}
+          <div className="flex flex-col gap-2 p-1 md:hidden">
+            {displayedBills.map((b) => (
               <MobileBillCard
-                key={b.id}
+                key={`${b.id}-${showAll}`}
                 bill={b}
                 isLatest={b.id === activeSession?.id}
                 onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
@@ -158,10 +203,11 @@ export default function BalanceDetailView() {
               />
             ))}
           </div>
+          {/* Desktop grid */}
           <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {allBills.map((b) => (
+            {displayedBills.map((b) => (
               <DesktopBillCard
-                key={b.id}
+                key={`${b.id}-${showAll}`}
                 bill={b}
                 isLatest={b.id === activeSession?.id}
                 onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
