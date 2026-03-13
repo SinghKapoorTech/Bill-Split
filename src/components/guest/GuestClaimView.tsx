@@ -53,8 +53,9 @@ export function GuestClaimView({
     if (!session.people) return null;
     
     if (user) {
-      // Logged-in user: match by user ID
-      return session.people.find(p => p.id === user.uid);
+      // Logged-in user: match by user ID (checking both raw and prefixed formats)
+      const prefixedId = `user-${user.uid}`;
+      return session.people.find(p => p.id === user.uid || p.id === prefixedId);
     } else if (guestId) {
       // Anonymous user: match by stored guest ID
       return session.people.find(p => p.id === guestId);
@@ -85,18 +86,18 @@ export function GuestClaimView({
     // Clear any previous error
     setNameError(null);
 
-    const newGuestId = user?.uid || generateGuestId();
+    const normalizedUserId = user ? `user-${user.uid}` : generateGuestId();
     
     const newPerson: Person = {
-      id: newGuestId,
+      id: normalizedUserId,
       name,
       venmoId: undefined,
     };
 
     // Store guest ID for anonymous users
     if (!user) {
-      setGuestId(newGuestId);
-      localStorage.setItem(`guest-id-${session.id}`, newGuestId);
+      setGuestId(normalizedUserId);
+      localStorage.setItem(`guest-id-${session.id}`, normalizedUserId);
       localStorage.setItem('preferred-guest-name', name);
     }
 

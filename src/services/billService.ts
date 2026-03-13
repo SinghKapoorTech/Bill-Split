@@ -282,8 +282,9 @@ export const billService = {
     }
 
     // Create person object for the people array (for item assignment)
+    // Normalize to user-{uid} format for the people array
     const newPerson = {
-      id: userId,
+      id: userId.startsWith('user-') ? userId : `user-${userId}`,
       name: userName,
     };
 
