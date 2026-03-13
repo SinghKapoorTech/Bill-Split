@@ -16,7 +16,7 @@ import {
   runTransaction
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { Bill, BillData, BillType, BillMember } from '@/types/bill.types';
+import { Bill, BillData, BillType, BillMember, BillStatus } from '@/types/bill.types';
 import { Person } from '@/types/person.types';
 import { removeUndefinedFields } from '@/utils/firestoreHelpers';
 
@@ -53,7 +53,8 @@ export const billService = {
     billData: BillData,
     people: Person[],
     eventId?: string,
-    squadId?: string
+    squadId?: string,
+    status: BillStatus = 'active'
   ): Promise<string> {
     const newBillRef = doc(collection(db, BILLS_COLLECTION));
     const now = Timestamp.now();
@@ -69,7 +70,7 @@ export const billService = {
     const newBill: Bill = {
       id: newBillRef.id,
       billType,
-      status: 'active',
+      status,
       ownerId,
       ...(eventId && { eventId }),
       ...(squadId && { squadId }),
@@ -100,7 +101,8 @@ export const billService = {
     paidById: string,
     people: Person[],
     eventId?: string,
-    squadId?: string
+    squadId?: string,
+    status: BillStatus = 'active'
   ): Promise<string> {
     const newBillRef = doc(collection(db, BILLS_COLLECTION));
     const now = Timestamp.now();
@@ -137,7 +139,7 @@ export const billService = {
     const newBill: Bill = {
       id: newBillRef.id,
       billType: eventId ? 'event' : 'private',
-      status: 'active',
+      status,
       ownerId,
       ...(eventId && { eventId }),
       ...(squadId && { squadId }),

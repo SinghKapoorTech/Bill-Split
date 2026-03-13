@@ -2,7 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 import { Person } from './person.types';
 
 export type BillType = 'private' | 'event';
-export type BillStatus = 'active' | 'archived';
+export type BillStatus = 'active' | 'archived' | 'draft';
 
 export interface BillItem {
   id: string;

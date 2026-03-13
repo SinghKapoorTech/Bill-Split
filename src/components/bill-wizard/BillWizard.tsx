@@ -461,6 +461,16 @@ export function BillWizard({
     // when bill data changes in Firestore. No client-side ledger writes needed.
 
     const handleDone = async () => {
+        // Set the bill status to 'active' on completion
+        const id = billId || activeSession?.id;
+        if (id) {
+            try {
+                await billService.updateBill(id, { status: 'active' });
+            } catch (e) {
+                console.error("Failed to mark bill as active", e);
+            }
+        }
+
         if (targetEventId) {
             navigate(`/events/${targetEventId}`);
         } else {

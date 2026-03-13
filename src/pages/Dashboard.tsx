@@ -89,12 +89,13 @@ export default function Dashboard() {
     ].filter(bill => {
       const isEmpty = !bill.billData?.items || bill.billData.items.length === 0;
       const hasNoReceipt = !bill.receiptImageUrl;
+      const hasNoTitle = !bill.title || bill.title.trim().length === 0;
 
       // Check if bill is old enough to delete (grace period for active editing)
       const billAge = now - (bill.createdAt?.toMillis?.() || 0);
       const isOldEnough = billAge > GRACE_PERIOD_MS;
 
-      return isEmpty && hasNoReceipt && isOldEnough;
+      return isEmpty && hasNoReceipt && hasNoTitle && isOldEnough;
     });
 
     // Delete them silently (no user notification needed)
@@ -211,7 +212,8 @@ export default function Dashboard() {
 
     const hasItems = bill.billData?.items && bill.billData.items.length > 0;
     const hasReceipt = !!bill.receiptImageUrl;
-    return hasItems || hasReceipt;
+    const hasTitle = !!bill.title && bill.title.trim().length > 0;
+    return hasItems || hasReceipt || hasTitle;
   });
 
   const hasActiveBalances = balances.some(b => Math.abs(b.balance || 0) > 0.005);

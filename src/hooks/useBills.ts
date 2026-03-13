@@ -115,13 +115,18 @@ export function useBills() {
         const billDataToUse = cleanedData.billData || defaultBillData;
         const peopleToUse = cleanedData.people || [];
 
+        // Default to draft for new bills unless explicitly specified
+        const statusToUse = cleanedData.status || 'draft';
+
         const newBillId = await billService.createBill(
           user.uid,
           user.displayName || 'Anonymous',
           cleanedData.billType || 'private', // Use injected billType if provided
           billDataToUse,
           peopleToUse,
-          cleanedData.eventId // Pass the injected eventId if provided
+          cleanedData.eventId, // Pass the injected eventId if provided
+          cleanedData.squadId,
+          statusToUse
         );
 
         // Update with additional fields if provided

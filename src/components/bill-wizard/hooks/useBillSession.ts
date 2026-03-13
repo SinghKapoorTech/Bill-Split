@@ -107,11 +107,16 @@ export function useBillSession({
         const isDifferent = currentData !== lastSavedData.current;
 
         if (isDifferent || options?.isUnmounting || options?.forceSave) {
-            const savePayload: Partial<Bill> = {
+            const savePayload: Partial<Bill> & { status?: string } = {
                 billData: props.billData,
                 splitEvenly: props.splitEvenly,
                 currentStep: props.currentStep,
             };
+
+            // Keep status as draft if we haven't finished the wizard
+            if (isDraft || (targetActiveId && latestProps.current.activeSession?.status === 'draft')) {
+                savePayload.status = 'draft';
+            }
 
             // If we are creating a draft for the first time, we must include the people array
             // otherwise the bill will be uniquely created with 0 people.

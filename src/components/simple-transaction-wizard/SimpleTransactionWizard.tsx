@@ -39,7 +39,8 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
   const isMobile = useIsMobile();
   const { state: routerState } = useLocation();
   const { billId } = useParams<{ billId: string }>();
-  const { activeSession, resumeSession } = useBillContext();
+  const { activeSession, resumeSession, saveSession } = useBillContext();
+  const activeBillId = useRef<string | null>(billId !== 'new' ? billId : null);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [amount, setAmount] = useState<string>('');
@@ -175,10 +176,12 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
     if (activeSession && activeSession.id === billId) {
       if (hasLoadedBillId.current !== activeSession.id) {
         hasLoadedBillId.current = activeSession.id;
+        activeBillId.current = activeSession.id;
         applyBillData(activeSession);
       }
     } else if (billId && hasLoadedBillId.current !== billId) {
       hasLoadedBillId.current = billId;
+      activeBillId.current = billId;
       resumeSession(billId, true).then((fetchedBill) => {
         if (fetchedBill) applyBillData(fetchedBill);
       });
@@ -195,22 +198,26 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
     return true;
   };
 
-  // ── Auto-save existing transactions (Debounced) ───────────
-  // Automatically saves edits to Amount, Title, and People if this transaction already exists in the database.
+  // ── Auto-save transactions (Debounced) ───────────
+  // Automatically saves edits to Amount, Title, and People.
   useEffect(() => {
-    if (!billId || billId === 'new' || !user || !hasLoadedBillId.current || !isOwner) return;
+    if (!user || !isOwner) return;
+    // Don't auto-save if we are already viewing a loaded bill but haven't initialized it
+    if (billId !== 'new' && !hasLoadedBillId.current) return;
 
-    const timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(async () => {
       const numAmount = Number(amount);
       if (numAmount === 0 || title.trim().length === 0 || people.length === 0) return;
 
       const dummyItemId = existingItemId || `item-${Date.now()}`;
-
-      billService.updateBill(billId, {
+      
+      const payload: any = {
         title,
         paidById,
         people,
         billType: existingEventId ? 'event' : 'private',
+        splitEvenly: true,
+        isSimpleTransaction: true,
         ...(existingEventId && { eventId: existingEventId }),
         ...(existingSquadId && { squadId: existingSquadId }),
         billData: {
@@ -224,9 +231,23 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
         itemAssignments: {
           [dummyItemId]: people.map(p => p.id)
         }
-      }).catch(console.error);
-      // Ledger update handled by server-side pipeline (bill write triggers re-processing)
+      };
 
+      try {
+        if (activeBillId.current) {
+          await billService.updateBill(activeBillId.current, payload);
+        } else {
+          // Create draft
+          const newId = await saveSession(payload);
+          if (typeof newId === 'string') {
+            activeBillId.current = newId;
+            // Optionally update URL so reload works, but silent is fine for drafts
+            window.history.replaceState({}, '', `/transaction/${newId}`);
+          }
+        }
+      } catch (err) {
+        console.error("Auto-save failed:", err);
+      }
     }, 1000);
 
     return () => clearTimeout(timeoutId);
@@ -265,13 +286,14 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
       const numAmount = Number(amount);
       const { eventId: targetEventId, squadId: targetSquadId } = getTargetContext();
 
-      if (billId && billId !== 'new') {
+      if (activeBillId.current) {
         const dummyItemId = existingItemId || `item-${Date.now()}`;
 
-        await billService.updateBill(billId, {
+        await billService.updateBill(activeBillId.current, {
           title,
           paidById,
           people,
+          status: 'active',
           billType: targetEventId ? 'event' : 'private',
           ...(targetEventId && { eventId: targetEventId }),
           ...(targetSquadId && { squadId: targetSquadId }),
@@ -296,7 +318,8 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
           paidById,
           people,
           existingEventId || targetEventId,
-          existingSquadId || targetSquadId
+          existingSquadId || targetSquadId,
+          'active'
         );
       }
 
