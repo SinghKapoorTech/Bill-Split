@@ -17,6 +17,13 @@ export function MobileNavBar() {
     { name: 'Profile', path: '/settings', icon: MdAccountCircle },
   ];
 
+  // Context detection for Quick Expense / New Bill
+  const eventMatch = location.pathname.match(/\/events\/([^/]+)/);
+  const eventContext = eventMatch ? {
+    targetEventId: eventMatch[1],
+    targetEventName: '' // Name is fetched in CreateOptionsDialog
+  } : undefined;
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-10 md:hidden">
       {/* Backdrop blur and gradient background */}
@@ -25,6 +32,7 @@ export function MobileNavBar() {
       <CreateOptionsDialog 
         open={createDialogOpen} 
         onOpenChange={setCreateDialogOpen} 
+        eventContext={eventContext}
       />
 
       {/* Safe area padding for bottom (for devices with home indicators) */}
