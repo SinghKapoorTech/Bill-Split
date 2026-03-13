@@ -17,6 +17,7 @@ export default function BalanceDetailView() {
   const { activeSession, savedSessions, isLoadingSessions } = useBills();
   const [targetUserName, setTargetUserName] = useState<string>('Friend');
   const [showAll, setShowAll] = useState(false);
+  const [isTabLoading, setIsTabLoading] = useState(false);
 
   const {
     isDeleting,
@@ -60,16 +61,20 @@ export default function BalanceDetailView() {
   // Determine which bills are "unsettled" for the filter toggle.
   const isUnsettledForTarget = (bill: Bill): boolean => {
     const target = targetUserId || '';
+    const currentUser = user?.uid || '';
 
     if (bill.unsettledParticipantIds) {
-      // Bill is unsettled only if the target person hasn't settled yet
-      return bill.unsettledParticipantIds.some(id => matchesTargetId(id, target));
+      // Unsettled if EITHER party in the pair hasn't settled yet
+      return bill.unsettledParticipantIds.some(id =>
+        matchesTargetId(id, target) || matchesTargetId(id, currentUser)
+      );
     }
 
     // Fallback for older bills: check settledPersonIds
     const settledIds = bill.settledPersonIds || [];
     const targetSettled = settledIds.some(id => matchesTargetId(id, target));
-    return !targetSettled;
+    const currentUserSettled = settledIds.some(id => matchesTargetId(id, currentUser));
+    return !(targetSettled && currentUserSettled);
   };
 
   const displayedBills = showAll
@@ -101,6 +106,15 @@ export default function BalanceDetailView() {
 
   const handleDeleteBill = async (bill: Bill) => {
     await deleteSession(bill.id, bill.receiptFileName);
+  };
+
+  const handleShowAll = () => {
+    if (showAll) return;
+    setIsTabLoading(true);
+    setTimeout(() => {
+      setShowAll(true);
+      setIsTabLoading(false);
+    }, 500);
   };
 
   const formatDate = (timestamp: { toDate: () => Date } | null | undefined) => {
@@ -144,7 +158,7 @@ export default function BalanceDetailView() {
             Unsettled
           </button>
           <button
-            onClick={() => setShowAll(true)}
+            onClick={handleShowAll}
             className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
               showAll
                 ? 'bg-background text-foreground shadow-sm'
@@ -156,7 +170,7 @@ export default function BalanceDetailView() {
         </div>
       </div>
 
-      {isLoadingSessions ? (
+      {(isLoadingSessions || isTabLoading) ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
@@ -176,7 +190,7 @@ export default function BalanceDetailView() {
           </p>
           {!showAll && settledCount > 0 && (
             <button
-              onClick={() => setShowAll(true)}
+              onClick={handleShowAll}
               className="mt-3 text-xs font-semibold text-primary hover:underline"
             >
               Show all bills →

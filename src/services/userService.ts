@@ -20,26 +20,33 @@ import { UserProfile, Friend, Squad } from '@/types/person.types';
 const USERS_COLLECTION = 'users';
 
 /**
- * Generates a readable unique username (e.g., john_doe or john_doe_1)
+ * Generates a readable unique username in "firstname-lastname" format.
+ * Duplicates get a numeric suffix: "firstname-lastname-1", "firstname-lastname-2", etc.
  */
 async function generateUniqueUsername(name: string): Promise<string> {
-  const baseName = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
-  let username = baseName || 'user';
-  let isUnique = false;
+  // Replace spaces with hyphens, strip non-alphanumeric (except hyphens), collapse multiple hyphens
+  const baseName = name
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || 'user';
+
+  let username = baseName;
   let counter = 0;
 
   const usersRef = collection(db, USERS_COLLECTION);
 
-  while (!isUnique) {
+  while (true) {
     const q = query(usersRef, where('username', '==', username), limit(1));
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      isUnique = true;
-    } else {
-      counter++;
-      username = `${baseName}_${counter}`;
+      break;
     }
+    counter++;
+    username = `${baseName}-${counter}`;
   }
 
   return username;
@@ -71,7 +78,8 @@ export const userService = {
 
     if (!userSnap.exists()) {
       // Create new profile
-      const username = await generateUniqueUsername(user.displayName || 'user');
+      const displayName = user.displayName || (user.email ? user.email.split('@')[0] : 'user');
+      const username = await generateUniqueUsername(displayName);
       const newProfile: UserProfile = {
         uid: user.uid,
         email: user.email || '',
@@ -87,6 +95,7 @@ export const userService = {
       await setDoc(userRef, newProfile);
     } else {
       // Update last login and basic info
+      const existingData = userSnap.data() as UserProfile;
       const updates: Record<string, unknown> = {
         lastLoginAt: now,
         // Update basic info if changed
@@ -97,6 +106,12 @@ export const userService = {
 
       if (user.phoneNumber) {
         updates.phoneNumber = user.phoneNumber;
+      }
+
+      // Ensure every user has a username (on-demand generation)
+      if (!existingData.username) {
+        const usernameBase = user.displayName || user.email?.split('@')[0] || 'user';
+        updates.username = await generateUniqueUsername(usernameBase);
       }
 
       await updateDoc(userRef, updates);
@@ -309,12 +324,23 @@ export const userService = {
     // 1. Check if it's already a valid User ID
     const userProfile = await this.getUserProfile(identifier);
     if (userProfile) {
+      // Ensure existing users have a username if they are touched
+      if (!userProfile.username) {
+        const username = await generateUniqueUsername(name || userProfile.displayName || 'user');
+        await updateDoc(doc(db, USERS_COLLECTION, userProfile.uid), { username });
+      }
       return userProfile.uid;
     }
 
     // 2. Check if it's an email or phone number in DB
     const contactUser = await this.getUserByContact(identifier);
     if (contactUser) {
+      // Ensure email-resolved users have a username
+      if (!contactUser.username) {
+        const usernameBase = name || contactUser.displayName || identifier.split('@')[0] || 'user';
+        const username = await generateUniqueUsername(usernameBase);
+        await updateDoc(doc(db, USERS_COLLECTION, contactUser.uid), { username });
+      }
       return contactUser.uid;
     }
 
