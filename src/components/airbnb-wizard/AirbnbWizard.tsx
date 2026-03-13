@@ -119,7 +119,7 @@ export function AirbnbWizard({
             // STEPS: Details (0), Guests (1), Method (2), Review (3)
             switch (step) {
                 case 0: return !!(billData?.items && billData.items.length > 0 && billData.subtotal > 0);
-                case 1: return people.length > 0;
+                case 1: return people.length > 1; // Need at least one person other than me
                 case 2: return true; // Method choice is always valid
                 case 3: return true;
                 default: return false;
@@ -128,7 +128,7 @@ export function AirbnbWizard({
             // STEPS: Details (0), Guests (1), Method (2), Assign (3), Review (4)
             switch (step) {
                 case 0: return !!(billData?.items && billData.items.length > 0 && billData.subtotal > 0);
-                case 1: return people.length > 0;
+                case 1: return people.length > 1; // Need at least one person other than me
                 case 2: return true; // Method choice is always valid
                 case 3: return bill.allItemsAssigned;
                 case 4: return true;

@@ -202,7 +202,7 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
       return Number(amount) > 0 && title.trim().length > 0 && !!paidById;
     }
     if (currentStep === 1) {
-      return people.length > 0;
+      return people.length > 1; // Need at least one person other than me
     }
     return true;
   };

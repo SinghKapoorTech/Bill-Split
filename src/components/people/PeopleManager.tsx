@@ -166,6 +166,14 @@ export function PeopleManager({
         </div>
       )}
 
+      {people.length === 1 && (
+        <div className="px-4 py-2 border border-amber-500/20 bg-amber-500/5 rounded-lg mb-4">
+          <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium text-center">
+            Add at least one more person to proceed.
+          </p>
+        </div>
+      )}
+
       {people.length === 0 && (
         <div className="text-center py-6">
           <Users className="w-10 h-10 mx-auto text-muted-foreground/30 mb-2" />

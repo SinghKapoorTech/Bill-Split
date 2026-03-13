@@ -85,7 +85,7 @@ export function useBillWizard({
             case 0: // Bill Entry step (merged Upload + Items)
                 return billData?.items?.length > 0; // Need at least one item
             case 1: // People step
-                return people.length > 0; // Need at least one person
+                return people.length > 1; // Need at least one person other than the current user
             case 2: // Assign step
                 return areAllItemsAssigned(billData, itemAssignments); // All items must be assigned
             case 3: // Review step
