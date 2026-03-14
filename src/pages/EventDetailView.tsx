@@ -130,13 +130,13 @@ export default function EventDetailView() {
   }, [eventId]);
 
   const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
-    const path = isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : !isOwner ? `/session/${billId}` : `/bill/${billId}`;
+    const path = isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : !isOwner ? `/shared/${billId}` : `/bill/${billId}`;
     navigate(path, { state: { targetEventId: event.id, targetEventName: event.name } });
   };
 
   const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
     await resumeSession(billId);
-    const path = isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : !isOwner ? `/session/${billId}` : `/bill/${billId}`;
+    const path = isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : !isOwner ? `/shared/${billId}` : `/bill/${billId}`;
     navigate(path, { state: { targetEventId: event.id, targetEventName: event.name } });
   };
 

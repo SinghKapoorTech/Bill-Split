@@ -125,16 +125,16 @@ export function useBillSession(billId: string | null) {
         const userName = user?.displayName || anonymousName || 'Anonymous';
         let userId: string;
 
-        if (user) {
-          // Authenticated user
+        if (shareCode) {
+          // Joining via share code — use Cloud Function which has admin write access
+          // Works for both authenticated and anonymous users
+          userId = await billService.joinBillAsGuest(billId, shareCode, userName);
+        } else if (user) {
+          // Authenticated user joining without share code (e.g. event member)
           userId = user.uid;
           await billService.joinBill(billId, userId, userName, user.email || undefined);
         } else {
-          // Unauthenticated guest: create a shadow user via Cloud Function
-          if (!shareCode) {
-            throw new Error('Share code is required for guest access');
-          }
-          userId = await billService.joinBillAsGuest(billId, shareCode, userName);
+          throw new Error('Share code is required for guest access');
         }
 
         toast({

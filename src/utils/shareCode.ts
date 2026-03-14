@@ -23,7 +23,7 @@ export function generateShareCode(): string {
  * @returns Full URL that can be shared
  */
 export function generateShareableLink(sessionId: string, shareCode: string): string {
-  const baseUrl = import.meta.env.VITE_APP_URL || 'https://bill-split-omega.vercel.app';
+  const baseUrl = window.location.origin;
   return `${baseUrl}/join/${sessionId}?code=${shareCode}`;
 }
 

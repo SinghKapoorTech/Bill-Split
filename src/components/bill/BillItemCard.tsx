@@ -1,4 +1,5 @@
 import { Pencil, Trash2, Plus, Users } from 'lucide-react';
+import { AssignAllButton } from '../shared/AssignAllButton';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -146,28 +147,7 @@ export function BillItemCard({
                         <span className="text-sm font-semibold text-primary shrink-0">
                           ${item.price.toFixed(2)}
                         </span>
-                        {people.length > 1 && (() => {
-                          const assigned = itemAssignments[item.id] || [];
-                          const allAssigned = people.every(p => assigned.includes(p.id));
-                          return (
-                            <button
-                              className={`text-xs px-2.5 py-1 rounded-md border shrink-0 transition-colors font-medium uppercase tracking-wide ${
-                                allAssigned
-                                  ? 'bg-primary text-primary-foreground border-primary'
-                                  : 'text-muted-foreground border-border hover:border-primary/50 hover:text-foreground'
-                              }`}
-                              onClick={() => {
-                                people.forEach(p => {
-                                  const isAssigned = assigned.includes(p.id);
-                                  if (allAssigned && isAssigned) onAssign(item.id, p.id, false);
-                                  else if (!allAssigned && !isAssigned) onAssign(item.id, p.id, true);
-                                });
-                              }}
-                            >
-                              All
-                            </button>
-                          );
-                        })()}
+                        <AssignAllButton item={item} people={people} itemAssignments={itemAssignments} onAssign={onAssign} />
                       </div>
                       <div className="flex gap-0.5 md:gap-1 shrink-0">
                         <Button

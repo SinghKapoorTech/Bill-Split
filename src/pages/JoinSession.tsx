@@ -73,7 +73,6 @@ export default function JoinSession() {
 
   const handleJoin = async () => {
     const name = user?.displayName || anonymousName.trim();
-    
     if (!name) {
       setError('Please enter your name');
       return;
@@ -82,11 +81,11 @@ export default function JoinSession() {
     // Check if authenticated user already exists in either format
     const userId = user?.uid;
     const prefixedId = userId ? `user-${userId}` : null;
-    
+
     const existingById = userId ? sessionData?.people?.find(
       p => p.id === userId || p.id === prefixedId
     ) : null;
-    
+
     // Check for duplicate name (case-insensitive)
     const existingPerson = sessionData?.people?.find(
       p => p.name.toLowerCase() === name.toLowerCase()
@@ -99,8 +98,7 @@ export default function JoinSession() {
         const rawId = existingPerson.id.startsWith('user-') ? existingPerson.id.substring(5) : existingPerson.id;
         localStorage.setItem(`guest-id-${sessionId}`, rawId);
       }
-      
-      // Navigate to the session
+
       navigate(`/session/${sessionId}`);
       return;
     }
@@ -111,13 +109,12 @@ export default function JoinSession() {
     try {
       const shareCode = shareCodeFromUrl || sessionData?.shareCode;
       const userId = await joinSession(anonymousName.trim(), shareCode);
-      
+
       // Store guestId in localStorage for anonymous users so they can be identified later
       if (!user && userId && sessionId) {
         localStorage.setItem(`guest-id-${sessionId}`, userId);
       }
-      
-      // Navigate to the collaborative session view
+
       navigate(`/session/${sessionId}`);
     } catch (err) {
       console.error('Error joining session:', err);

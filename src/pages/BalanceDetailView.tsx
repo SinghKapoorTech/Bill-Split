@@ -79,7 +79,7 @@ export default function BalanceDetailView() {
     } else if (isAirbnb) {
       navigate(`/airbnb/${billId}`);
     } else if (!isOwner) {
-      navigate(`/session/${billId}`);
+      navigate(`/shared/${billId}`);
     } else {
       navigate(`/bill/${billId}`);
     }
@@ -91,7 +91,7 @@ export default function BalanceDetailView() {
     } else if (isAirbnb) {
       navigate(`/airbnb/${billId}`);
     } else if (!isOwner) {
-      navigate(`/session/${billId}`);
+      navigate(`/shared/${billId}`);
     } else {
       navigate(`/bill/${billId}`);
     }

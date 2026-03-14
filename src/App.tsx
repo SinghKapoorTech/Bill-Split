@@ -114,7 +114,7 @@ const App = () => (
                 <Route path="balances/:targetUserId" element={<BalanceDetailView />} />
                 <Route path="events/:eventId/balances/:targetUserId" element={<BalanceDetailView />} />
                 <Route path="settings" element={<SettingsView />} />
-                <Route path="session/:sessionId" element={<CollaborativeSessionView />} />
+                <Route path="shared/:sessionId" element={<CollaborativeSessionView />} />
               </Route>
 
               {/* Public: Auth, join, and collaborative session pages */}
