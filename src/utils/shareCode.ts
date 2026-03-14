@@ -23,12 +23,7 @@ export function generateShareCode(): string {
  * @returns Full URL that can be shared
  */
 export function generateShareableLink(sessionId: string, shareCode: string): string {
-  // Use current origin for local development, production URL for deployed app
-  const baseUrl =
-    typeof window !== 'undefined'
-      ? window.location.origin
-      : (import.meta.env.VITE_APP_URL || 'https://bill-split-lemon.vercel.app');
-
+  const baseUrl = import.meta.env.VITE_APP_URL || 'https://bill-split-lemon.omega.app';
   return `${baseUrl}/join/${sessionId}?code=${shareCode}`;
 }
 

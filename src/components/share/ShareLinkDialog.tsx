@@ -41,7 +41,8 @@ export function ShareLinkDialog({
   const expiration = shareCodeExpiresAt ?? expiresAt;
   const [copied, setCopied] = useState(false);
 
-  const shareUrl = shareCode ? `${window.location.origin}/join/${billId}?code=${shareCode}` : '';
+  const baseUrl = import.meta.env.VITE_APP_URL || 'https://bill-split-lemon.omega.app';
+  const shareUrl = shareCode ? `${baseUrl}/join/${billId}?code=${shareCode}` : '';
   const isLoading = !shareCode;
 
   const handleCopy = async () => {
