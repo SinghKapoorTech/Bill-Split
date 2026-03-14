@@ -140,7 +140,33 @@ export function BillItemsTable({
                     ) : (
                       <>
                         <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell className="text-right">${item.price.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <span>${item.price.toFixed(2)}</span>
+                            {people.length > 1 && (() => {
+                              const assigned = itemAssignments[item.id] || [];
+                              const allAssigned = people.every(p => assigned.includes(p.id));
+                              return (
+                                <button
+                                  className={`text-xs px-2.5 py-1 rounded-md border shrink-0 transition-colors font-medium uppercase tracking-wide ${
+                                    allAssigned
+                                      ? 'bg-primary text-primary-foreground border-primary'
+                                      : 'text-muted-foreground border-border hover:border-primary/50 hover:text-foreground'
+                                  }`}
+                                  onClick={() => {
+                                    people.forEach(p => {
+                                      const isAssigned = assigned.includes(p.id);
+                                      if (allAssigned && isAssigned) onAssign(item.id, p.id, false);
+                                      else if (!allAssigned && !isAssigned) onAssign(item.id, p.id, true);
+                                    });
+                                  }}
+                                >
+                                  All
+                                </button>
+                              );
+                            })()}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <ItemAssignmentBadges
                             item={item}
