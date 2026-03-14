@@ -72,22 +72,26 @@ export default function BalanceDetailView() {
 
   const settledCount = allBillsWithTarget.length - allBillsWithTarget.filter(isUnsettledForTarget).length;
 
-  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean) => {
+  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
     await resumeSession(billId);
     if (isSimpleTransaction) {
       navigate(`/transaction/${billId}`);
     } else if (isAirbnb) {
       navigate(`/airbnb/${billId}`);
+    } else if (!isOwner) {
+      navigate(`/session/${billId}`);
     } else {
       navigate(`/bill/${billId}`);
     }
   };
 
-  const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean) => {
+  const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
     if (isSimpleTransaction) {
       navigate(`/transaction/${billId}`);
     } else if (isAirbnb) {
       navigate(`/airbnb/${billId}`);
+    } else if (!isOwner) {
+      navigate(`/session/${billId}`);
     } else {
       navigate(`/bill/${billId}`);
     }
@@ -195,8 +199,8 @@ export default function BalanceDetailView() {
                 key={`${b.id}-${showAll}`}
                 bill={b}
                 isLatest={b.id === activeSession?.id}
-                onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
-                onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
+                onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
                 onDelete={handleDeleteBill}
                 isResuming={isResuming}
                 isDeleting={isDeleting}
@@ -214,8 +218,8 @@ export default function BalanceDetailView() {
                 key={`${b.id}-${showAll}`}
                 bill={b}
                 isLatest={b.id === activeSession?.id}
-                onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
-                onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
+                onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
                 onDelete={handleDeleteBill}
                 isResuming={isResuming}
                 isDeleting={isDeleting}

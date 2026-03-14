@@ -323,8 +323,8 @@ export default function Dashboard() {
                             key={bill.id}
                             bill={bill}
                             isLatest={bill.id === activeSession?.id}
-                            onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
-                            onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb)}
+                            onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
+                            onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
                             onDelete={handleDeleteBill}
                             isResuming={isResuming}
                             isDeleting={isDeleting}

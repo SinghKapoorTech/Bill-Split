@@ -20,7 +20,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useBillSession } from '@/hooks/useBillSession';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Receipt, Upload, Edit, Loader2, AlertCircle } from 'lucide-react';
+import { Receipt, Upload, Edit, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import { UI_TEXT } from '@/utils/uiConstants';
 import { Person, BillData, ItemAssignment, Bill } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -312,9 +312,21 @@ export default function CollaborativeSessionView() {
       <div className="container mx-auto px-4 py-6 max-w-2xl">
         <div className="mb-6 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">
-              {session.billData?.restaurantName || 'Divit'}
-            </h2>
+            <div className="flex items-center gap-2">
+              {user && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground"
+                  onClick={() => navigate('/dashboard')}
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              )}
+              <h2 className="text-2xl font-bold">
+                {session.billData?.restaurantName || 'Divit'}
+              </h2>
+            </div>
             <CollaborativeBadge memberCount={session.people?.length || 0} />
           </div>
         </div>

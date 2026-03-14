@@ -129,14 +129,14 @@ export default function EventDetailView() {
     };
   }, [eventId]);
 
-  const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean) => {
-    const path = isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : `/bill/${billId}`;
+  const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
+    const path = isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : !isOwner ? `/session/${billId}` : `/bill/${billId}`;
     navigate(path, { state: { targetEventId: event.id, targetEventName: event.name } });
   };
 
-  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean) => {
+  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
     await resumeSession(billId);
-    const path = isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : `/bill/${billId}`;
+    const path = isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : !isOwner ? `/session/${billId}` : `/bill/${billId}`;
     navigate(path, { state: { targetEventId: event.id, targetEventName: event.name } });
   };
 
@@ -421,8 +421,8 @@ export default function EventDetailView() {
                     key={b.id}
                     bill={b}
                     isLatest={b.id === activeSession?.id}
-                    onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
-                    onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
+                    onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                    onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
                     onDelete={handleDeleteBill}
                     isResuming={isResuming}
                     isDeleting={isDeleting}
