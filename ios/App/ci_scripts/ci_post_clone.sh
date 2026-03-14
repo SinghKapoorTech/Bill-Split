@@ -19,11 +19,11 @@ if ! command -v node > /dev/null 2>&1; then
 
     # Xcode Cloud may have brew in a non-standard location
     export HOMEBREW_NO_INSTALL_CLEANUP=1
+    export HOMEBREW_NO_AUTO_UPDATE=1
 
     if command -v brew > /dev/null 2>&1; then
         brew install node
     else
-        # Try common Homebrew paths on Apple Silicon and Intel Macs
         if [ -x /opt/homebrew/bin/brew ]; then
             eval "$(/opt/homebrew/bin/brew shellenv)"
             brew install node
@@ -47,19 +47,19 @@ fi
 echo "Node version: $(node --version)"
 echo "npm version: $(npm --version)"
 
-# 2. Install npm dependencies
-npm install
+# 2. Install npm dependencies (skip optional deps, prefer offline cache)
+npm ci --prefer-offline --no-audit --no-fund
 
 # 3. Build the web app (Vite build)
 echo "--- Building Web App ---"
 npm run build
 
-# 4. Sync Capacitor
+# 4. Sync Capacitor (skip pod install here, we do it explicitly below)
 echo "--- Capacitor Syncing ---"
-npx cap sync ios
+npx cap sync ios --no-build
 
-# 5. Explicitly run pod install
+# 5. Install CocoaPods
 echo "--- Installing CocoaPods ---"
-cd ios/App && pod install
+cd ios/App && pod install --repo-update
 
 echo "--- CI Setup Complete ---"

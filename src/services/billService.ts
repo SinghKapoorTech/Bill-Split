@@ -36,7 +36,7 @@ function extractParticipantIds(ownerId: string, people: Person[]): string[] {
   for (const person of people) {
     const uid = person.id.startsWith('user-') ? person.id.slice(5) : person.id;
     // Only include if it looks like a real Firebase UID (not a guest/anon ID)
-    if (uid && !uid.startsWith('guest-') && uid !== 'anonymous') {
+    if (uid && !uid.startsWith('guest-') && !uid.startsWith('person-') && uid !== 'anonymous') {
       ids.add(uid);
     }
   }
@@ -207,16 +207,28 @@ export const billService = {
       const ownerId = updates.ownerId ?? billData?.ownerId;
       if (ownerId) {
         const derived = extractParticipantIds(ownerId, updates.people);
+
+        // Merge with existing participantIds to prevent race conditions
+        // (e.g., a user joined via joinBill's arrayUnion while owner was editing)
+        const existingParticipantIds: string[] = billData?.participantIds || [];
+
+        // Also include UIDs from members array (share-link joiners)
+        const memberUids = (billData?.members || [])
+          .filter((m: any) => !m.isAnonymous && m.userId)
+          .map((m: any) => m.userId);
+
+        const merged = Array.from(new Set([...existingParticipantIds, ...derived, ...memberUids]));
+
         // Compute unsettledParticipantIds preserving settled users.
-        // The Cloud Function removes UIDs from this array via arrayRemove as people settle.
         const settledPersonIds = new Set<string>(billData?.settledPersonIds || []);
         const settledUids = new Set<string>(
           (billData?.people || [])
             .filter((p: Person) => settledPersonIds.has(p.id))
             .map((p: Person) => p.id.startsWith('user-') ? p.id.slice(5) : p.id)
         );
-        const unsettledDerived = derived.filter(uid => !settledUids.has(uid));
-        updates = { ...updates, participantIds: derived, unsettledParticipantIds: unsettledDerived };
+        const unsettledDerived = merged.filter(uid => !settledUids.has(uid));
+
+        updates = { ...updates, participantIds: merged, unsettledParticipantIds: unsettledDerived };
       }
     }
 

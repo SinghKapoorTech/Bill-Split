@@ -48,7 +48,7 @@ export const createBill = onCall(
   ids.add(ownerId);
   for (const person of people) {
     const uid = person.id.startsWith('user-') ? person.id.slice(5) : person.id;
-    if (uid && !uid.startsWith('guest-') && uid !== 'anonymous') {
+    if (uid && !uid.startsWith('guest-') && !uid.startsWith('person-') && uid !== 'anonymous') {
       ids.add(uid);
     }
   }
