@@ -306,8 +306,9 @@ export function GuestClaimView({
             <Button 
               className="w-full mt-2" 
               onClick={() => {
-                // Navigate to auth with the claimGuestId parameter
-                navigate(`/auth?claimGuestId=${currentPerson.id}`);
+                // Strip user- prefix to get the raw shadow user doc ID
+                const shadowUserId = currentPerson.id.startsWith('user-') ? currentPerson.id.substring(5) : currentPerson.id;
+                navigate(`/auth?claimGuestId=${shadowUserId}&returnTo=/shared/${session.id}`);
               }}
             >
               Create Account

@@ -17,12 +17,16 @@ const Auth = () => {
   };
   const [initialLoad, setInitialLoad] = useState(getInitialLoadState);
 
-  // Use localStorage to persist guest claim ID across OAuth redirects
+  // Use localStorage to persist guest claim ID and return path across OAuth redirects
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const claimGuestId = params.get('claimGuestId');
+    const returnTo = params.get('returnTo');
     if (claimGuestId) {
       localStorage.setItem('pending_claim_guest_id', claimGuestId);
+    }
+    if (returnTo) {
+      localStorage.setItem('pending_auth_return_to', returnTo);
     }
   }, []);
 
@@ -35,19 +39,19 @@ const Auth = () => {
         if (pendingClaimId) {
           try {
             setIsSigningIn(true);
-            // We use dynamic import or ensure billService is imported at top
             const { billService } = await import('@/services/billService');
             await billService.claimShadowUser(pendingClaimId);
             localStorage.removeItem('pending_claim_guest_id');
           } catch (error) {
             console.error('Error claiming shadow user:', error);
-            // Continue to dashboard anyway, maybe show a toast if we had access to one
           } finally {
             setIsSigningIn(false);
           }
         }
-        
-        navigate('/dashboard');
+
+        const returnTo = localStorage.getItem('pending_auth_return_to');
+        localStorage.removeItem('pending_auth_return_to');
+        navigate(returnTo || '/dashboard');
       }
     };
 

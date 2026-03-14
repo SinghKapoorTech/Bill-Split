@@ -84,13 +84,13 @@ export const userService = {
         uid: user.uid,
         email: user.email || '',
         displayName: user.displayName || 'User',
-        photoURL: user.photoURL || undefined,
-        phoneNumber: user.phoneNumber || undefined,
         username,
         friends: [],
         squadIds: [],
         createdAt: now,
-        lastLoginAt: now
+        lastLoginAt: now,
+        ...(user.photoURL && { photoURL: user.photoURL }),
+        ...(user.phoneNumber && { phoneNumber: user.phoneNumber }),
       };
       await setDoc(userRef, newProfile);
     } else {
@@ -98,10 +98,9 @@ export const userService = {
       const existingData = userSnap.data() as UserProfile;
       const updates: Record<string, unknown> = {
         lastLoginAt: now,
-        // Update basic info if changed
         email: user.email || '',
         displayName: user.displayName || 'User',
-        photoURL: user.photoURL || undefined
+        ...(user.photoURL && { photoURL: user.photoURL }),
       };
 
       if (user.phoneNumber) {
