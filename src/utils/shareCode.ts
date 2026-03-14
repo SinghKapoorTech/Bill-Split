@@ -16,6 +16,21 @@ export function generateShareCode(): string {
   return code;
 }
 
+const PROD_URL = 'https://bill-split-omega.vercel.app';
+
+/**
+ * Returns the web-accessible base URL for shareable links.
+ * On native (Capacitor), window.location.origin is "capacitor://localhost"
+ * which isn't reachable from other devices, so we use the production URL.
+ */
+export function getShareBaseUrl(): string {
+  const origin = window.location.origin;
+  if (origin.startsWith('capacitor://') || origin.startsWith('ionic://')) {
+    return PROD_URL;
+  }
+  return origin;
+}
+
 /**
  * Generates a shareable link for a collaborative session
  * @param sessionId - The collaborative session ID
@@ -23,8 +38,7 @@ export function generateShareCode(): string {
  * @returns Full URL that can be shared
  */
 export function generateShareableLink(sessionId: string, shareCode: string): string {
-  const baseUrl = window.location.origin;
-  return `${baseUrl}/join/${sessionId}?code=${shareCode}`;
+  return `${getShareBaseUrl()}/join/${sessionId}?code=${shareCode}`;
 }
 
 /**

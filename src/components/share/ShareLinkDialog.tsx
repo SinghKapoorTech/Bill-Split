@@ -6,6 +6,7 @@ import { Copy, Check, RefreshCw, Share2, Calendar } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Timestamp } from 'firebase/firestore';
 import { getExpirationDateString } from '@/utils/billSessionAdapter';
+import { getShareBaseUrl } from '@/utils/shareCode';
 
 interface ShareLinkDialogProps {
   isOpen?: boolean;
@@ -41,8 +42,7 @@ export function ShareLinkDialog({
   const expiration = shareCodeExpiresAt ?? expiresAt;
   const [copied, setCopied] = useState(false);
 
-  const baseUrl = window.location.origin;
-  const shareUrl = shareCode ? `${baseUrl}/join/${billId}?code=${shareCode}` : '';
+  const shareUrl = shareCode ? `${getShareBaseUrl()}/join/${billId}?code=${shareCode}` : '';
   const isLoading = !shareCode;
 
   const handleCopy = async () => {
