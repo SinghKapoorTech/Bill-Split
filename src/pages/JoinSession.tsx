@@ -182,7 +182,7 @@ export default function JoinSession() {
           </div>
           <h1 className="text-3xl font-bold">Join Collaborative Session</h1>
           <p className="text-muted-foreground">
-            {sessionData?.members.length || 0} {sessionData?.members.length === 1 ? 'person' : 'people'} already in this session
+            {sessionData?.people.length || 0} {sessionData?.people.length === 1 ? 'person' : 'people'} already in this session
           </p>
         </div>
 
