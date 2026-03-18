@@ -189,7 +189,6 @@ export default function JoinSession() {
         {/* Session Info */}
         {sessionData?.billData && (
           <div className="p-4 bg-secondary/50 rounded-lg space-y-1">
-            <p className="text-sm text-muted-foreground">Restaurant/Bill</p>
             <p className="font-semibold">{sessionData.billData.restaurantName || 'Unnamed Bill'}</p>
             {sessionData.billData.items && sessionData.billData.items.length > 0 && (
               <p className="text-sm text-muted-foreground">
@@ -205,6 +204,24 @@ export default function JoinSession() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
+        )}
+
+        {/* Anonymous Name Input (if not signed in) */}
+        {!user && (
+          <div className="space-y-2">
+            <Label htmlFor="anonymous-name">Your Name</Label>
+            <Input
+              id="anonymous-name"
+              placeholder="Enter your name"
+              value={anonymousName}
+              onChange={(e) => {
+                setAnonymousName(e.target.value);
+                setError(null);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+              className={error === 'Please enter your name' ? 'border-destructive' : ''}
+            />
+          </div>
         )}
 
         {/* Share Code Input */}
@@ -226,27 +243,6 @@ export default function JoinSession() {
             The 6-character code shared by the session host
           </p>
         </div>
-
-        {/* Anonymous Name Input (if not signed in) */}
-        {!user && (
-          <div className="space-y-2">
-            <Label htmlFor="anonymous-name">Your Name</Label>
-            <Input
-              id="anonymous-name"
-              placeholder="Enter your name"
-              value={anonymousName}
-              onChange={(e) => {
-                setAnonymousName(e.target.value);
-                setError(null);
-              }}
-              onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
-              className={error === 'Please enter your name' ? 'border-destructive' : ''}
-            />
-            <p className="text-xs text-muted-foreground">
-              This will be displayed to other participants
-            </p>
-          </div>
-        )}
 
         {/* Join Button */}
         <div className="space-y-3">
