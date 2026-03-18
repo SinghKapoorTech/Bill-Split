@@ -58,6 +58,19 @@ export default function JoinSession() {
           return;
         }
 
+        // Auto-redirect logged-in users who are already in the bill
+        if (user) {
+          const prefixedId = `user-${user.uid}`;
+          const alreadyInBill = bill.people?.find(
+            p => p.id === user.uid || p.id === prefixedId
+          ) || bill.members?.find(m => m.userId === user.uid);
+
+          if (alreadyInBill) {
+            navigate(`/shared/${sessionId}`, { replace: true });
+            return;
+          }
+        }
+
         setSessionData(bill);
         setError(null);
         setIsValidating(false);
@@ -69,7 +82,7 @@ export default function JoinSession() {
     };
 
     validateSession();
-  }, [sessionId, shareCodeFromUrl]);
+  }, [sessionId, shareCodeFromUrl, user, navigate]);
 
   const handleJoin = async () => {
     const name = user?.displayName || anonymousName.trim();
@@ -99,7 +112,8 @@ export default function JoinSession() {
         localStorage.setItem(`guest-id-${sessionId}`, rawId);
       }
 
-      navigate(`/session/${sessionId}`);
+      // Logged-in users go to the protected /shared route; anonymous users go to /session
+      navigate(user ? `/shared/${sessionId}` : `/session/${sessionId}`);
       return;
     }
 
@@ -115,7 +129,7 @@ export default function JoinSession() {
         localStorage.setItem(`guest-id-${sessionId}`, userId);
       }
 
-      navigate(`/session/${sessionId}`);
+      navigate(user ? `/shared/${sessionId}` : `/session/${sessionId}`);
     } catch (err) {
       console.error('Error joining session:', err);
       setError('Could not join session');

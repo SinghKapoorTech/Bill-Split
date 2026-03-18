@@ -102,7 +102,12 @@ export default function CollaborativeSessionView() {
     if (session) {
       setBillData(session.billData || null);
       setItemAssignments(session.itemAssignments || {});
-      setPeople(ensureUserInPeople(session.people || [], user, profile));
+      // Only auto-add the current user for the bill owner.
+      // Non-owners are added by the Cloud Function during join — calling
+      // ensureUserInPeople here would create duplicates and trigger writes
+      // to fields (participantIds) that guests aren't allowed to update.
+      const isOwner = user && session.ownerId === user.uid;
+      setPeople(isOwner ? ensureUserInPeople(session.people || [], user, profile) : (session.people || []));
       setSplitEvenly(session.splitEvenly || false);
       if (session.paidById) setPaidById(session.paidById);
       if (session.receiptImageUrl) {

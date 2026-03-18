@@ -152,8 +152,11 @@ export const joinBillAsGuest = onCall(
       throw new HttpsError('invalid-argument', 'Missing required fields');
     }
 
+    // If the caller is authenticated, use their real UID instead of creating a shadow user
+    const callerUid = request.auth?.uid || null;
+
     const billRef = db.collection(BILLS_COLLECTION).doc(billId);
-    
+
     return await db.runTransaction(async (tx) => {
       const billSnap = await tx.get(billRef);
       if (!billSnap.exists) {
@@ -161,7 +164,7 @@ export const joinBillAsGuest = onCall(
       }
 
       const billData = billSnap.data()!;
-      
+
       // Validate share code
       if (billData.shareCode !== shareCode) {
         throw new HttpsError('permission-denied', 'Invalid share code');
@@ -172,59 +175,98 @@ export const joinBillAsGuest = onCall(
         throw new HttpsError('permission-denied', 'Share code expired');
       }
 
-      // 1. Create a shadow user in users collection
-      const ownerId = billData.ownerId;
-      const usersRef = db.collection('users');
-      const newGuestDoc = usersRef.doc();
-      const guestUserId = newGuestDoc.id;
+      // Check if authenticated user is already in the bill
+      if (callerUid) {
+        const existingPeople: Array<{id: string}> = billData.people || [];
+        const alreadyInBill = existingPeople.some(
+          (p: {id: string}) => p.id === callerUid || p.id === `user-${callerUid}`
+        );
+        if (alreadyInBill) {
+          return { userId: callerUid };
+        }
+      }
 
-      // Ensure a reasonable username based on the guest name
-      const username = guestName
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '') || 'guest';
+      let userId: string;
 
-      const guestProfile = {
-        uid: guestUserId,
-        displayName: guestName,
-        username: `${username}-${Date.now().toString().slice(-4)}`,
-        friends: [],
-        squadIds: [],
-        createdAt: now,
-        lastLoginAt: now,
-        isShadow: true,
-        createdById: ownerId
-      };
+      if (callerUid) {
+        // Authenticated user: use their real UID, no shadow user needed
+        userId = callerUid;
 
-      tx.set(newGuestDoc, guestProfile);
+        const newMember = {
+          userId: callerUid,
+          name: guestName,
+          ...(request.auth?.token?.email ? { email: request.auth.token.email } : {}),
+          joinedAt: now,
+          isAnonymous: false
+        };
 
-      // 2. Add the guest to the bill arrays
-      const newMember = {
-        userId: guestUserId,
-        name: guestName,
-        joinedAt: now,
-        isAnonymous: true
-      };
+        const newPerson = {
+          id: `user-${callerUid}`,
+          name: guestName,
+        };
 
-      // people array expects user- prefix for Firebase UIDs implicitly, but our new ID is just the raw UID
-      const newPerson = {
-        id: `user-${guestUserId}`,
-        name: guestName,
-      };
+        tx.update(billRef, {
+          members: FieldValue.arrayUnion(newMember),
+          people: FieldValue.arrayUnion(newPerson),
+          participantIds: FieldValue.arrayUnion(callerUid),
+          unsettledParticipantIds: FieldValue.arrayUnion(callerUid),
+          updatedAt: now,
+          lastActivity: now
+        });
+      } else {
+        // Anonymous guest: create a shadow user
+        const ownerId = billData.ownerId;
+        const usersRef = db.collection('users');
+        const newGuestDoc = usersRef.doc();
+        const guestUserId = newGuestDoc.id;
+        userId = guestUserId;
 
-      tx.update(billRef, {
-        members: FieldValue.arrayUnion(newMember),
-        people: FieldValue.arrayUnion(newPerson),
-        participantIds: FieldValue.arrayUnion(guestUserId),
-        unsettledParticipantIds: FieldValue.arrayUnion(guestUserId),
-        updatedAt: now,
-        lastActivity: now
-      });
+        // Ensure a reasonable username based on the guest name
+        const username = guestName
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '') || 'guest';
 
-      return { userId: guestUserId };
+        const guestProfile = {
+          uid: guestUserId,
+          displayName: guestName,
+          username: `${username}-${Date.now().toString().slice(-4)}`,
+          friends: [],
+          squadIds: [],
+          createdAt: now,
+          lastLoginAt: now,
+          isShadow: true,
+          createdById: ownerId
+        };
+
+        tx.set(newGuestDoc, guestProfile);
+
+        const newMember = {
+          userId: guestUserId,
+          name: guestName,
+          joinedAt: now,
+          isAnonymous: true
+        };
+
+        const newPerson = {
+          id: `user-${guestUserId}`,
+          name: guestName,
+        };
+
+        tx.update(billRef, {
+          members: FieldValue.arrayUnion(newMember),
+          people: FieldValue.arrayUnion(newPerson),
+          participantIds: FieldValue.arrayUnion(guestUserId),
+          unsettledParticipantIds: FieldValue.arrayUnion(guestUserId),
+          updatedAt: now,
+          lastActivity: now
+        });
+      }
+
+      return { userId };
     });
   }
 );
