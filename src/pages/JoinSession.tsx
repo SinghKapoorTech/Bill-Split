@@ -18,6 +18,7 @@ export default function JoinSession() {
   const { user } = useAuth();
 
   const [anonymousName, setAnonymousName] = useState('');
+  const [shareCode, setShareCode] = useState(searchParams.get('code') || '');
   const [isValidating, setIsValidating] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +27,7 @@ export default function JoinSession() {
   const shareCodeFromUrl = searchParams.get('code');
   const { joinSession } = useBillSession(sessionId || null);
 
-  // Validate session and share code
+  // Validate session exists
   useEffect(() => {
     const validateSession = async () => {
       if (!sessionId) {
@@ -40,13 +41,6 @@ export default function JoinSession() {
 
         if (!bill) {
           setError('Session not found');
-          setIsValidating(false);
-          return;
-        }
-
-        // Validate share code
-        if (shareCodeFromUrl && bill.shareCode !== shareCodeFromUrl) {
-          setError('Invalid share code');
           setIsValidating(false);
           return;
         }
@@ -91,6 +85,18 @@ export default function JoinSession() {
       return;
     }
 
+    const enteredCode = shareCode.trim();
+    if (!enteredCode) {
+      setError('Please enter the share code');
+      return;
+    }
+
+    // Validate share code against session data
+    if (sessionData?.shareCode && sessionData.shareCode !== enteredCode) {
+      setError('Invalid share code');
+      return;
+    }
+
     // Check if authenticated user already exists in either format
     const userId = user?.uid;
     const prefixedId = userId ? `user-${userId}` : null;
@@ -121,8 +127,7 @@ export default function JoinSession() {
     setError(null);
 
     try {
-      const shareCode = shareCodeFromUrl || sessionData?.shareCode;
-      const userId = await joinSession(anonymousName.trim(), shareCode);
+      const userId = await joinSession(anonymousName.trim(), enteredCode);
 
       // Store guestId in localStorage for anonymous users so they can be identified later
       if (!user && userId && sessionId) {
@@ -202,6 +207,26 @@ export default function JoinSession() {
           </Alert>
         )}
 
+        {/* Share Code Input */}
+        <div className="space-y-2">
+          <Label htmlFor="share-code">Share Code</Label>
+          <Input
+            id="share-code"
+            placeholder="Enter 6-character share code"
+            value={shareCode}
+            onChange={(e) => {
+              setShareCode(e.target.value.toUpperCase());
+              setError(null);
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+            maxLength={6}
+            className={error === 'Invalid share code' || error === 'Please enter the share code' ? 'border-destructive' : ''}
+          />
+          <p className="text-xs text-muted-foreground">
+            The 6-character code shared by the session host
+          </p>
+        </div>
+
         {/* Anonymous Name Input (if not signed in) */}
         {!user && (
           <div className="space-y-2">
@@ -212,10 +237,10 @@ export default function JoinSession() {
               value={anonymousName}
               onChange={(e) => {
                 setAnonymousName(e.target.value);
-                setError(null); // Clear error when typing
+                setError(null);
               }}
               onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
-              className={error ? 'border-destructive' : ''}
+              className={error === 'Please enter your name' ? 'border-destructive' : ''}
             />
             <p className="text-xs text-muted-foreground">
               This will be displayed to other participants
@@ -227,7 +252,7 @@ export default function JoinSession() {
         <div className="space-y-3">
           <Button
             onClick={handleJoin}
-            disabled={isJoining || (!user && !anonymousName.trim())}
+            disabled={isJoining || !shareCode.trim() || (!user && !anonymousName.trim())}
             className="w-full"
             size="lg"
           >
