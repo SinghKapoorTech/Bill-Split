@@ -55,6 +55,16 @@
 				<string>com.googleusercontent.apps.162777511812-2dps8kd79tucfc5si56act9lanueshcl</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>com.singhkapoortech.divit</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>divit</string>
+			</array>
+		</dict>
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Bill Split needs camera access to scan receipts using AI</string>

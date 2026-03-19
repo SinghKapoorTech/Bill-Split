@@ -1,15 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBillSession } from '@/hooks/useBillSession';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Users, AlertCircle } from 'lucide-react';
+import { Loader2, Users, AlertCircle, Smartphone, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Bill } from '@/types/bill.types';
 import { billService } from '@/services/billService';
+
+const APP_PACKAGE = 'com.singhkapoortech.divit';
+const APP_SCHEME = 'divit';
+
+function isAndroid(): boolean {
+  return /Android/i.test(navigator.userAgent);
+}
+
+function isIOS(): boolean {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+/**
+ * Build an Android intent URI with a built-in browser fallback.
+ * Chrome handles this natively — opens the app if installed,
+ * redirects to fallbackUrl if not. No setTimeout hacks needed.
+ */
+function getAndroidIntentUri(path: string, fallbackUrl: string): string {
+  return `intent://${path}#Intent;scheme=${APP_SCHEME};package=${APP_PACKAGE};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`;
+}
+
+/**
+ * On iOS, Universal Links handle app-vs-web routing at the OS level.
+ * If the app is installed + Associated Domains configured, tapping
+ * the link opens the app. Otherwise, the web page loads normally.
+ * As a fallback for when Universal Links aren't intercepted (e.g.
+ * already in Safari on the same domain), we use the custom scheme.
+ */
+function getIOSDeepLink(sessionId: string, shareCode: string): string {
+  return `${APP_SCHEME}://join/${sessionId}?code=${shareCode}`;
+}
 
 export default function JoinSession() {
   const navigate = useNavigate();
@@ -24,8 +56,34 @@ export default function JoinSession() {
   const [error, setError] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<Bill | null>(null);
 
+  const [showAppBanner, setShowAppBanner] = useState(false);
+
   const shareCodeFromUrl = searchParams.get('code');
   const { joinSession } = useBillSession(sessionId || null);
+
+  // Show "Open in App" banner for mobile web users (not inside the native app)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() && (isAndroid() || isIOS())) {
+      setShowAppBanner(true);
+    }
+  }, []);
+
+  const handleOpenInApp = useCallback(() => {
+    if (!sessionId) return;
+    const code = shareCode || shareCodeFromUrl || '';
+    const currentUrl = window.location.href;
+
+    if (isAndroid()) {
+      // Android intent URI: Chrome opens app if installed, fallback URL if not
+      window.location.href = getAndroidIntentUri(
+        `join/${sessionId}?code=${code}`,
+        currentUrl
+      );
+    } else if (isIOS()) {
+      // iOS: try custom scheme (Universal Links don't work for same-domain navigation)
+      window.location.href = getIOSDeepLink(sessionId, code);
+    }
+  }, [sessionId, shareCode, shareCodeFromUrl]);
 
   // Validate session exists
   useEffect(() => {
@@ -175,6 +233,29 @@ export default function JoinSession() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-secondary/30 p-4">
       <Card className="w-full max-w-md p-8 space-y-6">
+        {/* Open in App Banner */}
+        {showAppBanner && (
+          <div className="flex items-center gap-3 p-3 -mt-2 rounded-lg bg-primary/10 border border-primary/20">
+            <Smartphone className="w-5 h-5 text-primary shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">Have the app?</p>
+              <button
+                onClick={handleOpenInApp}
+                className="text-sm text-primary font-semibold hover:underline"
+              >
+                Open in Bill Split
+              </button>
+            </div>
+            <button
+              onClick={() => setShowAppBanner(false)}
+              className="p-1 rounded-md hover:bg-secondary/50 text-muted-foreground"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center mx-auto shadow-lg">

@@ -40,7 +40,9 @@
       "Bash(sudo ln -sfn /opt/homebrew/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk 2>&1)",
       "Bash(export PATH=\"/opt/homebrew/opt/openjdk/bin:$PATH\" && java -version 2>&1)",
       "Bash(sleep 5 && curl -s http://localhost:9099 > /dev/null 2>&1 && echo \"Auth emulator running\" || echo \"Auth emulator NOT running\")",
-      "Bash(lsof -ti:8080 2>/dev/null | xargs kill -9 2>/dev/null; echo \"killed existing dev server\")"
+      "Bash(lsof -ti:8080 2>/dev/null | xargs kill -9 2>/dev/null; echo \"killed existing dev server\")",
+      "Bash(grep -r \"deep.*link\\\\|universal.*link\\\\|app.*link\" /c/Users/nbasi/OneDrive/Documents/GitHub/Bill-Split/ios --include=\"*.plist\" --include=\"*.json\" 2>/dev/null | head -20)",
+      "Bash(grep -r \"deep.*link\\\\|universal.*link\\\\|app.*link\" /c/Users/nbasi/OneDrive/Documents/GitHub/Bill-Split/android --include=\"*.xml\" --include=\"*.json\" --include=\"*.gradle\" 2>/dev/null | head -20)"
     ],
     "deny": [],
     "ask": []
