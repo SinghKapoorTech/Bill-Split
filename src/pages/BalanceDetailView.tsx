@@ -51,12 +51,8 @@ export default function BalanceDetailView() {
   ].filter(bill => {
     if (eventId && bill.eventId !== eventId) return false;
 
-    // Include bill only if target is a participant (by participantIds or people array)
-    const isTargetParticipant =
-      bill.participantIds?.some(id => matchesTargetId(id, targetUserId || '')) ||
-      bill.people?.some(p => matchesTargetId(p.id, targetUserId || ''));
-
-    return isTargetParticipant;
+    // Include bill only if target is actually on this bill's people list
+    return bill.people?.some(p => matchesTargetId(p.id, targetUserId || ''));
   });
 
   // Determine which bills are "unsettled" for the filter toggle.
