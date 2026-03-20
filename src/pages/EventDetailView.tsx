@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Receipt, UserPlus, Plus } from 'lucide-react';
+import { ArrowLeft, Receipt, UserPlus, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { InviteMembersDialog } from '@/components/events/InviteMembersDialog';
@@ -19,11 +19,164 @@ import { userService } from '@/services/userService';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useEventLedger } from '@/hooks/useEventLedger';
+import { OptimizedDebt } from '@/services/eventLedgerService';
 import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
 import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
+import { UserProfile } from '@/types/person.types';
+import { User } from 'firebase/auth';
 
 // Firestore collection name
 const EVENTS_COLLECTION = 'events';
+
+function resolveDebtNames(
+  debt: OptimizedDebt,
+  memberProfiles: Record<string, UserProfile>,
+  eventBills: Bill[]
+) {
+  const fromProfile = memberProfiles[debt.fromUserId];
+  const toProfile = memberProfiles[debt.toUserId];
+
+  let fromName = fromProfile?.displayName || fromProfile?.username;
+  let toName = toProfile?.displayName || toProfile?.username;
+
+  if (!fromName || !toName) {
+    for (const bill of eventBills) {
+      if (!fromName) {
+        const p = bill.people.find(person => person.id === debt.fromUserId || person.id === `user-${debt.fromUserId}`);
+        if (p) fromName = p.name;
+      }
+      if (!toName) {
+        const p = bill.people.find(person => person.id === debt.toUserId || person.id === `user-${debt.toUserId}`);
+        if (p) toName = p.name;
+      }
+      if (fromName && toName) break;
+    }
+  }
+
+  return { fromName: fromName || 'Unknown', toName: toName || 'Unknown' };
+}
+
+function EventBalancesSection({
+  optimizedDebts,
+  memberProfiles,
+  eventBills,
+  user,
+  eventId,
+  navigate,
+  setSettleTarget,
+}: {
+  optimizedDebts: OptimizedDebt[];
+  memberProfiles: Record<string, UserProfile>;
+  eventBills: Bill[];
+  user: User | null;
+  eventId: string | undefined;
+  navigate: ReturnType<typeof useNavigate>;
+  setSettleTarget: (target: SettleTarget) => void;
+}) {
+  const [isOthersExpanded, setIsOthersExpanded] = useState(false);
+
+  const userDebts = optimizedDebts.filter(
+    debt => user?.uid === debt.fromUserId || user?.uid === debt.toUserId
+  );
+  const otherDebts = optimizedDebts.filter(
+    debt => user?.uid !== debt.fromUserId && user?.uid !== debt.toUserId
+  );
+
+  const renderDebtRow = (debt: OptimizedDebt, idx: number) => {
+    const { fromName, toName } = resolveDebtNames(debt, memberProfiles, eventBills);
+
+    const isCurrentUserPaying = user?.uid === debt.fromUserId;
+    const isCurrentUserReceiving = user?.uid === debt.toUserId;
+    const isCurrentUserInvolved = isCurrentUserPaying || isCurrentUserReceiving;
+
+    const direction: BalanceDirection = isCurrentUserPaying
+      ? 'you-owe'
+      : isCurrentUserReceiving
+        ? 'owes-you'
+        : 'neutral';
+
+    return (
+      <BalanceListRow
+        key={idx}
+        fromLabel={fromName}
+        toLabel={toName}
+        amount={debt.amount}
+        direction={direction}
+        action={isCurrentUserInvolved ? {
+          label: isCurrentUserPaying ? 'Pay' : 'Settle',
+          variant: isCurrentUserPaying ? 'default' : 'secondary',
+          onClick: () => {
+            setSettleTarget({
+              userId: isCurrentUserPaying ? debt.toUserId : debt.fromUserId,
+              name: isCurrentUserPaying ? toName : fromName,
+              amount: debt.amount,
+              isPaying: isCurrentUserPaying,
+            });
+          }
+        } : undefined}
+        onClick={() => {
+          const targetUser = isCurrentUserPaying ? debt.toUserId : debt.fromUserId;
+          if (user && targetUser) {
+            navigate(`/events/${eventId}/balances/${targetUser}`);
+          }
+        }}
+      />
+    );
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1 ml-1">
+        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+          Balances
+        </h2>
+      </div>
+      <Card className="p-0 overflow-hidden flex-1 flex flex-col border-none bg-transparent shadow-none">
+        {optimizedDebts.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">
+            All settled up! No outstanding balances.
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-col gap-2 p-1">
+              {userDebts.map((debt, idx) => renderDebtRow(debt, idx))}
+            </div>
+            {otherDebts.length > 0 && (
+              <>
+                {isOthersExpanded && (
+                  <div className="flex flex-col gap-2 p-1 pt-0">
+                    {otherDebts.map((debt, idx) => renderDebtRow(debt, userDebts.length + idx))}
+                  </div>
+                )}
+                <div className="border-t border-border flex justify-center">
+                  <Button
+                    variant="ghost"
+                    className="w-full h-11 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-none rounded-b-lg"
+                    onClick={() => setIsOthersExpanded(!isOthersExpanded)}
+                  >
+                    {isOthersExpanded ? (
+                      <>
+                        <span className="text-xs font-medium mr-2">Show less</span>
+                        <ChevronUp className="w-5 h-5" />
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs font-medium mr-2">
+                          Show {otherDebts.length} other {otherDebts.length === 1 ? 'balance' : 'balances'}
+                        </span>
+                        <ChevronDown className="w-5 h-5" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
 
 export default function EventDetailView() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -38,7 +191,7 @@ export default function EventDetailView() {
   const { toast } = useToast();
 
   const { optimizedDebts, loading: ledgerLoading } = useEventLedger(eventId || '', eventBills);
-  const [memberProfiles, setMemberProfiles] = useState<Record<string, import('@/types/person.types').UserProfile>>({});
+  const [memberProfiles, setMemberProfiles] = useState<Record<string, UserProfile>>({});
 
   // Settlement state
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
@@ -68,7 +221,7 @@ export default function EventDetailView() {
     if (userIdsToFetch.size === 0) return;
 
     const fetchProfiles = async () => {
-      const profiles: Record<string, import('@/types/person.types').UserProfile> = {};
+      const profiles: Record<string, UserProfile> = {};
       await Promise.all(Array.from(userIdsToFetch).map(async (id) => {
         try {
           const p = await userService.getUserProfile(id);
@@ -295,85 +448,15 @@ export default function EventDetailView() {
       <div className="flex flex-col gap-6 md:gap-10">
         {/* Balances Section */}
         {!ledgerLoading && (
-          <div>
-            <div className="flex items-center justify-between mb-1 ml-1">
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                Balances
-              </h2>
-            </div>
-            <Card className="p-0 overflow-hidden flex-1 flex flex-col border-none bg-transparent shadow-none">
-              {optimizedDebts.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  All settled up! No outstanding balances.
-                </p>
-              ) : (
-                <div className="flex flex-col gap-2 p-1">
-                  {optimizedDebts.map((debt, idx) => {
-                    const fromProfile = memberProfiles[debt.fromUserId];
-                    const toProfile = memberProfiles[debt.toUserId];
-
-                    let fromName = fromProfile?.displayName || fromProfile?.username;
-                    let toName = toProfile?.displayName || toProfile?.username;
-
-                    if (!fromName || !toName) {
-                      for (const bill of eventBills) {
-                        if (!fromName) {
-                          const p = bill.people.find(person => person.id === debt.fromUserId || person.id === `user-${debt.fromUserId}`);
-                          if (p) fromName = p.name;
-                        }
-                        if (!toName) {
-                          const p = bill.people.find(person => person.id === debt.toUserId || person.id === `user-${debt.toUserId}`);
-                          if (p) toName = p.name;
-                        }
-                        if (fromName && toName) break;
-                      }
-                    }
-
-                    fromName = fromName || 'Unknown';
-                    toName = toName || 'Unknown';
-
-                    const isCurrentUserPaying = user?.uid === debt.fromUserId;
-                    const isCurrentUserReceiving = user?.uid === debt.toUserId;
-                    const isCurrentUserInvolved = isCurrentUserPaying || isCurrentUserReceiving;
-
-                    const direction: BalanceDirection = isCurrentUserPaying
-                      ? 'you-owe'
-                      : isCurrentUserReceiving
-                        ? 'owes-you'
-                        : 'neutral';
-
-                    return (
-                      <BalanceListRow
-                        key={idx}
-                        fromLabel={fromName}
-                        toLabel={toName}
-                        amount={debt.amount}
-                        direction={direction}
-                        action={isCurrentUserInvolved ? {
-                          label: isCurrentUserPaying ? 'Pay' : 'Settle',
-                          variant: isCurrentUserPaying ? 'default' : 'secondary',
-                          onClick: () => {
-                            setSettleTarget({
-                              userId: isCurrentUserPaying ? debt.toUserId : debt.fromUserId,
-                              name: isCurrentUserPaying ? toName! : fromName!,
-                              amount: debt.amount,
-                              isPaying: isCurrentUserPaying,
-                            });
-                          }
-                        } : undefined}
-                        onClick={() => {
-                          const targetUser = isCurrentUserPaying ? debt.toUserId : debt.fromUserId;
-                          if (user && targetUser) {
-                            navigate(`/events/${eventId}/balances/${targetUser}`);
-                          }
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </Card>
-          </div>
+          <EventBalancesSection
+            optimizedDebts={optimizedDebts}
+            memberProfiles={memberProfiles}
+            eventBills={eventBills}
+            user={user}
+            eventId={eventId}
+            navigate={navigate}
+            setSettleTarget={setSettleTarget}
+          />
         )}
 
         {/* Bills Section */}
