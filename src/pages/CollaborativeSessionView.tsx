@@ -1,69 +1,35 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { arrayUnion, arrayRemove } from 'firebase/firestore';
-import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
-import { PeopleManager } from '@/components/people/PeopleManager';
-import { BillItems } from '@/components/bill/BillItems';
-import { BillSummary } from '@/components/bill/BillSummary';
-import { SplitSummary } from '@/components/people/SplitSummary';
 import { GuestClaimView } from '@/components/guest/GuestClaimView';
 
-import { ShareButton } from '@/components/share/ShareButton';
-import { ShareSessionModal } from '@/components/share/ShareSessionModal';
 import { CollaborativeBadge } from '@/components/share/CollaborativeBadge';
 import { useBillSplitter } from '@/hooks/useBillSplitter';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
-import { useFileUpload } from '@/hooks/useFileUpload';
-import { useReceiptAnalyzer } from '@/hooks/useReceiptAnalyzer';
-import { useItemEditor } from '@/hooks/useItemEditor';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { useBillSession } from '@/hooks/useBillSession';
-import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Receipt, Upload, Edit, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
-import { UI_TEXT } from '@/utils/uiConstants';
+import { Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import { Person, BillData, ItemAssignment, Bill } from '@/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { ensureUserInPeople } from '@/utils/billCalculations';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { useToast } from '@/hooks/use-toast';
 
 export default function CollaborativeSessionView() {
-  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId: string }>();
-  const [activeTab, setActiveTab] = useState('ai-scan');
-  const [showShareModal, setShowShareModal] = useState(false);
-  const isInitializing = useRef(true);
   const { user } = useAuth();
   const { profile } = useUserProfile();
 
   // Collaborative session hook with real-time updates
-  const { session, isLoading, error, isEventMember, updateSession, endSession, toggleAssignment } = useBillSession(sessionId || null);
+  const { session, isLoading, error, updateSession, toggleAssignment } = useBillSession(sessionId || null);
 
   // Local state synced with collaborative session
   const [people, setPeople] = useState<Person[]>([]);
   const [billData, setBillData] = useState<BillData | null>(null);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
 
-  const [paidById, setPaidById] = useState<string | undefined>(undefined);
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
 
-  // Refs for stable access to latest state in async callbacks and handlers
-  const latestItemAssignments = useRef(itemAssignments);
-  const latestSplitEvenly = useRef(splitEvenly);
-  const latestPaidById = useRef(paidById);
-  const sessionIdRef = useRef<string | null>(null);
   const updateSessionRef = useRef<((updates: Partial<Bill>) => Promise<void>) | null>(null);
 
   const peopleManager = usePeopleManager(people, setPeople);
@@ -78,173 +44,54 @@ export default function CollaborativeSessionView() {
     setSplitEvenly,
   });
 
-  const upload = useFileUpload();
-  const analyzer = useReceiptAnalyzer(setBillData, setPeople, billData);
-  const editor = useItemEditor(
-    billData,
-    setBillData,
-    bill.removeItemAssignments,
-    // Write on checkmark/add/delete
-    (newBillData) => {
-      updateSessionRef.current?.({
-        billData: newBillData,
-        itemAssignments: latestItemAssignments.current,
-        splitEvenly: latestSplitEvenly.current,
-        ...(latestPaidById.current ? { paidById: latestPaidById.current } : {}),
-      });
-    }
-  );
-
   // Sync local state with collaborative session
-  // Runs on every Firestore update so all clients stay in sync in real-time.
   useEffect(() => {
-    isInitializing.current = true;
     if (session) {
       setBillData(session.billData || null);
       setItemAssignments(session.itemAssignments || {});
-      // Only auto-add the current user for the bill owner.
-      // Non-owners are added by the Cloud Function during join — calling
-      // ensureUserInPeople here would create duplicates and trigger writes
-      // to fields (participantIds) that guests aren't allowed to update.
       const isOwner = user && session.ownerId === user.uid;
       setPeople(isOwner ? ensureUserInPeople(session.people || [], user, profile) : (session.people || []));
       setSplitEvenly(session.splitEvenly || false);
-      if (session.paidById) setPaidById(session.paidById);
-      if (session.receiptImageUrl) {
-        upload.setImagePreview(session.receiptImageUrl);
-        upload.setSelectedFile(new File([], session.receiptFileName || 'receipt.jpg'));
-      }
     }
-    const timer = setTimeout(() => (isInitializing.current = false), 200);
-    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  // Keep sessionIdRef and updateSessionRef current
-  useEffect(() => { sessionIdRef.current = session?.id ?? null; }, [session?.id]);
   useEffect(() => { updateSessionRef.current = updateSession; }, [updateSession]);
 
-  // Keep latest state refs in sync for use in async callbacks
-  useEffect(() => { latestItemAssignments.current = itemAssignments; }, [itemAssignments]);
-  useEffect(() => { latestSplitEvenly.current = splitEvenly; }, [splitEvenly]);
-  useEffect(() => { latestPaidById.current = paidById; }, [paidById]);
-
-  // Determine if current user has full edit access (must be before early returns)
-  const hasFullAccess = useMemo(() => {
-    if (!user || !session) return false;
-    // User has full access if they own the bill OR if they are a member of the parent event
-    return session.ownerId === user.uid || isEventMember;
-  }, [user, session, isEventMember]);
-
-  // Handlers for GuestClaimView (defined before early returns)
+  // Handlers for GuestClaimView
   const handleAddSelfToPeople = (newPerson: Person) => {
     const updatedPeople = [...people, newPerson];
     setPeople(updatedPeople);
-    // Immediate write so all users see the new participant
     updateSessionRef.current?.({ people: updatedPeople });
   };
 
   const handleClaimItem = (itemId: string, personId: string, claimed: boolean) => {
-    // Update local state immediately (for UI responsiveness)
     bill.handleItemAssignment(itemId, personId, claimed);
 
     if (splitEvenly) {
       setSplitEvenly(false);
-      // Immediate write — discrete action
       updateSessionRef.current?.({ splitEvenly: false });
     }
 
-    // Immediate atomic write so all users see the assignment change in real-time
     toggleAssignment(itemId, personId, claimed);
   };
 
   const handleRemovePerson = (personId: string) => {
     peopleManager.removePerson(personId);
     bill.removePersonFromAssignments(personId);
-    // Immediate write so all users see the updated people list
     const updatedPeople = people.filter(p => p.id !== personId);
     updateSessionRef.current?.({ people: updatedPeople });
   };
 
-  const handlePaidByChange = (newPaidById: string) => {
-    setPaidById(newPaidById);
-    // Immediate write — discrete selection
-    updateSessionRef.current?.({ paidById: newPaidById });
-  };
-
-  const handleToggleSplitEvenly = () => {
-    const newSplitEvenly = !splitEvenly;
-    const newAssignments: ItemAssignment = {};
-
-    if (newSplitEvenly && billData && people.length > 0) {
-      billData.items.forEach(item => {
-        newAssignments[item.id] = people.map(p => p.id);
-      });
-    }
-
-    // Update local state
-    bill.toggleSplitEvenly();
-    setItemAssignments(newAssignments);
-
-    // Immediate write — discrete toggle action
-    updateSessionRef.current?.({
-      splitEvenly: newSplitEvenly,
-      itemAssignments: newAssignments,
-    });
-  };
-
-  const handleAnalyzeReceipt = async () => {
-    if (!upload.imagePreview || !upload.selectedFile) {
-      console.error("Cannot analyze: image preview or file is missing.");
-      return;
-    }
-
-    const analyzedBillData = await analyzer.analyzeReceipt(upload.selectedFile, upload.imagePreview);
-
-    // Upload receipt and update session
-    // Note: We'll handle image upload separately in production
-    if (analyzedBillData) {
-      updateSession({
-        billData: analyzedBillData,
-        receiptImageUrl: upload.imagePreview,
-        receiptFileName: upload.selectedFile.name,
-      });
-    }
-  };
-
-  const handleImageSelected = async (fileOrBase64: File | string) => {
-    if (typeof fileOrBase64 === 'string') {
-      upload.setImagePreview(fileOrBase64);
-      const response = await fetch(fileOrBase64);
-      const blob = await response.blob();
-      const file = new File([blob], 'receipt.jpg', { type: blob.type });
-      upload.setSelectedFile(file);
-    } else {
-      upload.handleFileSelect(fileOrBase64);
-    }
-  };
-
-  const handleEndSession = async () => {
-    await endSession();
-    if (session?.eventId) {
-      navigate(`/events/${session.eventId}`);
-    } else {
-      navigate('/dashboard');
-    }
-  };
-
   const handleUpdatePerson = async (personId: string, updates: Partial<Person>) => {
-    // 1. Optimistic update
     const updatedPeople = people.map(p =>
       p.id === personId ? { ...p, ...updates } : p
     );
     setPeople(updatedPeople);
 
-    // 2. Atomic update via service
     if (session) {
       const { billService } = await import('@/services/billService');
-      
-      // If a guest without an account is editing their name, we must update the shadow user profile too
+
       if (!user && updates.name && session.shareCode) {
         try {
           await billService.updateGuestName(session.id, session.shareCode, personId, updates.name);
@@ -253,35 +100,8 @@ export default function CollaborativeSessionView() {
           console.error("Failed to update guest name", error);
         }
       }
-      
-      // Fallback or normal execution for standard profiles/owner changing things
+
       await billService.updatePersonDetails(session.id, personId, updates);
-    }
-  };
-
-  const { toast } = useToast();
-  const handleMarkAsSettled = async (personId: string, isSettled: boolean) => {
-    if (!user || !session || !session.id || !billData) return;
-
-    try {
-      const { billService } = await import('@/services/billService');
-      await billService.updateBill(session.id, {
-        settledPersonIds: (isSettled ? arrayUnion(personId) : arrayRemove(personId)) as unknown as string[]
-      });
-
-      toast({
-        title: isSettled ? "Marked as Settled" : "Undo Settled",
-        description: isSettled ? "Their balance has been updated to $0 for this bill." : "Their balance has been restored for this bill.",
-      });
-
-      // Ledger update handled by server-side pipeline (settledPersonIds change triggers re-processing)
-    } catch (error) {
-      console.error("Failed to mark as settled", error);
-      toast({
-        title: "Error",
-        description: "Failed to mark as settled. Please try again.",
-        variant: "destructive"
-      });
     }
   };
 
@@ -311,332 +131,36 @@ export default function CollaborativeSessionView() {
     );
   }
 
-  // Guest view - simplified claim interface
-  if (!hasFullAccess && session) {
-    return (
-      <div className="container mx-auto px-4 py-6 max-w-2xl">
-        <div className="mb-6 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {user && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground"
-                  onClick={() => navigate('/dashboard')}
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </Button>
-              )}
-              <h2 className="text-2xl font-bold">
-                {session.billData?.restaurantName || 'Divit'}
-              </h2>
-            </div>
-            <CollaborativeBadge memberCount={session.people?.length || 0} />
-          </div>
-        </div>
-
-        <GuestClaimView
-          session={session}
-          onAddSelfToPeople={handleAddSelfToPeople}
-          onClaimItem={handleClaimItem}
-          onUpdatePerson={handleUpdatePerson}
-          onRemovePerson={handleRemovePerson}
-        />
-      </div>
-    );
-  }
-
   return (
-    <>
-      {/* Header with Collaborative Badge and Share Button */}
-      <div className="mb-6 space-y-4">
-        <div className="text-center space-y-3">
-          <h2 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
-            {UI_TEXT.HERO_TITLE}
-          </h2>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            {UI_TEXT.HERO_SUBTITLE}
-          </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+    <div className="container mx-auto px-4 py-6 max-w-2xl">
+      <div className="mb-6 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {user && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground"
+                onClick={() => navigate('/dashboard')}
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            )}
+            <h2 className="text-2xl font-bold">
+              {session.billData?.restaurantName || (session.isSimpleTransaction && session.billData?.items?.[0]?.name) || 'Divit'}
+            </h2>
+          </div>
           <CollaborativeBadge memberCount={session.people?.length || 0} />
-          <ShareButton onClick={() => setShowShareModal(true)} />
         </div>
-
-        {/* Show real-time collaboration notice */}
-        <Alert>
-          <AlertDescription className="text-center">
-            This is a collaborative session. Changes are synced in real-time with all participants.
-          </AlertDescription>
-        </Alert>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="ai-scan" className="gap-2">
-            <Upload className="w-4 h-4" />
-            AI Scan
-          </TabsTrigger>
-          <TabsTrigger value="manual" className="gap-2">
-            <Edit className="w-4 h-4" />
-            Manual Entry
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="ai-scan" className="space-y-6">
-          <ReceiptUploader
-            selectedFile={upload.selectedFile}
-            imagePreview={upload.imagePreview}
-            isDragging={upload.isDragging}
-            isUploading={false}
-            isAnalyzing={analyzer.isAnalyzing}
-            isMobile={isMobile}
-            onFileInput={(e) => e.target.files && handleImageSelected(e.target.files[0])}
-            onDragOver={upload.handleDragOver}
-            onDragLeave={upload.handleDragLeave}
-            onDrop={(e) => {
-              upload.handleDrop(e);
-              const file = e.dataTransfer.files?.[0];
-              if (file) handleImageSelected(file);
-            }}
-            onRemove={upload.handleRemoveImage}
-            onAnalyze={handleAnalyzeReceipt}
-            onImageSelected={handleImageSelected}
-            fileInputRef={upload.fileInputRef}
-          />
-
-          {billData && (
-            <div className="space-y-6">
-              <PeopleManager
-                people={people}
-                newPersonName={peopleManager.newPersonName}
-                newPersonVenmoId={peopleManager.newPersonVenmoId}
-                onNameChange={peopleManager.setNewPersonName}
-                onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                onAdd={async (name, venmoId) => {
-                  const newPerson = await peopleManager.addPerson(name, venmoId);
-                  if (newPerson) {
-                    // Immediate write — discrete action
-                    const updatedPeople = [...people, newPerson];
-                    updateSessionRef.current?.({ people: updatedPeople });
-                  }
-                }}
-                onAddFromFriend={(f) => {
-                  const newPerson = peopleManager.addFromFriend(f);
-                  if (newPerson) {
-                    const updatedPeople = [...people, newPerson];
-                    updateSessionRef.current?.({ people: updatedPeople });
-                  }
-                }}
-                onRemove={handleRemovePerson}
-                onUpdate={handleUpdatePerson}
-                onSaveAsFriend={peopleManager.savePersonAsFriend}
-                setPeople={setPeople}
-              >
-                {people.length > 0 && billData && (
-                  <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground pt-4 mb-2">
-                    <span>Paid by</span>
-                    <Select value={paidById || user?.uid} onValueChange={handlePaidByChange}>
-                      <SelectTrigger className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground w-auto min-w-[3rem] shadow-sm [&>svg]:hidden">
-                        <SelectValue placeholder="you" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {people.map((person: Person) => {
-                          const isMe = person.id === user?.uid || (person as Person & { userId?: string }).userId === user?.uid || person.id === `user-${user?.uid}`;
-                          const optionValue = isMe && user ? user.uid : person.id;
-
-                          return (
-                            <SelectItem key={person.id} value={optionValue}>
-                              {isMe ? 'you' : person.name.split(' ')[0]}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                    <span>and split</span>
-                    <button className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground shadow-sm">
-                      equally
-                    </button>
-                  </div>
-                )}
-              </PeopleManager>
-
-              <Card className="p-4 md:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Receipt className="w-5 h-5 text-primary" />
-                    <h3 className="text-xl font-semibold">{UI_TEXT.BILL_ITEMS}</h3>
-                  </div>
-
-
-                </div>
-
-                <BillItems
-                  billData={billData}
-                  people={people}
-                  itemAssignments={itemAssignments}
-                  editingItemId={editor.editingItemId}
-                  editingItemName={editor.editingItemName}
-                  editingItemPrice={editor.editingItemPrice}
-                  onAssign={handleClaimItem}
-                  onEdit={editor.editItem}
-                  onSave={editor.saveEdit}
-                  onCancel={editor.cancelEdit}
-                  onDelete={editor.deleteItem}
-                  setEditingName={editor.setEditingItemName}
-                  setEditingPrice={editor.setEditingItemPrice}
-                  isAdding={editor.isAdding}
-                  newItemName={editor.newItemName}
-                  newItemPrice={editor.newItemPrice}
-                  setNewItemName={editor.setNewItemName}
-                  setNewItemPrice={editor.setNewItemPrice}
-                  onStartAdding={editor.startAdding}
-                  onAddItem={editor.addItem}
-                  onCancelAdding={editor.cancelAdding}
-                  splitEvenly={splitEvenly}
-                  onToggleSplitEvenly={handleToggleSplitEvenly}
-                />
-
-                {people.length === 0 && !isMobile && billData && (
-                  <p className="text-sm text-muted-foreground text-center py-4 mt-4">
-                    {UI_TEXT.ADD_PEOPLE_TO_ASSIGN}
-                  </p>
-                )}
-
-                <BillSummary
-                  billData={billData}
-                  onUpdate={(updates) => setBillData({ ...billData, ...updates })}
-                />
-              </Card>
-
-              <SplitSummary
-                personTotals={bill.personTotals}
-                allItemsAssigned={bill.allItemsAssigned}
-                people={people}
-                billData={billData}
-                itemAssignments={itemAssignments}
-                settledPersonIds={session?.settledPersonIds || []}
-                paidById={paidById}
-                ownerId={session?.ownerId || user?.uid}
-                onMarkAsSettled={handleMarkAsSettled}
-              />
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="manual" className="space-y-6">
-          {/* Similar to AI scan tab but without receipt uploader */}
-          <PeopleManager
-            people={people}
-            newPersonName={peopleManager.newPersonName}
-            newPersonVenmoId={peopleManager.newPersonVenmoId}
-            onNameChange={peopleManager.setNewPersonName}
-            onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-            onAdd={peopleManager.addPerson}
-            onAddFromFriend={peopleManager.addFromFriend}
-            onRemove={handleRemovePerson}
-            onUpdate={handleUpdatePerson}
-            onSaveAsFriend={peopleManager.savePersonAsFriend}
-            setPeople={setPeople}
-          >
-            {people.length > 0 && billData && (
-              <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground pt-4 mb-2">
-                <span>Paid by</span>
-                <Select value={paidById || user?.uid} onValueChange={handlePaidByChange}>
-                  <SelectTrigger className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground w-auto min-w-[3rem] shadow-sm [&>svg]:hidden">
-                    <SelectValue placeholder="you" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {people.map((person: Person) => {
-                      const isMe = person.id === user?.uid || (person as Person & { userId?: string }).userId === user?.uid || person.id === `user-${user?.uid}`;
-                      const optionValue = isMe && user ? user.uid : person.id;
-
-                      return (
-                        <SelectItem key={person.id} value={optionValue}>
-                          {isMe ? 'you' : person.name.split(' ')[0]}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <span>and split</span>
-                <button className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground shadow-sm">
-                  equally
-                </button>
-              </div>
-            )}
-          </PeopleManager>
-
-          <Card className="p-4 md:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-primary" />
-                <h3 className="text-xl font-semibold">Bill Items</h3>
-              </div>
-
-
-            </div>
-
-            <BillItems
-              billData={billData}
-              people={people}
-              itemAssignments={itemAssignments}
-              editingItemId={editor.editingItemId}
-              editingItemName={editor.editingItemName}
-              editingItemPrice={editor.editingItemPrice}
-              onAssign={handleClaimItem}
-              onEdit={editor.editItem}
-              onSave={editor.saveEdit}
-              onCancel={editor.cancelEdit}
-              onDelete={editor.deleteItem}
-              setEditingName={editor.setEditingItemName}
-              setEditingPrice={editor.setEditingItemPrice}
-              isAdding={editor.isAdding}
-              newItemName={editor.newItemName}
-              newItemPrice={editor.newItemPrice}
-              setNewItemName={editor.setNewItemName}
-              setNewItemPrice={editor.setNewItemPrice}
-              onStartAdding={editor.startAdding}
-              onAddItem={editor.addItem}
-              onCancelAdding={editor.cancelAdding}
-              splitEvenly={splitEvenly}
-              onToggleSplitEvenly={handleToggleSplitEvenly}
-            />
-
-            {billData && (
-              <BillSummary
-                billData={billData}
-                onUpdate={(updates) => setBillData({ ...billData, ...updates })}
-              />
-            )}
-          </Card>
-
-          {billData && (
-            <SplitSummary
-              personTotals={bill.personTotals}
-              allItemsAssigned={bill.allItemsAssigned}
-              people={people}
-              billData={billData}
-              itemAssignments={itemAssignments}
-              settledPersonIds={session?.settledPersonIds || []}
-              paidById={paidById}
-              ownerId={session?.ownerId || user?.uid}
-              onMarkAsSettled={handleMarkAsSettled}
-            />
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* Share Modal */}
-      <ShareSessionModal
-        isOpen={showShareModal}
-        onClose={() => setShowShareModal(false)}
-        sessionId={session.id}
-        shareCode={session.shareCode}
-        onEndSession={handleEndSession}
+      <GuestClaimView
+        session={session}
+        onAddSelfToPeople={handleAddSelfToPeople}
+        onClaimItem={handleClaimItem}
+        onUpdatePerson={handleUpdatePerson}
+        onRemovePerson={handleRemovePerson}
       />
-    </>
+    </div>
   );
 }

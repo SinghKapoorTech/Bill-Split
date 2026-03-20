@@ -74,24 +74,24 @@ export default function BalanceDetailView() {
 
   const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
     await resumeSession(billId);
-    if (isSimpleTransaction) {
+    if (!isOwner) {
+      navigate(`/shared/${billId}`);
+    } else if (isSimpleTransaction) {
       navigate(`/transaction/${billId}`);
     } else if (isAirbnb) {
       navigate(`/airbnb/${billId}`);
-    } else if (!isOwner) {
-      navigate(`/shared/${billId}`);
     } else {
       navigate(`/bill/${billId}`);
     }
   };
 
   const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
-    if (isSimpleTransaction) {
+    if (!isOwner) {
+      navigate(`/shared/${billId}`);
+    } else if (isSimpleTransaction) {
       navigate(`/transaction/${billId}`);
     } else if (isAirbnb) {
       navigate(`/airbnb/${billId}`);
-    } else if (!isOwner) {
-      navigate(`/shared/${billId}`);
     } else {
       navigate(`/bill/${billId}`);
     }

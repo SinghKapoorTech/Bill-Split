@@ -58,16 +58,54 @@ export function GuestClaimView({
 
   // Find if current user is already in people list
   const currentPerson = useMemo(() => {
-    if (!session.people) return null;
-    
+    console.log('[GuestClaimView] === Finding current person ===');
+    console.log('[GuestClaimView] user:', user ? { uid: user.uid, displayName: user.displayName } : null);
+    console.log('[GuestClaimView] guestId:', guestId);
+    console.log('[GuestClaimView] session.people:', JSON.stringify(session.people?.map(p => ({ id: p.id, name: p.name })), null, 2));
+    console.log('[GuestClaimView] session.participantIds:', session.participantIds);
+    console.log('[GuestClaimView] session.members:', JSON.stringify(session.members?.map(m => ({ userId: m.userId, name: m.name })), null, 2));
+    console.log('[GuestClaimView] session.ownerId:', session.ownerId);
+
+    if (!session.people) {
+      console.log('[GuestClaimView] No session.people — returning null');
+      return null;
+    }
+
     if (user) {
       // Logged-in user: match by user ID (checking both raw and prefixed formats)
       const prefixedId = `user-${user.uid}`;
-      return session.people.find(p => p.id === user.uid || p.id === prefixedId);
+      const byId = session.people.find(p => p.id === user.uid || p.id === prefixedId);
+      if (byId) {
+        console.log('[GuestClaimView] Matched by ID:', byId);
+        return byId;
+      }
+      console.log('[GuestClaimView] No match by ID (checked uid=%s, prefixed=%s)', user.uid, prefixedId);
+
+      // Fallback: user is a confirmed participant but was added with a person-* ID
+      // (e.g. added manually to a quick bill). Match by display name.
+      if (user.displayName && session.participantIds?.includes(user.uid)) {
+        const byName = session.people.find(p =>
+          p.name.toLowerCase() === user.displayName!.toLowerCase()
+        );
+        if (byName) {
+          console.log('[GuestClaimView] Matched by name (participantIds fallback):', byName);
+          return byName;
+        }
+        console.log('[GuestClaimView] In participantIds but no name match for displayName=%s', user.displayName);
+      } else {
+        console.log('[GuestClaimView] Not in participantIds or no displayName. displayName=%s, inParticipants=%s',
+          user.displayName, session.participantIds?.includes(user.uid));
+      }
+
+      console.log('[GuestClaimView] Returning null for logged-in user');
+      return null;
     } else if (guestId) {
       // Anonymous user: match by stored guest ID (checking both raw and prefixed formats)
-      return session.people.find(p => p.id === guestId || p.id === `user-${guestId}`);
+      const match = session.people.find(p => p.id === guestId || p.id === `user-${guestId}`);
+      console.log('[GuestClaimView] Anonymous match:', match);
+      return match;
     }
+    console.log('[GuestClaimView] No user and no guestId — returning null');
     return null;
   }, [session.people, user, guestId]);
 
@@ -138,7 +176,7 @@ export function GuestClaimView({
       }
     });
 
-    const restaurantName = session.billData?.restaurantName || 'Divit';
+    const restaurantName = session.billData?.restaurantName || (session.isSimpleTransaction && session.billData?.items?.[0]?.name) || 'Divit';
     const note = assignedItems.length > 0
       ? `${restaurantName}: ${assignedItems.join(', ')}`
       : `${restaurantName} - Your share`;
@@ -161,8 +199,13 @@ export function GuestClaimView({
   if (!currentPerson) {
     return (
       <div className="flex flex-col items-center justify-center py-12 space-y-4">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-muted-foreground">Loading your session...</p>
+        <AlertTriangle className="w-8 h-8 text-destructive" />
+        <p className="text-muted-foreground">
+          We couldn't find your profile on this bill.
+        </p>
+        <Button variant="outline" onClick={() => navigate('/dashboard')}>
+          Back to Dashboard
+        </Button>
       </div>
     );
   }

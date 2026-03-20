@@ -11,7 +11,7 @@
 import { Bill } from '@/types/bill.types';
 import { calculatePersonTotals } from '@shared/calculations';
 import { personIdToFirebaseUid } from '@shared/ledgerCalculations';
-import { optimizeDebts, OptimizedDebt } from '@shared/optimizeDebts';
+import { simplifyDebts, OptimizedDebt } from '@shared/optimizeDebts';
 
 export interface ComputedEventBalances {
   netBalances: Record<string, number>;
@@ -20,21 +20,20 @@ export interface ComputedEventBalances {
 
 /**
  * Computes event balances from an array of bills.
- * Mirrors the server-side rebuildEventCache() logic:
- *   - For each bill, compute person totals
- *   - Non-owner participants owe (negative), owner is owed (positive)
- *   - Settled persons contribute 0
- *   - Run optimizeDebts on aggregate
+ * Builds directed pair debts (each participant owes the bill's creditor)
+ * then simplifies via cycle elimination only — never reassigns debts
+ * to uninvolved parties.
  */
 export function computeEventBalances(bills: Bill[]): ComputedEventBalances {
   const netBalances: Record<string, number> = {};
+  const pairDebts: OptimizedDebt[] = [];
 
   for (const bill of bills) {
     const people = bill.people || [];
-    const ownerId = bill.ownerId;
+    const creditorId = bill.paidById || bill.ownerId;
     const settledPersonIds = bill.settledPersonIds || [];
 
-    if (!bill.billData?.items?.length || !ownerId || people.length === 0) continue;
+    if (!bill.billData?.items?.length || !creditorId || people.length === 0) continue;
 
     // Compute person totals — handles both splitEvenly and item-assignment splits
     let personTotals;
@@ -58,24 +57,22 @@ export function computeEventBalances(bills: Bill[]): ComputedEventBalances {
       );
     }
 
-    // Aggregate: non-owner participants owe (negative), owner is owed (positive)
-    let ownerIsOwed = 0;
+    // Build directed pair debts: each non-creditor participant owes the creditor
     for (const pt of personTotals) {
       const uid = personIdToFirebaseUid(pt.personId);
-      if (uid === ownerId) continue;
+      if (uid === creditorId) continue;
 
       const owesAmount = settledPersonIds.includes(pt.personId) ? 0 : pt.total;
-      if (owesAmount > 0) {
+      if (owesAmount > 0.01) {
+        pairDebts.push({ fromUserId: uid, toUserId: creditorId, amount: owesAmount });
+        // Also track net balances for consumers that need them
         netBalances[uid] = (netBalances[uid] ?? 0) - owesAmount;
-        ownerIsOwed += owesAmount;
+        netBalances[creditorId] = (netBalances[creditorId] ?? 0) + owesAmount;
       }
-    }
-    if (ownerIsOwed > 0.001) {
-      netBalances[ownerId] = (netBalances[ownerId] ?? 0) + ownerIsOwed;
     }
   }
 
-  // Clean near-zero values
+  // Clean near-zero net values
   for (const uid of Object.keys(netBalances)) {
     if (Math.abs(netBalances[uid]) < 0.01) {
       netBalances[uid] = 0;
@@ -84,6 +81,6 @@ export function computeEventBalances(bills: Bill[]): ComputedEventBalances {
 
   return {
     netBalances,
-    optimizedDebts: optimizeDebts(netBalances),
+    optimizedDebts: simplifyDebts(pairDebts),
   };
 }

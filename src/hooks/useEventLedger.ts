@@ -4,7 +4,7 @@ import { db } from '@/config/firebase';
 import { OptimizedDebt, EventPairBalance } from '@/services/eventLedgerService';
 import { Bill } from '@/types/bill.types';
 import { computeEventBalances } from '@/utils/eventBalanceCalculator';
-import { optimizeDebts } from '@shared/optimizeDebts';
+import { simplifyDebts } from '@shared/optimizeDebts';
 
 const EVENT_BALANCES_COLLECTION = 'event_balances';
 
@@ -58,7 +58,7 @@ export function useEventLedger(eventId: string, bills?: Bill[]) {
     return () => unsubscribe();
   }, [eventId]);
 
-  // Derive netBalances from pair docs
+  // Derive netBalances from pair docs (for consumers that still need per-user totals)
   const cacheNetBalances = useMemo(() => {
     if (!cacheExists || pairBalances.length === 0) return null;
 
@@ -73,11 +73,23 @@ export function useEventLedger(eventId: string, bills?: Bill[]) {
     return netBalances;
   }, [cacheExists, pairBalances]);
 
-  // Derive optimizedDebts from netBalances
+  // Convert pair balances to directed debts then simplify via cycle elimination
   const cacheOptimizedDebts = useMemo(() => {
-    if (!cacheNetBalances) return null;
-    return optimizeDebts(cacheNetBalances);
-  }, [cacheNetBalances]);
+    if (!cacheExists || pairBalances.length === 0) return null;
+
+    const directedDebts: OptimizedDebt[] = [];
+    for (const pair of pairBalances) {
+      if (Math.abs(pair.balance) < 0.01) continue;
+      const [uid0, uid1] = pair.participants;
+      // balance > 0 → uid0 is owed → uid1 owes uid0
+      if (pair.balance > 0) {
+        directedDebts.push({ fromUserId: uid1, toUserId: uid0, amount: pair.balance });
+      } else {
+        directedDebts.push({ fromUserId: uid0, toUserId: uid1, amount: Math.abs(pair.balance) });
+      }
+    }
+    return simplifyDebts(directedDebts);
+  }, [cacheExists, pairBalances]);
 
   // Fallback: compute from bills when cache is missing
   const fallback = useMemo(() => {
