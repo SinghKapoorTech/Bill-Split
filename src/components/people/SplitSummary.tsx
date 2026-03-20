@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { DollarSign } from 'lucide-react';
+import { DollarSign, ChevronDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PersonTotal, VenmoCharge, Person, BillData, ItemAssignment } from '@/types';
@@ -120,7 +120,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
 
   return (
     <>
-      <Card className="p-3 md:p-6 mb-2">
+      <div className="mb-2">
         <div className="flex items-center gap-2 mb-4">
           <DollarSign className="w-4 h-4 md:w-5 md:h-5 text-primary" />
           <h3 className="text-lg md:text-xl font-semibold">{UI_TEXT.SPLIT_SUMMARY}</h3>
@@ -180,11 +180,13 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                 onMarkAsSettled={onMarkAsSettled}
                 setIsSettling={setIsSettling}
                 isLast={isLast}
+                billData={billData}
+                itemAssignments={itemAssignments}
               />
             );
           })}
         </div>
-      </Card>
+      </div>
 
       <VenmoChargeDialog
         charge={currentCharge}
@@ -214,7 +216,9 @@ function PersonCompactRow({
   handleChargeOnVenmo,
   onMarkAsSettled,
   setIsSettling,
-  isLast
+  isLast,
+  billData,
+  itemAssignments
 }: {
   pt: PersonTotal;
   person: Person | undefined;
@@ -229,7 +233,15 @@ function PersonCompactRow({
   onMarkAsSettled?: (personId: string, isSettled: boolean) => void;
   setIsSettling: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   isLast: boolean;
+  billData: BillData;
+  itemAssignments: ItemAssignment;
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Get items assigned to this person
+  const assignedItems = billData.items.filter(item =>
+    (itemAssignments[item.id] || []).includes(pt.personId)
+  );
 
   return (
     <div className={`p-3 border shadow-sm rounded-xl transition-all ${isSettled ? 'bg-green-500/10 dark:bg-green-500/20 border-green-500/40 dark:border-green-400/30 shadow-green-500/10' : isMe ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800' : 'bg-card border-border'}`}>
@@ -302,6 +314,36 @@ function PersonCompactRow({
           </span>
         </div>
       </div>
+
+      {/* View Details - items charged to this person */}
+      {assignedItems.length > 0 && (
+        <>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center gap-1 mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronDown className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            {isExpanded ? 'Hide Details' : 'View Details'}
+          </button>
+          {isExpanded && (
+            <div className="text-xs text-muted-foreground space-y-0.5 mt-1.5 pl-2 border-l-2 border-primary/20">
+              {assignedItems.map(item => {
+                const splitCount = (itemAssignments[item.id] || []).length;
+                const shareAmount = item.price / splitCount;
+                return (
+                  <p key={item.id} className="flex justify-between pr-1">
+                    <span>
+                      {item.name}
+                      {splitCount > 1 && <span className="text-muted-foreground/60"> (split {splitCount} ways)</span>}
+                    </span>
+                    <span className="tabular-nums ml-2 shrink-0">${shareAmount.toFixed(2)}</span>
+                  </p>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
 
     </div>
   );
