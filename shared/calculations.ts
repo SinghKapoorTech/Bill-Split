@@ -51,7 +51,7 @@ export function calculatePersonTotals(
     };
   });
 
-  return results.filter(pt => pt.total > 0);
+  return results;
 }
 
 export function areAllItemsAssigned(billData: BillData | null, itemAssignments: ItemAssignment): boolean {

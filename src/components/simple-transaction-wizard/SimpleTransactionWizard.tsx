@@ -268,6 +268,29 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
     return () => clearTimeout(timeoutId);
   }, [amount, title, paidById, people, billId, user, existingEventId, existingSquadId, existingItemId]);
 
+  // Ensure itemAssignments are kept in sync even for guests in simple transactions
+  useEffect(() => {
+    if (!activeBillId.current || people.length === 0 || !title || !amount) return;
+    
+    const numAmount = Number(amount);
+    const dummyItemId = existingItemId || (relevantSession?.billData?.items?.[0]?.id) || 'dummy-item';
+    const currentAssignments = relevantSession?.itemAssignments?.[dummyItemId] || [];
+    
+    if (currentAssignments.length !== people.length) {
+      const newAssignments = {
+        [dummyItemId]: people.map(p => p.id)
+      };
+      
+      // Update locally
+      // (SimpleTransactionWizard doesn't have a local assignments state besides the doc)
+      
+      // Persist to Firestore
+      billService.updateBill(activeBillId.current, {
+        itemAssignments: newAssignments
+      }).catch(console.error);
+    }
+  }, [people.length, activeBillId.current, title, amount]);
+
   const handlePrevStep = () => {
     if (currentStep > 0 && isOwner) {
       setCurrentStep(s => s - 1);
@@ -373,9 +396,9 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
 
       <SwipeableStepContainer
         onSwipeLeft={canProceed() && isOwner ? handleNextStep : undefined}
-        onSwipeRight={currentStep > 0 && isOwner ? handlePrevStep : undefined}
+        onSwipeRight={currentStep > (isOwner ? 0 : 2) && isOwner ? handlePrevStep : undefined}
         canSwipeLeft={canProceed() && isOwner}
-        canSwipeRight={currentStep > 0 && isOwner}
+        canSwipeRight={currentStep > (isOwner ? 0 : 2) && isOwner}
         className={isMobile ? 'pb-[140px] relative' : ''}
       >
         <StepContent stepKey={currentStep}>
@@ -433,7 +456,7 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
         <WizardNavigation
           currentStep={currentStep}
           totalSteps={STEPS.length}
-          onBack={handlePrevStep}
+          onBack={isOwner && currentStep > 0 ? handlePrevStep : undefined}
           onNext={handleNextStep}
           onComplete={handleComplete}
           onExit={() => {

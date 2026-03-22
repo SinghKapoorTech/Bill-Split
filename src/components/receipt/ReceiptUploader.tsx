@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Upload, X, ImageIcon, Loader2, Receipt, Sparkles } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Upload, X, ImageIcon, Loader2, Receipt, Sparkles, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { usePlatform } from '@/hooks/usePlatform';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { ReceiptPreviewModal } from './ReceiptPreviewModal';
@@ -45,6 +46,11 @@ export function ReceiptUploader({
   const { pickImage } = useImagePicker();
   const [imageError, setImageError] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Android mobile web needs a source picker since Chrome doesn't offer camera option natively
+  const isAndroidWeb = !isNative && /Android/i.test(navigator.userAgent);
 
   useEffect(() => {
     setImageError(false);
@@ -52,13 +58,16 @@ export function ReceiptUploader({
 
   const handleSelectImage = async () => {
     if (isNative && onImageSelected) {
-      // Mobile: Use camera picker
+      // Native app: Use Capacitor camera picker
       const image = await pickImage();
       if (image) {
         onImageSelected(image);
       }
+    } else if (isAndroidWeb) {
+      // Android browser: Show source picker (camera vs gallery)
+      setShowSourcePicker(true);
     } else {
-      // Web: Trigger file input
+      // Desktop or iOS web: Trigger file input (iOS Safari shows camera/gallery natively)
       fileInputRef.current?.click();
     }
   };
@@ -111,6 +120,7 @@ export function ReceiptUploader({
   }
 
   return (
+    <>
     <Card
       className={`shadow-medium border-2 border-dashed transition-smooth ${imagePreview ? 'bill-card-tight' : 'p-4 md:p-8'
         } ${isDragging
@@ -138,13 +148,25 @@ export function ReceiptUploader({
           </div>
 
           {!isNative && (
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={onFileInput}
-              className="hidden"
-            />
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={onFileInput}
+                className="hidden"
+              />
+              {isAndroidWeb && (
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={onFileInput}
+                  className="hidden"
+                />
+              )}
+            </>
           )}
 
           <Button
@@ -231,5 +253,41 @@ export function ReceiptUploader({
         </div>
       )}
     </Card>
+
+      {/* Android web: bottom sheet to choose camera vs gallery */}
+      {isAndroidWeb && (
+        <Drawer open={showSourcePicker} onOpenChange={setShowSourcePicker}>
+          <DrawerContent>
+            <div className="p-4 pb-8 space-y-3">
+              <h3 className="text-lg font-semibold text-center">Select Image Source</h3>
+              <Button
+                size="lg"
+                className="w-full"
+                variant="default"
+                onClick={() => {
+                  setShowSourcePicker(false);
+                  setTimeout(() => cameraInputRef.current?.click(), 100);
+                }}
+              >
+                <Camera className="mr-2 h-5 w-5" />
+                Take Photo
+              </Button>
+              <Button
+                size="lg"
+                className="w-full"
+                variant="outline"
+                onClick={() => {
+                  setShowSourcePicker(false);
+                  setTimeout(() => fileInputRef.current?.click(), 100);
+                }}
+              >
+                <ImageIcon className="mr-2 h-5 w-5" />
+                Choose from Gallery
+              </Button>
+            </div>
+          </DrawerContent>
+        </Drawer>
+      )}
+    </>
   );
 }

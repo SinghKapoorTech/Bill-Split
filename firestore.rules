@@ -74,7 +74,7 @@ service cloud.firestore {
     
     // Validate that only allowed fields are being updated (for guests)
     function isGuestUpdate() {
-      let allowedFields = ['itemAssignments', 'people', 'lastActivity', 'updatedAt', 'members', 'splitEvenly'];
+      let allowedFields = ['itemAssignments', 'people', 'lastActivity', 'updatedAt', 'members', 'splitEvenly', 'currentStep'];
       return onlyUpdating(allowedFields);
     }
 

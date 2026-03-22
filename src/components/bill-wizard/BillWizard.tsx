@@ -104,6 +104,7 @@ export function BillWizard({
     const navigate = useNavigate();
     const { user } = useAuth();
     const isMobile = useIsMobile();
+    const isOwner = !activeSession || !activeSession.ownerId || activeSession.ownerId === user?.uid;
 
     // State
     const [people, setPeople] = useState<Person[]>(initialPeople);
@@ -161,8 +162,41 @@ export function BillWizard({
         people,
         itemAssignments,
         totalSteps: STEPS.length,
-        initialStep
+        initialStep,
+        minStep: isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2)
     });
+
+    // Ensure itemAssignments are kept flawlessly in sync if splitEvenly is true
+    // This covers default values, adding/removing guests, or editing items
+    useEffect(() => {
+        if (splitEvenly && billData && billData.items && people.length > 0) {
+            const allPeopleIds = people.map(p => p.id);
+            let needsUpdate = false;
+
+            // Check if any item is missing an assignment or has wrong number of people
+            for (const item of billData.items) {
+                const assigned = itemAssignments[item.id];
+                if (!assigned || assigned.length !== allPeopleIds.length) {
+                    needsUpdate = true;
+                    break;
+                }
+            }
+
+            if (needsUpdate) {
+                const newAssignments: ItemAssignment = {};
+                billData.items.forEach(item => {
+                    newAssignments[item.id] = [...allPeopleIds];
+                });
+                setItemAssignments(newAssignments);
+
+                // Fire off a background save if it's not a brand new draft
+                const id = billId || activeSession?.id;
+                if (id) {
+                    billService.updateBill(id, { itemAssignments: newAssignments }).catch(console.error);
+                }
+            }
+        }
+    }, [splitEvenly, billData, people, itemAssignments, billId, activeSession?.id]);
 
     const { executeSave, skipNextStepSave, registerExternalCreation } = useBillSession({
         billData,
@@ -535,9 +569,9 @@ export function BillWizard({
             {/* Wrap in SwipeableStepContainer on mobile for gesture navigation */}
             <SwipeableStepContainer
                 onSwipeLeft={wizard.canProceedFromStep(wizard.currentStep) ? wizard.handleNextStep : undefined}
-                onSwipeRight={wizard.currentStep > 0 ? wizard.handlePrevStep : undefined}
+                onSwipeRight={wizard.currentStep > (isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2)) ? wizard.handlePrevStep : undefined}
                 canSwipeLeft={wizard.canProceedFromStep(wizard.currentStep)}
-                canSwipeRight={wizard.currentStep > 0}
+                canSwipeRight={wizard.currentStep > (isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2))}
                 className={isMobile ? 'pb-[140px] relative' : ''}
             >
                 <StepContent stepKey={wizard.currentStep}>
@@ -670,7 +704,7 @@ export function BillWizard({
                 <WizardNavigation
                     currentStep={wizard.currentStep}
                     totalSteps={STEPS.length}
-                    onBack={wizard.handlePrevStep}
+                    onBack={wizard.currentStep > (isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2)) ? wizard.handlePrevStep : undefined}
                     onNext={wizard.handleNextStep}
                     onComplete={handleDone}
                     onExit={handleDone}
