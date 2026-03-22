@@ -1,12 +1,12 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Person, BillData, ItemAssignment, PersonTotal } from "@/types";
-import { Card } from "@/components/ui/card";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { SplitSummary } from "@/components/people/SplitSummary";
 import { StepFooter } from "@/components/shared/StepFooter";
 import { billService } from "@/services/billService";
 import { arrayUnion, arrayRemove } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { SplitMethod } from "../SplitMethodSelector";
 
 interface ReviewStepProps {
   amount: string;
@@ -21,6 +21,9 @@ interface ReviewStepProps {
   billId?: string;
   settledPersonIds?: string[];
   isOwner?: boolean;
+  splitMethod: SplitMethod;
+  percentages: Record<string, number>;
+  exactAmounts: Record<string, number>;
 }
 
 export function ReviewStep({
@@ -35,7 +38,10 @@ export function ReviewStep({
   totalSteps,
   billId,
   settledPersonIds,
-  isOwner = true
+  isOwner = true,
+  splitMethod,
+  percentages,
+  exactAmounts,
 }: ReviewStepProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -63,33 +69,68 @@ export function ReviewStep({
   };
 
   const numAmount = Number(amount) || 0;
-  const splitAmount = people.length > 0 ? numAmount / people.length : 0;
 
-  // Construct dummy objects to satisfy SplitSummary
-  const dummyBillData: BillData = {
-    items: [{
-      id: "dummy-item",
-      name: title || "Expense",
-      price: numAmount
-    }],
-    subtotal: numAmount,
-    tax: 0,
-    tip: 0,
-    total: numAmount
+  // Compute per-person amounts based on split method
+  const getPersonAmount = (personId: string, index: number): number => {
+    if (splitMethod === 'percentage') {
+      if (index === people.length - 1) {
+        const othersTotal = people.slice(0, -1).reduce(
+          (sum, p) => sum + Math.round(numAmount * (percentages[p.id] || 0) / 100 * 100) / 100, 0
+        );
+        return Math.round((numAmount - othersTotal) * 100) / 100;
+      }
+      return Math.round(numAmount * (percentages[personId] || 0) / 100 * 100) / 100;
+    }
+    if (splitMethod === 'exact') {
+      return exactAmounts[personId] || 0;
+    }
+    // Equal
+    return people.length > 0 ? numAmount / people.length : 0;
   };
 
-  const dummyItemAssignments: ItemAssignment = {
-    "dummy-item": people.map(p => p.id)
-  };
+  // Build billData and assignments matching the split method
+  let dummyBillData: BillData;
+  let dummyItemAssignments: ItemAssignment;
 
-  const personTotals: PersonTotal[] = people.map(p => ({
-    personId: p.id,
-    name: p.name,
-    itemsSubtotal: splitAmount,
-    tax: 0,
-    tip: 0,
-    total: splitAmount
-  }));
+  if (splitMethod === 'equal') {
+    dummyBillData = {
+      items: [{ id: "dummy-item", name: title || "Expense", price: numAmount }],
+      subtotal: numAmount,
+      tax: 0,
+      tip: 0,
+      total: numAmount,
+    };
+    dummyItemAssignments = { "dummy-item": people.map(p => p.id) };
+  } else {
+    const items = people.map((p, i) => ({
+      id: `item-${p.id}`,
+      name: `${p.name}'s share`,
+      price: getPersonAmount(p.id, i),
+    }));
+    dummyBillData = {
+      items,
+      subtotal: numAmount,
+      tax: 0,
+      tip: 0,
+      total: numAmount,
+    };
+    dummyItemAssignments = {};
+    people.forEach(p => {
+      dummyItemAssignments[`item-${p.id}`] = [p.id];
+    });
+  }
+
+  const personTotals: PersonTotal[] = people.map((p, i) => {
+    const personAmount = getPersonAmount(p.id, i);
+    return {
+      personId: p.id,
+      name: p.name,
+      itemsSubtotal: personAmount,
+      tax: 0,
+      tip: 0,
+      total: personAmount,
+    };
+  });
 
   return (
     <div className="flex flex-col gap-6 p-4 max-w-md mx-auto w-full">

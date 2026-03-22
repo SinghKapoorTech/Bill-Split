@@ -1,10 +1,11 @@
 import { Person } from '@/types';
 import { PeopleStepBase } from '@/components/shared/wizard-steps/PeopleStepBase';
+import { SplitMethodSelector, SplitMethod } from '../SplitMethodSelector';
 
 interface PeopleStepProps {
   people: Person[];
   setPeople: (people: Person[]) => void;
-  peopleManager: ReturnType<typeof import('@/hooks/usePeopleManager').usePeopleManager>; // Return type of usePeopleManager
+  peopleManager: ReturnType<typeof import('@/hooks/usePeopleManager').usePeopleManager>;
   isMobile: boolean;
   paidById: string;
   setPaidById: (val: string) => void;
@@ -16,6 +17,14 @@ interface PeopleStepProps {
   totalSteps: number;
   eventId?: string | null;
   onEventChange?: (eventId: string | null) => void;
+  // Split method
+  splitMethod: SplitMethod;
+  onSplitMethodChange: (method: SplitMethod) => void;
+  amount: number;
+  percentages: Record<string, number>;
+  onPercentagesChange: (percentages: Record<string, number>) => void;
+  exactAmounts: Record<string, number>;
+  onExactAmountsChange: (amounts: Record<string, number>) => void;
 }
 
 export function PeopleStep({
@@ -31,7 +40,14 @@ export function PeopleStep({
   currentStep,
   totalSteps,
   eventId,
-  onEventChange
+  onEventChange,
+  splitMethod,
+  onSplitMethodChange,
+  amount,
+  percentages,
+  onPercentagesChange,
+  exactAmounts,
+  onExactAmountsChange,
 }: PeopleStepProps) {
   const handleUpdatePerson = async (personId: string, updates: Partial<Person>) => {
     const updatedPeople = people.map(p =>
@@ -64,7 +80,21 @@ export function PeopleStep({
         totalSteps={totalSteps}
         eventId={eventId}
         onEventChange={onEventChange}
+        splitMethod={splitMethod}
+        onSplitMethodChange={onSplitMethodChange}
       />
+
+      {people.length >= 2 && (
+        <SplitMethodSelector
+          splitMethod={splitMethod}
+          people={people}
+          amount={amount}
+          percentages={percentages}
+          onPercentagesChange={onPercentagesChange}
+          exactAmounts={exactAmounts}
+          onExactAmountsChange={onExactAmountsChange}
+        />
+      )}
 
       {people.length === 1 && (
         <div className="text-center text-sm text-amber-600 bg-amber-50 p-3 rounded-md mt-4">

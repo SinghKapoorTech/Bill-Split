@@ -52,7 +52,12 @@
       "Bash(git stash:*)",
       "Bash(git push:*)",
       "Bash(claude usage:*)",
-      "Bash(echo \"EXIT_CODE=$?\")"
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(npx vite:*)",
+      "WebFetch(domain:feedback.splitwise.com)",
+      "WebFetch(domain:uxplanet.org)",
+      "WebFetch(domain:medium.muz.li)",
+      "WebFetch(domain:blog.splitwise.com)"
     ],
     "deny": [],
     "ask": []

@@ -4,7 +4,7 @@ import { PeopleManager } from '@/components/people/PeopleManager';
 import { TwoColumnLayout, ReceiptPreview } from '@/components/shared/TwoColumnLayout';
 import { StepFooter } from '@/components/shared/StepFooter';
 import { StepHeader } from '@/components/shared/StepHeader';
-import { PaidByBanner } from './PaidByBanner';
+import { PaidByBanner, SplitMethod } from './PaidByBanner';
 import { Person } from '@/types';
 import { EventSelector } from '@/components/events/EventSelector';
 
@@ -56,6 +56,10 @@ interface PeopleStepBaseProps {
     // Event Info
     eventId?: string | null;
     onEventChange?: (eventId: string | null) => void;
+
+    // Split method (optional, for Simple Transaction Wizard)
+    splitMethod?: SplitMethod;
+    onSplitMethodChange?: (method: SplitMethod) => void;
 }
 
 /**
@@ -96,7 +100,9 @@ export function PeopleStepBase({
     onPaidByChange,
     hasItems = false,
     eventId,
-    onEventChange
+    onEventChange,
+    splitMethod,
+    onSplitMethodChange,
 }: PeopleStepBaseProps) {
     const hasReceipt = !!(imagePreview || receiptImageUrl);
 
@@ -120,6 +126,8 @@ export function PeopleStepBase({
                 people={people}
                 paidById={paidById}
                 onPaidByChange={onPaidByChange}
+                splitMethod={splitMethod}
+                onSplitMethodChange={onSplitMethodChange}
             />
         </PeopleManager>
     );
