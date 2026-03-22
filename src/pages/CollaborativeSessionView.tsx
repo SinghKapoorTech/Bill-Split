@@ -66,13 +66,14 @@ export default function CollaborativeSessionView() {
   };
 
   const handleClaimItem = (itemId: string, personId: string, claimed: boolean) => {
-    bill.handleItemAssignment(itemId, personId, claimed);
-
     if (splitEvenly) {
       setSplitEvenly(false);
       updateSessionRef.current?.({ splitEvenly: false });
     }
 
+    // Only write to Firestore — the real-time listener will sync local state.
+    // Updating local state AND Firestore causes the person to be counted twice
+    // until the snapshot arrives and overwrites.
     toggleAssignment(itemId, personId, claimed);
   };
 
