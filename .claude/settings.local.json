@@ -48,7 +48,11 @@
       "Bash(xargs ls:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git rebase:*)"
+      "Bash(git rebase:*)",
+      "Bash(git stash:*)",
+      "Bash(git push:*)",
+      "Bash(claude usage:*)",
+      "Bash(echo \"EXIT_CODE=$?\")"
     ],
     "deny": [],
     "ask": []

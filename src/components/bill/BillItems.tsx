@@ -15,6 +15,7 @@ interface Props {
   onCancel: () => void;
   onDelete: (itemId: string) => void;
   onAssign: (itemId: string, personId: string, checked: boolean) => void;
+  onAssignAll?: (itemId: string) => void;
   setEditingName: (name: string) => void;
   setEditingPrice: (price: string) => void;
   isAdding: boolean;
@@ -47,6 +48,7 @@ export function BillItems(props: Props) {
           onCancel={props.onCancel}
           onDelete={props.onDelete}
           onAssign={props.onAssign}
+          onAssignAll={props.onAssignAll}
           setEditingName={props.setEditingName}
           setEditingPrice={props.setEditingPrice}
           isAdding={props.isAdding}

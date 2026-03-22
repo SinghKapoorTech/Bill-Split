@@ -4,10 +4,10 @@ interface Props {
   item: BillItem;
   people: Person[];
   itemAssignments: ItemAssignment;
-  onAssign: (itemId: string, personId: string, checked: boolean) => void;
+  onAssignAll: (itemId: string) => void;
 }
 
-export function AssignAllButton({ item, people, itemAssignments, onAssign }: Props) {
+export function AssignAllButton({ item, people, itemAssignments, onAssignAll }: Props) {
   if (people.length <= 1) return null;
 
   const assigned = itemAssignments[item.id] || [];
@@ -15,18 +15,12 @@ export function AssignAllButton({ item, people, itemAssignments, onAssign }: Pro
 
   return (
     <button
-      className={`text-xs px-2.5 py-1 rounded-md border shrink-0 transition-colors font-medium uppercase tracking-wide ${
+      className={`text-xs px-2.5 py-1 rounded-md border shrink-0 transition-colors font-medium ml-auto ${
         allAssigned
           ? 'bg-primary text-primary-foreground border-primary'
           : 'text-muted-foreground border-border hover:border-primary/50 hover:text-foreground'
       }`}
-      onClick={() => {
-        people.forEach(p => {
-          const isAssigned = assigned.includes(p.id);
-          if (allAssigned && isAssigned) onAssign(item.id, p.id, false);
-          else if (!allAssigned && !isAssigned) onAssign(item.id, p.id, true);
-        });
-      }}
+      onClick={() => onAssignAll(item.id)}
     >
       All
     </button>

@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Commit Rules
+
+- **Never** include a `Co-Authored-By` line in commit messages.
+
 ## Project Overview
 
 Bill Split is a React + TypeScript application that uses AI to analyze receipts and fairly split bills among friends with Venmo integration. The app supports both AI-powered receipt scanning and manual bill creation, collaborative group events with multiple receipts, and saved friend groups (Squads).

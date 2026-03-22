@@ -21,6 +21,7 @@ interface Props {
   onCancel: () => void;
   onDelete: (itemId: string) => void;
   onAssign: (itemId: string, personId: string, checked: boolean) => void;
+  onAssignAll?: (itemId: string) => void;
   setEditingName: (name: string) => void;
   setEditingPrice: (price: string) => void;
   isAdding: boolean;
@@ -47,6 +48,7 @@ export function BillItemCard({
   onCancel,
   onDelete,
   onAssign,
+  onAssignAll,
   setEditingName,
   setEditingPrice,
   isAdding,
@@ -147,7 +149,7 @@ export function BillItemCard({
                         <span className="text-sm font-semibold text-primary shrink-0">
                           ${item.price.toFixed(2)}
                         </span>
-                        <AssignAllButton item={item} people={people} itemAssignments={itemAssignments} onAssign={onAssign} />
+                        {onAssignAll && <AssignAllButton item={item} people={people} itemAssignments={itemAssignments} onAssignAll={onAssignAll} />}
                       </div>
                       <div className="flex gap-0.5 md:gap-1 shrink-0">
                         <Button

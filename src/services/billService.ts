@@ -390,6 +390,24 @@ export const billService = {
   },
 
   /**
+   * Atomically sets the full assignment array for an item
+   * Used by "Select All" / "Deselect All" per item
+   */
+  async setItemAssignment(
+    billId: string,
+    itemId: string,
+    personIds: string[]
+  ): Promise<void> {
+    const billRef = doc(db, BILLS_COLLECTION, billId);
+    const fieldPath = `itemAssignments.${itemId}`;
+    await updateDoc(billRef, {
+      [fieldPath]: personIds,
+      updatedAt: serverTimestamp(),
+      lastActivity: serverTimestamp()
+    });
+  },
+
+  /**
    * Updates a person's details (name, venmoId) in the bill
    * This requires a read-modify-write cycle for the people array
    */

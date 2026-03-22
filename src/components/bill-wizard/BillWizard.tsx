@@ -232,6 +232,27 @@ export function BillWizard({
         }
     };
 
+    const handleAtomicAssignAll = (itemId: string) => {
+        // Optimistic UI update
+        const allAssigned = (itemAssignments[itemId] || []).length === people.length;
+        bill.assignAllPeopleToItem(itemId);
+
+        const id = billId || activeSession?.id;
+
+        if (splitEvenly) {
+            setSplitEvenly(false);
+            if (id) {
+                billService.updateBill(id, { splitEvenly: false }).catch(console.error);
+            }
+        }
+
+        // Atomic Firestore update
+        if (id) {
+            const newPersonIds = allAssigned ? [] : people.map(p => p.id);
+            billService.setItemAssignment(id, itemId, newPersonIds).catch(console.error);
+        }
+    };
+
     const handleToggleSplitEvenly = () => {
         // Optimistic UI update
         bill.toggleSplitEvenly();
@@ -644,6 +665,7 @@ export function BillWizard({
                             itemAssignments={itemAssignments}
                             splitEvenly={splitEvenly}
                             onAssign={handleAtomicAssignment}
+                            onAssignAll={handleAtomicAssignAll}
                             onToggleSplitEvenly={handleToggleSplitEvenly}
                             removePersonFromAssignments={bill.removePersonFromAssignments}
                             removeItemAssignments={bill.removeItemAssignments}

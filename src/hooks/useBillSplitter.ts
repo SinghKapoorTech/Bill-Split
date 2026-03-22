@@ -66,6 +66,14 @@ export function useBillSplitter({
     setItemAssignments(newAssignments);
   };
 
+  const assignAllPeopleToItem = (itemId: string) => {
+    const allAssigned = (itemAssignments[itemId] || []).length === people.length;
+    setItemAssignments({
+      ...itemAssignments,
+      [itemId]: allAssigned ? [] : people.map(p => p.id),
+    });
+  };
+
   const assignEveryoneToAllItems = () => {
     if (!billData || people.length === 0) return;
 
@@ -107,6 +115,7 @@ export function useBillSplitter({
     allItemsAssigned,
     personTotals,
     handleItemAssignment,
+    assignAllPeopleToItem,
     removePersonFromAssignments,
     removeItemAssignments,
     splitEvenly,

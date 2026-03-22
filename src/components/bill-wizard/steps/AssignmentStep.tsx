@@ -19,6 +19,7 @@ interface AssignmentStepProps {
 
     // Event handlers
     onAssign: (itemId: string, personId: string, checked: boolean) => void;
+    onAssignAll?: (itemId: string) => void;
     onToggleSplitEvenly: () => void;
     removePersonFromAssignments: (personId: string) => void;
     removeItemAssignments: (itemId: string) => void;
@@ -59,6 +60,7 @@ export function AssignmentStep({
     itemAssignments,
     splitEvenly,
     onAssign,
+    onAssignAll,
     onToggleSplitEvenly,
     imagePreview,
     selectedFile,
@@ -119,6 +121,7 @@ export function AssignmentStep({
             editingItemName={editor.editingItemName}
             editingItemPrice={editor.editingItemPrice}
             onAssign={onAssign}
+            onAssignAll={onAssignAll}
             onEdit={editor.editItem}
             onSave={editor.saveEdit}
             onCancel={editor.cancelEdit}
