@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Heart, Trash2, Edit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Person } from '@/types';
-import { getInitials } from '@/utils/nameUtils';
+import { UserAvatar } from '@/components/shared/UserAvatar';
 import { UserVenmoIdEditor } from './UserVenmoIdEditor';
 import { EditPersonDialog } from './EditPersonDialog';
 import { SaveFriendDialog } from './SaveFriendDialog';
 
 interface PersonCardProps {
     person: Person;
+    photoURL?: string;
     isCurrentUser: boolean;
     isInFriends: boolean;
     onRemove: (personId: string) => void;
@@ -26,6 +26,7 @@ interface PersonCardProps {
  */
 export function PersonCard({
     person,
+    photoURL,
     isCurrentUser,
     isInFriends,
     onRemove,
@@ -58,8 +59,6 @@ export function PersonCard({
         await onUpdate(person.id, updates);
     };
 
-    const initials = getInitials(person.name);
-
     return (
         <div
             className={`slide-in-up flex items-center gap-3 p-2.5 md:p-3 rounded-xl ${isCurrentUser
@@ -67,14 +66,15 @@ export function PersonCard({
                     : 'bg-secondary/50 border border-border/50'
                 }`}
         >
-            <Avatar className="h-8 w-8 shrink-0">
-                <AvatarFallback className={`text-xs font-semibold ${isCurrentUser
+            <UserAvatar
+                name={person.name}
+                photoURL={photoURL}
+                size="sm"
+                fallbackClassName={`text-xs font-semibold ${isCurrentUser
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-primary/15 text-primary'
-                }`}>
-                    {initials}
-                </AvatarFallback>
-            </Avatar>
+                }`}
+            />
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                     <span className="text-sm md:text-base font-medium truncate">{person.name}</span>

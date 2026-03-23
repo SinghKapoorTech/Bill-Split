@@ -21,6 +21,7 @@ export interface Friend {
   email?: string;
   username?: string;
   venmoId?: string;
+  photoURL?: string;
   balance?: number; // Added for hydrated friend profiles
 }
 
@@ -35,6 +36,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   photoURL?: string;
+  hasCustomPhoto?: boolean;
   venmoId?: string;
   phoneNumber?: string;
   username?: string;

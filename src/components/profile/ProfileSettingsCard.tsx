@@ -1,4 +1,5 @@
-import { User as UserIcon, Check, X } from 'lucide-react';
+import { useRef } from 'react';
+import { User as UserIcon, Check, X, Camera, Loader2, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -6,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useProfileEditor } from '@/hooks/useProfileEditor';
 import { useToast } from '@/hooks/use-toast';
 import { UI_TEXT, SUCCESS_MESSAGES } from '@/utils/uiConstants';
+import { UserAvatar } from '@/components/shared/UserAvatar';
 
 export function ProfileSettingsCard() {
   const {
@@ -15,19 +17,43 @@ export function ProfileSettingsCard() {
     venmoId,
     isEditing,
     saving,
+    isUploadingPhoto,
     setVenmoId,
     handleSave: save,
     handleCancel,
     startEditing,
+    uploadProfilePhoto,
+    removeProfilePhoto,
   } = useProfileEditor();
   const { toast } = useToast();
-  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = async () => {
     await save();
     toast({
       title: SUCCESS_MESSAGES.PROFILE_UPDATED,
       description: SUCCESS_MESSAGES.PROFILE_UPDATED_DESC,
+    });
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await uploadProfilePhoto(file);
+      toast({
+        title: 'Photo updated',
+        description: 'Your profile photo has been updated.',
+      });
+    }
+    // Reset so the same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRemovePhoto = async () => {
+    await removeProfilePhoto();
+    toast({
+      title: 'Photo removed',
+      description: 'Your profile photo has been removed.',
     });
   };
 
@@ -39,6 +65,53 @@ export function ProfileSettingsCard() {
       </div>
 
       <div className="space-y-4">
+        {/* Profile Photo */}
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <UserAvatar
+              name={profile?.displayName || user?.displayName || 'User'}
+              photoURL={profile?.photoURL || user?.photoURL}
+              size="lg"
+              className="border-2 border-background shadow-sm"
+            />
+            {isUploadingPhoto && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full">
+                <Loader2 className="w-6 h-6 text-white animate-spin" />
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoSelect}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingPhoto}
+            >
+              <Camera className="w-4 h-4 mr-2" />
+              Change Photo
+            </Button>
+            {profile?.hasCustomPhoto && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRemovePhoto}
+                disabled={isUploadingPhoto}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Remove
+              </Button>
+            )}
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="name" className="text-sm md:text-base">Name</Label>
           <Input

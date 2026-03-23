@@ -9,12 +9,11 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { userService } from '@/services/userService';
 import { Person } from '@/types';
-import { getInitials } from '@/utils/nameUtils';
+import { UserAvatar } from '@/components/shared/UserAvatar';
 
 interface Friend {
   id?: string;
@@ -22,6 +21,7 @@ interface Friend {
   venmoId?: string;
   email?: string;
   username?: string;
+  photoURL?: string;
 }
 
 interface Props {
@@ -141,11 +141,12 @@ export function AddFromFriendsDialog({ open, onOpenChange, onAddPerson, addedPeo
                         }`}
                         onClick={() => !added && handleAddFriend(friend)}
                       >
-                        <Avatar className="h-8 w-8 shrink-0">
-                          <AvatarFallback className="text-xs font-semibold bg-primary/15 text-primary">
-                            {getInitials(friend.name)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar
+                          name={friend.name}
+                          photoURL={friend.photoURL}
+                          size="sm"
+                          fallbackClassName="text-xs font-semibold bg-primary/15 text-primary"
+                        />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{friend.name}</p>
                           {friend.venmoId && (

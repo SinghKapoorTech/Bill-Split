@@ -57,7 +57,10 @@
       "WebFetch(domain:feedback.splitwise.com)",
       "WebFetch(domain:uxplanet.org)",
       "WebFetch(domain:medium.muz.li)",
-      "WebFetch(domain:blog.splitwise.com)"
+      "WebFetch(domain:blog.splitwise.com)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(grep -r \"0.001\\\\|0.01\\\\|Math.abs\" functions/src/*.ts)",
+      "Bash(xargs head:*)"
     ],
     "deny": [],
     "ask": []

@@ -95,6 +95,10 @@ function EventBalancesSection({
         ? 'owes-you'
         : 'neutral';
 
+    // Resolve friend photo from member profiles
+    const friendUserId = isCurrentUserPaying ? debt.toUserId : isCurrentUserReceiving ? debt.fromUserId : undefined;
+    const friendPhoto = friendUserId ? memberProfiles[friendUserId]?.photoURL : undefined;
+
     return (
       <BalanceListRow
         key={idx}
@@ -102,6 +106,7 @@ function EventBalancesSection({
         toLabel={toName}
         amount={debt.amount}
         direction={direction}
+        friendPhotoURL={friendPhoto}
         action={isCurrentUserInvolved ? {
           label: isCurrentUserPaying ? 'Pay' : 'Settle',
           variant: isCurrentUserPaying ? 'default' : 'secondary',
@@ -111,6 +116,7 @@ function EventBalancesSection({
               name: isCurrentUserPaying ? toName : fromName,
               amount: debt.amount,
               isPaying: isCurrentUserPaying,
+              photoURL: friendPhoto,
             });
           }
         } : undefined}
@@ -534,6 +540,7 @@ export default function EventDetailView() {
           isPaying={settleTarget.isPaying}
           balanceAmount={settleTarget.amount}
           eventId={eventId}
+          targetUserPhotoURL={settleTarget.photoURL}
           onSuccess={() => {
             setSettleTarget(null);
           }}

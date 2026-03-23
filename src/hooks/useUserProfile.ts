@@ -110,10 +110,36 @@ export function useUserProfile() {
     }
   };
 
+  const updatePhotoURL = async (photoURL: string | null, hasCustomPhoto: boolean) => {
+    if (!user || !profile) return;
+
+    try {
+      const docRef = doc(db, 'users', user.uid);
+      const updates: Record<string, unknown> = { hasCustomPhoto };
+      if (photoURL) {
+        updates.photoURL = photoURL;
+      } else {
+        // Clear to OAuth photo or empty
+        updates.photoURL = user.photoURL || '';
+        updates.hasCustomPhoto = false;
+      }
+
+      await setDoc(docRef, updates, { merge: true });
+    } catch (error: unknown) {
+      console.error('Error updating photo:', error);
+      toast({
+        title: 'Error updating photo',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+    }
+  };
+
   return {
     profile,
     loading,
     updateVenmoId,
     updateFriends,
+    updatePhotoURL,
   };
 }

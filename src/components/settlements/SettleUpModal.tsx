@@ -8,8 +8,8 @@ import { settlementService } from '@/services/settlementService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowRight, Banknote, ExternalLink } from 'lucide-react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { VenmoChargeDialog } from '@/components/venmo/VenmoChargeDialog';
+import { UserAvatar } from '@/components/shared/UserAvatar';
 import { VenmoCharge } from '@/types';
 import { userService } from '@/services/userService';
 
@@ -18,6 +18,7 @@ export interface SettleTarget {
   name: string;
   amount: number;
   isPaying: boolean;
+  photoURL?: string;
 }
 
 interface SettleUpModalProps {
@@ -28,6 +29,7 @@ interface SettleUpModalProps {
   isPaying: boolean;
   balanceAmount: number;
   eventId?: string;
+  targetUserPhotoURL?: string;
   onSuccess?: () => void;
 }
 
@@ -54,6 +56,7 @@ export function SettleUpModal({
   isPaying,
   balanceAmount,
   eventId,
+  targetUserPhotoURL,
   onSuccess
 }: SettleUpModalProps) {
   const { user } = useAuth();
@@ -121,8 +124,9 @@ export function SettleUpModal({
   const myName = user?.displayName?.split(' ')[0] || 'You';
   const fromName = isPaying ? myName : targetUserName.split(' ')[0];
   const toName = isPaying ? targetUserName.split(' ')[0] : myName;
-  const fromInitials = fromName.substring(0, 2).toUpperCase();
-  const toInitials = toName.substring(0, 2).toUpperCase();
+  const myPhotoURL = user?.photoURL;
+  const fromPhotoURL = isPaying ? myPhotoURL : targetUserPhotoURL;
+  const toPhotoURL = isPaying ? targetUserPhotoURL : myPhotoURL;
 
   return (
     <>
@@ -137,22 +141,26 @@ export function SettleUpModal({
             {/* Avatar flow */}
             <div className="flex items-center justify-center gap-3 mb-5">
               <div className="flex flex-col items-center gap-1">
-                <Avatar className={`w-12 h-12 border-2 ${isPaying ? 'border-destructive/30' : 'border-muted'}`}>
-                  <AvatarFallback className={`text-sm font-semibold ${isPaying ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
-                    {fromInitials}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar
+                  name={fromName}
+                  photoURL={fromPhotoURL}
+                  size="lg"
+                  className={`w-12 h-12 border-2 ${isPaying ? 'border-destructive/30' : 'border-muted'}`}
+                  fallbackClassName={`text-sm font-semibold ${isPaying ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}
+                />
                 <span className="text-xs text-muted-foreground">{fromName}</span>
               </div>
               <div className="flex flex-col items-center pb-4">
                 <ArrowRight className={`w-5 h-5 ${isPaying ? 'text-destructive' : 'text-green-600'}`} />
               </div>
               <div className="flex flex-col items-center gap-1">
-                <Avatar className={`w-12 h-12 border-2 ${!isPaying ? 'border-green-500/30' : 'border-muted'}`}>
-                  <AvatarFallback className={`text-sm font-semibold ${!isPaying ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}>
-                    {toInitials}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar
+                  name={toName}
+                  photoURL={toPhotoURL}
+                  size="lg"
+                  className={`w-12 h-12 border-2 ${!isPaying ? 'border-green-500/30' : 'border-muted'}`}
+                  fallbackClassName={`text-sm font-semibold ${!isPaying ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}
+                />
                 <span className="text-xs text-muted-foreground">{toName}</span>
               </div>
             </div>

@@ -92,6 +92,7 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
                     toLabel={toLabel}
                     amount={amount}
                     direction={direction}
+                    friendPhotoURL={friend.photoURL}
                     action={hasBalance && friend.id ? {
                       label: youOwe ? 'Pay' : 'Settle',
                       variant: youOwe ? 'default' : 'secondary',
@@ -100,6 +101,7 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
                         name: friend.name,
                         amount,
                         isPaying: !!youOwe,
+                        photoURL: friend.photoURL,
                       }),
                     } : undefined}
                     onClick={() => {
@@ -145,6 +147,7 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
           targetUserName={settleTarget.name}
           isPaying={settleTarget.isPaying}
           balanceAmount={settleTarget.amount}
+          targetUserPhotoURL={settleTarget.photoURL}
           onSuccess={() => { setSettleTarget(null); refreshBalances(); }}
         />
       )}

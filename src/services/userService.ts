@@ -100,7 +100,8 @@ export const userService = {
         lastLoginAt: now,
         email: user.email || '',
         displayName: user.displayName || 'User',
-        ...(user.photoURL && { photoURL: user.photoURL }),
+        // Only update photoURL from OAuth if user hasn't uploaded a custom photo
+        ...(user.photoURL && !existingData.hasCustomPhoto && { photoURL: user.photoURL }),
       };
 
       if (user.phoneNumber) {
@@ -235,6 +236,7 @@ export const userService = {
           email: friendProfile.email,
           username: friendProfile.username,
           venmoId: friendProfile.venmoId,
+          photoURL: friendProfile.photoURL,
           balance: includeBalances ? (balanceMap[friendId] ?? 0) : 0,
         });
       }
@@ -405,6 +407,7 @@ export const userService = {
           email: profile.email,
           username: profile.username,
           venmoId: profile.venmoId,
+          photoURL: profile.photoURL,
           balance: balanceMap[relatedId] ?? 0,
         });
       }

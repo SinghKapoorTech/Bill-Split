@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { UI_TEXT, SUCCESS_MESSAGES } from '@/utils/uiConstants';
 import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
 import { AddPersonDialog } from '@/components/people/AddPersonDialog';
+import { UserAvatar } from '@/components/shared/UserAvatar';
 
 export function ManageFriendsCard() {
   const {
@@ -166,6 +167,12 @@ export function ManageFriendsCard() {
                         </>
                       ) : (
                         <>
+                          <UserAvatar
+                            name={friend.name}
+                            photoURL={friend.photoURL}
+                            size="sm"
+                            className="shrink-0"
+                          />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm md:text-base font-medium truncate">{friend.name}</p>
                             {friend.balance && friend.balance !== 0 ? (
@@ -188,6 +195,7 @@ export function ManageFriendsCard() {
                                   name: friend.name,
                                   amount: Math.abs(friend.balance as number),
                                   isPaying: friend.balance! < 0,
+                                  photoURL: friend.photoURL,
                                 })}
                               >
                                 Settle Up
@@ -297,6 +305,7 @@ export function ManageFriendsCard() {
           targetUserName={settleTarget.name}
           isPaying={settleTarget.isPaying}
           balanceAmount={settleTarget.amount}
+          targetUserPhotoURL={settleTarget.photoURL}
           onSuccess={() => {
             setSettleTarget(null);
             refreshFriends();

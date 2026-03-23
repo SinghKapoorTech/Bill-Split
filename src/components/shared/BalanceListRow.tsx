@@ -1,7 +1,7 @@
 import React from 'react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ChevronRight } from 'lucide-react';
+import { UserAvatar } from '@/components/shared/UserAvatar';
 
 export type BalanceDirection = 'you-owe' | 'owes-you' | 'neutral';
 
@@ -25,6 +25,8 @@ export interface BalanceListRowProps {
     onClick: () => void;
     variant?: 'default' | 'secondary';
   };
+  /** Photo URL for the friend avatar */
+  friendPhotoURL?: string;
   /** Optional onClick handler for the whole row */
   onClick?: () => void;
 }
@@ -34,12 +36,12 @@ export function BalanceListRow({
   toLabel,
   amount,
   direction,
+  friendPhotoURL,
   action,
   onClick,
 }: BalanceListRowProps) {
   const isYouFrom = fromLabel.toLowerCase() === 'you';
   const friendLabel = isYouFrom ? toLabel : fromLabel;
-  const friendInitials = friendLabel.substring(0, 2).toUpperCase();
 
   const isSettled = amount === 0;
 
@@ -107,11 +109,13 @@ export function BalanceListRow({
       onClick={onClick}
     >
       <div className="flex items-center gap-2.5">
-        <Avatar className="w-8 h-8 border-2 border-background shadow-sm">
-          <AvatarFallback className={`text-xs ${friendFallbackClass}`}>
-            {friendInitials}
-          </AvatarFallback>
-        </Avatar>
+        <UserAvatar
+          name={friendLabel}
+          photoURL={friendPhotoURL}
+          size="sm"
+          className="border-2 border-background shadow-sm"
+          fallbackClassName={friendFallbackClass}
+        />
         <div className="flex flex-col">
           <span className="text-sm">{owesText}</span>
           <span className={`text-xs ${amountClass}`}>{amountFormatted}</span>
