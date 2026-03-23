@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   doc,
   onSnapshot,
@@ -90,15 +90,20 @@ export function useBillSession(billId: string | null) {
   }, [session?.eventId, user]);
 
   /**
-   * Updates the bill
-   * @param updates - Partial bill data to update
+   * Updates the bill with debouncing to reduce Firestore writes.
+   * Rapid sequential calls merge their updates and flush after 400ms of inactivity.
+   * toggleAssignment is NOT debounced (uses atomic arrayUnion/arrayRemove).
    */
-  const updateSession = useCallback(
-    async (updates: Partial<Bill>) => {
-      if (!billId) return;
+  const pendingUpdatesRef = useRef<Partial<Bill>>({});
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
+  const flushPendingUpdates = useCallback(
+    async () => {
+      const toSend = pendingUpdatesRef.current;
+      pendingUpdatesRef.current = {};
+      if (!billId || Object.keys(toSend).length === 0) return;
       try {
-        await billService.updateBill(billId, updates);
+        await billService.updateBill(billId, toSend);
       } catch (error) {
         console.error('Error updating session:', error);
         toast({
@@ -109,6 +114,31 @@ export function useBillSession(billId: string | null) {
       }
     },
     [billId, toast]
+  );
+
+  // Flush pending updates on unmount or billId change
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = undefined;
+        flushPendingUpdates();
+      }
+    };
+  }, [flushPendingUpdates]);
+
+  const updateSession = useCallback(
+    (updates: Partial<Bill>) => {
+      if (!billId) return;
+      pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...updates };
+
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = undefined;
+        flushPendingUpdates();
+      }, 400);
+    },
+    [billId, flushPendingUpdates]
   );
 
   /**

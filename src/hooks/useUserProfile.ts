@@ -36,7 +36,8 @@ export function useUserProfile() {
           friends: [],
           squadIds: [],
           createdAt: now,
-          lastLoginAt: now
+          lastLoginAt: now,
+          ...(user.photoURL && { photoURL: user.photoURL }),
         };
         await setDoc(docRef, newProfile);
         // The onSnapshot will fire again after the setDoc, no need to setState here

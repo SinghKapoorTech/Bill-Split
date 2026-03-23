@@ -8,6 +8,7 @@ export interface FriendSuggestion {
   venmoId?: string;
   email?: string;
   username?: string;
+  photoURL?: string;
 }
 
 export function useFriendSearch(searchQuery: string) {
@@ -95,7 +96,8 @@ export function useFriendSearch(searchQuery: string) {
                 name: globalUser.displayName || 'App User',
                 venmoId: globalUser.venmoId,
                 email: globalUser.email,
-                username: globalUser.username
+                username: globalUser.username,
+                photoURL: globalUser.photoURL,
               });
             }
           }

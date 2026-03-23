@@ -7,6 +7,13 @@
 import type { PersonTotal } from './types.js';
 
 /**
+ * Threshold below which a balance is considered zero.
+ * Sub-cent amounts are rounding noise and should not create balance entries
+ * or block settlements. Used consistently across ledger pipeline and settlement processors.
+ */
+export const BALANCE_THRESHOLD = 0.005;
+
+/**
  * Normalizes "user-{uid}" format to a raw Firebase UID.
  * If the ID doesn't have the prefix, returns it as-is.
  */

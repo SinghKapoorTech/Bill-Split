@@ -10,10 +10,9 @@ import {
   DialogTrigger,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { getInitials } from '@/utils/nameUtils';
+import { UserAvatar } from '@/components/shared/UserAvatar';
 
 interface Friend {
   id?: string;
@@ -21,6 +20,7 @@ interface Friend {
   venmoId?: string;
   email?: string;
   username?: string;
+  photoURL?: string;
 }
 
 interface AddPersonDialogProps {
@@ -138,11 +138,13 @@ export function AddPersonDialog({
                         onClick={() => handleSelect(friend)}
                         className="w-full text-left flex items-center p-2 rounded-md border border-border/40 bg-card hover:border-primary/30 hover:bg-accent/50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all mb-1.5 cursor-pointer h-12"
                       >
-                        <Avatar className="h-8 w-8 mr-3 flex-shrink-0">
-                          <AvatarFallback className="text-xs font-semibold bg-primary/15 text-primary">
-                            {getInitials(friend.name)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar
+                          name={friend.name}
+                          photoURL={friend.photoURL}
+                          size="sm"
+                          className="mr-3 flex-shrink-0"
+                          fallbackClassName="text-xs font-semibold bg-primary/15 text-primary"
+                        />
                         
                         <div className="flex flex-col flex-1 overflow-hidden">
                           <span className="text-sm font-medium truncate">{friend.name}</span>

@@ -5,6 +5,7 @@ import {
   getFriendBalanceId,
   calculateFriendFootprint,
   toSingleBalance,
+  BALANCE_THRESHOLD,
 } from '../../shared/ledgerCalculations.js';
 
 const BILLS_COLLECTION = 'bills';
@@ -109,7 +110,7 @@ export const createBill = onCall(
 
       // 2. Update balances atomically
       for (const [friendId, amount] of Object.entries(newFootprint)) {
-        if (Math.abs(amount) < 0.001) continue;
+        if (Math.abs(amount) < BALANCE_THRESHOLD) continue;
 
         const balanceId = getFriendBalanceId(creditorId, friendId);
         const balanceRef = db.collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);

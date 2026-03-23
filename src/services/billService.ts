@@ -199,52 +199,73 @@ export const billService = {
   async updateBill(billId: string, updates: Partial<Bill>): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
 
-    // If people is being updated, automatically re-derive participantIds.
-    // Callers never need to think about keeping participantIds in sync.
+    // If people is being updated, use a transaction to atomically read
+    // existing participantIds and merge with derived ones. This prevents
+    // race conditions where a guest joining via arrayUnion gets overwritten.
     if (updates.people && Array.isArray(updates.people)) {
-      const billSnap = await getDoc(billRef);
-      const billData = billSnap.data();
-      const ownerId = updates.ownerId ?? billData?.ownerId;
-      if (ownerId) {
-        const derived = extractParticipantIds(ownerId, updates.people);
+      try {
+        await runTransaction(db, async (transaction) => {
+          const billSnap = await transaction.get(billRef);
+          const billData = billSnap.data();
+          const ownerId = updates.ownerId ?? billData?.ownerId;
 
-        // Merge with existing participantIds to prevent race conditions
-        // (e.g., a user joined via joinBill's arrayUnion while owner was editing)
-        const existingParticipantIds: string[] = billData?.participantIds || [];
+          let finalUpdates = { ...updates };
 
-        // Also include UIDs from members array (share-link joiners)
-        const memberUids = (billData?.members || [])
-          .filter((m: any) => !m.isAnonymous && m.userId)
-          .map((m: any) => m.userId);
+          if (ownerId) {
+            const derived = extractParticipantIds(ownerId, updates.people!);
 
-        const merged = Array.from(new Set([...existingParticipantIds, ...derived, ...memberUids]));
+            // Merge with existing participantIds (includes guests who joined via arrayUnion)
+            const existingParticipantIds: string[] = billData?.participantIds || [];
 
-        // Compute unsettledParticipantIds preserving settled users.
-        const settledPersonIds = new Set<string>(billData?.settledPersonIds || []);
-        const settledUids = new Set<string>(
-          (billData?.people || [])
-            .filter((p: Person) => settledPersonIds.has(p.id))
-            .map((p: Person) => p.id.startsWith('user-') ? p.id.slice(5) : p.id)
-        );
-        const unsettledDerived = merged.filter(uid => !settledUids.has(uid));
+            // Also include UIDs from members array (share-link joiners)
+            const memberUids = (billData?.members || [])
+              .filter((m: any) => !m.isAnonymous && m.userId)
+              .map((m: any) => m.userId);
 
-        updates = { ...updates, participantIds: merged, unsettledParticipantIds: unsettledDerived };
+            const merged = Array.from(new Set([...existingParticipantIds, ...derived, ...memberUids]));
+
+            // Compute unsettledParticipantIds preserving settled users.
+            const settledPersonIds = new Set<string>(billData?.settledPersonIds || []);
+            const settledUids = new Set<string>(
+              (billData?.people || [])
+                .filter((p: Person) => settledPersonIds.has(p.id))
+                .map((p: Person) => p.id.startsWith('user-') ? p.id.slice(5) : p.id)
+            );
+            const unsettledDerived = merged.filter(uid => !settledUids.has(uid));
+
+            finalUpdates = { ...finalUpdates, participantIds: merged, unsettledParticipantIds: unsettledDerived };
+          }
+
+          const cleanedUpdates = removeUndefinedFields({
+            ...finalUpdates,
+            updatedAt: serverTimestamp(),
+            lastActivity: serverTimestamp()
+          });
+
+          transaction.update(billRef, cleanedUpdates);
+        });
+      } catch (error) {
+        console.error('FAILED TO SAVE BILL:', error);
+        console.error('Bill ID:', billId);
+        console.error('Update Payload Keys:', Object.keys(updates));
+        throw error;
       }
-    }
+    } else {
+      // No people update — simple updateDoc (no race risk for participantIds)
+      const cleanedUpdates = removeUndefinedFields({
+        ...updates,
+        updatedAt: serverTimestamp(),
+        lastActivity: serverTimestamp()
+      });
 
-    const cleanedUpdates = removeUndefinedFields({
-      ...updates,
-      updatedAt: serverTimestamp(),
-      lastActivity: serverTimestamp()
-    });
-
-    try {
-      await updateDoc(billRef, cleanedUpdates);
-    } catch (error) {
-      console.error('FAILED TO SAVE BILL:', error);
-      console.error('Bill ID:', billId);
-      console.error('Update Payload Keys:', Object.keys(cleanedUpdates));
-      throw error;
+      try {
+        await updateDoc(billRef, cleanedUpdates);
+      } catch (error) {
+        console.error('FAILED TO SAVE BILL:', error);
+        console.error('Bill ID:', billId);
+        console.error('Update Payload Keys:', Object.keys(cleanedUpdates));
+        throw error;
+      }
     }
   },
 

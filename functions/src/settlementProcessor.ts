@@ -18,7 +18,7 @@
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { getFriendBalanceId } from '../../shared/ledgerCalculations.js';
+import { getFriendBalanceId, BALANCE_THRESHOLD } from '../../shared/ledgerCalculations.js';
 
 let _db: ReturnType<typeof getFirestore> | null = null;
 function db() {
@@ -39,6 +39,7 @@ export interface SettleRequest {
 export interface SettleResult {
   settlementId: string;
   billsSettled: number;
+  billsSkipped: number;
   amountSettled: number;
 }
 
@@ -95,6 +96,7 @@ export async function processSettlementCore(
 
   let billsSettled = 0;
   let amountSettled = 0;
+  const skippedBillIds: string[] = [];
 
   await db().runTransaction(async (tx) => {
     // 1. Read balances
@@ -107,7 +109,7 @@ export async function processSettlementCore(
     const currentBalance: number = balanceData.balance ?? 0;
     const unsettledBillIds: string[] = balanceData.unsettledBillIds ?? [];
 
-    if (Math.abs(currentBalance) < 0.01 && unsettledBillIds.length === 0) {
+    if (Math.abs(currentBalance) < BALANCE_THRESHOLD && unsettledBillIds.length === 0) {
       return; // Already settled
     }
 
@@ -140,7 +142,15 @@ export async function processSettlementCore(
 
       // Find the debtor's person ID in this bill
       const debtorPersonId = findPersonId(people, debtorUid);
-      if (!debtorPersonId) continue;
+      if (!debtorPersonId) {
+        logger.warn('Settlement: could not find debtor in bill people array', {
+          billId: unsettledBillIds[i],
+          debtorUid,
+          peopleIds: people.map((p: { id: string }) => p.id),
+        });
+        skippedBillIds.push(unsettledBillIds[i]);
+        continue;
+      }
 
       // Skip if already settled
       if ((bill.settledPersonIds ?? []).includes(debtorPersonId)) continue;
@@ -175,13 +185,14 @@ export async function processSettlementCore(
       toUserId: creditorUid,
       amount: amountSettled,
       settledBillIds,
+      ...(skippedBillIds.length > 0 && { skippedBillIds }),
       date: now,
     });
   });
 
-  if (billsSettled === 0 && amountSettled < 0.01) {
+  if (billsSettled === 0 && amountSettled < BALANCE_THRESHOLD) {
     logger.info('Nothing to settle', { callerId, friendUserId, balanceId });
-    return { settlementId: '', billsSettled: 0, amountSettled: 0 };
+    return { settlementId: '', billsSettled: 0, billsSkipped: 0, amountSettled: 0 };
   }
 
   logger.info('Settlement processed', {
@@ -189,12 +200,14 @@ export async function processSettlementCore(
     callerId,
     friendUserId,
     billsSettled,
+    billsSkipped: skippedBillIds.length,
     amountSettled,
   });
 
   return {
     settlementId: settlementRef.id,
     billsSettled,
+    billsSkipped: skippedBillIds.length,
     amountSettled,
   };
 }

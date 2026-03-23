@@ -19,7 +19,7 @@
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { getEventBalanceId } from '../../shared/ledgerCalculations.js';
+import { getEventBalanceId, BALANCE_THRESHOLD } from '../../shared/ledgerCalculations.js';
 
 let _db: ReturnType<typeof getFirestore> | null = null;
 function db() {
@@ -41,6 +41,7 @@ export interface EventSettleRequest {
 export interface EventSettleResult {
   settlementId: string;
   billsSettled: number;
+  billsSkipped: number;
   amountSettled: number;
 }
 
@@ -95,6 +96,7 @@ export async function processEventSettlementCore(
 
   let billsSettled = 0;
   let amountSettled = 0;
+  const skippedBillIds: string[] = [];
 
   await db().runTransaction(async (tx) => {
     // 1. Read event pair balance
@@ -107,7 +109,7 @@ export async function processEventSettlementCore(
     const currentBalance: number = balanceData.balance ?? 0;
     const unsettledBillIds: string[] = balanceData.unsettledBillIds ?? [];
 
-    if (Math.abs(currentBalance) < 0.01 && unsettledBillIds.length === 0) {
+    if (Math.abs(currentBalance) < BALANCE_THRESHOLD && unsettledBillIds.length === 0) {
       return; // Already settled
     }
 
@@ -124,10 +126,9 @@ export async function processEventSettlementCore(
     const billSnaps = await Promise.all(billRefs.map(ref => tx.get(ref)));
 
     // 3. Mark each bill as settled for the debtor.
-    //    Zero processedEventBalances[debtorUid] to prevent ledgerProcessor
-    //    from re-applying a delta to event_balances.
-    //    Do NOT touch processedBalances — the ledgerProcessor will fire
-    //    and update balances automatically (flow-through).
+    //    Zero both processedEventBalances[debtorUid] and processedBalances[debtorUid]
+    //    to prevent the ledgerProcessor from re-applying stale deltas when it
+    //    fires from the settledPersonIds change.
     const settledBillIds: string[] = [];
     const now = Timestamp.now();
 
@@ -139,12 +140,25 @@ export async function processEventSettlementCore(
       const people = bill.people ?? [];
 
       const debtorPersonId = findPersonId(people, debtorUid);
-      if (!debtorPersonId) continue;
+      if (!debtorPersonId) {
+        logger.warn('Event settlement: could not find debtor in bill people array', {
+          billId: unsettledBillIds[i],
+          debtorUid,
+          eventId,
+          peopleIds: people.map((p: { id: string }) => p.id),
+        });
+        skippedBillIds.push(unsettledBillIds[i]);
+        continue;
+      }
 
       // Skip if already settled
       if ((bill.settledPersonIds ?? []).includes(debtorPersonId)) continue;
 
-      // Zero this participant's processedEventBalances entry
+      // Zero this participant's processedBalances and processedEventBalances entries
+      const currentProcessed: Record<string, number> = bill.processedBalances ?? {};
+      const updatedProcessed = { ...currentProcessed };
+      delete updatedProcessed[debtorUid];
+
       const currentProcessedEvent: Record<string, number> = bill.processedEventBalances ?? {};
       const updatedProcessedEvent = { ...currentProcessedEvent };
       delete updatedProcessedEvent[debtorUid];
@@ -152,6 +166,7 @@ export async function processEventSettlementCore(
       tx.update(billRefs[i], {
         settledPersonIds: FieldValue.arrayUnion(debtorPersonId),
         unsettledParticipantIds: FieldValue.arrayRemove(debtorUid),
+        processedBalances: updatedProcessed,
         processedEventBalances: updatedProcessedEvent,
       });
 
@@ -173,14 +188,15 @@ export async function processEventSettlementCore(
       toUserId: creditorUid,
       amount: amountSettled,
       settledBillIds,
+      ...(skippedBillIds.length > 0 && { skippedBillIds }),
       eventId,
       date: now,
     });
   });
 
-  if (billsSettled === 0 && amountSettled < 0.01) {
+  if (billsSettled === 0 && amountSettled < BALANCE_THRESHOLD) {
     logger.info('Nothing to settle (event)', { callerId, friendUserId, eventId, balanceId });
-    return { settlementId: '', billsSettled: 0, amountSettled: 0 };
+    return { settlementId: '', billsSettled: 0, billsSkipped: 0, amountSettled: 0 };
   }
 
   logger.info('Event settlement processed', {
@@ -189,12 +205,14 @@ export async function processEventSettlementCore(
     friendUserId,
     eventId,
     billsSettled,
+    billsSkipped: skippedBillIds.length,
     amountSettled,
   });
 
   return {
     settlementId: settlementRef.id,
     billsSettled,
+    billsSkipped: skippedBillIds.length,
     amountSettled,
   };
 }

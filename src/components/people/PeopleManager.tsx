@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Users, UserPlus, UsersRound } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Person } from '@/types';
@@ -8,6 +8,7 @@ import { AddFromFriendsDialog } from './AddFromFriendsDialog';
 import { Button } from '@/components/ui/button';
 import { AddFromSquadDialog } from '@/components/squads/AddFromSquadDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import { convertSquadMembersToPeople } from '@/utils/squadUtils';
 import { SquadMember } from '@/types/squad.types';
 import { generateUserId } from '@/utils/billCalculations';
@@ -19,6 +20,7 @@ interface Friend {
   venmoId?: string;
   email?: string;
   username?: string;
+  photoURL?: string;
 }
 
 interface Props {
@@ -55,11 +57,32 @@ export function PeopleManager({
   children
 }: Props) {
   const { user } = useAuth();
+  const { profile } = useUserProfile();
   const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
   const [friendsDialogOpen, setFriendsDialogOpen] = useState(false);
   const [squadDialogOpen, setSquadDialogOpen] = useState(false);
 
   const { friends, filteredFriends, setShowSuggestions, loadFriends } = useFriendSearch(newPersonName);
+
+  // Build a photo lookup map from friends list + current user
+  const photoMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    // Add current user's photo
+    if (user?.uid) {
+      const photoURL = profile?.photoURL || user.photoURL;
+      if (photoURL) {
+        map[user.uid] = photoURL;
+        map[generateUserId(user.uid)] = photoURL;
+      }
+    }
+    // Add friends' photos
+    for (const friend of friends) {
+      if (friend.id && friend.photoURL) {
+        map[friend.id] = friend.photoURL;
+      }
+    }
+    return map;
+  }, [user, profile?.photoURL, friends]);
 
   const handleSelectFriend = (friend: Friend) => {
     onAddFromFriend(friend);
@@ -153,6 +176,7 @@ export function PeopleManager({
               <PersonCard
                 key={person.id}
                 person={person}
+                photoURL={photoMap[person.id]}
                 isCurrentUser={!!isCurrentUser}
                 isInFriends={isPersonInFriends(person)}
                 onRemove={onRemove}
