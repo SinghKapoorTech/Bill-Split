@@ -98,18 +98,18 @@ export default function MobileBillCard({
     >
       {/* Left section: Content */}
       <div className="flex items-center gap-2.5 overflow-hidden">
-        <Avatar className="w-8 h-8 border-2 border-background shadow-sm shrink-0">
+        <Avatar className="w-12 h-12 border-2 border-background shadow-sm shrink-0">
           <AvatarFallback className={
             bill.isSimpleTransaction ? "bg-amber-100 text-amber-600" :
             bill.isAirbnb ? "bg-rose-100 text-rose-600" :
             "bg-blue-100 text-blue-600"
           }>
             {bill.isSimpleTransaction ? (
-              <Zap className="w-4 h-4" />
+              <Zap className="w-6 h-6" />
             ) : bill.isAirbnb ? (
-              <Home className="w-4 h-4" />
+              <Home className="w-6 h-6" />
             ) : (
-              <Receipt className="w-4 h-4" />
+              <Receipt className="w-6 h-6" />
             )}
           </AvatarFallback>
         </Avatar>

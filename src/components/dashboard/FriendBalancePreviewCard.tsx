@@ -55,11 +55,11 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
           ) : previewFriends.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
               <motion.div
-                className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center mb-3"
+                className="w-[4.5rem] h-[4.5rem] bg-emerald-500/10 rounded-full flex items-center justify-center mb-3"
                 animate={{ y: [0, -8, 0] }}
                 transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
               >
-                <Users className="w-6 h-6 text-emerald-600" />
+                <Users className="w-8 h-8 text-emerald-600" />
               </motion.div>
               <motion.h3
                 className="font-semibold text-foreground mb-1"

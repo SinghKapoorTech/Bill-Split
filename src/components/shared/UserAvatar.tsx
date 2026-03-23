@@ -3,9 +3,9 @@ import { getInitials } from '@/utils/nameUtils';
 import { cn } from '@/lib/utils';
 
 const sizeClasses = {
-  sm: 'h-8 w-8 text-xs',
-  md: 'h-10 w-10 text-sm',
-  lg: 'h-16 w-16 text-lg',
+  sm: 'h-12 w-12 text-sm',
+  md: 'h-14 w-14 text-base',
+  lg: 'h-20 w-20 text-xl',
 } as const;
 
 interface UserAvatarProps {
