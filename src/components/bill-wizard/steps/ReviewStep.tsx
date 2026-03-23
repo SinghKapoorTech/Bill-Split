@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { billService } from '@/services/billService';
 import { arrayUnion, arrayRemove } from 'firebase/firestore';
+import { SplitDonutChart } from '@/components/shared/SplitDonutChart';
 
 export interface ReceiptThumbnailProps {
     imagePreview: string | null;
@@ -112,6 +113,13 @@ export function ReviewStep({
                         onImageSelected={receipt.onImageSelected}
                         onAnalyze={receipt.onAnalyze}
                         onRemoveImage={receipt.onRemoveImage}
+                    />
+                )}
+
+                {allItemsAssigned && personTotals.length > 1 && billData && (
+                    <SplitDonutChart
+                        personTotals={personTotals}
+                        total={billData.total}
                     />
                 )}
 

@@ -7,6 +7,7 @@ import { billService } from "@/services/billService";
 import { arrayUnion, arrayRemove } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { SplitMethod } from "../SplitMethodSelector";
+import { SplitDonutChart } from "@/components/shared/SplitDonutChart";
 
 interface ReviewStepProps {
   amount: string;
@@ -134,6 +135,13 @@ export function ReviewStep({
 
   return (
     <div className="flex flex-col gap-6 p-4 max-w-md mx-auto w-full">
+
+      {personTotals.length > 1 && (
+        <SplitDonutChart
+          personTotals={personTotals}
+          total={numAmount}
+        />
+      )}
 
       <div className="w-full">
         <SplitSummary

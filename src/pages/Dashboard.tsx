@@ -32,6 +32,7 @@ import { FriendBalancePreviewCard } from '@/components/dashboard/FriendBalancePr
 import { useActiveBalances } from '@/hooks/useActiveBalances';
 import { PullToRefresh } from '@/components/layout/PullToRefresh';
 import { Separator } from '@/components/ui/separator';
+import { motion } from 'framer-motion';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -231,7 +232,7 @@ export default function Dashboard() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
-      <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl">
+      <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl animate-fade-in">
         {/* Header - added dashboard-header class for mobile CSS targeting */}
         <div className="dashboard-header mb-4 md:mb-8">
           <h1 className="text-3xl md:text-4xl font-bold mb-2">
@@ -244,45 +245,51 @@ export default function Dashboard() {
             <div className="flex-1 flex items-center justify-center">
               <Card className="p-4 md:p-6 overflow-hidden w-full max-w-2xl">
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <motion.div
+                    className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4"
+                    animate={{ y: [0, -8, 0] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                  >
                     <ReceiptText className="w-6 h-6 text-primary" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-1">Make your first bill</h3>
-                  <p className="text-sm text-muted-foreground mb-6">Split expenses, record simple transactions, or start a group trip to effortlessly track who owes what.</p>
+                  </motion.div>
+                  <motion.h3
+                    className="font-semibold text-lg mb-1"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1, duration: 0.3 }}
+                  >
+                    Make your first bill
+                  </motion.h3>
+                  <motion.p
+                    className="text-sm text-muted-foreground mb-6"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, duration: 0.3 }}
+                  >
+                    Split expenses, record simple transactions, or start a group trip to effortlessly track who owes what.
+                  </motion.p>
 
                   <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-border border rounded-lg">
-                    <button
-                      className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-primary/5 transition-colors group"
-                      onClick={handleNewBill}
-                    >
-                      <ReceiptText className="w-5 h-5 text-primary" />
-                      <div className="text-left">
-                        <div className="font-medium text-sm">Standard Bill</div>
-                        <div className="text-[10px] text-muted-foreground">Scan receipt</div>
-                      </div>
-                    </button>
-
-                    <button
-                      className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-blue-500/5 transition-colors group"
-                      onClick={() => navigate('/transaction/new')}
-                    >
-                      <Zap className="w-5 h-5 text-blue-500" />
-                      <div className="text-left">
-                        <div className="font-medium text-sm">Quick Expense</div>
-                        <div className="text-[10px] text-muted-foreground">No items</div>
-                      </div>
-                    </button>
-
-                    <button
-                      className="flex-1 p-3 flex items-center justify-center gap-3 hover:bg-orange-500/5 transition-colors group"
-                      onClick={() => navigate('/events')}
-                    >
-                      <CalendarDays className="w-5 h-5 text-orange-500" />
-                      <div className="text-left">
-                        <div className="font-medium text-sm">Event / Trip</div>
-                        <div className="text-[10px] text-muted-foreground">Group bills</div>
-                      </div>
-                    </button>
+                    {[
+                      { icon: <ReceiptText className="w-5 h-5 text-primary" />, label: 'Standard Bill', sub: 'Scan receipt', onClick: handleNewBill, hoverClass: 'hover:bg-primary/5' },
+                      { icon: <Zap className="w-5 h-5 text-blue-500" />, label: 'Quick Expense', sub: 'No items', onClick: () => navigate('/transaction/new'), hoverClass: 'hover:bg-blue-500/5' },
+                      { icon: <CalendarDays className="w-5 h-5 text-orange-500" />, label: 'Event / Trip', sub: 'Group bills', onClick: () => navigate('/events'), hoverClass: 'hover:bg-orange-500/5' },
+                    ].map((item, i) => (
+                      <motion.button
+                        key={item.label}
+                        className={`flex-1 p-3 flex items-center justify-center gap-3 ${item.hoverClass} transition-colors group`}
+                        onClick={item.onClick}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 + i * 0.1, duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                      >
+                        {item.icon}
+                        <div className="text-left">
+                          <div className="font-medium text-sm">{item.label}</div>
+                          <div className="text-[10px] text-muted-foreground">{item.sub}</div>
+                        </div>
+                      </motion.button>
+                    ))}
                   </div>
                 </div>
               </Card>
@@ -318,21 +325,31 @@ export default function Dashboard() {
                           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                         </div>
                       ) : (
-                        allBills.map((bill) => (
-                          <MobileBillCard
+                        allBills.map((bill, index) => (
+                          <motion.div
                             key={bill.id}
-                            bill={bill}
-                            isLatest={bill.id === activeSession?.id}
-                            onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
-                            onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
-                            onDelete={handleDeleteBill}
-                            isResuming={isResuming}
-                            isDeleting={isDeleting}
-                            formatDate={formatDate}
-                            getBillTitle={getBillTitle}
-                            isOwner={bill.ownerId === user?.uid}
-                            currentUserId={user?.uid}
-                          />
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{
+                              duration: 0.25,
+                              delay: index * 0.05,
+                              ease: [0.4, 0, 0.2, 1],
+                            }}
+                          >
+                            <MobileBillCard
+                              bill={bill}
+                              isLatest={bill.id === activeSession?.id}
+                              onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
+                              onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
+                              onDelete={handleDeleteBill}
+                              isResuming={isResuming}
+                              isDeleting={isDeleting}
+                              formatDate={formatDate}
+                              getBillTitle={getBillTitle}
+                              isOwner={bill.ownerId === user?.uid}
+                              currentUserId={user?.uid}
+                            />
+                          </motion.div>
                         ))
                       )}
                     </div>
@@ -346,7 +363,7 @@ export default function Dashboard() {
 
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={!!billToDelete} onOpenChange={(open) => !open && setBillToDelete(null)}>
-          <AlertDialogContent>
+          <AlertDialogContent onCloseAutoFocus={(e) => e.preventDefault()}>
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure?</AlertDialogTitle>
               <AlertDialogDescription>

@@ -13,6 +13,7 @@ import {
   Zap,
   Home
 } from 'lucide-react';
+import { TiltCard } from '@/components/ui/TiltCard';
 
 interface DesktopBillCardProps {
   bill: Bill;
@@ -59,6 +60,7 @@ export default function DesktopBillCard({
   };
 
   return (
+    <TiltCard>
     <Card
       className={`desktop-bill-card py-2 hover:shadow-lg transition-all ${isLatest ? 'ring-2 ring-primary bg-primary/5' : ''
         }`}
@@ -161,5 +163,6 @@ export default function DesktopBillCard({
         </div>
       </CardContent>
     </Card>
+    </TiltCard>
   );
 }

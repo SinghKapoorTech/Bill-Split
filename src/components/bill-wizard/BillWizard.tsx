@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { billService } from '@/services/billService';
 import { useAuth } from '@/contexts/AuthContext';
@@ -165,6 +165,15 @@ export function BillWizard({
         initialStep,
         minStep: isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2)
     });
+
+    // Track step direction for directional animations (computed synchronously during render)
+    const prevStepRef = useRef(wizard.currentStep);
+    const directionRef = useRef<'forward' | 'backward'>('forward');
+    if (wizard.currentStep !== prevStepRef.current) {
+        directionRef.current = wizard.currentStep > prevStepRef.current ? 'forward' : 'backward';
+        prevStepRef.current = wizard.currentStep;
+    }
+    const stepDirection = directionRef.current;
 
     // Ensure itemAssignments are kept flawlessly in sync if splitEvenly is true
     // This covers default values, adding/removing guests, or editing items
@@ -595,7 +604,7 @@ export function BillWizard({
                 canSwipeRight={wizard.currentStep > (isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2))}
                 className={isMobile ? 'pb-[140px] relative' : ''}
             >
-                <StepContent stepKey={wizard.currentStep}>
+                <StepContent stepKey={wizard.currentStep} direction={stepDirection}>
                     {wizard.currentStep === 0 && (
                         <BillEntryStep
                             billData={billData}

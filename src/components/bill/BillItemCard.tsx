@@ -116,10 +116,11 @@ export function BillItemCard({
           return (
             <motion.div
               key={item.id}
+              layout
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.1 }}
+              transition={{ duration: 0.15, layout: { type: 'spring', stiffness: 300, damping: 30 } }}
             >
               <Card
                 className={cn(
@@ -127,7 +128,7 @@ export function BillItemCard({
                   hasAssignments
                     ? 'border-primary bg-primary/5'
                     : 'border-border hover:border-primary/30',
-                  'card-interactive'
+                  ''
                 )}
               >
                 {isEditing ? (

@@ -82,12 +82,12 @@ export const BounceAnimation = ({ children, trigger }: { children: React.ReactNo
     return (
         <motion.div
             key={trigger ? 'bounced' : 'normal'}
-            initial={trigger ? { scale: 0.8 } : false}
+            initial={trigger ? { scale: 0.95 } : false}
             animate={{ scale: 1 }}
             transition={{
                 type: 'spring',
-                stiffness: 500,
-                damping: 15,
+                stiffness: 400,
+                damping: 30,
             }}
         >
             {children}

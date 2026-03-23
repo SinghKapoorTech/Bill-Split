@@ -90,7 +90,7 @@ export default function MobileBillCard({
 
   return (
     <div
-      className="mobile-bill-item flex items-center justify-between h-[72px] px-3 bg-card border border-border shadow-sm rounded-xl hover:bg-muted/30 transition-colors cursor-pointer"
+      className="mobile-bill-item flex items-center justify-between h-[72px] px-3 glass-card rounded-xl hover:bg-muted/30 transition-colors cursor-pointer"
       onClick={handleRowClick}
       role="button"
       tabIndex={0}

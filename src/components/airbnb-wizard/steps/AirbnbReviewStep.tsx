@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { billService } from '@/services/billService';
 import { arrayUnion, arrayRemove } from 'firebase/firestore';
+import { SplitDonutChart } from '@/components/shared/SplitDonutChart';
 
 interface AirbnbReviewStepProps {
     billId?: string;
@@ -79,6 +80,13 @@ export function AirbnbReviewStep({
                         <Button variant="link" className="p-0 h-auto ml-2 text-destructive font-bold" onClick={onPrev}>Go back to fix</Button>
                     </AlertDescription>
                 </Alert>
+            )}
+
+            {allItemsAssigned && personTotals.length > 1 && (
+                <SplitDonutChart
+                    personTotals={personTotals}
+                    total={billData.total}
+                />
             )}
 
             <SplitSummary

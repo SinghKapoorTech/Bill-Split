@@ -10,6 +10,7 @@ import { ProfileSettings } from '@/components/profile/ProfileSettings';
 import { useToast } from '@/hooks/use-toast';
 import { UI_TEXT, ERROR_MESSAGES } from '@/utils/uiConstants';
 import { getAbbreviatedNames } from '@/utils/nameAbbreviation';
+import { AnimatedCounter } from '@/components/ui/AnimatedCounter';
 
 interface Props {
   personTotals: PersonTotal[];
@@ -309,9 +310,12 @@ function PersonCompactRow({
 
         {/* Right: Total Amount */}
         <div className="flex justify-end items-center shrink-0">
-          <span className={`font-bold text-lg md:text-xl tabular-nums tracking-tight ${isSettled ? 'text-green-700 dark:text-green-300 line-through' : 'text-foreground'}`}>
-            ${pt.total.toFixed(2)}
-          </span>
+          <AnimatedCounter
+            value={pt.total}
+            prefix="$"
+            decimals={2}
+            className={`font-bold text-lg md:text-xl tabular-nums tracking-tight ${isSettled ? 'text-green-700 dark:text-green-300 line-through' : 'text-foreground'}`}
+          />
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import { useActiveBalances } from '@/hooks/useActiveBalances';
 import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
 import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
 import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
+import { motion } from 'framer-motion';
 
 export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: boolean } = {}) {
   const navigate = useNavigate();
@@ -53,24 +54,46 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
             </div>
           ) : previewFriends.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-              <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center mb-3">
-                <Users className="w-6 h-6 text-emerald-600" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-1">All settled up!</h3>
-              <p className="text-sm text-muted-foreground mb-4 max-w-[200px]">
-                You have no active balances. Split a new expense to get started.
-              </p>
-              <Button
-                size="sm"
-                className="rounded-full shadow-sm"
-                onClick={() => setIsCreateDialogOpen(true)}
+              <motion.div
+                className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center mb-3"
+                animate={{ y: [0, -8, 0] }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
               >
-                Add an expense
-              </Button>
+                <Users className="w-6 h-6 text-emerald-600" />
+              </motion.div>
+              <motion.h3
+                className="font-semibold text-foreground mb-1"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.3 }}
+              >
+                All settled up!
+              </motion.h3>
+              <motion.p
+                className="text-sm text-muted-foreground mb-4 max-w-[200px]"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.3 }}
+              >
+                You have no active balances. Split a new expense to get started.
+              </motion.p>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.3 }}
+              >
+                <Button
+                  size="sm"
+                  className="rounded-full shadow-sm"
+                  onClick={() => setIsCreateDialogOpen(true)}
+                >
+                  Add an expense
+                </Button>
+              </motion.div>
             </div>
           ) : (
             <div className="flex flex-col gap-2 p-1">
-              {previewFriends.map((friend, index) => {
+              {previewFriends.map((friend, index: number) => {
                 const owesYou = friend.balance && friend.balance > 0;
                 const youOwe = friend.balance && friend.balance < 0;
                 const hasBalance = friend.balance && friend.balance !== 0;
@@ -86,30 +109,40 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
                 const amount = Math.abs(friend.balance || 0);
 
                 return (
-                  <BalanceListRow
-                    key={index}
-                    fromLabel={fromLabel}
-                    toLabel={toLabel}
-                    amount={amount}
-                    direction={direction}
-                    friendPhotoURL={friend.photoURL}
-                    action={hasBalance && friend.id ? {
-                      label: youOwe ? 'Pay' : 'Settle',
-                      variant: youOwe ? 'default' : 'secondary',
-                      onClick: () => setSettleTarget({
-                        userId: friend.id!,
-                        name: friend.name,
-                        amount,
-                        isPaying: !!youOwe,
-                        photoURL: friend.photoURL,
-                      }),
-                    } : undefined}
-                    onClick={() => {
-                      if (friend.id) {
-                        navigate(`/balances/${friend.id}`);
-                      }
+                  <motion.div
+                    key={friend.id || index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.25,
+                      delay: index * 0.05,
+                      ease: [0.4, 0, 0.2, 1],
                     }}
-                  />
+                  >
+                    <BalanceListRow
+                      fromLabel={fromLabel}
+                      toLabel={toLabel}
+                      amount={amount}
+                      direction={direction}
+                      friendPhotoURL={friend.photoURL}
+                      action={hasBalance && friend.id ? {
+                        label: youOwe ? 'Pay' : 'Settle',
+                        variant: youOwe ? 'default' : 'secondary',
+                        onClick: () => setSettleTarget({
+                          userId: friend.id!,
+                          name: friend.name,
+                          amount,
+                          isPaying: !!youOwe,
+                          photoURL: friend.photoURL,
+                        }),
+                      } : undefined}
+                      onClick={() => {
+                        if (friend.id) {
+                          navigate(`/balances/${friend.id}`);
+                        }
+                      }}
+                    />
+                  </motion.div>
                 );
               })}
             </div>

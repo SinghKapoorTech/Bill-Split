@@ -6,6 +6,7 @@ import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { usePlatform } from '@/hooks/usePlatform';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { ReceiptPreviewModal } from './ReceiptPreviewModal';
+import { ScanningOverlay } from './ScanningOverlay';
 
 interface Props {
   selectedFile: File | null;
@@ -207,6 +208,7 @@ export function ReceiptUploader({
           </div>
 
           <div className="relative rounded-lg overflow-hidden border">
+            {isAnalyzing && <ScanningOverlay />}
             {imageError ? (
               <div className="w-full h-48 md:h-80 flex flex-col items-center justify-center bg-muted text-muted-foreground">
                 <ImageIcon className="w-10 h-10 mb-2" />

@@ -64,7 +64,7 @@ export function CreateOptionsDialog({ open, onOpenChange, eventContext }: Create
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" onCloseAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="text-center text-xl font-bold pb-1">Create New</DialogTitle>
           {activeEventContext && activeEventContext.targetEventName && (

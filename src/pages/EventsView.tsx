@@ -101,7 +101,7 @@ export default function EventsView() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl mb-20">
+    <div className="container mx-auto px-4 py-8 max-w-4xl mb-20 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">Your Events</h1>

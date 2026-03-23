@@ -14,7 +14,7 @@ export default function SettingsView() {
   const [activeTab, setActiveTab] = useState(location.state?.defaultTab || 'profile');
 
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="space-y-4 md:space-y-6 animate-fade-in">
       <div className="space-y-2">
         <h2 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
           Settings

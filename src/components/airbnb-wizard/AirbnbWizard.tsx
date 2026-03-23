@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { billService } from '@/services/billService';
 import { useAuth } from '@/contexts/AuthContext';
@@ -149,6 +149,15 @@ export function AirbnbWizard({
         minStep: derivedMinStep,
         customValidator
     });
+
+    // Track step direction for directional animations (synchronous)
+    const prevStepRef = useRef(wizard.currentStep);
+    const directionRef = useRef<'forward' | 'backward'>('forward');
+    if (wizard.currentStep !== prevStepRef.current) {
+        directionRef.current = wizard.currentStep > prevStepRef.current ? 'forward' : 'backward';
+        prevStepRef.current = wizard.currentStep;
+    }
+    const stepDirection = directionRef.current;
 
     // Make sure wizard.currentStep doesn't exceed new STEPS length if we toggled split evenly
     useEffect(() => {
@@ -370,7 +379,7 @@ export function AirbnbWizard({
                 canSwipeRight={canSwipeRight()}
                 className={isMobile ? 'pb-[140px] relative' : ''}
             >
-                <StepContent stepKey={wizard.currentStep}>
+                <StepContent stepKey={wizard.currentStep} direction={stepDirection}>
                     {wizard.currentStep === 0 && (
                         <AirbnbEntryStep
                             billData={billData}

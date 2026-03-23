@@ -179,24 +179,43 @@ interface StepContentProps {
   children: React.ReactNode;
   className?: string;
   stepKey?: string | number; // Unique key for AnimatePresence
+  direction?: 'forward' | 'backward'; // Direction of step navigation
 }
 
 /**
  * StepContent - Animated wrapper for wizard step content
- * Uses Y-axis movement with subtle scale for premium feel
- * Material Design easing curve for smooth, natural motion
+ * Uses directional X-axis movement: forward slides left-to-right, backward reverses
+ * Falls back to Y-axis if no direction provided
  */
-export function StepContent({ children, className, stepKey }: StepContentProps) {
+export function StepContent({ children, className, stepKey, direction }: StepContentProps) {
+  // Forward (Next): old exits left, new enters from right
+  // Backward (Back): old exits right, new enters from left
+  const variants = {
+    enter: (dir: string) => ({
+      opacity: 0,
+      x: dir === 'forward' ? 50 : dir === 'backward' ? -50 : 0,
+      y: dir ? 0 : 12,
+    }),
+    center: { opacity: 1, x: 0, y: 0 },
+    exit: (dir: string) => ({
+      opacity: 0,
+      x: dir === 'forward' ? -50 : dir === 'backward' ? 50 : 0,
+      y: dir ? 0 : -8,
+    }),
+  };
+
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence mode="wait" custom={direction}>
       <motion.div
         key={stepKey}
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
+        custom={direction}
+        variants={variants}
+        initial="enter"
+        animate="center"
+        exit="exit"
         transition={{
-          duration: 0.15,
-          ease: 'easeOut',
+          duration: 0.2,
+          ease: [0.4, 0, 0.2, 1],
         }}
         className={cn(className)}
         role="region"

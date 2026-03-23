@@ -53,7 +53,7 @@ export function VenmoChargeDialog({ charge, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <DialogContent className="sm:max-w-[425px]" onOpenAutoFocus={(e) => e.preventDefault()} onCloseAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{charge.type === 'pay' ? 'Pay on Venmo' : 'Charge on Venmo'}</DialogTitle>
           <DialogDescription>

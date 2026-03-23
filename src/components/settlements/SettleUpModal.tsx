@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { settlementService } from '@/services/settlementService';
@@ -12,6 +14,7 @@ import { VenmoChargeDialog } from '@/components/venmo/VenmoChargeDialog';
 import { UserAvatar } from '@/components/shared/UserAvatar';
 import { VenmoCharge } from '@/types';
 import { userService } from '@/services/userService';
+import { SuccessCelebration } from '@/components/shared/SuccessCelebration';
 
 export interface SettleTarget {
   userId: string;
@@ -64,6 +67,10 @@ export function SettleUpModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [venmoCharge, setVenmoCharge] = useState<VenmoCharge | null>(null);
   const [venmoDialogOpen, setVenmoDialogOpen] = useState(false);
+  // Celebration state: hide dialog visually but keep component mounted
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationAmount, setCelebrationAmount] = useState(0);
+  const [dialogVisible, setDialogVisible] = useState(true);
 
   const handleSettleUp = async () => {
     if (!user) return;
@@ -79,15 +86,13 @@ export function SettleUpModal({
           title: 'Nothing to settle',
           description: `No outstanding bills with ${targetUserName}.`,
         });
+        onOpenChange(false);
       } else {
-        toast({
-          title: 'Settled!',
-          description: `$${result.amountSettled.toFixed(2)} settled with ${targetUserName} across ${result.billsSettled} bill${result.billsSettled > 1 ? 's' : ''}.`,
-        });
+        // Hide dialog visually but keep component mounted for celebration
+        setCelebrationAmount(result.amountSettled);
+        setDialogVisible(false);
+        setShowCelebration(true);
       }
-
-      onOpenChange(false);
-      onSuccess?.();
     } catch (error: unknown) {
       console.error('Error settling up:', error);
       const msg = (error as Error)?.message ?? 'Failed to process settlement. Please try again.';
@@ -121,6 +126,13 @@ export function SettleUpModal({
     setVenmoDialogOpen(true);
   };
 
+  const handleCelebrationComplete = useCallback(() => {
+    setShowCelebration(false);
+    setDialogVisible(true);
+    onOpenChange(false);
+    onSuccess?.();
+  }, [onSuccess, onOpenChange]);
+
   const myName = user?.displayName?.split(' ')[0] || 'You';
   const fromName = isPaying ? myName : targetUserName.split(' ')[0];
   const toName = isPaying ? targetUserName.split(' ')[0] : myName;
@@ -130,13 +142,16 @@ export function SettleUpModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-sm p-0 overflow-hidden" onOpenAutoFocus={(e) => e.preventDefault()}>
+      <Dialog open={open && dialogVisible} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-sm p-0 overflow-hidden" onOpenAutoFocus={(e) => e.preventDefault()} onCloseAutoFocus={(e) => e.preventDefault()}>
           {/* Header strip */}
           <div className={`px-6 pt-6 pb-4 ${isPaying ? 'bg-destructive/5' : 'bg-green-500/5'}`}>
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4 text-center">
+            <DialogTitle className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4 text-center">
               Settle Up
-            </p>
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Settle ${balanceAmount.toFixed(2)} with {targetUserName}
+            </DialogDescription>
 
             {/* Avatar flow */}
             <div className="flex items-center justify-center gap-3 mb-5">
@@ -216,6 +231,14 @@ export function SettleUpModal({
         charge={venmoCharge}
         open={venmoDialogOpen}
         onOpenChange={setVenmoDialogOpen}
+      />
+
+      <SuccessCelebration
+        show={showCelebration}
+        variant="full"
+        message="All Settled!"
+        subMessage={`$${celebrationAmount.toFixed(2)} with ${targetUserName}`}
+        onComplete={handleCelebrationComplete}
       />
     </>
   );

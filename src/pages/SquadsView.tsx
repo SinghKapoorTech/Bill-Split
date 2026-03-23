@@ -60,7 +60,7 @@ export default function SquadsView() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl mb-20">
+    <div className="container mx-auto px-4 py-8 max-w-4xl mb-20 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold">My Squads</h1>
@@ -98,7 +98,17 @@ export default function SquadsView() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading squads...</div>
+        <Card className="p-8 space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-3 animate-pulse">
+              <div className="w-10 h-10 rounded-full bg-muted" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-muted rounded w-1/3" />
+                <div className="h-3 bg-muted rounded w-1/2" />
+              </div>
+            </div>
+          ))}
+        </Card>
       ) : squads.length === 0 ? (
         <Card className="p-8 text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">

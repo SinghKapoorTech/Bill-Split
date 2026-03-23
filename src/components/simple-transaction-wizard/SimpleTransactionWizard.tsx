@@ -44,6 +44,8 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
   const activeBillId = useRef<string | null>(billId !== 'new' ? billId : null);
 
   const [currentStep, setCurrentStep] = useState(0);
+  const prevStepRef = useRef(0);
+  const directionRef = useRef<'forward' | 'backward'>('forward');
   const [amount, setAmount] = useState<string>('');
   const [internalTitle, setInternalTitle] = useState<string>('');
   
@@ -87,6 +89,13 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
   useEffect(() => {
     stepRef.current = currentStep;
   }, [currentStep]);
+
+  // Track direction for step transition animations (synchronous)
+  if (currentStep !== prevStepRef.current) {
+    directionRef.current = currentStep > prevStepRef.current ? 'forward' : 'backward';
+    prevStepRef.current = currentStep;
+  }
+  const stepDirection = directionRef.current;
 
   useEffect(() => {
     if (!isNative) return;
@@ -542,7 +551,7 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
         canSwipeRight={currentStep > (isOwner ? 0 : 2) && isOwner}
         className={isMobile ? 'pb-[140px] relative' : ''}
       >
-        <StepContent stepKey={currentStep}>
+        <StepContent stepKey={currentStep} direction={stepDirection}>
           {currentStep === 0 && (
             <DetailsStep
               amount={amount}

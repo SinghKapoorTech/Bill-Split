@@ -50,20 +50,14 @@ export function SwipeableStepContainer({
 
         if (isQuickSwipe || isDistanceSwipe) {
             if (offset.x > 0 && canSwipeRight && onSwipeRight) {
-                // Swiped right - go back
-                controls.start({ x: 50, opacity: 0, transition: { duration: 0.15 } }).then(() => {
-                    onSwipeRight();
-                    controls.set({ x: -30 });
-                    controls.start({ x: 0, opacity: 1, transition: { duration: 0.15 } });
-                });
+                // Swiped right - go back (StepContent handles the animation)
+                onSwipeRight();
+                controls.set({ x: 0, opacity: 1 });
                 return;
             } else if (offset.x < 0 && canSwipeLeft && onSwipeLeft) {
-                // Swiped left - go forward
-                controls.start({ x: -50, opacity: 0, transition: { duration: 0.15 } }).then(() => {
-                    onSwipeLeft();
-                    controls.set({ x: 30 });
-                    controls.start({ x: 0, opacity: 1, transition: { duration: 0.15 } });
-                });
+                // Swiped left - go forward (StepContent handles the animation)
+                onSwipeLeft();
+                controls.set({ x: 0, opacity: 1 });
                 return;
             }
         }
