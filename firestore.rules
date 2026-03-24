@@ -240,6 +240,43 @@ service cloud.firestore {
                         request.auth.uid == resource.data.toUserId);
     }
 
+    // ========== Settlement Requests Collection ==========
+    match /settlement_requests/{requestId} {
+      // Get: allow for non-existent docs (needed for check-before-create pattern)
+      allow get: if request.auth != null &&
+                    (resource == null ||
+                     request.auth.uid == resource.data.fromUserId ||
+                     request.auth.uid == resource.data.toUserId);
+
+      // List: only participants can query
+      allow list: if request.auth != null &&
+                     (request.auth.uid == resource.data.fromUserId ||
+                      request.auth.uid == resource.data.toUserId);
+
+      // Create: only the debtor (fromUserId), must be pending, amount > 0, not self-request
+      allow create: if request.auth != null &&
+                       request.auth.uid == request.resource.data.fromUserId &&
+                       request.resource.data.status == 'pending' &&
+                       request.resource.data.amount > 0 &&
+                       request.resource.data.fromUserId != request.resource.data.toUserId &&
+                       request.resource.data.createdAt == request.time &&
+                       !('resolvedAt' in request.resource.data);
+
+      // Update: only the creditor (toUserId), can only change status + resolvedAt
+      allow update: if request.auth != null &&
+                       request.auth.uid == resource.data.toUserId &&
+                       resource.data.status == 'pending' &&
+                       (request.resource.data.status == 'approved' ||
+                        request.resource.data.status == 'declined') &&
+                       request.resource.data.resolvedAt == request.time &&
+                       onlyUpdating(['status', 'resolvedAt']);
+
+      // Delete: either participant (for cleanup)
+      allow delete: if request.auth != null &&
+                       (request.auth.uid == resource.data.fromUserId ||
+                        request.auth.uid == resource.data.toUserId);
+    }
+
     // Receipt analysis cache (if you re-add the cache feature later)
     match /receiptAnalysisCache/{document=**} {
       allow read, write: if true;

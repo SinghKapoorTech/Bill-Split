@@ -27,6 +27,7 @@ import SquadDetailView from "./pages/SquadDetailView";
 import SimpleTransactionView from "./pages/SimpleTransactionView";
 import AirbnbView from "./pages/AirbnbView";
 import BalanceDetailView from "./pages/BalanceDetailView";
+import { SettlementRequestsProvider } from "@/hooks/useSettlementRequests";
 
 const queryClient = new QueryClient();
 
@@ -91,6 +92,7 @@ function RootRoute() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <SettlementRequestsProvider>
       <BillSessionProvider>
         <TooltipProvider>
           <Toaster />
@@ -128,6 +130,7 @@ const App = () => (
           </BrowserRouter>
         </TooltipProvider>
       </BillSessionProvider>
+      </SettlementRequestsProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

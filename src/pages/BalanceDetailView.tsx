@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Loader2, Receipt, Banknote, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Receipt, Banknote, CheckCircle2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBills } from '@/hooks/useBills';
@@ -13,6 +13,10 @@ import { getSettlementStatusForUser } from '@/utils/billCalculations';
 import { UserAvatar } from '@/components/shared/UserAvatar';
 import { SettleUpModal } from '@/components/settlements/SettleUpModal';
 import { useActiveBalances } from '@/hooks/useActiveBalances';
+import { useSettlementRequests } from '@/hooks/useSettlementRequests';
+import { settlementRequestService } from '@/services/settlementRequestService';
+import { settlementService } from '@/services/settlementService';
+import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { SettleTarget } from '@/components/settlements/SettleUpModal';
 
@@ -46,7 +50,11 @@ export default function BalanceDetailView() {
   } = useBillContext();
 
   // Real-time balance updates (global context only)
-  const { balances, refreshBalances } = useActiveBalances();
+  const { balances, refreshBalances, isLoading: isBalancesLoading } = useActiveBalances();
+  const { toast } = useToast();
+  const { getIncomingRequestFromUser } = useSettlementRequests();
+
+  const [isProcessingRequest, setIsProcessingRequest] = useState(false);
 
   // Fallback: fetch profile if no nav state (direct URL access)
   useEffect(() => {
@@ -67,12 +75,15 @@ export default function BalanceDetailView() {
 
   // Sync balance from real-time subscription (non-event views)
   useEffect(() => {
-    if (eventId || !targetUserId || balances.length === 0) return;
+    if (eventId || !targetUserId || isBalancesLoading) return;
     const match = balances.find(b => b.id === targetUserId);
     if (match) {
-      setFriendBalance(match.balance ?? null);
+      setFriendBalance(match.balance ?? 0);
       if (!navState?.name && match.name) setTargetUserName(match.name);
       if (!navState?.photoURL && match.photoURL) setTargetUserPhoto(match.photoURL);
+    } else {
+      // No balance doc means fully settled
+      setFriendBalance(0);
     }
   }, [balances, targetUserId, eventId]);
 
@@ -127,6 +138,11 @@ export default function BalanceDetailView() {
     await deleteSession(bill.id, bill.receiptFileName);
   };
 
+  // Settlement request state — treat as resolved if balance is zero (defensive)
+  const incomingRequest = targetUserId && friendBalance !== 0
+    ? getIncomingRequestFromUser(targetUserId, eventId)
+    : undefined;
+
   const handleSettleUp = () => {
     if (!targetUserId || friendBalance === null || friendBalance === 0) return;
     setSettleTarget({
@@ -136,6 +152,57 @@ export default function BalanceDetailView() {
       isPaying: friendBalance < 0,
       photoURL: targetUserPhoto,
     });
+  };
+
+  const handleApproveRequest = async () => {
+    if (!incomingRequest || !user) return;
+    setIsProcessingRequest(true);
+    try {
+      await settlementRequestService.approveRequest(incomingRequest.id);
+      const result = eventId
+        ? await settlementService.requestEventSettlement(eventId, incomingRequest.fromUserId)
+        : await settlementService.requestSettlement(incomingRequest.fromUserId);
+
+      if (result.billsSettled === 0) {
+        toast({
+          title: 'Nothing to settle',
+          description: 'Balance was already resolved.',
+        });
+      } else {
+        toast({
+          title: 'Settlement approved',
+          description: `$${result.amountSettled.toFixed(2)} settled with ${targetUserName}.`,
+        });
+      }
+      refreshBalances();
+    } catch (error: unknown) {
+      console.error('Error approving settlement:', error);
+      toast({
+        title: 'Approval failed',
+        description: (error as Error)?.message ?? 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessingRequest(false);
+    }
+  };
+
+  const handleDeclineRequest = async () => {
+    if (!incomingRequest) return;
+    setIsProcessingRequest(true);
+    try {
+      await settlementRequestService.declineRequest(incomingRequest.id);
+      refreshBalances();
+    } catch (error: unknown) {
+      console.error('Error declining settlement:', error);
+      toast({
+        title: 'Decline failed',
+        description: (error as Error)?.message ?? 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessingRequest(false);
+    }
   };
 
   const formatDate = (timestamp: { toDate: () => Date } | null | undefined) => {
@@ -238,7 +305,7 @@ export default function BalanceDetailView() {
             ) : null}
           </motion.div>
 
-          {/* Settle Up button */}
+          {/* Settle Up / Request / Approve+Decline buttons */}
           {hasBalance && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -246,14 +313,48 @@ export default function BalanceDetailView() {
               transition={{ delay: 0.25 }}
               className="mt-4"
             >
-              <Button
-                onClick={handleSettleUp}
-                className="rounded-full px-6 h-10 font-semibold shadow-sm"
-                variant={friendBalance! < 0 ? 'default' : 'secondary'}
-              >
-                <Banknote className="w-4 h-4 mr-2" />
-                Settle Up
-              </Button>
+              {isProcessingRequest ? (
+                /* Processing: show loader until refresh */
+                <div className="flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : incomingRequest ? (
+                /* Creditor: incoming request to approve/decline */
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    {firstName} requested to settle
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleApproveRequest}
+                      disabled={isProcessingRequest}
+                      className="rounded-full px-5 h-10 font-semibold shadow-sm bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <Check className="w-4 h-4 mr-2" />
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={handleDeclineRequest}
+                      disabled={isProcessingRequest}
+                      variant="outline"
+                      className="rounded-full px-5 h-10 font-semibold shadow-sm border-destructive text-destructive hover:bg-destructive/10"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Decline
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                /* Default: normal settle button */
+                <Button
+                  onClick={handleSettleUp}
+                  className="rounded-full px-6 h-10 font-semibold shadow-sm"
+                  variant={friendBalance! < 0 ? 'default' : 'secondary'}
+                >
+                  <Banknote className="w-4 h-4 mr-2" />
+                  {friendBalance! < 0 ? 'Pay' : 'Settle Up'}
+                </Button>
+              )}
             </motion.div>
           )}
         </div>

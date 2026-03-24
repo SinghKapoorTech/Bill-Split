@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react';
 import { UserAvatar } from '@/components/shared/UserAvatar';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -31,6 +31,10 @@ export interface BalanceListRowProps {
   friendPhotoURL?: string;
   /** Optional onClick handler for the whole row */
   onClick?: () => void;
+  /** Whether the current user has a pending outgoing settlement request */
+  pendingOutgoing?: boolean;
+  /** Whether the current user has a pending incoming settlement request */
+  pendingIncoming?: boolean;
 }
 
 export function BalanceListRow({
@@ -41,6 +45,8 @@ export function BalanceListRow({
   friendPhotoURL,
   action,
   onClick,
+  pendingOutgoing,
+  pendingIncoming,
 }: BalanceListRowProps) {
   const isMobile = useIsMobile();
   const x = useMotionValue(0);
@@ -110,6 +116,22 @@ export function BalanceListRow({
     statusText = `owes ${toLabel}`;
   }
 
+  let pendingIndicator: React.ReactNode = null;
+  if (pendingOutgoing) {
+    pendingIndicator = (
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/15 rounded-full px-2 py-0.5">
+        <Clock className="w-2.5 h-2.5" />
+        Requested
+      </span>
+    );
+  } else if (pendingIncoming) {
+    pendingIndicator = (
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 dark:bg-blue-500/15 rounded-full px-2 py-0.5">
+        Requested
+      </span>
+    );
+  }
+
   const rowContent = (
     <div
       data-testid="balance-list-row"
@@ -143,6 +165,7 @@ export function BalanceListRow({
               <span className="text-xs text-muted-foreground">
                 {statusText}
               </span>
+              {pendingIndicator}
             </div>
             <span className="text-[15px] font-semibold text-foreground truncate leading-tight mt-0.5">
               {friendLabel}
@@ -162,6 +185,7 @@ export function BalanceListRow({
               <span className="text-xs text-muted-foreground capitalize">
                 {statusText}
               </span>
+              {pendingIndicator}
             </div>
           </>
         )}

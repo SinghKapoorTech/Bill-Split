@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useActiveBalances } from '@/hooks/useActiveBalances';
 import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
+import { useSettlementRequests } from '@/hooks/useSettlementRequests';
 import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
 import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,6 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: boolean } = {}) {
   const navigate = useNavigate();
   const { balances, isLoading, refreshBalances } = useActiveBalances();
+  const { getOutgoingRequestForUser, getIncomingRequestFromUser } = useSettlementRequests();
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -129,6 +131,8 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
                           amount={amount}
                           direction={direction}
                           friendPhotoURL={friend.photoURL}
+                          pendingOutgoing={!!friend.id && !!getOutgoingRequestForUser(friend.id)}
+                          pendingIncoming={!!friend.id && !!getIncomingRequestFromUser(friend.id)}
                           action={hasBalance && friend.id ? {
                             label: youOwe ? 'Pay' : 'Settle',
                             variant: youOwe ? 'default' : 'secondary',

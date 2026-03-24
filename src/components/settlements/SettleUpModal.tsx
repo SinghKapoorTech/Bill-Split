@@ -9,12 +9,14 @@ import { Button } from '@/components/ui/button';
 import { settlementService } from '@/services/settlementService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ArrowRight, Banknote, ExternalLink } from 'lucide-react';
+import { Loader2, ArrowRight, Banknote, ExternalLink, Clock, Check, X } from 'lucide-react';
 import { VenmoChargeDialog } from '@/components/venmo/VenmoChargeDialog';
 import { UserAvatar } from '@/components/shared/UserAvatar';
 import { VenmoCharge } from '@/types';
 import { userService } from '@/services/userService';
 import { SuccessCelebration } from '@/components/shared/SuccessCelebration';
+import { settlementRequestService } from '@/services/settlementRequestService';
+import { useSettlementRequests } from '@/hooks/useSettlementRequests';
 
 export interface SettleTarget {
   userId: string;
@@ -64,7 +66,12 @@ export function SettleUpModal({
 }: SettleUpModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { getOutgoingRequestForUser, getIncomingRequestFromUser } = useSettlementRequests();
+  const pendingOutgoing = getOutgoingRequestForUser(targetUserId, eventId);
+  const pendingIncoming = getIncomingRequestFromUser(targetUserId, eventId);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isDeclining, setIsDeclining] = useState(false);
   const [venmoCharge, setVenmoCharge] = useState<VenmoCharge | null>(null);
   const [venmoDialogOpen, setVenmoDialogOpen] = useState(false);
   // Celebration state: hide dialog visually but keep component mounted
@@ -77,32 +84,89 @@ export function SettleUpModal({
 
     setIsSubmitting(true);
     try {
+      if (isPaying) {
+        // Debtor path: create a settlement request
+        await settlementRequestService.createRequest(
+          user.uid,
+          targetUserId,
+          balanceAmount,
+          eventId
+        );
+        toast({
+          title: 'Settlement request sent',
+          description: `${targetUserName} will be notified to approve.`,
+        });
+        onOpenChange(false);
+        onSuccess?.();
+      } else {
+        // Creditor path: settle instantly (existing flow)
+        const result = eventId
+          ? await settlementService.requestEventSettlement(eventId, targetUserId)
+          : await settlementService.requestSettlement(targetUserId);
+
+        // Auto-approve any pending request from the other side
+        await settlementRequestService.autoApproveIfPending(user.uid, targetUserId, eventId).catch(() => {});
+
+        if (result.billsSettled === 0) {
+          toast({
+            title: 'Nothing to settle',
+            description: `No outstanding bills with ${targetUserName}.`,
+          });
+          onOpenChange(false);
+        } else {
+          setCelebrationAmount(result.amountSettled);
+          setDialogVisible(false);
+          setShowCelebration(true);
+        }
+      }
+    } catch (error: unknown) {
+      console.error('Error settling up:', error);
+      const msg = (error as Error)?.message ?? 'Failed to process. Please try again.';
+      toast({
+        title: isPaying ? 'Request failed' : 'Settlement failed',
+        description: msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!pendingIncoming || !user) return;
+    setIsApproving(true);
+    try {
+      await settlementRequestService.approveRequest(pendingIncoming.id);
       const result = eventId
         ? await settlementService.requestEventSettlement(eventId, targetUserId)
         : await settlementService.requestSettlement(targetUserId);
 
       if (result.billsSettled === 0) {
-        toast({
-          title: 'Nothing to settle',
-          description: `No outstanding bills with ${targetUserName}.`,
-        });
+        toast({ title: 'Nothing to settle', description: `No outstanding bills with ${targetUserName}.` });
         onOpenChange(false);
       } else {
-        // Hide dialog visually but keep component mounted for celebration
         setCelebrationAmount(result.amountSettled);
         setDialogVisible(false);
         setShowCelebration(true);
       }
     } catch (error: unknown) {
-      console.error('Error settling up:', error);
-      const msg = (error as Error)?.message ?? 'Failed to process settlement. Please try again.';
-      toast({
-        title: 'Settlement failed',
-        description: msg,
-        variant: 'destructive'
-      });
+      toast({ title: 'Approval failed', description: (error as Error)?.message ?? 'Please try again.', variant: 'destructive' });
     } finally {
-      setIsSubmitting(false);
+      setIsApproving(false);
+    }
+  };
+
+  const handleDecline = async () => {
+    if (!pendingIncoming) return;
+    setIsDeclining(true);
+    try {
+      await settlementRequestService.declineRequest(pendingIncoming.id);
+      toast({ title: 'Request declined' });
+      onOpenChange(false);
+    } catch (error: unknown) {
+      toast({ title: 'Decline failed', description: (error as Error)?.message ?? 'Please try again.', variant: 'destructive' });
+    } finally {
+      setIsDeclining(false);
     }
   };
 
@@ -209,19 +273,63 @@ export function SettleUpModal({
               <div className="flex-1 h-px bg-border" />
             </div>
 
-            <Button
-              type="button"
-              className="w-full h-12 text-sm font-semibold rounded-xl"
-              onClick={handleSettleUp}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Banknote className="w-4 h-4 mr-2" />
-              )}
-              Mark as Settled
-            </Button>
+            {pendingOutgoing ? (
+              /* Debtor: already requested → disabled */
+              <Button
+                type="button"
+                className="w-full h-12 text-sm font-semibold rounded-xl"
+                disabled
+              >
+                <Clock className="w-4 h-4 mr-2" />
+                Settlement Requested
+              </Button>
+            ) : pendingIncoming ? (
+              /* Creditor: incoming request → approve / decline */
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  className="flex-1 h-12 text-sm font-semibold rounded-xl bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleApprove}
+                  disabled={isApproving || isDeclining}
+                >
+                  {isApproving ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Check className="w-4 h-4 mr-2" />
+                  )}
+                  Approve
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 h-12 text-sm font-semibold rounded-xl border-destructive text-destructive hover:bg-destructive/10"
+                  onClick={handleDecline}
+                  disabled={isApproving || isDeclining}
+                >
+                  {isDeclining ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <X className="w-4 h-4 mr-2" />
+                  )}
+                  Decline
+                </Button>
+              </div>
+            ) : (
+              /* Default */
+              <Button
+                type="button"
+                className="w-full h-12 text-sm font-semibold rounded-xl"
+                onClick={handleSettleUp}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Banknote className="w-4 h-4 mr-2" />
+                )}
+                {isPaying ? 'Request Settlement' : 'Mark as Settled'}
+              </Button>
+            )}
 
           </div>
         </DialogContent>
