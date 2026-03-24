@@ -2,8 +2,11 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { User, Receipt, Edit2, Loader2, AlertTriangle } from 'lucide-react';
+import { User, Receipt, Edit2, Loader2, AlertTriangle, CheckCircle2, Undo2 } from 'lucide-react';
+import { arrayRemove } from 'firebase/firestore';
 import { Bill, BillItem } from '@/types/bill.types';
+import { billService } from '@/services/billService';
+import { useToast } from '@/hooks/use-toast';
 import { Person } from '@/types/person.types';
 import { VenmoCharge } from '@/types/person.types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -55,6 +58,7 @@ export function GuestClaimView({
   const [chargeDialogOpen, setChargeDialogOpen] = useState(false);
   const [currentCharge, setCurrentCharge] = useState<VenmoCharge | null>(null);
   const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const { toast } = useToast();
 
   // Find if current user is already in people list
   const currentPerson = useMemo(() => {
@@ -210,27 +214,60 @@ export function GuestClaimView({
     );
   }
 
+  const isSettled = (session.settledPersonIds || []).includes(currentPerson.id);
+
+  const handleUndoSettle = async () => {
+    if (!currentPerson) return;
+    try {
+      await billService.updateBill(session.id, {
+        settledPersonIds: arrayRemove(currentPerson.id) as unknown as string[]
+      });
+      toast({
+        title: "Undo Settled",
+        description: "Your balance has been restored for this bill.",
+      });
+    } catch (error) {
+      console.error("Failed to undo settle", error);
+      toast({
+        title: "Error",
+        description: "Failed to undo settle. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   // User is in people list: show items with badge-style assignment UI
   return (
     <div className="space-y-4">
       {/* User info header with total and pay button */}
-      <Card className="p-4">
+      <Card className={`p-4 ${isSettled ? 'bg-green-500/10 dark:bg-green-500/20 border-green-500/40 dark:border-green-400/30' : ''}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <User className="w-5 h-5 text-primary" />
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSettled ? 'bg-green-500/20' : 'bg-primary/10'}`}>
+              {isSettled ? (
+                <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+              ) : (
+                <User className="w-5 h-5 text-primary" />
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-medium text-lg">{currentPerson.name}</span>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => setIsEditDialogOpen(true)}
-                >
-                    <Edit2 className="w-3 h-3" />
-                </Button>
+                <span className={`font-medium text-lg ${isSettled ? 'text-green-800 dark:text-green-200' : ''}`}>{currentPerson.name}</span>
+                {isSettled && (
+                  <span className="text-[10px] font-bold tracking-wider uppercase text-green-700 dark:text-green-300 bg-green-500/20 px-1.5 py-0.5 rounded-sm shrink-0">
+                    Settled
+                  </span>
+                )}
+                {!isSettled && (
+                  <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => setIsEditDialogOpen(true)}
+                  >
+                      <Edit2 className="w-3 h-3" />
+                  </Button>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {currentPerson.venmoId && (
@@ -238,7 +275,7 @@ export function GuestClaimView({
                       {currentPerson.venmoId}
                     </span>
                 )}
-                {!user && (
+                {!user && !isSettled && (
                     <button
                         onClick={handleSwitchUser}
                         className="text-xs text-muted-foreground underline hover:text-primary ml-1"
@@ -251,14 +288,29 @@ export function GuestClaimView({
           </div>
           <div className="text-right">
             <span className="text-sm text-muted-foreground block">Total</span>
-            <span className="text-xl font-bold text-primary">
+            <span className={`text-xl font-bold ${isSettled ? 'text-green-600 dark:text-green-400 line-through' : 'text-primary'}`}>
               ${calculatePersonTotal(items, itemAssignments, currentPerson.id).toFixed(2)}
             </span>
           </div>
         </div>
 
-        {/* Pay on Venmo button */}
-        {payerPerson && currentPerson.id !== payerPerson.id && calculatePersonTotal(items, itemAssignments, currentPerson.id) > 0 && (
+        {/* Undo Settle button - shown when settled */}
+        {isSettled && (
+          <div className="mt-3 pt-3 border-t border-green-500/20">
+            <Button
+              onClick={handleUndoSettle}
+              variant="outline"
+              className="w-full gap-2 border-green-500/40 text-green-700 dark:text-green-300 hover:bg-green-500/10"
+              size="sm"
+            >
+              <Undo2 className="w-4 h-4" />
+              Undo Settle
+            </Button>
+          </div>
+        )}
+
+        {/* Pay on Venmo button - hidden when settled */}
+        {!isSettled && payerPerson && currentPerson.id !== payerPerson.id && calculatePersonTotal(items, itemAssignments, currentPerson.id) > 0 && (
           <div className="mt-3 pt-3 border-t">
             <Button
               onClick={handlePayOnVenmo}
