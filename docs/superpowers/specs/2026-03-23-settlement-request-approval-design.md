@@ -46,7 +46,9 @@ Note: `balanceId` was removed -- it is derivable from `fromUserId` + `toUserId` 
 
 ### Uniqueness Constraint
 
-Enforced atomically via deterministic document IDs. Before creating, the client reads the doc by ID. If it exists and is `pending`, block creation. If it exists and is `declined`, delete first then create new. Firestore rejects duplicate creates automatically.
+Enforced atomically via deterministic document IDs. Before creating, the client reads the doc by ID. If it exists and is `pending`, block creation. If it exists and is `declined`, use a Firestore batch write to delete the old doc and create the new one atomically. Firestore rejects duplicate creates automatically.
+
+Use `getFriendBalanceId` and `getEventBalanceId` from `shared/ledgerCalculations.ts` to generate deterministic IDs -- do not re-implement the sort logic.
 
 ### Firestore Indexes
 
@@ -81,6 +83,7 @@ Enforced atomically via deterministic document IDs. Before creating, the client 
 1. No request created -- directly calls `processSettlement` / `processEventSettlement` as today
 2. **After successful settlement**: check for any pending request for this pair (+eventId) and auto-approve it (set `status: 'approved'`, `resolvedAt: serverTimestamp()`) to clean up stale requests
 3. Existing flow is otherwise unchanged
+4. **If auto-approve fails** (network error): the settlement succeeded but the request remains `pending`. The hook handles this defensively -- if a pending request exists but the balance is zero, treat it as auto-resolved in the UI and clean it up on next interaction
 
 ### Balance drift between request and approval
 
@@ -154,6 +157,7 @@ Event-scoped requests are visible within the event detail view only; they do not
 - When `isPaying` is `true` (debtor): button label changes from "Mark as Settled" to "Request Settlement". On click, creates a `settlement_requests` doc instead of calling `processSettlement`. Success toast: "Settlement request sent" (not "Settlement processed")
 - When `isPaying` is `false` (creditor): "Mark as Settled" stays as-is, calls `processSettlement` directly (plus auto-approves any pending request for cleanup)
 - If a pending request already exists for this pair, show disabled state with "Request Pending" text
+- **Venmo button path**: The "Pay on Venmo" / "Charge on Venmo" button behavior is unchanged for both parties -- it opens the Venmo deep link as today. For debtors, after paying on Venmo externally, they return to the app and use "Request Settlement" to notify the creditor. The Venmo button does not create a settlement request automatically.
 
 ## Files to modify
 
