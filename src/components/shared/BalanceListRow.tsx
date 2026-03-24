@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { UserAvatar } from '@/components/shared/UserAvatar';
 import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -63,95 +63,136 @@ export function BalanceListRow({
   const friendFallbackClass = isSettled
     ? 'bg-muted text-muted-foreground'
     : direction === 'you-owe'
-      ? 'bg-destructive/10 text-destructive'
+      ? 'bg-red-500/10 text-red-500 dark:bg-red-500/15 dark:text-red-400'
       : direction === 'owes-you'
-        ? 'bg-green-500/10 text-green-600'
+        ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400'
         : 'bg-muted text-muted-foreground';
 
-  const amountClass = isSettled
+  // Direction indicator icon & colors
+  const directionIcon = direction === 'you-owe'
+    ? <ArrowUpRight className="w-3 h-3" />
+    : direction === 'owes-you'
+      ? <ArrowDownLeft className="w-3 h-3" />
+      : null;
+
+  const accentColor = isSettled
+    ? 'border-l-muted-foreground/20'
+    : direction === 'you-owe'
+      ? 'border-l-red-500 dark:border-l-red-400'
+      : direction === 'owes-you'
+        ? 'border-l-emerald-500 dark:border-l-emerald-400'
+        : 'border-l-muted-foreground/20';
+
+  const amountColor = isSettled
     ? 'text-muted-foreground'
     : direction === 'you-owe'
-      ? 'text-destructive font-semibold'
+      ? 'text-red-600 dark:text-red-400'
       : direction === 'owes-you'
-        ? 'text-green-600 font-semibold'
+        ? 'text-emerald-600 dark:text-emerald-400'
         : 'text-muted-foreground';
 
-  let owesText: React.ReactNode;
-  if (isSettled) {
-    const displayFrom = fromLabel.toLowerCase() === 'you' ? 'You' : fromLabel;
-    const displayTo = toLabel.toLowerCase() === 'you' ? 'You' : toLabel;
+  const directionBadgeClass = isSettled
+    ? 'bg-muted/60 text-muted-foreground'
+    : direction === 'you-owe'
+      ? 'bg-red-500/8 text-red-600 dark:bg-red-500/15 dark:text-red-400'
+      : direction === 'owes-you'
+        ? 'bg-emerald-500/8 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400'
+        : 'bg-muted/60 text-muted-foreground';
 
-    owesText = (
-      <>
-        <span className="font-medium text-foreground">{displayFrom}</span>
-        <span className="text-muted-foreground text-[13px] mx-1">and</span>
-        <span className="font-medium text-foreground">{displayTo}</span>
-        <span className="font-medium text-muted-foreground text-[13px] ml-1">are Settled Up</span>
-      </>
-    );
+  let statusText: string;
+  if (isSettled) {
+    statusText = 'settled up';
   } else if (direction === 'you-owe') {
-    owesText = (
-      <>
-        <span className="font-medium text-foreground">You</span>
-        <span className="text-muted-foreground text-[13px] mx-1">owe</span>
-        <span className="font-medium text-foreground">{toLabel}</span>
-      </>
-    );
+    statusText = 'You owe';
   } else if (direction === 'owes-you') {
-    owesText = (
-      <>
-        <span className="font-medium text-foreground">{fromLabel}</span>
-        <span className="text-muted-foreground text-[13px] mx-1">owes</span>
-        <span className="font-medium text-foreground">you</span>
-      </>
-    );
+    statusText = 'owes you';
   } else {
-    owesText = (
-      <>
-        <span className="font-medium text-foreground">{fromLabel}</span>
-        <span className="text-muted-foreground text-[13px] mx-1">owes</span>
-        <span className="font-medium text-foreground">{toLabel}</span>
-      </>
-    );
+    statusText = `owes ${toLabel}`;
   }
 
   const rowContent = (
     <div
       data-testid="balance-list-row"
-      className={`flex items-center justify-between h-[72px] px-3 glass-card rounded-xl hover:bg-muted/30 transition-colors ${onClick ? 'cursor-pointer' : ''}`}
+      className={`
+        group relative flex items-center gap-3 h-[72px] px-3
+        rounded-xl border-l-[3px] ${accentColor}
+        glass-card shadow-md hover:shadow-lg hover:bg-muted/30 transition-all
+        ${onClick ? 'cursor-pointer' : ''}
+      `}
       onClick={onClick}
     >
-      <div className="flex items-center gap-2.5">
-        <UserAvatar
-          name={friendLabel}
-          photoURL={friendPhotoURL}
-          size="sm"
-          className="border-2 border-background shadow-sm"
-          fallbackClassName={friendFallbackClass}
-        />
-        <div className="flex flex-col">
-          <span className="text-sm">{owesText}</span>
-          <span className={`text-xs ${amountClass}`}>{amountFormatted}</span>
-        </div>
+      {/* Avatar */}
+      <UserAvatar
+        name={friendLabel}
+        photoURL={friendPhotoURL}
+        size="sm"
+        className="border-2 border-background shadow-sm shrink-0"
+        fallbackClassName={friendFallbackClass}
+      />
+
+      {/* Name + status */}
+      <div className="flex flex-col min-w-0 flex-1">
+        {direction === 'you-owe' && !isSettled ? (
+          <>
+            <div className="flex items-center gap-1.5">
+              {directionIcon && (
+                <span className={`${directionBadgeClass} rounded-full p-0.5`}>
+                  {directionIcon}
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {statusText}
+              </span>
+            </div>
+            <span className="text-[15px] font-semibold text-foreground truncate leading-tight mt-0.5">
+              {friendLabel}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="text-[15px] font-semibold text-foreground truncate leading-tight">
+              {friendLabel}
+            </span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {directionIcon && (
+                <span className={`${directionBadgeClass} rounded-full p-0.5`}>
+                  {directionIcon}
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground capitalize">
+                {statusText}
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* Amount + action */}
+      <div className="flex items-center gap-2.5 shrink-0">
+        {!isSettled && (
+          <span className={`text-lg font-bold tabular-nums tracking-tight ${amountColor}`}>
+            {amountFormatted}
+          </span>
+        )}
         {action && (
-          <div className="shrink-0">
-            <Button
-              variant={action.variant ?? 'secondary'}
-              size="sm"
-              className={`h-7 px-3 text-xs w-[68px] rounded-full ${action.variant === 'default' ? 'bg-primary text-primary-foreground' : ''
-                }`}
-              onClick={(e) => {
-                e.stopPropagation();
-                (e.currentTarget as HTMLElement).blur();
-                action.onClick();
-              }}
-            >
-              {action.label}
-            </Button>
-          </div>
+          <Button
+            variant={action.variant ?? 'secondary'}
+            size="sm"
+            className={`
+              h-8 px-3.5 text-xs font-semibold rounded-full
+              ${direction === 'you-owe'
+                ? 'bg-red-500 hover:bg-red-600 text-white border-none shadow-sm shadow-red-500/20'
+                : 'bg-emerald-500 hover:bg-emerald-600 text-white border-none shadow-sm shadow-emerald-500/20'
+              }
+            `}
+            onClick={(e) => {
+              e.stopPropagation();
+              (e.currentTarget as HTMLElement).blur();
+              action.onClick();
+            }}
+          >
+            {action.label}
+          </Button>
         )}
       </div>
     </div>
@@ -160,11 +201,11 @@ export function BalanceListRow({
   // On mobile with an action, enable swipe-to-reveal
   if (isMobile && action) {
     return (
-      <div className="relative overflow-hidden rounded-xl">
+      <div className="relative overflow-x-clip rounded-xl">
         {/* Action revealed behind the row */}
         <motion.div
           className={`absolute right-0 top-0 bottom-0 flex items-center justify-center px-6 rounded-r-xl ${
-            direction === 'you-owe' ? 'bg-primary text-primary-foreground' : 'bg-green-600 text-white'
+            direction === 'you-owe' ? 'bg-red-500 text-white' : 'bg-emerald-600 text-white'
           }`}
           style={{ opacity: actionOpacity, scale: actionScale }}
         >
