@@ -138,7 +138,14 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
                       } : undefined}
                       onClick={() => {
                         if (friend.id) {
-                          navigate(`/balances/${friend.id}`);
+                          navigate(`/balances/${friend.id}`, {
+                            state: {
+                              name: friend.name,
+                              photoURL: friend.photoURL,
+                              balance: friend.balance,
+                              venmoId: friend.venmoId,
+                            }
+                          });
                         }
                       }}
                     />

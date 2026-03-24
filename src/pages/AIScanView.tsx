@@ -48,6 +48,7 @@ export default function AIScanView() {
   const [title, setTitle] = useState<string>('');
   const [currentStep, setCurrentStep] = useState(0);
   const [eventId, setEventId] = useState<string | null>(null);
+  const [isSessionLoaded, setIsSessionLoaded] = useState(!routeBillId || routeBillId === 'new');
 
   // Share link state
   const [showShareLinkDialog, setShowShareLinkDialog] = useState(false);
@@ -122,6 +123,7 @@ export default function AIScanView() {
         setCurrentStep(activeSession.currentStep || 0);
         setEventId(activeSession.eventId || null);
         loadedSessionId.current = activeSession.id;
+        setIsSessionLoaded(true);
       }
     }
   }, [activeSession, billId, user, profile]);
@@ -143,6 +145,8 @@ export default function AIScanView() {
           setTitle(fetchedBill.title || '');
           setCurrentStep(fetchedBill.currentStep || 0);
           setEventId(fetchedBill.eventId || null);
+          loadedSessionId.current = fetchedBill.id;
+          setIsSessionLoaded(true);
         }
       });
     }
@@ -216,21 +220,11 @@ export default function AIScanView() {
     });
   };
 
-  if (isLoadingSessions) {
+  // Single loading gate: wait for sessions to load AND bill data to be ready
+  // Uses state (not ref) so it's batched with currentStep in the same render
+  if (isLoadingSessions || !isSessionLoaded) {
     return (
-      <div className="loading-container">
-        <Loader2 className="loading-spinner" />
-      </div>
-    );
-  }
-
-  // Wait for session data to load before rendering wizard
-  // This prevents BillWizard from initializing with empty state
-  const isDataReady = !billId || loadedSessionId.current !== null;
-
-  if (!isDataReady) {
-    return (
-      <div className="loading-container">
+      <div className="loading-container" style={{ minHeight: '60vh' }}>
         <Loader2 className="loading-spinner" />
       </div>
     );

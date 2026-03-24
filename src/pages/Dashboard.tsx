@@ -52,7 +52,6 @@ export default function Dashboard() {
     isResuming,
     archiveAndStartNewSession,
     deleteSession,
-    resumeSession
   } = useBillContext();
 
   // Refresh balances automatically when routing back to the dashboard, 
@@ -154,8 +153,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
-    await resumeSession(billId);
+  const handleResumeBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
     if (!isOwner) {
       navigate(`/shared/${billId}`);
     } else if (isSimpleTransaction) {

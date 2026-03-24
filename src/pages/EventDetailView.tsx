@@ -123,7 +123,13 @@ function EventBalancesSection({
         onClick={() => {
           const targetUser = isCurrentUserPaying ? debt.toUserId : debt.fromUserId;
           if (user && targetUser) {
-            navigate(`/events/${eventId}/balances/${targetUser}`);
+            navigate(`/events/${eventId}/balances/${targetUser}`, {
+              state: {
+                name: isCurrentUserPaying ? toName : fromName,
+                photoURL: friendPhoto,
+                balance: isCurrentUserPaying ? -debt.amount : debt.amount,
+              }
+            });
           }
         }}
       />

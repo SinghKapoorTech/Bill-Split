@@ -60,7 +60,10 @@
       "WebFetch(domain:blog.splitwise.com)",
       "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
       "Bash(grep -r \"0.001\\\\|0.01\\\\|Math.abs\" functions/src/*.ts)",
-      "Bash(xargs head:*)"
+      "Bash(xargs head:*)",
+      "Bash(winget install:*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -r photoURL src/components/shared --include=*.tsx -A 2)"
     ],
     "deny": [],
     "ask": []

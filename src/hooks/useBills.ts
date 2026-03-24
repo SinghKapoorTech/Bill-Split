@@ -329,7 +329,7 @@ export function useBills() {
   }, [getStorageRef, toast, user]);
 
   const resumeSession = useCallback(async (sessionId: string, silentLoad = false) => {
-    setIsResuming(true);
+    if (!silentLoad) setIsResuming(true);
     try {
       // Fetch the bill from Firestore
       const bill = await billService.getBill(sessionId);
@@ -338,15 +338,15 @@ export function useBills() {
         throw new Error('Bill not found');
       }
 
-      // Touch the bill to update its updatedAt timestamp, moving it to the top
-      await billService.updateBill(sessionId, {
-        updatedAt: Timestamp.now()
-      });
-
-      // Only show toast if this is an explicit resume action (not a silent URL load)
+      // Only touch updatedAt for explicit resume actions (not silent URL loads)
+      // to avoid triggering Firestore listener churn during navigation
       if (!silentLoad) {
+        await billService.updateBill(sessionId, {
+          updatedAt: Timestamp.now()
+        });
         toast({ title: 'Success', description: 'Session resumed.' });
       }
+
       return bill;
     } catch (error) {
       console.error('Error resuming session:', error);
@@ -357,7 +357,7 @@ export function useBills() {
       });
       return null;
     } finally {
-      setIsResuming(false);
+      if (!silentLoad) setIsResuming(false);
     }
   }, [toast]);
 
