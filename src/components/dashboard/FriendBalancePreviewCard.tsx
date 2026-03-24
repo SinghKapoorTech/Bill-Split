@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { Users, ChevronDown, Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -7,7 +7,7 @@ import { useActiveBalances } from '@/hooks/useActiveBalances';
 import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
 import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
 import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: boolean } = {}) {
   const navigate = useNavigate();
@@ -29,9 +29,10 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
   const hasMoreFriends = sortedFriends.length > 3;
   const hiddenCount = sortedFriends.length - 3;
 
+
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex items-center justify-between mb-1 ml-1">
+      <div className="flex items-center justify-between mb-2 ml-1">
         <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
           Balances
         </h2>
@@ -93,89 +94,95 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
             </div>
           ) : (
             <div className="flex flex-col gap-2 p-1">
-              {previewFriends.map((friend, index: number) => {
-                const owesYou = friend.balance && friend.balance > 0;
-                const youOwe = friend.balance && friend.balance < 0;
-                const hasBalance = friend.balance && friend.balance !== 0;
+                <AnimatePresence initial={false}>
+                  {previewFriends.map((friend, index: number) => {
+                    const owesYou = friend.balance && friend.balance > 0;
+                    const youOwe = friend.balance && friend.balance < 0;
+                    const hasBalance = friend.balance && friend.balance !== 0;
 
-                const direction: BalanceDirection = owesYou
-                  ? 'owes-you'
-                  : youOwe
-                    ? 'you-owe'
-                    : 'neutral';
+                    const direction: BalanceDirection = owesYou
+                      ? 'owes-you'
+                      : youOwe
+                        ? 'you-owe'
+                        : 'neutral';
 
-                const fromLabel = owesYou ? friend.name : 'You';
-                const toLabel = owesYou ? 'you' : friend.name;
-                const amount = Math.abs(friend.balance || 0);
+                    const fromLabel = owesYou ? friend.name : 'You';
+                    const toLabel = owesYou ? 'you' : friend.name;
+                    const amount = Math.abs(friend.balance || 0);
 
-                return (
-                  <motion.div
-                    key={friend.id || index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.25,
-                      delay: index * 0.05,
-                      ease: [0.4, 0, 0.2, 1],
-                    }}
-                  >
-                    <BalanceListRow
-                      fromLabel={fromLabel}
-                      toLabel={toLabel}
-                      amount={amount}
-                      direction={direction}
-                      friendPhotoURL={friend.photoURL}
-                      action={hasBalance && friend.id ? {
-                        label: youOwe ? 'Pay' : 'Settle',
-                        variant: youOwe ? 'default' : 'secondary',
-                        onClick: () => setSettleTarget({
-                          userId: friend.id!,
-                          name: friend.name,
-                          amount,
-                          isPaying: !!youOwe,
-                          photoURL: friend.photoURL,
-                        }),
-                      } : undefined}
-                      onClick={() => {
-                        if (friend.id) {
-                          navigate(`/balances/${friend.id}`, {
-                            state: {
+                    return (
+                      <motion.div
+                        key={friend.id || index}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8, transition: { duration: 0.15 } }}
+                        transition={{
+                          duration: 0.3,
+                          delay: index * 0.04,
+                          ease: [0.4, 0, 0.2, 1],
+                        }}
+                        layout
+                      >
+                        <BalanceListRow
+                          fromLabel={fromLabel}
+                          toLabel={toLabel}
+                          amount={amount}
+                          direction={direction}
+                          friendPhotoURL={friend.photoURL}
+                          action={hasBalance && friend.id ? {
+                            label: youOwe ? 'Pay' : 'Settle',
+                            variant: youOwe ? 'default' : 'secondary',
+                            onClick: () => setSettleTarget({
+                              userId: friend.id!,
                               name: friend.name,
+                              amount,
+                              isPaying: !!youOwe,
                               photoURL: friend.photoURL,
-                              balance: friend.balance,
-                              venmoId: friend.venmoId,
+                            }),
+                          } : undefined}
+                          onClick={() => {
+                            if (friend.id) {
+                              navigate(`/balances/${friend.id}`, {
+                                state: {
+                                  name: friend.name,
+                                  photoURL: friend.photoURL,
+                                  balance: friend.balance,
+                                  venmoId: friend.venmoId,
+                                }
+                              });
                             }
-                          });
-                        }
-                      }}
-                    />
-                  </motion.div>
-                );
-              })}
+                          }}
+                        />
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
             </div>
           )}
         </div>
 
         {hasMoreFriends && (
-          <div className="border-t border-border flex justify-center">
+          <motion.div
+            className="flex justify-center mt-1"
+            initial={false}
+          >
             <Button
               variant="ghost"
-              className="w-full h-11 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-none rounded-b-lg"
+              size="sm"
+              className="h-9 px-4 text-xs font-medium text-muted-foreground hover:text-foreground rounded-full gap-1.5 transition-all"
               onClick={() => setIsExpanded(!isExpanded)}
             >
-              {isExpanded ? (
-                <>
-                  <span className="text-xs font-medium mr-2">Show less</span>
-                  <ChevronUp className="w-5 h-5" />
-                </>
-              ) : (
-                <>
-                  <span className="text-xs font-medium mr-2">Show {hiddenCount} more {hiddenCount === 1 ? 'person' : 'people'}</span>
-                  <ChevronDown className="w-5 h-5" />
-                </>
-              )}
+              <span>
+                {isExpanded ? 'Show less' : `Show ${hiddenCount} more`}
+              </span>
+              <motion.div
+                animate={{ rotate: isExpanded ? 180 : 0 }}
+                transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+              >
+                <ChevronDown className="w-4 h-4" />
+              </motion.div>
             </Button>
-          </div>
+          </motion.div>
         )}
       </Card>
 
@@ -192,9 +199,9 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
         />
       )}
 
-      <CreateOptionsDialog 
-        open={isCreateDialogOpen} 
-        onOpenChange={setIsCreateDialogOpen} 
+      <CreateOptionsDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
       />
     </div>
   );
