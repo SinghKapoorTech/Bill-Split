@@ -2,7 +2,7 @@
 export const FEATURES = {
   AI_POWERED: {
     title: 'AI-Powered',
-    description: 'Gemini AI extracts items, tax, and tip automatically',
+    description: 'AI extracts items, tax, and tip automatically',
   },
   FAIR_SPLITTING: {
     title: 'Fair Splitting',
