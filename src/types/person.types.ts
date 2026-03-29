@@ -47,6 +47,7 @@ export interface UserProfile {
   
   createdAt: Timestamp;
   lastLoginAt: Timestamp;
+  hasSeenOnboarding?: boolean;
 }
 
 export interface VenmoCharge {

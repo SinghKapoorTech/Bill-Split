@@ -63,7 +63,11 @@
       "Bash(xargs head:*)",
       "Bash(winget install:*)",
       "Bash(xargs grep:*)",
-      "Bash(grep -r photoURL src/components/shared --include=*.tsx -A 2)"
+      "Bash(grep -r photoURL src/components/shared --include=*.tsx -A 2)",
+      "Bash(curl *)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(f''''{r[full_name]} \\({r[stargazers_count]}★\\): {r[description]}''''\\) for r in data.get\\(''''items'''',[]\\)]\")",
+      "Bash(ls:*)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "ask": []

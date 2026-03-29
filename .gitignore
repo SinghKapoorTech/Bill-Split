@@ -38,3 +38,7 @@ firebase-debug.*.log
 *.sln
 *.sw?
 e2e/.auth-state.json
+
+# Skills (installed via npx skills)
+.agents
+.claude/*

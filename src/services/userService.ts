@@ -89,6 +89,7 @@ export const userService = {
         squadIds: [],
         createdAt: now,
         lastLoginAt: now,
+        hasSeenOnboarding: false,
         ...(user.photoURL && { photoURL: user.photoURL }),
         ...(user.phoneNumber && { phoneNumber: user.phoneNumber }),
       };
@@ -118,7 +119,13 @@ export const userService = {
     }
   },
 
-
+  /**
+   * Marks onboarding as seen so the walkthrough doesn't show again
+   */
+  async markOnboardingSeen(userId: string): Promise<void> {
+    const userRef = doc(db, USERS_COLLECTION, userId);
+    await updateDoc(userRef, { hasSeenOnboarding: true });
+  },
 
   /**
    * Gets a user by email or phone number

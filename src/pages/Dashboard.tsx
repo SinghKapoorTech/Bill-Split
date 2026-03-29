@@ -30,6 +30,9 @@ import { useToast } from '@/hooks/use-toast';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import { FriendBalancePreviewCard } from '@/components/dashboard/FriendBalancePreviewCard';
 import { useActiveBalances } from '@/hooks/useActiveBalances';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { userService } from '@/services/userService';
+import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog';
 import { PullToRefresh } from '@/components/layout/PullToRefresh';
 import { Separator } from '@/components/ui/separator';
 import { motion } from 'framer-motion';
@@ -44,6 +47,8 @@ export default function Dashboard() {
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [billToDelete, setBillToDelete] = useState<{ id: string; receiptFileName?: string; title: string } | null>(null);
   const { balances, isLoading: isLoadingBalances, refreshBalances } = useActiveBalances();
+  const { profile } = useUserProfile();
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const {
     activeSession,
     savedSessions,
@@ -54,7 +59,21 @@ export default function Dashboard() {
     deleteSession,
   } = useBillContext();
 
-  // Refresh balances automatically when routing back to the dashboard, 
+  // Show onboarding for first-time users
+  useEffect(() => {
+    if (profile && profile.hasSeenOnboarding === false) {
+      setShowOnboarding(true);
+    }
+  }, [profile]);
+
+  const handleOnboardingComplete = async () => {
+    setShowOnboarding(false);
+    if (user) {
+      await userService.markOnboardingSeen(user.uid);
+    }
+  };
+
+  // Refresh balances automatically when routing back to the dashboard,
   // e.g. after finishing a simple transaction wizard.
   useEffect(() => {
     refreshBalances();
@@ -269,7 +288,7 @@ export default function Dashboard() {
 
                   <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-border border rounded-lg">
                     {[
-                      { icon: <ReceiptText className="w-5 h-5 text-primary" />, label: 'Standard Bill', sub: 'Scan receipt', onClick: handleNewBill, hoverClass: 'hover:bg-primary/5' },
+                      { icon: <ReceiptText className="w-5 h-5 text-primary" />, label: 'Standard Bill', sub: 'Scan receipt', onClick: () => navigate('/bill/new'), hoverClass: 'hover:bg-primary/5' },
                       { icon: <Zap className="w-5 h-5 text-blue-500" />, label: 'Quick Expense', sub: 'No items', onClick: () => navigate('/transaction/new'), hoverClass: 'hover:bg-blue-500/5' },
                       { icon: <CalendarDays className="w-5 h-5 text-orange-500" />, label: 'Event / Trip', sub: 'Group bills', onClick: () => navigate('/events'), hoverClass: 'hover:bg-orange-500/5' },
                     ].map((item, i) => (
@@ -380,6 +399,9 @@ export default function Dashboard() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Onboarding walkthrough for first-time users */}
+        <OnboardingDialog open={showOnboarding} onComplete={handleOnboardingComplete} />
       </div>
     </PullToRefresh>
   );
