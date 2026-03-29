@@ -58,7 +58,7 @@ export function OnboardingDialog({ open, onComplete }: OnboardingDialogProps) {
     <Dialog open={open}>
       <DialogContent
         hideCloseButton
-        className="max-w-md p-0 overflow-hidden"
+        className="max-w-lg p-0 overflow-hidden"
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
@@ -73,7 +73,7 @@ export function OnboardingDialog({ open, onComplete }: OnboardingDialogProps) {
         </button>
 
         {/* Slide content */}
-        <div className="px-6 pt-10 pb-4 min-h-[340px] flex items-center justify-center">
+        <div className="px-6 pt-10 pb-4 min-h-[400px] flex items-center justify-center">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={currentSlide}
@@ -110,7 +110,7 @@ export function OnboardingDialog({ open, onComplete }: OnboardingDialogProps) {
                 onClick={onComplete}
                 className="bg-gradient-to-r from-primary to-accent text-white border-0"
               >
-                Get Started
+                Try it now
               </Button>
             </AnimatedButtonWrapper>
           ) : (

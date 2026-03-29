@@ -23,6 +23,8 @@ import {
   Zap,
   ChevronDown,
   ChevronUp,
+  Camera,
+  ArrowRight,
 } from 'lucide-react';
 import { Bill } from '@/types/bill.types';
 import { billService } from '@/services/billService';
@@ -263,11 +265,11 @@ export default function Dashboard() {
               <Card className="p-4 md:p-6 overflow-hidden w-full max-w-2xl">
                 <div className="text-center">
                   <motion.div
-                    className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4"
+                    className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-md"
                     animate={{ y: [0, -8, 0] }}
                     transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
                   >
-                    <ReceiptText className="w-6 h-6 text-primary" />
+                    <Camera className="w-6 h-6 text-white" />
                   </motion.div>
                   <motion.h3
                     className="font-semibold text-lg mb-1"
@@ -275,7 +277,7 @@ export default function Dashboard() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1, duration: 0.3 }}
                   >
-                    Make your first bill
+                    Scan your first receipt
                   </motion.h3>
                   <motion.p
                     className="text-sm text-muted-foreground mb-6"
@@ -283,12 +285,12 @@ export default function Dashboard() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2, duration: 0.3 }}
                   >
-                    Split expenses, record simple transactions, or start a group trip to effortlessly track who owes what.
+                    AI extracts every item, tax, and tip — then split fairly in seconds.
                   </motion.p>
 
                   <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-border border rounded-lg">
                     {[
-                      { icon: <ReceiptText className="w-5 h-5 text-primary" />, label: 'Standard Bill', sub: 'Scan receipt', onClick: () => navigate('/bill/new'), hoverClass: 'hover:bg-primary/5' },
+                      { icon: <Camera className="w-5 h-5 text-cyan-500" />, label: 'Scan Receipt', sub: 'AI-powered', onClick: () => navigate('/bill/new'), hoverClass: 'hover:bg-cyan-500/5' },
                       { icon: <Zap className="w-5 h-5 text-blue-500" />, label: 'Quick Expense', sub: 'No items', onClick: () => navigate('/transaction/new'), hoverClass: 'hover:bg-blue-500/5' },
                       { icon: <CalendarDays className="w-5 h-5 text-orange-500" />, label: 'Event / Trip', sub: 'Group bills', onClick: () => navigate('/events'), hoverClass: 'hover:bg-orange-500/5' },
                     ].map((item, i) => (
