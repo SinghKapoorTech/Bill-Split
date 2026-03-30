@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react';
 import { UserAvatar } from '@/components/shared/UserAvatar';
-import { motion, useMotionValue, useTransform, PanInfo } from 'framer-motion';
+import { motion, useMotionValue, useTransform, useAnimate, PanInfo } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 export type BalanceDirection = 'you-owe' | 'owes-you' | 'neutral';
@@ -52,10 +52,14 @@ export function BalanceListRow({
   const x = useMotionValue(0);
   const actionOpacity = useTransform(x, [-100, -40, 0], [1, 0.5, 0]);
   const actionScale = useTransform(x, [-100, -40, 0], [1, 0.8, 0.5]);
+  const [scope, animate] = useAnimate();
 
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     if (info.offset.x < -80 && action) {
+      animate(scope.current, { x: 0 }, { type: 'spring', stiffness: 400, damping: 30 });
       action.onClick();
+    } else {
+      animate(scope.current, { x: 0 }, { type: 'spring', stiffness: 400, damping: 30 });
     }
   };
 
@@ -238,6 +242,7 @@ export function BalanceListRow({
 
         {/* Draggable row */}
         <motion.div
+          ref={scope}
           style={{ x }}
           drag="x"
           dragConstraints={{ left: -100, right: 0 }}

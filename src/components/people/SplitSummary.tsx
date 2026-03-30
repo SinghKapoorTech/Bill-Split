@@ -344,6 +344,18 @@ function PersonCompactRow({
                   </p>
                 );
               })}
+              {pt.tax > 0 && (
+                <p className="flex justify-between pr-1">
+                  <span>Tax</span>
+                  <span className="tabular-nums ml-2 shrink-0">${pt.tax.toFixed(2)}</span>
+                </p>
+              )}
+              {pt.tip > 0 && (
+                <p className="flex justify-between pr-1">
+                  <span>Tip</span>
+                  <span className="tabular-nums ml-2 shrink-0">${pt.tip.toFixed(2)}</span>
+                </p>
+              )}
             </div>
           )}
         </>
