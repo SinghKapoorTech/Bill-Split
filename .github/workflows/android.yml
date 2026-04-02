@@ -48,13 +48,6 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
 
-      - name: Debug keystore
-        run: |
-          echo "File size: $(wc -c < android/app/release.keystore) bytes"
-          echo "File type: $(file android/app/release.keystore)"
-          keytool -list -keystore android/app/release.keystore -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>&1 || echo "FAILED with KEYSTORE_PASSWORD"
-          keytool -list -keystore android/app/release.keystore -storepass "${{ secrets.KEY_PASSWORD }}" 2>&1 || echo "FAILED with KEY_PASSWORD"
-
       - name: Build release AAB
         working-directory: android
         run: ./gradlew bundleRelease
@@ -62,7 +55,6 @@ jobs:
           KEYSTORE_PATH: app/release.keystore
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: divit
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Upload to Play Store Internal Testing
         uses: r0adkll/upload-google-play@v1
