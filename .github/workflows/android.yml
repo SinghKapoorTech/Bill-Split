@@ -56,6 +56,13 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: divit
 
+      - name: Debug service account
+        run: |
+          echo '${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}' > /tmp/sa.json
+          echo "File size: $(wc -c < /tmp/sa.json) bytes"
+          echo "Valid JSON: $(python3 -c 'import json; f=open("/tmp/sa.json"); d=json.load(f); print("YES"); print("type:", d.get("type","")); print("project_id:", d.get("project_id","")); print("client_email:", d.get("client_email",""))' 2>&1 || echo 'NO - invalid JSON')"
+          rm /tmp/sa.json
+
       - name: Upload to Play Store Internal Testing
         uses: r0adkll/upload-google-play@v1.1.3
         with:
