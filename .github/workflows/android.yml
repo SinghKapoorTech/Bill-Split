@@ -38,7 +38,7 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -57,21 +57,11 @@ jobs:
           KEY_ALIAS: divit
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Sign AAB
-        uses: r0adkll/sign-android-release@v1
-        id: sign
-        with:
-          releaseDirectory: android/app/build/outputs/bundle/release
-          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-          alias: divit
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-
       - name: Upload to Play Store Internal Testing
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.singhkapoortech.divit
-          releaseFiles: ${{ steps.sign.outputs.signedReleaseFile }}
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
           track: internal
           status: completed
