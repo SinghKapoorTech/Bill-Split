@@ -223,9 +223,9 @@ export function SettleUpModal({
                 <UserAvatar
                   name={fromName}
                   photoURL={fromPhotoURL}
-                  size="lg"
-                  className={`w-12 h-12 border-2 ${isPaying ? 'border-destructive/30' : 'border-muted'}`}
-                  fallbackClassName={`text-sm font-semibold ${isPaying ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}
+                  size="sm"
+                  className={`border-2 ${isPaying ? 'border-destructive/30' : 'border-muted'}`}
+                  fallbackClassName={`font-semibold ${isPaying ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}
                 />
                 <span className="text-xs text-muted-foreground">{fromName}</span>
               </div>
@@ -236,9 +236,9 @@ export function SettleUpModal({
                 <UserAvatar
                   name={toName}
                   photoURL={toPhotoURL}
-                  size="lg"
-                  className={`w-12 h-12 border-2 ${!isPaying ? 'border-green-500/30' : 'border-muted'}`}
-                  fallbackClassName={`text-sm font-semibold ${!isPaying ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}
+                  size="sm"
+                  className={`border-2 ${!isPaying ? 'border-green-500/30' : 'border-muted'}`}
+                  fallbackClassName={`font-semibold ${!isPaying ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}
                 />
                 <span className="text-xs text-muted-foreground">{toName}</span>
               </div>
