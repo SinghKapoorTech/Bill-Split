@@ -1,6 +1,6 @@
 {
 	"appId": "com.singhkapoortech.divit",
-	"appName": "Bill Split",
+	"appName": "Divit",
 	"webDir": "dist",
 	"server": {
 		"androidScheme": "https",
