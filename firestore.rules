@@ -292,5 +292,14 @@ service cloud.firestore {
       allow update: if request.auth != null &&
                        request.auth.token.email == resource.data.email;
     }
+
+    // ========== Feedback Collection ==========
+    match /feedback/{feedbackId} {
+      // Create: authenticated users only, must set own userId
+      allow create: if request.auth != null &&
+                       request.resource.data.userId == request.auth.uid;
+      // No client reads/updates/deletes — admin console only
+      allow read, update, delete: if false;
+    }
   }
 }

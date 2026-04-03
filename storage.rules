@@ -13,6 +13,11 @@ service firebase.storage {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Allow authenticated users to upload feedback screenshots
+    match /feedback/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Allow anyone to read/write collaborative session receipts
     // This is needed for anonymous users and shared sessions
     match /receipts/collaborative/{allPaths=**} {
