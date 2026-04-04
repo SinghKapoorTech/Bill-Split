@@ -17,6 +17,7 @@ import { userService } from '@/services/userService';
 import { SuccessCelebration } from '@/components/shared/SuccessCelebration';
 import { settlementRequestService } from '@/services/settlementRequestService';
 import { useSettlementRequests } from '@/hooks/useSettlementRequests';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 export interface SettleTarget {
   userId: string;
@@ -65,6 +66,7 @@ export function SettleUpModal({
   onSuccess
 }: SettleUpModalProps) {
   const { user } = useAuth();
+  const { profile } = useUserProfile();
   const { toast } = useToast();
   const { getOutgoingRequestForUser, getIncomingRequestFromUser } = useSettlementRequests();
   const pendingOutgoing = getOutgoingRequestForUser(targetUserId, eventId);
@@ -200,7 +202,7 @@ export function SettleUpModal({
   const myName = user?.displayName?.split(' ')[0] || 'You';
   const fromName = isPaying ? myName : targetUserName.split(' ')[0];
   const toName = isPaying ? targetUserName.split(' ')[0] : myName;
-  const myPhotoURL = user?.photoURL;
+  const myPhotoURL = profile?.photoURL || user?.photoURL;
   const fromPhotoURL = isPaying ? myPhotoURL : targetUserPhotoURL;
   const toPhotoURL = isPaying ? targetUserPhotoURL : myPhotoURL;
 
