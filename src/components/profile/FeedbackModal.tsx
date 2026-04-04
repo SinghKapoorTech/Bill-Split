@@ -40,13 +40,26 @@ export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
     onOpenChange(open);
   };
 
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
   const handleAddImages = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files;
     if (!selected) return;
     const newFiles = Array.from(selected);
-    setFiles((prev) => [...prev, ...newFiles]);
-    const newPreviews = newFiles.map((f) => URL.createObjectURL(f));
-    setPreviews((prev) => [...prev, ...newPreviews]);
+    const oversized = newFiles.filter((f) => f.size > MAX_FILE_SIZE);
+    if (oversized.length > 0) {
+      toast({
+        title: 'File too large',
+        description: `Each image must be under 5 MB. ${oversized.length} file(s) skipped.`,
+        variant: 'destructive',
+      });
+    }
+    const valid = newFiles.filter((f) => f.size <= MAX_FILE_SIZE);
+    if (valid.length > 0) {
+      setFiles((prev) => [...prev, ...valid]);
+      const newPreviews = valid.map((f) => URL.createObjectURL(f));
+      setPreviews((prev) => [...prev, ...newPreviews]);
+    }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 

@@ -14,15 +14,14 @@ interface SubmitFeedbackParams {
 }
 
 async function uploadFeedbackImages(userId: string, files: File[]): Promise<string[]> {
-  const urls: string[] = [];
-  for (const file of files) {
-    const fileName = `${Date.now()}-${file.name}`;
-    const storageRef = ref(storage, `feedback/${userId}/${fileName}`);
-    const snapshot = await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    urls.push(downloadURL);
-  }
-  return urls;
+  return Promise.all(
+    files.map(async (file, i) => {
+      const fileName = `${Date.now()}-${i}-${file.name}`;
+      const storageRef = ref(storage, `feedback/${userId}/${fileName}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      return getDownloadURL(snapshot.ref);
+    })
+  );
 }
 
 export async function submitFeedback({

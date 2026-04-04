@@ -175,8 +175,8 @@ export function SettleUpModal({
   const handleOpenVenmoDialog = async () => {
     let recipientVenmoId = '';
     try {
-      const profile = await userService.getUserProfile(targetUserId);
-      recipientVenmoId = profile?.venmoId?.replace(/^@+/, '') ?? '';
+      const targetProfile = await userService.getUserProfile(targetUserId);
+      recipientVenmoId = targetProfile?.venmoId?.replace(/^@+/, '') ?? '';
     } catch {
       // ignore — field will just be empty
     }

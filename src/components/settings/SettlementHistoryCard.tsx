@@ -8,6 +8,7 @@ import { settlementService } from '@/services/settlementService';
 import { Settlement } from '@/types/settlement.types';
 import { useToast } from '@/hooks/use-toast';
 import { useFriendsEditor } from '@/hooks/useFriendsEditor';
+import { userService } from '@/services/userService';
 
 export function SettlementHistoryCard() {
   const { user } = useAuth();
@@ -17,6 +18,7 @@ export function SettlementHistoryCard() {
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [loading, setLoading] = useState(true);
   const [reversingId, setReversingId] = useState<string | null>(null);
+  const [nameCache, setNameCache] = useState<Record<string, string>>({});
 
   const fetchSettlements = async () => {
     if (!user) return;
@@ -38,6 +40,44 @@ export function SettlementHistoryCard() {
   useEffect(() => {
     fetchSettlements();
   }, [user]);
+
+  // Resolve names for settlement participants not in friends list.
+  // nameCache intentionally omitted from deps — including it would cause an infinite loop
+  // since this effect updates nameCache. The effect runs when settlements/friends change,
+  // which is sufficient to resolve all unknown names.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!user || settlements.length === 0 || isLoadingFriends) return;
+
+    const unknownIds = new Set<string>();
+    for (const s of settlements) {
+      const otherId = s.fromUserId === user.uid ? s.toUserId : s.fromUserId;
+      const inFriends = friends.some((f) => f.id === otherId || f.userId === otherId);
+      if (!inFriends && !nameCache[otherId]) {
+        unknownIds.add(otherId);
+      }
+    }
+
+    if (unknownIds.size === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const newNames: Record<string, string> = {};
+      for (const uid of unknownIds) {
+        try {
+          const userProfile = await userService.getUserProfile(uid);
+          newNames[uid] = userProfile?.displayName || userProfile?.username || 'Unknown';
+        } catch {
+          newNames[uid] = 'Unknown';
+        }
+      }
+      if (!cancelled) {
+        setNameCache((prev) => ({ ...prev, ...newNames }));
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user, settlements, friends, isLoadingFriends]);
 
   const handleUndo = async (settlementId: string) => {
     setReversingId(settlementId);
@@ -61,9 +101,8 @@ export function SettlementHistoryCard() {
 
   const getFriendName = (otherUserId: string) => {
     if (isLoadingFriends) return 'Loading...';
-    // The `friends` array comes from `useFriendsEditor`. The `id` property normally maps to `uid`.
-    const friend = friends.find((f: { id?: string; userId?: string; name?: string }) => f.id === otherUserId || f.userId === otherUserId);
-    return friend?.name || 'Unknown Friend';
+    const friend = friends.find((f) => f.id === otherUserId || f.userId === otherUserId);
+    return friend?.name || nameCache[otherUserId] || 'Loading...';
   };
 
   return (

@@ -277,9 +277,9 @@ service cloud.firestore {
                         request.auth.uid == resource.data.toUserId);
     }
 
-    // Receipt analysis cache (if you re-add the cache feature later)
+    // Receipt analysis cache (locked down — re-enable when feature is re-added)
     match /receiptAnalysisCache/{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
 
     // Event invitations - users can read their own invitations
