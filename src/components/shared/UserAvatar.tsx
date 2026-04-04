@@ -28,7 +28,7 @@ export function UserAvatar({
       {photoURL && (
         <AvatarImage src={photoURL} alt={name} className="object-cover" />
       )}
-      <AvatarFallback className={cn(sizeClasses[size], fallbackClassName)}>
+      <AvatarFallback className={cn(fallbackClassName)}>
         {getInitials(name)}
       </AvatarFallback>
     </Avatar>

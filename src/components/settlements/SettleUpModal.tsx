@@ -219,28 +219,28 @@ export function SettleUpModal({
 
             {/* Avatar flow */}
             <div className="flex items-center justify-center gap-3 mb-5">
-              <div className="flex flex-col items-center gap-1">
+              <div className="flex flex-col items-center gap-1 w-16">
                 <UserAvatar
                   name={fromName}
                   photoURL={fromPhotoURL}
                   size="lg"
-                  className={`w-12 h-12 border-2 ${isPaying ? 'border-destructive/30' : 'border-muted'}`}
-                  fallbackClassName={`text-sm font-semibold ${isPaying ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}
+                  className="w-12 h-12"
+                  fallbackClassName={`text-sm font-semibold ${isPaying ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-600'}`}
                 />
-                <span className="text-xs text-muted-foreground">{fromName}</span>
+                <span className={`text-xs font-semibold uppercase tracking-wide text-center w-full truncate ${isPaying ? 'text-destructive' : 'text-green-600'}`}>{fromName}</span>
               </div>
               <div className="flex flex-col items-center pb-4">
                 <ArrowRight className={`w-5 h-5 ${isPaying ? 'text-destructive' : 'text-green-600'}`} />
               </div>
-              <div className="flex flex-col items-center gap-1">
+              <div className="flex flex-col items-center gap-1 w-16">
                 <UserAvatar
                   name={toName}
                   photoURL={toPhotoURL}
                   size="lg"
-                  className={`w-12 h-12 border-2 ${!isPaying ? 'border-green-500/30' : 'border-muted'}`}
-                  fallbackClassName={`text-sm font-semibold ${!isPaying ? 'bg-green-500/10 text-green-600' : 'bg-muted text-muted-foreground'}`}
+                  className="w-12 h-12"
+                  fallbackClassName={`text-sm font-semibold ${isPaying ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-600'}`}
                 />
-                <span className="text-xs text-muted-foreground">{toName}</span>
+                <span className={`text-xs font-semibold uppercase tracking-wide text-center w-full truncate ${isPaying ? 'text-destructive' : 'text-green-600'}`}>{toName}</span>
               </div>
             </div>
 

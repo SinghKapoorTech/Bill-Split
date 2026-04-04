@@ -260,6 +260,13 @@ export default function BalanceDetailView() {
               photoURL={targetUserPhoto}
               size="lg"
               className="border-3 border-background shadow-lg"
+              fallbackClassName={
+                friendBalance === null || friendBalance === 0
+                  ? 'bg-muted text-muted-foreground'
+                  : friendBalance > 0
+                    ? 'bg-green-500/10 text-green-600'
+                    : 'bg-destructive/10 text-destructive'
+              }
             />
           </motion.div>
 
