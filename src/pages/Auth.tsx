@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Receipt, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
@@ -95,11 +95,13 @@ const Auth = () => {
       <Card className="w-full max-w-md p-8 space-y-8 shadow-xl">
         {/* Logo */}
         <div className="text-center space-y-2">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center mx-auto shadow-lg">
-            <Receipt className="w-9 h-9 text-primary-foreground" />
-          </div>
+          <img
+            src="/divit-icon.png"
+            alt="Divit"
+            className="w-16 h-16 rounded-2xl mx-auto shadow-lg"
+          />
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
-            SplitBill
+            Divit
           </h1>
           <p className="text-muted-foreground">
             Split bills fairly with AI-powered receipt scanning

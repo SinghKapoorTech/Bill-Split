@@ -243,7 +243,7 @@ export default function JoinSession() {
                 onClick={handleOpenInApp}
                 className="text-sm text-primary font-semibold hover:underline"
               >
-                Open in Bill Split
+                Open in Divit
               </button>
             </div>
             <button

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Receipt, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { ParallaxGradientBackground } from '@/components/landing/ParallaxGradientBackground';
@@ -116,9 +116,11 @@ const MobileAuth = () => {
       >
         {/* Animated Logo */}
         <motion.div variants={logoVariants} className="mb-8">
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-500 flex items-center justify-center shadow-2xl shadow-indigo-500/30">
-            <Receipt className="w-10 h-10 text-white" strokeWidth={2} />
-          </div>
+          <img
+            src="/divit-icon.png"
+            alt="Divit"
+            className="w-20 h-20 rounded-3xl shadow-2xl shadow-indigo-500/30"
+          />
         </motion.div>
 
         {/* App Name with Gradient */}

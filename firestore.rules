@@ -277,9 +277,9 @@ service cloud.firestore {
                         request.auth.uid == resource.data.toUserId);
     }
 
-    // Receipt analysis cache (if you re-add the cache feature later)
+    // Receipt analysis cache (locked down — re-enable when feature is re-added)
     match /receiptAnalysisCache/{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
 
     // Event invitations - users can read their own invitations
@@ -291,6 +291,15 @@ service cloud.firestore {
                       request.auth.uid == resource.data.invitedBy;
       allow update: if request.auth != null &&
                        request.auth.token.email == resource.data.email;
+    }
+
+    // ========== Feedback Collection ==========
+    match /feedback/{feedbackId} {
+      // Create: authenticated users only, must set own userId
+      allow create: if request.auth != null &&
+                       request.resource.data.userId == request.auth.uid;
+      // No client reads/updates/deletes — admin console only
+      allow read, update, delete: if false;
     }
   }
 }

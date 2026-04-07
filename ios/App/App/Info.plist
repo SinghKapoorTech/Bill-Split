@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Bill Split</string>
+	<string>Divit</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -67,11 +67,11 @@
 		</dict>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Bill Split needs camera access to scan receipts using AI</string>
+	<string>Divit needs camera access to scan receipts using AI</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Bill Split needs access to your photo library to select receipt images</string>
+	<string>Divit needs access to your photo library to select receipt images</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Bill Split saves receipt images for later analysis</string>
+	<string>Divit saves receipt images for later analysis</string>
 	<key>GIDClientID</key>
 	<string>162777511812-2dps8kd79tucfc5si56act9lanueshcl.apps.googleusercontent.com</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

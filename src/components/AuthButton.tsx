@@ -12,9 +12,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 export const AuthButton = () => {
   const { user, loading, signOut } = useAuth();
+  const { profile } = useUserProfile();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -60,7 +62,7 @@ export const AuthButton = () => {
           className="relative h-10 w-10 rounded-full ring-2 ring-primary/20 hover:ring-primary/40 transition-all"
         >
           <Avatar className="h-9 w-9">
-            <AvatarImage src={user.photoURL || undefined} alt={user.displayName || 'User'} />
+            <AvatarImage src={profile?.photoURL || user.photoURL || undefined} alt={user.displayName || 'User'} />
             <AvatarFallback className="bg-gradient-to-br from-primary to-primary-glow text-primary-foreground">
               {getInitials(user.displayName)}
             </AvatarFallback>

@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.singhkapoortech.divit',
-  appName: 'Bill Split',
+  appName: 'Divit',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

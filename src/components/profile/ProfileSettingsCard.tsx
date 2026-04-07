@@ -1,5 +1,6 @@
-import { useRef } from 'react';
-import { User as UserIcon, Check, X, Camera, Loader2, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { User as UserIcon, Check, X, Camera, Loader2, Trash2, MessageSquare } from 'lucide-react';
+import { FeedbackModal } from './FeedbackModal';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +28,7 @@ export function ProfileSettingsCard() {
   } = useProfileEditor();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const handleSave = async () => {
     await save();
@@ -187,10 +189,29 @@ export function ProfileSettingsCard() {
               onClick={signOut}
               variant="outline"
               className="flex-1 text-destructive"
-            > 
+            >
               {UI_TEXT.SIGN_OUT}
             </Button>
         </div>
+
+        <div className="border-t pt-4 mt-2">
+          <Button
+            onClick={() => setFeedbackOpen(true)}
+            variant="outline"
+            className="w-full gap-2"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Send Feedback
+          </Button>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Report bugs or suggest features
+          </p>
+        </div>
+
+        <FeedbackModal
+          open={feedbackOpen}
+          onOpenChange={setFeedbackOpen}
+        />
       </div>
     </Card>
   );

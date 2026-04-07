@@ -1,5 +1,5 @@
 /**
- * Firebase Cloud Functions for Bill Split
+ * Firebase Cloud Functions for Divit
  *
  * Securely handles Gemini AI API calls server-side to protect API keys
  * and manages trip invitations

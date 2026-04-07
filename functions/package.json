@@ -1,7 +1,7 @@
 {
   "name": "functions",
   "version": "1.0.0",
-  "description": "Firebase Cloud Functions for Bill Split",
+  "description": "Firebase Cloud Functions for Divit",
   "type": "module",
   "scripts": {
     "build": "tsc",

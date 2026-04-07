@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Bill Split</string>
-    <string name="title_activity_main">Bill Split</string>
+    <string name="app_name">Divit</string>
+    <string name="title_activity_main">Divit</string>
     <string name="package_name">com.billsplit.app</string>
     <string name="custom_url_scheme">com.billsplit.app</string>
 </resources>
