@@ -264,8 +264,8 @@ export default function BalanceDetailView() {
                 friendBalance === null || friendBalance === 0
                   ? 'bg-muted text-muted-foreground'
                   : friendBalance > 0
-                    ? 'bg-green-500/10 text-green-600'
-                    : 'bg-destructive/10 text-destructive'
+                    ? 'bg-emerald-500/10 text-emerald-600'
+                    : 'bg-red-500/10 text-red-500'
               }
             />
           </motion.div>
@@ -355,8 +355,11 @@ export default function BalanceDetailView() {
                 /* Default: normal settle button */
                 <Button
                   onClick={handleSettleUp}
-                  className="rounded-full px-6 h-10 font-semibold shadow-sm"
-                  variant={friendBalance! < 0 ? 'default' : 'secondary'}
+                  className={`rounded-full px-6 h-10 font-semibold shadow-sm text-white border-none ${
+                    friendBalance! < 0
+                      ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
+                      : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                  }`}
                 >
                   <Banknote className="w-4 h-4 mr-2" />
                   {friendBalance! < 0 ? 'Pay' : 'Settle Up'}

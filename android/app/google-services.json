@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "162777511812",
+    "project_id": "divit-6d217",
+    "storage_bucket": "divit-6d217.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:162777511812:android:c11981351fe941b0c6cfd1",
+        "android_client_info": {
+          "package_name": "com.singhkapoortech.divit"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "162777511812-d2onrgj3o3o4ssjvd68566ht8iupb5f6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDw7VWlTg52IKxDnF6HrB96_0CJ9Xi1Wjg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "162777511812-d2onrgj3o3o4ssjvd68566ht8iupb5f6.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "162777511812-2dps8kd79tucfc5si56act9lanueshcl.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.singhkapoortech.divit"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

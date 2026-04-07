@@ -55,6 +55,7 @@ export function BalanceListRow({
   const [scope, animate] = useAnimate();
 
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (!scope.current) return;
     if (info.offset.x < -80 && action) {
       animate(scope.current, { x: 0 }, { type: 'spring', stiffness: 400, damping: 30 });
       action.onClick();
@@ -233,7 +234,7 @@ export function BalanceListRow({
         {/* Action revealed behind the row */}
         <motion.div
           className={`absolute right-0 top-0 bottom-0 flex items-center justify-center px-6 rounded-r-xl ${
-            direction === 'you-owe' ? 'bg-red-500 text-white' : 'bg-emerald-600 text-white'
+            direction === 'you-owe' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'
           }`}
           style={{ opacity: actionOpacity, scale: actionScale }}
         >
