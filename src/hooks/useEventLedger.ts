@@ -5,6 +5,7 @@ import { OptimizedDebt, EventPairBalance } from '@/services/eventLedgerService';
 import { Bill } from '@/types/bill.types';
 import { computeEventBalances } from '@/utils/eventBalanceCalculator';
 import { simplifyDebts } from '@shared/optimizeDebts';
+import { personIdToFirebaseUid } from '@shared/ledgerCalculations';
 
 const EVENT_BALANCES_COLLECTION = 'event_balances';
 
@@ -64,7 +65,9 @@ export function useEventLedger(eventId: string, bills?: Bill[]) {
 
     const netBalances: Record<string, number> = {};
     for (const pair of pairBalances) {
-      const [uid0, uid1] = pair.participants;
+      const uid0 = personIdToFirebaseUid(pair.participants[0]);
+      const uid1 = personIdToFirebaseUid(pair.participants[1]);
+      if (uid0 === uid1) continue;
       if (Math.abs(pair.balance) > 0.001) {
         netBalances[uid0] = (netBalances[uid0] ?? 0) + pair.balance;
         netBalances[uid1] = (netBalances[uid1] ?? 0) - pair.balance;
@@ -80,7 +83,11 @@ export function useEventLedger(eventId: string, bills?: Bill[]) {
     const directedDebts: OptimizedDebt[] = [];
     for (const pair of pairBalances) {
       if (Math.abs(pair.balance) < 0.01) continue;
-      const [uid0, uid1] = pair.participants;
+      const [rawUid0, rawUid1] = pair.participants;
+      // Normalize to raw Firebase UIDs (strips any legacy user- prefix in stored docs)
+      const uid0 = personIdToFirebaseUid(rawUid0);
+      const uid1 = personIdToFirebaseUid(rawUid1);
+      if (uid0 === uid1) continue; // skip self-debts (same person stored with two formats)
       // balance > 0 → uid0 is owed → uid1 owes uid0
       if (pair.balance > 0) {
         directedDebts.push({ fromUserId: uid1, toUserId: uid0, amount: pair.balance });

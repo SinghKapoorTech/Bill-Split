@@ -30,7 +30,7 @@ export function computeEventBalances(bills: Bill[]): ComputedEventBalances {
 
   for (const bill of bills) {
     const people = bill.people || [];
-    const creditorId = bill.paidById || bill.ownerId;
+    const creditorId = personIdToFirebaseUid(bill.paidById || bill.ownerId);
     const settledPersonIds = bill.settledPersonIds || [];
 
     if (!bill.billData?.items?.length || !creditorId || people.length === 0) continue;
@@ -63,7 +63,7 @@ export function computeEventBalances(bills: Bill[]): ComputedEventBalances {
       if (uid === creditorId) continue;
 
       const owesAmount = settledPersonIds.includes(pt.personId) ? 0 : pt.total;
-      if (owesAmount > 0.01) {
+      if (owesAmount > 0.01 && uid !== creditorId) {
         pairDebts.push({ fromUserId: uid, toUserId: creditorId, amount: owesAmount });
         // Also track net balances for consumers that need them
         netBalances[uid] = (netBalances[uid] ?? 0) - owesAmount;

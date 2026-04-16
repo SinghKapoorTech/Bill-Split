@@ -411,7 +411,7 @@ export const userService = {
     const balancesList: Friend[] = [];
     for (const relatedId of userIdsArray) {
       const profile = profileMap[relatedId];
-      if (profile && !seenIds.has(profile.uid)) {
+      if (profile && profile.uid !== userId && !seenIds.has(profile.uid)) {
         seenIds.add(profile.uid);
         balancesList.push({
           id: profile.uid,
