@@ -79,8 +79,19 @@ export function computeEventBalances(bills: Bill[]): ComputedEventBalances {
     }
   }
 
+  const simplifiedDebts = simplifyDebts(pairDebts);
+
+  // Deduplicate by (fromUserId, toUserId) — guards against any edge case producing two rows
+  const seenKeys = new Set<string>();
+  const dedupedDebts = simplifiedDebts.filter(d => {
+    const key = `${d.fromUserId}|${d.toUserId}`;
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  });
+
   return {
     netBalances,
-    optimizedDebts: simplifyDebts(pairDebts),
+    optimizedDebts: dedupedDebts,
   };
 }

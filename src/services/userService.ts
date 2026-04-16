@@ -190,9 +190,12 @@ export const userService = {
     if (!userProfile || !userProfile.friends || userProfile.friends.length === 0) return [];
 
     // Handle legacy data: user.friends might be string[] OR legacy [{userId, balance}] objects.
-    const friendIds: string[] = (userProfile.friends as Array<string | { userId?: string; id?: string }>)
-      .map(f => typeof f === 'string' ? f : (f.userId || f.id))
-      .filter(Boolean) as string[];
+    // Deduplicate so mixed-format entries (string 'ABC' + object {userId:'ABC'}) don't produce two rows.
+    const friendIds: string[] = [...new Set(
+      (userProfile.friends as Array<string | { userId?: string; id?: string }>)
+        .map(f => typeof f === 'string' ? f : (f.userId || f.id))
+        .filter(Boolean) as string[]
+    )];
 
     const balanceMap: Record<string, number> = {};
 
@@ -404,10 +407,12 @@ export const userService = {
       });
     }
 
+    const seenIds = new Set<string>();
     const balancesList: Friend[] = [];
     for (const relatedId of userIdsArray) {
       const profile = profileMap[relatedId];
-      if (profile) {
+      if (profile && !seenIds.has(profile.uid)) {
+        seenIds.add(profile.uid);
         balancesList.push({
           id: profile.uid,
           name: profile.displayName || 'Unknown',

@@ -19,7 +19,7 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const sortedFriends = [...balances]
-    .filter(f => Math.abs(f.balance || 0) > 0.005)
+    .filter((f, i, arr) => Math.abs(f.balance || 0) > 0.005 && arr.findIndex(x => x.id === f.id) === i)
     .sort((a, b) => {
       const balA = Math.abs(a.balance || 0);
       const balB = Math.abs(b.balance || 0);

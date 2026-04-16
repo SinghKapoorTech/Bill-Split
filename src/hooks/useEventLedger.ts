@@ -102,9 +102,18 @@ export function useEventLedger(eventId: string, bills?: Bill[]) {
     ? (cacheNetBalances ?? {})
     : (fallback?.netBalances ?? {});
 
-  const optimizedDebtsResult = cacheExists
+  const rawDebts = cacheExists
     ? (cacheOptimizedDebts ?? [])
     : (fallback?.optimizedDebts ?? []);
+
+  // Deduplicate by (fromUserId, toUserId) — guards against any duplicate pair docs
+  const seenDebtKeys = new Set<string>();
+  const optimizedDebtsResult = rawDebts.filter(d => {
+    const key = `${d.fromUserId}|${d.toUserId}`;
+    if (seenDebtKeys.has(key)) return false;
+    seenDebtKeys.add(key);
+    return true;
+  });
 
   return {
     netBalances,
