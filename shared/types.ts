@@ -17,6 +17,7 @@ export interface BillData {
   subtotal: number;
   tax: number;
   tip: number;
+  otherFees: number;
   total: number;
 }
 
@@ -31,6 +32,7 @@ export interface PersonTotal {
   itemsSubtotal: number;
   tax: number;
   tip: number;
+  otherFees: number;
   total: number;
 }
 

@@ -61,7 +61,8 @@ export const createBill = onCall(
     people,
     {}, // itemAssignments starts empty for new bills via createBill (wizard handles it later or simple trans)
     billData.tip,
-    billData.tax
+    billData.tax,
+    billData.otherFees ?? 0
   );
 
   const linkedFriendUids = new Set(participantIds);

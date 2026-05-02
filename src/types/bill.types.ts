@@ -15,6 +15,7 @@ export interface BillData {
   subtotal: number;
   tax: number;
   tip: number;
+  otherFees: number;
   total: number;
   restaurantName?: string;
 }

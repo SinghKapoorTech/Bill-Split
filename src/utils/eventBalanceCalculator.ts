@@ -53,7 +53,8 @@ export function computeEventBalances(bills: Bill[]): ComputedEventBalances {
         people,
         bill.itemAssignments || {},
         bill.billData.tip,
-        bill.billData.tax
+        bill.billData.tax,
+        bill.billData.otherFees ?? 0
       );
     }
 

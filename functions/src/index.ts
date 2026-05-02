@@ -89,7 +89,8 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
   "subtotal": 50.00,
   "tax": 4.50,
   "tip": 10.00,
-  "total": 64.50
+  "otherFees": 3.99,
+  "total": 68.99
 }
 
 Rules:
@@ -97,7 +98,8 @@ Rules:
 - If restaurant name is not found, omit the field or set to null
 - Split quantities into separate items (e.g., "2x Burger" = two entries)
 - Use individual item prices, not totals
-- All values must be numbers`;
+- All values must be numbers
+- "otherFees" is the combined total of any delivery fees, service fees, long distance fees, platform fees, or any other charges that are not tax or tip — set to 0 if none`;
 
       // Detect MIME type from base64 string
       const mimeMatch = base64Image.match(/^data:([^;]+);base64,/);
@@ -157,6 +159,11 @@ Rules:
       // Normalize tip field - handle null, undefined, or non-numeric values
       if (billData.tip === null || billData.tip === undefined || typeof billData.tip !== 'number') {
         billData.tip = 0;
+      }
+
+      // Normalize otherFees field
+      if (billData.otherFees === null || billData.otherFees === undefined || typeof billData.otherFees !== 'number') {
+        billData.otherFees = 0;
       }
 
       // Validate numeric fields with detailed error

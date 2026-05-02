@@ -97,6 +97,7 @@ export const billService = {
       subtotal: amount,
       tax: 0,
       tip: 0,
+      otherFees: 0,
       total: amount,
       restaurantName: title
     };

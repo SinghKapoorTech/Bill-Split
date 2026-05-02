@@ -33,7 +33,7 @@ export function useBillSplitter({
 
   const personTotals = useMemo((): PersonTotal[] => {
     if (!allItemsAssigned) return [];
-    return calculatePersonTotals(billData, people, itemAssignments, billData?.tip || 0, billData?.tax || 0);
+    return calculatePersonTotals(billData, people, itemAssignments, billData?.tip || 0, billData?.tax || 0, billData?.otherFees ?? 0);
   }, [billData, people, itemAssignments, allItemsAssigned]);
 
   const handleItemAssignment = (itemId: string, personId: string, checked: boolean) => {

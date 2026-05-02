@@ -52,11 +52,14 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
       }
     });
 
+    const pt = personTotals.find(p => p.personId === personId);
+    const suffix = pt && pt.otherFees > 0 ? ` + Other Fees ($${pt.otherFees.toFixed(2)})` : '';
+
     if (assignedItems.length === 0) {
-      return `${billName} - Your share`;
+      return `${billName} - Your share${suffix}`;
     }
 
-    return `${billName}: ${assignedItems.join(', ')}`;
+    return `${billName}: ${assignedItems.join(', ')}${suffix}`;
   };
 
   // Helper function to check if a person is the current user
@@ -354,6 +357,12 @@ function PersonCompactRow({
                 <p className="flex justify-between pr-1">
                   <span>Tip</span>
                   <span className="tabular-nums ml-2 shrink-0">${pt.tip.toFixed(2)}</span>
+                </p>
+              )}
+              {pt.otherFees > 0 && (
+                <p className="flex justify-between pr-1">
+                  <span>Other Fees</span>
+                  <span className="tabular-nums ml-2 shrink-0">${pt.otherFees.toFixed(2)}</span>
                 </p>
               )}
             </div>

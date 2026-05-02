@@ -11,7 +11,8 @@ export function calculatePersonTotals(
   people: Person[],
   itemAssignments: ItemAssignment,
   effectiveTip: number,
-  effectiveTax: number
+  effectiveTax: number,
+  effectiveOtherFees: number = 0
 ): PersonTotal[] {
   if (!billData || people.length === 0) return [];
 
@@ -39,7 +40,8 @@ export function calculatePersonTotals(
     const proportion = totalAssignedSubtotal > 0 ? personSubtotal / totalAssignedSubtotal : 0;
     const personTax = effectiveTax * proportion;
     const personTip = effectiveTip * proportion;
-    const personTotal = personSubtotal + personTax + personTip;
+    const personOtherFees = effectiveOtherFees * proportion;
+    const personTotal = personSubtotal + personTax + personTip + personOtherFees;
 
     return {
       personId: person.id,
@@ -47,6 +49,7 @@ export function calculatePersonTotals(
       itemsSubtotal: personSubtotal,
       tax: personTax,
       tip: personTip,
+      otherFees: personOtherFees,
       total: personTotal,
     };
   });

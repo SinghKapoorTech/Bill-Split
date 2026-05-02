@@ -139,7 +139,8 @@ function computePersonTotals(bill: Record<string, unknown>): PersonTotal[] {
     people,
     (bill.itemAssignments as Record<string, string[]>) || {},
     billData.tip,
-    billData.tax
+    billData.tax,
+    billData.otherFees ?? 0
   );
 }
 

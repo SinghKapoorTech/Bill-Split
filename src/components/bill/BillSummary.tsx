@@ -10,7 +10,9 @@ export function BillSummary({ billData, onUpdate }: Props) {
   const handleTaxChange = (value: string) => {
     const numValue = parseFloat(value);
     if (!isNaN(numValue) && numValue >= 0) {
-      const total = parseFloat(((billData.subtotal || 0) + numValue + (billData.tip || 0)).toFixed(2));
+      const total = parseFloat(
+        ((billData.subtotal || 0) + numValue + (billData.tip || 0) + (billData.otherFees || 0)).toFixed(2)
+      );
       onUpdate({ tax: numValue, total });
     }
   };
@@ -18,8 +20,20 @@ export function BillSummary({ billData, onUpdate }: Props) {
   const handleTipChange = (value: string) => {
     const numValue = parseFloat(value);
     if (!isNaN(numValue) && numValue >= 0) {
-      const total = parseFloat(((billData.subtotal || 0) + (billData.tax || 0) + numValue).toFixed(2));
+      const total = parseFloat(
+        ((billData.subtotal || 0) + (billData.tax || 0) + numValue + (billData.otherFees || 0)).toFixed(2)
+      );
       onUpdate({ tip: numValue, total });
+    }
+  };
+
+  const handleOtherFeesChange = (value: string) => {
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue >= 0) {
+      const total = parseFloat(
+        ((billData.subtotal || 0) + (billData.tax || 0) + (billData.tip || 0) + numValue).toFixed(2)
+      );
+      onUpdate({ otherFees: numValue, total });
     }
   };
 
@@ -65,9 +79,27 @@ export function BillSummary({ billData, onUpdate }: Props) {
           </div>
         </div>
       </div>
+      <div className="flex justify-between items-center text-sm md:text-base">
+        <span className="text-muted-foreground font-semibold">Other Fees:</span>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={billData.otherFees || ''}
+              onChange={(e) => handleOtherFeesChange(e.target.value)}
+              className="w-28 md:w-32 h-9 md:h-10 text-right text-base md:text-sm pl-6"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+            />
+          </div>
+        </div>
+      </div>
       <div className="flex justify-between text-base md:text-lg font-bold border-t pt-2">
         <span>Total:</span>
-        <span>${((billData.subtotal || 0) + (billData.tax || 0) + (billData.tip || 0)).toFixed(2)}</span>
+        <span>${((billData.subtotal || 0) + (billData.tax || 0) + (billData.tip || 0) + (billData.otherFees || 0)).toFixed(2)}</span>
       </div>
     </div>
   );
