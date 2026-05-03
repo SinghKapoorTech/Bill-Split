@@ -130,6 +130,7 @@ function computePersonTotals(bill: Record<string, unknown>): PersonTotal[] {
       itemsSubtotal: share,
       tax: 0,
       tip: 0,
+      otherFees: 0,
       total: parseFloat(share.toFixed(2)),
     }));
   }

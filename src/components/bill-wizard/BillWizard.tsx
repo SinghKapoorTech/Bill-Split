@@ -469,7 +469,7 @@ export function BillWizard({
                 itemAssignments,
                 splitEvenly,
                 paidById,
-                currentStep: 1, // Save with target step so refetch loads correct step
+                currentStep: 0, // Save with target step so refetch loads correct step
             };
 
             if (uploadResult?.downloadURL) {
@@ -501,8 +501,8 @@ export function BillWizard({
             // since we just saved above. Prevents duplicate bill creation.
             skipNextStepSave();
 
-            // Navigate to People step after save completes
-            wizard.setCurrentStep(1);
+            // Navigate to Bill Entry step after scan so user can review extracted items
+            wizard.setCurrentStep(0);
 
         } catch (error) {
             console.error('Receipt analysis failed:', error);

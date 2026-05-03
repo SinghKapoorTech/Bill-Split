@@ -53,7 +53,7 @@ export function useItemEditor(
         : item
     );
 
-    const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip);
+    const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip, billData.otherFees);
 
     const newBillData: BillData = {
       ...billData,
@@ -78,7 +78,7 @@ export function useItemEditor(
     if (!billData) return;
 
     const updatedItems = billData.items.filter(item => item.id !== itemId);
-    const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip);
+    const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip, billData.otherFees);
 
     const newBillData: BillData = {
       ...billData,
@@ -136,7 +136,7 @@ export function useItemEditor(
     } else {
       // Add to existing bill
       const updatedItems = [...billData.items, newItem];
-      const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip);
+      const { subtotal, total } = calculateBillTotals(updatedItems, billData.tax, billData.tip, billData.otherFees);
 
       const newBillData: BillData = {
         ...billData,

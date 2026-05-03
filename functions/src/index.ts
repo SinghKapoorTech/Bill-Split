@@ -35,6 +35,7 @@ interface BillData {
   subtotal: number;
   tax: number;
   tip: number;
+  otherFees: number;
   total: number;
   restaurantName?: string;
 }
@@ -89,17 +90,17 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
   "subtotal": 50.00,
   "tax": 4.50,
   "tip": 10.00,
-  "otherFees": 3.99,
   "total": 68.99
 }
 
 Rules:
-- Extract the restaurant name if visible on the receipt
-- If restaurant name is not found, omit the field or set to null
-- Split quantities into separate items (e.g., "2x Burger" = two entries)
+- Extract the restaurant name if visible; omit or set null if not found
+- "items" must contain ONLY food and drink ordered — do NOT include fees, taxes, tips, or any charges as items
+- Split quantities into separate items (e.g., "2x Burger" → two entries at the individual price)
 - Use individual item prices, not totals
-- All values must be numbers
-- "otherFees" is the combined total of any delivery fees, service fees, long distance fees, platform fees, or any other charges that are not tax or tip — set to 0 if none`;
+- All numeric values must be numbers, never null or strings
+- "subtotal" must equal the sum of all item prices
+- "total" is the final total printed on the receipt`;
 
       // Detect MIME type from base64 string
       const mimeMatch = base64Image.match(/^data:([^;]+);base64,/);
@@ -124,9 +125,13 @@ Rules:
       cleanedText = cleanedText.replace(/```\s*$/g, '');
       cleanedText = cleanedText.trim();
 
+      console.log('Gemini raw response:', text);
+      console.log('Gemini cleaned response:', cleanedText);
+
       let billData: BillData;
       try {
         billData = JSON.parse(cleanedText);
+        console.log('Gemini parsed billData:', JSON.stringify(billData, null, 2));
       } catch (parseError) {
         console.error('JSON parsing failed. Raw response:', cleanedText);
         throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
@@ -161,10 +166,8 @@ Rules:
         billData.tip = 0;
       }
 
-      // Normalize otherFees field
-      if (billData.otherFees === null || billData.otherFees === undefined || typeof billData.otherFees !== 'number') {
-        billData.otherFees = 0;
-      }
+      // Derive otherFees from the printed total rather than relying on AI extraction
+      billData.otherFees = parseFloat(Math.max(0, billData.total - billData.subtotal - billData.tax - billData.tip).toFixed(2));
 
       // Validate numeric fields with detailed error
       if (

@@ -11,10 +11,11 @@ import { User } from 'firebase/auth';
 export function calculateBillTotals(
   items: BillItem[],
   tax: number,
-  tip: number
+  tip: number,
+  otherFees: number = 0
 ): { subtotal: number; total: number } {
   const subtotal = items.reduce((sum, item) => sum + item.price, 0);
-  const total = subtotal + tax + tip;
+  const total = subtotal + tax + tip + otherFees;
 
   return { subtotal, total };
 }
@@ -36,9 +37,10 @@ export function mergeBillData(
   // Keep existing tax and tip if they exist, otherwise use new values
   const tax = existing.tax || newData.tax;
   const tip = existing.tip || newData.tip;
+  const otherFees = (existing.otherFees || 0) + (newData.otherFees || 0);
 
   // Calculate final total
-  const total = subtotal + tax + tip;
+  const total = subtotal + tax + tip + otherFees;
 
   return {
     ...existing,
@@ -46,6 +48,7 @@ export function mergeBillData(
     subtotal,
     tax,
     tip,
+    otherFees,
     total,
     // Keep existing restaurant name if available
     restaurantName: existing.restaurantName || newData.restaurantName,
