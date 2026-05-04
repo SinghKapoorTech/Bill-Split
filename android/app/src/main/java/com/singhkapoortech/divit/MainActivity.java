@@ -1,4 +1,4 @@
-package com.billsplit.app;
+package com.singhkapoortech.divit;
 
 import com.getcapacitor.BridgeActivity;
 
