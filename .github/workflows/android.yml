@@ -55,6 +55,7 @@ jobs:
           KEYSTORE_PATH: app/release.keystore
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: upload-key
+          VERSION_CODE: ${{ github.run_number }}
 
       - name: Debug service account
         run: |
