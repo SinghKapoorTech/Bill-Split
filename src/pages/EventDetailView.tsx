@@ -441,7 +441,6 @@ export default function EventDetailView() {
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
         event={event}
-        memberProfiles={memberProfiles}
       />
 
       {user && (

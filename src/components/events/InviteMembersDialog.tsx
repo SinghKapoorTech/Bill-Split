@@ -1,24 +1,22 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Users, Mail, Loader2, Search, User } from 'lucide-react';
+import { Mail, Loader2, Search, User } from 'lucide-react';
 import { TripEvent } from '@/types/event.types';
 import { useEventInvites } from '@/hooks/useEventInvites';
 import { userService } from '@/services/userService';
 import { UserProfile } from '@/types/person.types';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface InviteMembersDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   event: TripEvent;
-  memberProfiles?: Record<string, UserProfile>;
 }
 
-export function InviteMembersDialog({ open, onOpenChange, event, memberProfiles }: InviteMembersDialogProps) {
+export function InviteMembersDialog({ open, onOpenChange, event }: InviteMembersDialogProps) {
   const [searchInput, setSearchInput] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -176,37 +174,6 @@ export function InviteMembersDialog({ open, onOpenChange, event, memberProfiles 
             </div>
           )}
 
-          {/* Current Members */}
-          <div className="space-y-2 mt-4">
-            <Label className="text-sm text-muted-foreground">
-              Members ({event.memberIds.length})
-            </Label>
-            <ScrollArea className="max-h-[250px] w-full mt-2 pr-4">
-              <div className="flex flex-col gap-2 p-1">
-                {event.memberIds.map(id => {
-                  const profile = memberProfiles?.[id];
-                  const name = profile?.displayName || profile?.username || 'Unknown Member';
-                  const initials = name.substring(0, 2).toUpperCase();
-                  return (
-                    <div key={id} className="flex items-center gap-3 p-2 rounded-md bg-muted/30 border border-border/40">
-                      <Avatar className="w-8 h-8 shadow-sm border border-border/50">
-                        <AvatarImage src={profile?.photoURL} />
-                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                          {initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col flex-1 overflow-hidden">
-                        <span className="text-sm text-foreground font-medium truncate">{name}</span>
-                        {profile?.username && (
-                          <span className="text-xs text-muted-foreground truncate">@{profile.username}</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </div>
         </div>
       </DialogContent>
     </Dialog>
