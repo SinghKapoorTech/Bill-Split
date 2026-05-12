@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Receipt, UserPlus, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Receipt, UserPlus, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { InviteMembersDialog } from '@/components/events/InviteMembersDialog';
@@ -27,6 +27,14 @@ import { User } from 'firebase/auth';
 
 // Firestore collection name
 const EVENTS_COLLECTION = 'events';
+
+function formatShortName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return fullName.trim();
+  const first = parts[0];
+  const lastInitial = parts[parts.length - 1].charAt(0).toUpperCase();
+  return `${first} ${lastInitial}.`;
+}
 
 function resolveDebtNames(
   debt: OptimizedDebt,
@@ -369,65 +377,57 @@ export default function EventDetailView() {
 
   return (
     <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl mb-20">
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-2">
-        <div className="flex items-start gap-3 max-w-full">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 mt-1 shrink-0 text-muted-foreground hover:text-foreground -ml-2"
-            onClick={() => navigate('/events')}
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </Button>
-          <div className="flex flex-col min-w-0 max-w-full">
-            <h1 className="text-3xl md:text-4xl font-bold break-words line-clamp-2 md:line-clamp-none">
+      <div className="mb-6 -ml-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-0 min-w-0 flex-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={() => navigate('/events')}
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <h1 className="text-2xl md:text-3xl font-bold break-words line-clamp-2 md:line-clamp-none min-w-0 flex-1">
               {event.name}
             </h1>
-            {event.memberIds && event.memberIds.length > 0 && (
-              <button 
-                onClick={() => setManageMembersDialogOpen(true)}
-                className="text-sm text-primary hover:underline transition-colors text-left flex flex-wrap items-center mt-1"
-                title="View and manage members"
-              >
-                <span>
-                  ({(() => {
-                    const allNames = event.memberIds
-                      .map(id => memberProfiles[id]?.displayName || memberProfiles[id]?.username)
-                      .filter(Boolean)
-                      .join(', ');
-                      
-                    // Use a slightly smaller max length for mobile safety
-                    if (allNames.length > 45) {
-                      return allNames.substring(0, 45).trim() + '...';
-                    }
-                    return allNames || '...';
-                  })()})
-                </span>
-              </button>
-            )}
+          </div>
+
+          <div className="flex items-center">
+            <Button
+              onClick={() => setInviteDialogOpen(true)}
+              variant="outline"
+              className="h-9 px-4 text-sm gap-2 rounded-full whitespace-nowrap"
+            >
+              <UserPlus className="w-4 h-4 shrink-0" />
+              Invite
+            </Button>
           </div>
         </div>
+        {event.memberIds && event.memberIds.length > 0 && (
+          <button
+            onClick={() => setManageMembersDialogOpen(true)}
+            className="text-xs text-primary hover:underline transition-colors text-left mt-0 truncate block w-full pl-7 pr-4"
+            title="View and manage members"
+          >
+            {(() => {
+              const rawNames = event.memberIds
+                .map(id => memberProfiles[id]?.displayName || memberProfiles[id]?.username)
+                .filter((name): name is string => Boolean(name));
 
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={() => setInviteDialogOpen(true)}
-            variant="outline"
-            className="h-9 px-4 text-sm gap-2 rounded-full whitespace-nowrap"
-          >
-            <UserPlus className="w-4 h-4 shrink-0" />
-            Invite
-          </Button>
-          <Button
-            onClick={() => setCreateDialogOpen(true)}
-            className="h-9 px-4 text-sm gap-2 rounded-full whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            Add Bill
-          </Button>
-        </div>
+              const shortVersions = rawNames.map(formatShortName);
+              const counts = new Map<string, number>();
+              shortVersions.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
+
+              return rawNames
+                .map((full, i) => (counts.get(shortVersions[i])! > 1 ? full : shortVersions[i]))
+                .join(', ') || '...';
+            })()}
+          </button>
+        )}
       </div>
       {event.description && (
-        <p className="text-sm text-muted-foreground pl-11 mb-6 mt-2">{event.description}</p>
+        <p className="text-sm text-muted-foreground mb-6 mt-2">{event.description}</p>
       )}
 
       {/* Reusing CreateOptionsDialog with event context */}
