@@ -9,10 +9,10 @@ import { Bill } from '@/types/bill.types';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
 import { useBillContext } from '@/contexts/BillSessionContext';
-import { getSettlementStatusForUser } from '@/utils/billCalculations';
 import { UserAvatar } from '@/components/shared/UserAvatar';
 import { SettleUpModal } from '@/components/settlements/SettleUpModal';
 import { useActiveBalances } from '@/hooks/useActiveBalances';
+import { usePairBills } from '@/hooks/usePairBills';
 import { useSettlementRequests } from '@/hooks/useSettlementRequests';
 import { settlementRequestService } from '@/services/settlementRequestService';
 import { settlementService } from '@/services/settlementService';
@@ -87,27 +87,28 @@ export default function BalanceDetailView() {
     }
   }, [balances, targetUserId, eventId]);
 
-  const matchesTargetId = (id: string, target: string) =>
-    id === target || id === `user-${target}`;
+  // Source of truth for which bills belong to this pair: the ledger docs.
+  // unsettledIds comes from balances/{pair} (or event_balances/{eventPair});
+  // settledIds is derived from settlements between the pair (filtered by
+  // eventId when scoped). This matches what the server-side pipeline records,
+  // so bills where neither user is the creditor are never included.
+  const { unsettledIds, settledIds, isLoading: isPairLoading } = usePairBills(
+    targetUserId,
+    eventId
+  );
 
-  const allBillsWithTarget = [
+  const allLoadedBills: Bill[] = [
     ...(activeSession ? [activeSession] : []),
-    ...savedSessions
-  ].filter(bill => {
-    if (eventId && bill.eventId !== eventId) return false;
-    return bill.people?.some(p => matchesTargetId(p.id, targetUserId || ''));
-  });
+    ...savedSessions,
+  ];
 
-  const isUnsettledForTarget = (bill: Bill): boolean => {
-    const currentUser = user?.uid || '';
-    return getSettlementStatusForUser(bill, currentUser) !== 'settled';
-  };
+  const unsettledBills = allLoadedBills.filter((b) => unsettledIds.has(b.id));
+  const allBillsForPair = allLoadedBills.filter(
+    (b) => unsettledIds.has(b.id) || settledIds.has(b.id)
+  );
 
-  const displayedBills = showAll
-    ? allBillsWithTarget
-    : allBillsWithTarget.filter(isUnsettledForTarget);
-
-  const settledCount = allBillsWithTarget.length - allBillsWithTarget.filter(isUnsettledForTarget).length;
+  const displayedBills = showAll ? allBillsForPair : unsettledBills;
+  const settledCount = allBillsForPair.length - unsettledBills.length;
 
   const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
     await resumeSession(billId);
@@ -403,7 +404,7 @@ export default function BalanceDetailView() {
       </motion.div>
 
       {/* Bill cards */}
-      {isLoadingSessions ? (
+      {isLoadingSessions || isPairLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
