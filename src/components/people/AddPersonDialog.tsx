@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { UserPlus, Search, User, AtSign, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,9 +57,6 @@ export function AddPersonDialog({
   const [manualVenmoId, setManualVenmoId] = useState('');
   const [manualEmail, setManualEmail] = useState('');
 
-  // Focus ref for search input
-  const inputRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
     if (isOpen) {
       setSearchInput('');
@@ -104,7 +101,7 @@ export function AddPersonDialog({
         </DialogTrigger>
       )}
       
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px]" onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -117,7 +114,6 @@ export function AddPersonDialog({
           <div className="relative z-50">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              ref={inputRef}
               placeholder="Name, @username, or email..."
               className="pl-9"
               value={searchInput}
