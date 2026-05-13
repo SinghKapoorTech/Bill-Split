@@ -1,0 +1,24 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E8C97A"/>
+      <stop offset="100%" stop-color="#C9A85C"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#0D0D0D"/>
+  <!-- Left vertical bar -->
+  <rect x="320" y="274" width="76" height="476" rx="10" fill="url(#g)"/>
+  <!-- Upper arm of D (top to open-right gap) -->
+  <path d="M 396 311 C 680 311 716 381 716 440"
+        stroke="url(#g)" stroke-width="72" fill="none" stroke-linecap="round"/>
+  <!-- Lower arm of D (open-right gap to bottom) -->
+  <path d="M 716 584 C 716 643 680 713 396 713"
+        stroke="url(#g)" stroke-width="72" fill="none" stroke-linecap="round"/>
+  <!-- Dashed vertical split line -->
+  <line x1="512" y1="248" x2="512" y2="758"
+        stroke="#C9A85C" stroke-width="5" stroke-dasharray="16 12" opacity="0.5"
+        stroke-linecap="round"/>
+  <!-- Gold dot accent -->
+  <circle cx="512" cy="800" r="18" fill="#E8C97A"/>
+</svg>
