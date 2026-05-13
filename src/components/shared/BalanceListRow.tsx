@@ -64,8 +64,7 @@ export function BalanceListRow({
     }
   };
 
-  const isYouFrom = fromLabel.toLowerCase() === 'you';
-  const friendLabel = isYouFrom ? toLabel : fromLabel;
+  const friendLabel = direction === 'you-owe' ? toLabel : fromLabel;
 
   const isSettled = amount === 0;
 
