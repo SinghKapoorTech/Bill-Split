@@ -1,23 +1,10 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="gfg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#E8C97A"/>
-      <stop offset="100%" stop-color="#C9A85C"/>
-    </linearGradient>
-  </defs>
+<svg width="1024" height="1024" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
   <!-- Transparent background — foreground layer for Android adaptive icons -->
-  <!-- Left vertical bar -->
-  <rect x="320" y="274" width="76" height="476" rx="10" fill="url(#gfg)"/>
-  <!-- Upper arm of D -->
-  <path d="M 396 311 C 680 311 716 381 716 440"
-        stroke="url(#gfg)" stroke-width="72" fill="none" stroke-linecap="round"/>
-  <!-- Lower arm of D -->
-  <path d="M 716 584 C 716 643 680 713 396 713"
-        stroke="url(#gfg)" stroke-width="72" fill="none" stroke-linecap="round"/>
-  <!-- Dashed vertical split line -->
-  <line x1="512" y1="248" x2="512" y2="758"
-        stroke="#C9A85C" stroke-width="5" stroke-dasharray="16 12" opacity="0.5"
-        stroke-linecap="round"/>
-  <!-- Gold dot accent -->
-  <circle cx="512" cy="800" r="18" fill="#E8C97A"/>
+  <g transform="translate(50,48) scale(0.75) translate(-50,-48)">
+    <path d="M22 20 L22 76 L52 76 C68 76 78 64 78 48 C78 32 68 20 52 20 Z"
+          fill="none" stroke="#C9A85C" stroke-width="5.5" stroke-linejoin="round"/>
+    <line x1="48" y1="24" x2="48" y2="76"
+          stroke="#E8C97A" stroke-width="1.5" stroke-dasharray="3.3 4.4" opacity=".55"/>
+    <circle cx="62" cy="48" r="4" fill="#C9A85C" opacity=".9"/>
+  </g>
 </svg>
