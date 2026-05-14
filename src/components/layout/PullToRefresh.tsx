@@ -78,7 +78,7 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
   return (
     <div 
       ref={containerRef}
-      className="relative min-h-[calc(100vh-80px)]"
+      className="relative min-h-0"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}

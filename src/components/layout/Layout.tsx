@@ -9,7 +9,7 @@ export function Layout() {
   const mainPaddingBottom = isMobile ? 'pb-24' : 'pb-12';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/30 flex flex-col">
+    <div className="min-h-dvh bg-gradient-to-b from-background to-secondary/30 flex flex-col">
       {/* Render Header only if not mobile */}
       {!isMobile && <Header />}
 

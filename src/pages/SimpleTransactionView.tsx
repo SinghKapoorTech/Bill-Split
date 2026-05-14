@@ -13,7 +13,7 @@ export default function SimpleTransactionView() {
         onTitleChange={setTitle}
         titlePlaceholder={"Quick Expense"}
       />
-      <div className="w-full h-full bg-background min-h-screen">
+      <div className="w-full bg-background">
         <SimpleTransactionWizard externalTitle={title} setExternalTitle={setTitle} />
       </div>
     </>
