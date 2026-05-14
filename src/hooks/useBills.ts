@@ -68,6 +68,8 @@ export function useBills() {
             id: doc.id,
             ...doc.data()
           } as Bill))
+          // Firestore rules also block non-owner reads of draft bills; this filter
+          // is defense-in-depth for any draft that arrives via participantIds before publish.
           .filter(b => b.status !== 'draft' || b.ownerId === user.uid);
 
         if (bills.length > 0) {

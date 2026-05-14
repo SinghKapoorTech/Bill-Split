@@ -293,6 +293,7 @@ export default function EventDetailView() {
 
     // Subscribe to bills
     const unsubscribeBills = billService.subscribeBillsByEvent(eventId, (bills) => {
+      // user?.uid: if user is null (auth race), defaults to undefined which hides all drafts — safe fallback.
       setEventBills(bills.filter(b => b.status !== 'draft' || b.ownerId === user?.uid));
     });
 
