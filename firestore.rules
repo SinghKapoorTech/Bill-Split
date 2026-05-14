@@ -114,7 +114,9 @@ service cloud.firestore {
         return onlyUpdating(['settledPersonIds', 'updatedAt', 'lastActivity']);
       }
 
-      // Draft bills are readable only by their owner
+      // Draft bills are readable only by their owner.
+      // Bills missing a status field (legacy docs) evaluate null != 'draft' = true
+      // in Firestore Rules, so they are treated as non-drafts and remain accessible.
       function isNotDraft() {
         return resource.data.status != 'draft';
       }
@@ -150,11 +152,14 @@ service cloud.firestore {
                         request.resource.data.eventId == null ||
                         hasEventIdAndMember(request.resource.data));
       
-      // UPDATE: 
+      // UPDATE:
       // - Owner and event members have full access
       // - Authenticated members can update limited fields
       // - Anonymous users with valid share code can update limited fields (for claiming items)
       // - Linked participants can update settlement fields only (bidirectional settle-up)
+      // NOTE: No draft gate on update — non-owner write paths are intentionally
+      // ungated on status. Non-owners cannot discover a draft bill via read queries
+      // (isNotDraft() blocks that), but anyone with a known bill ID can still write.
       allow update: if 
         // Anonymous users with valid share code can update assignments/people
         (hasValidShareCode() && isGuestUpdate()) ||
