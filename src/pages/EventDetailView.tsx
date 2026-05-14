@@ -300,7 +300,7 @@ export default function EventDetailView() {
       unsubscribe();
       unsubscribeBills();
     };
-  }, [eventId]);
+  }, [eventId, user]);
 
   const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
     const path = !isOwner ? `/shared/${billId}` : isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : `/bill/${billId}`;
