@@ -293,7 +293,7 @@ export default function EventDetailView() {
 
     // Subscribe to bills
     const unsubscribeBills = billService.subscribeBillsByEvent(eventId, (bills) => {
-      setEventBills(bills);
+      setEventBills(bills.filter(b => b.status !== 'draft' || b.ownerId === user?.uid));
     });
 
     return () => {
