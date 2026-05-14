@@ -113,26 +113,33 @@ service cloud.firestore {
       function isSettlementUpdate() {
         return onlyUpdating(['settledPersonIds', 'updatedAt', 'lastActivity']);
       }
-      
 
-      // READ: 
-      // - Authenticated: Owner, event members, squad members, linked participants, or bill members
-      // - Anonymous: Bills with valid share code (for join flow)
-      allow read: if 
-        // Anonymous users can read bills with valid share codes
-        hasValidShareCode() ||
+      // Draft bills are readable only by their owner
+      function isNotDraft() {
+        return resource.data.status != 'draft';
+      }
+
+      // READ:
+      // - Authenticated: Owner (including drafts), event members, squad members, linked participants, or bill members (non-drafts only)
+      // - Anonymous: Bills with valid share code (non-drafts only)
+      allow read: if
+        // Anonymous users can read bills with valid share codes (non-draft only)
+        (isNotDraft() && hasValidShareCode()) ||
         // Authenticated users follow normal rules
         (request.auth != null && (
-          // Owner can always read
+          // Owner can always read, including their own drafts
           request.auth.uid == resource.data.ownerId ||
-          // Linked participant via participantIds (null-safe for pre-migration bills)
-          ('participantIds' in resource.data && request.auth.uid in resource.data.participantIds) ||
-          // Event members can read event bills
-          hasEventIdAndMember(resource.data) ||
-          // Squad members can read squad bills
-          hasSquadIdAndMember(resource.data) ||
-          // Legacy: authenticated members can read (includes guests who joined via share link)
-          isBillMember(resource.data)
+          // All non-owner paths: only non-draft bills are accessible
+          (isNotDraft() && (
+            // Linked participant via participantIds (null-safe for pre-migration bills)
+            ('participantIds' in resource.data && request.auth.uid in resource.data.participantIds) ||
+            // Event members can read event bills
+            hasEventIdAndMember(resource.data) ||
+            // Squad members can read squad bills
+            hasSquadIdAndMember(resource.data) ||
+            // Legacy: authenticated members can read (includes guests who joined via share link)
+            isBillMember(resource.data)
+          ))
         ));
       
       // CREATE: Authenticated users only, must set themselves as owner
