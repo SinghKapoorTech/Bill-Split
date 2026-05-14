@@ -63,10 +63,12 @@ export function useBills() {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const bills = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Bill));
+        const bills = snapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          } as Bill))
+          .filter(b => b.status !== 'draft' || b.ownerId === user.uid);
 
         if (bills.length > 0) {
           setActiveSession(bills[0]);
