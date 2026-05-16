@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "162777511812-340as6sdbu37tovio7rv2s2uj7ncth1b.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.singhkapoortech.divit",
+            "certificate_hash": "b864ab10a19fbd3d86728e7cde8f19e8bd0c5aa0"
+          }
+        },
+        {
+          "client_id": "162777511812-ar48qg8qngo0cvvc8b5pfoghv25djsrm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.singhkapoortech.divit",
+            "certificate_hash": "b03b60cf8144e79693f3923ee536cb49b95dc8c5"
+          }
+        },
+        {
           "client_id": "162777511812-d2onrgj3o3o4ssjvd68566ht8iupb5f6.apps.googleusercontent.com",
           "client_type": 3
         }
