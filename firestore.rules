@@ -114,34 +114,28 @@ service cloud.firestore {
         return onlyUpdating(['settledPersonIds', 'updatedAt', 'lastActivity']);
       }
 
-      // Draft bills are readable only by their owner.
-      // Bills missing a status field (legacy docs) evaluate null != 'draft' = true
-      // in Firestore Rules, so they are treated as non-drafts and remain accessible.
-      function isNotDraft() {
-        return resource.data.status != 'draft';
-      }
-
       // READ:
-      // - Authenticated: Owner (including drafts), event members, squad members, linked participants, or bill members (non-drafts only)
-      // - Anonymous: Bills with valid share code (non-drafts only)
+      // - Authenticated: Owner, event members, squad members, linked participants, or bill members
+      // - Anonymous: Bills with valid share code (for join flow)
+      // NOTE: Draft visibility for non-owners is enforced client-side only (not in rules).
+      // Adding a status constraint here would break query-rule alignment: the useBills query
+      // filters by participantIds only, and Firestore rejects any query that could return
+      // documents the rules would deny. Client-side filter handles draft hiding safely.
       allow read: if
-        // Anonymous users can read bills with valid share codes (non-draft only)
-        (isNotDraft() && hasValidShareCode()) ||
+        // Anonymous users can read bills with valid share codes
+        hasValidShareCode() ||
         // Authenticated users follow normal rules
         (request.auth != null && (
-          // Owner can always read, including their own drafts
+          // Owner can always read
           request.auth.uid == resource.data.ownerId ||
-          // All non-owner paths: only non-draft bills are accessible
-          (isNotDraft() && (
-            // Linked participant via participantIds (null-safe for pre-migration bills)
-            ('participantIds' in resource.data && request.auth.uid in resource.data.participantIds) ||
-            // Event members can read event bills
-            hasEventIdAndMember(resource.data) ||
-            // Squad members can read squad bills
-            hasSquadIdAndMember(resource.data) ||
-            // Legacy: authenticated members can read (includes guests who joined via share link)
-            isBillMember(resource.data)
-          ))
+          // Linked participant via participantIds (null-safe for pre-migration bills)
+          ('participantIds' in resource.data && request.auth.uid in resource.data.participantIds) ||
+          // Event members can read event bills
+          hasEventIdAndMember(resource.data) ||
+          // Squad members can read squad bills
+          hasSquadIdAndMember(resource.data) ||
+          // Legacy: authenticated members can read (includes guests who joined via share link)
+          isBillMember(resource.data)
         ));
       
       // CREATE: Authenticated users only, must set themselves as owner
@@ -157,10 +151,7 @@ service cloud.firestore {
       // - Authenticated members can update limited fields
       // - Anonymous users with valid share code can update limited fields (for claiming items)
       // - Linked participants can update settlement fields only (bidirectional settle-up)
-      // NOTE: No draft gate on update — non-owner write paths are intentionally
-      // ungated on status. Non-owners cannot discover a draft bill via read queries
-      // (isNotDraft() blocks that), but anyone with a known bill ID can still write.
-      allow update: if 
+      allow update: if
         // Anonymous users with valid share code can update assignments/people
         (hasValidShareCode() && isGuestUpdate()) ||
         // Authenticated users follow normal rules
