@@ -208,6 +208,13 @@ All colors MUST be HSL.
   }
 }
 
+/* Prevent iOS Safari from auto-zooming on input focus */
+@media (max-width: 767px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
 /* Mobile Dashboard Bill List Styles */
 @media (max-width: 767px) {
   .mobile-bill-item {
