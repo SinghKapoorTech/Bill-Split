@@ -199,6 +199,7 @@ export function AirbnbEntryStep({
                         <Input
                             id="totalCost"
                             type="number"
+                            inputMode="decimal"
                             placeholder="0.00"
                             className="pl-8 text-lg h-12"
                             value={totalStayCost}
@@ -231,6 +232,7 @@ export function AirbnbEntryStep({
                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
                                     <Input
                                         type="number"
+                                        inputMode="decimal"
                                         className="pl-7"
                                         placeholder="0.00"
                                         value={fee.amount || ''}
