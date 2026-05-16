@@ -27,6 +27,7 @@ import SquadDetailView from "./pages/SquadDetailView";
 import SimpleTransactionView from "./pages/SimpleTransactionView";
 import AirbnbView from "./pages/AirbnbView";
 import BalanceDetailView from "./pages/BalanceDetailView";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import { SettlementRequestsProvider } from "@/hooks/useSettlementRequests";
 
 const queryClient = new QueryClient();
@@ -123,6 +124,9 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/join/:sessionId" element={<JoinSession />} />
               <Route path="/session/:sessionId" element={<CollaborativeSessionView />} />
+
+              {/* Public: legal pages */}
+              <Route path="/privacy" element={<PrivacyPolicy />} />
 
               {/* Public: 404 */}
               <Route path="*" element={<NotFound />} />

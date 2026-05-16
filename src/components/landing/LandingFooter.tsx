@@ -1,5 +1,6 @@
 import { Receipt } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
 export function LandingFooter() {
   return (
@@ -28,6 +29,7 @@ export function LandingFooter() {
             <a href="#" className="hover:text-cyan-400 transition-colors">About</a>
             <a href="#" className="hover:text-cyan-400 transition-colors">Features</a>
             <a href="#" className="hover:text-cyan-400 transition-colors">Contact</a>
+            <Link to="/privacy" className="hover:text-cyan-400 transition-colors">Privacy</Link>
           </div>
         </div>
 
