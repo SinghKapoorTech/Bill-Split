@@ -43,9 +43,9 @@ export function SquadsSettingsCard() {
     if (ok) setEditingSquad(null);
   };
 
-  const handleSaveMembers = async (members: SquadMember[]) => {
-    if (!membersSquad) return;
-    await updateSquad(membersSquad.id, { members });
+  const handleSaveMembers = async (members: SquadMember[]): Promise<boolean> => {
+    if (!membersSquad) return false;
+    return await updateSquad(membersSquad.id, { members });
   };
 
   const confirmDelete = async () => {

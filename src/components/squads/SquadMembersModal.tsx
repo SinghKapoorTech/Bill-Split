@@ -13,7 +13,7 @@ interface SquadMembersModalProps {
   squad: HydratedSquad;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (members: SquadMember[]) => Promise<void>;
+  onSave: (members: SquadMember[]) => Promise<boolean>;
 }
 
 export function SquadMembersModal({
@@ -27,9 +27,9 @@ export function SquadMembersModal({
 
   const handleSave = async () => {
     setSaving(true);
-    await onSave(members);
+    const ok = await onSave(members);
     setSaving(false);
-    onOpenChange(false);
+    if (ok) onOpenChange(false);
   };
 
   return (
