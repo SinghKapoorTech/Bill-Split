@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, Plus } from 'lucide-react';
+import { Users, Plus, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useSquadManager } from '@/hooks/useSquadManager';
@@ -58,7 +58,7 @@ export function SquadsSettingsCard() {
     <Card className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-4 md:mb-6">
         <div className="flex items-center gap-2">
-          <Users className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+          <Shield className="w-5 h-5 md:w-6 md:h-6 text-primary" />
           <h2 className="text-xl md:text-2xl font-semibold">My Squads</h2>
         </div>
         <Button
