@@ -13,7 +13,7 @@ export default function SettingsView() {
   const [activeTab, setActiveTab] = useState(location.state?.defaultTab || 'profile');
 
   return (
-    <div className="animate-fade-in">
+    <div className={`${layout.page} animate-fade-in`}>
       <div className={layout.screen.headerWrap}>
         <h1 className={layout.screen.title}>Settings</h1>
         <p className={layout.screen.subtitle}>Manage your profile, friends, and squads</p>
