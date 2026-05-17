@@ -72,14 +72,7 @@ export default function BillsView() {
   const getBillTitle = (bill: Bill) =>
     bill.title || bill.billData?.restaurantName || formatDate(bill.createdAt);
 
-  const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner = true) => {
-    if (!isOwner) navigate(`/shared/${billId}`);
-    else if (isSimpleTransaction) navigate(`/transaction/${billId}`);
-    else if (isAirbnb) navigate(`/airbnb/${billId}`);
-    else navigate(`/bill/${billId}`);
-  };
-
-  const handleResumeBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner = true) => {
+  const handleNavigateToBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner = true) => {
     if (!isOwner) navigate(`/shared/${billId}`);
     else if (isSimpleTransaction) navigate(`/transaction/${billId}`);
     else if (isAirbnb) navigate(`/airbnb/${billId}`);
@@ -105,7 +98,7 @@ export default function BillsView() {
   }
 
   return (
-    <div className={`${layout.page} animate-fade-in`}>
+    <div className={`${layout.page} mb-20 animate-fade-in`}>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className={layout.screen.title}>Your Bills</h1>
@@ -145,8 +138,8 @@ export default function BillsView() {
               <MobileBillCard
                 bill={bill}
                 isLatest={bill.id === activeSession?.id}
-                onView={(id) => handleViewBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
-                onResume={(id) => handleResumeBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
+                onView={(id) => handleNavigateToBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
+                onResume={(id) => handleNavigateToBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
                 onDelete={handleDeleteBill}
                 isResuming={isResuming}
                 isDeleting={isDeleting}
