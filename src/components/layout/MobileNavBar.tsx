@@ -14,7 +14,7 @@ export function MobileNavBar() {
     { name: 'Events', path: '/events', icon: MdGroups },
     { name: 'Create', path: '#', icon: MdAdd }, // Placeholder for center button
     { name: 'Squads', path: '/squads', icon: MdPeople },
-    { name: 'Profile', path: '/settings', icon: MdAccountCircle },
+    { name: 'Settings', path: '/settings', icon: MdAccountCircle },
   ];
 
   // Context detection for Quick Expense / New Bill

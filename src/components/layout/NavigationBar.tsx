@@ -12,7 +12,7 @@ export function NavigationBar() {
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/events', label: 'Events', icon: Users },
     { path: '/squads', label: 'Squads', icon: Users },
-    { path: '/settings', label: 'Profile', icon: UserCircle },
+    { path: '/settings', label: 'Settings', icon: UserCircle },
   ];
 
   // Context detection for Quick Expense / New Bill

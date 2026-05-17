@@ -5,6 +5,7 @@ import { ProfileSettingsCard } from '@/components/profile/ProfileSettingsCard';
 import { ManageFriendsCard } from '@/components/profile/ManageFriendsCard';
 import { SettlementHistoryCard } from '@/components/settings/SettlementHistoryCard';
 import { SquadsSettingsCard } from '@/components/settings/SquadsSettingsCard';
+import { layout } from '@/lib/styles';
 import { useLocation } from 'react-router-dom';
 
 export default function SettingsView() {
@@ -12,14 +13,10 @@ export default function SettingsView() {
   const [activeTab, setActiveTab] = useState(location.state?.defaultTab || 'profile');
 
   return (
-    <div className="space-y-4 md:space-y-6 animate-fade-in">
-      <div className="space-y-2">
-        <h2 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
-          Settings
-        </h2>
-        <p className="text-sm md:text-lg text-muted-foreground">
-          Manage your profile, friends, and squads
-        </p>
+    <div className="animate-fade-in">
+      <div className={layout.screen.headerWrap}>
+        <h1 className={layout.screen.title}>Settings</h1>
+        <p className={layout.screen.subtitle}>Manage your profile, friends, and squads</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
