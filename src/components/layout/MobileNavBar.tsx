@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { MdGroups, MdAccountCircle, MdDashboard, MdAdd, MdPeople } from 'react-icons/md';
+import { Receipt } from 'lucide-react';
+import { MdGroups, MdAccountCircle, MdDashboard, MdAdd } from 'react-icons/md';
 import { CreateOptionsDialog } from './CreateOptionsDialog';
 
 export function MobileNavBar() {
@@ -13,7 +14,7 @@ export function MobileNavBar() {
     { name: 'Home', path: '/dashboard', icon: MdDashboard },
     { name: 'Events', path: '/events', icon: MdGroups },
     { name: 'Create', path: '#', icon: MdAdd }, // Placeholder for center button
-    { name: 'Squads', path: '/squads', icon: MdPeople },
+    { name: 'Bills', path: '/bills', icon: Receipt },
     { name: 'Settings', path: '/settings', icon: MdAccountCircle },
   ];
 
@@ -74,7 +75,7 @@ export function MobileNavBar() {
                   }
                 `}
               >
-                <Icon className={`text-2xl transition-transform ${isActive ? 'scale-110' : ''}`} />
+                <Icon className={`text-2xl transition-transform ${isActive ? 'scale-110' : ''}`} size={24} />
                 <span className={`text-[10px] font-semibold tracking-wide ${isActive ? 'opacity-100' : 'opacity-70'}`}>
                   {item.name}
                 </span>
