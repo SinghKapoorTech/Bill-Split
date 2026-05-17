@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveBalances } from '@/hooks/useActiveBalances';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
 import { Bill } from '@/types/bill.types';
@@ -35,6 +36,8 @@ export default function BillsView() {
     isResuming,
     deleteSession,
   } = useBillContext();
+
+  const { refreshBalances } = useActiveBalances();
 
   const allBills = [
     ...(activeSession ? [activeSession] : []),
@@ -87,6 +90,7 @@ export default function BillsView() {
     if (!billToDelete) return;
     await deleteSession(billToDelete.id, billToDelete.receiptFileName);
     setBillToDelete(null);
+    refreshBalances();
   };
 
   if (isLoadingSessions) {
