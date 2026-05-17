@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, useNavigate, Navigate } from "react-route
 import { App as CapApp } from "@capacitor/app";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { BillSessionProvider } from "@/contexts/BillSessionContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Layout } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { usePlatform } from "@/hooks/usePlatform";
@@ -28,6 +29,7 @@ import SimpleTransactionView from "./pages/SimpleTransactionView";
 import AirbnbView from "./pages/AirbnbView";
 import BalanceDetailView from "./pages/BalanceDetailView";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import BillsView from "./pages/BillsView";
 import { SettlementRequestsProvider } from "@/hooks/useSettlementRequests";
 
 const queryClient = new QueryClient();
@@ -91,52 +93,55 @@ function RootRoute() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <SettlementRequestsProvider>
-      <BillSessionProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <DeepLinkHandler />
-            <Routes>
-              {/* Public: Platform-aware root route */}
-              <Route path="/" element={<RootRoute />} />
+  <ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <SettlementRequestsProvider>
+        <BillSessionProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <DeepLinkHandler />
+              <Routes>
+                {/* Public: Platform-aware root route */}
+                <Route path="/" element={<RootRoute />} />
 
-              {/* Protected routes with layout */}
-              <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="bill/:billId" element={<AIScanView />} />
-                <Route path="transaction/:billId" element={<SimpleTransactionView />} />
-                <Route path="airbnb/:billId" element={<AirbnbView />} />
-                <Route path="events" element={<EventsView />} />
-                <Route path="events/:eventId" element={<EventDetailView />} />
-                <Route path="squads" element={<SquadsView />} />
-                <Route path="squads/:squadId" element={<SquadDetailView />} />
-                <Route path="balances/:targetUserId" element={<BalanceDetailView />} />
-                <Route path="events/:eventId/balances/:targetUserId" element={<BalanceDetailView />} />
-                <Route path="settings" element={<SettingsView />} />
-                <Route path="shared/:sessionId" element={<CollaborativeSessionView />} />
-              </Route>
+                {/* Protected routes with layout */}
+                <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                  <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="bill/:billId" element={<AIScanView />} />
+                  <Route path="transaction/:billId" element={<SimpleTransactionView />} />
+                  <Route path="airbnb/:billId" element={<AirbnbView />} />
+                  <Route path="events" element={<EventsView />} />
+                  <Route path="events/:eventId" element={<EventDetailView />} />
+                  <Route path="squads" element={<SquadsView />} />
+                  <Route path="squads/:squadId" element={<SquadDetailView />} />
+                  <Route path="balances/:targetUserId" element={<BalanceDetailView />} />
+                  <Route path="events/:eventId/balances/:targetUserId" element={<BalanceDetailView />} />
+                  <Route path="settings" element={<SettingsView />} />
+                  <Route path="bills" element={<BillsView />} />
+                  <Route path="shared/:sessionId" element={<CollaborativeSessionView />} />
+                </Route>
 
-              {/* Public: Auth, join, and collaborative session pages */}
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/join/:sessionId" element={<JoinSession />} />
-              <Route path="/session/:sessionId" element={<CollaborativeSessionView />} />
+                {/* Public: Auth, join, and collaborative session pages */}
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/join/:sessionId" element={<JoinSession />} />
+                <Route path="/session/:sessionId" element={<CollaborativeSessionView />} />
 
-              {/* Public: legal pages */}
-              <Route path="/privacy" element={<PrivacyPolicy />} />
+                {/* Public: legal pages */}
+                <Route path="/privacy" element={<PrivacyPolicy />} />
 
-              {/* Public: 404 */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </BillSessionProvider>
-      </SettlementRequestsProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+                {/* Public: 404 */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </BillSessionProvider>
+        </SettlementRequestsProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;
