@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, Users, UserCircle, Plus } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, Plus } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { CreateOptionsDialog } from './CreateOptionsDialog';
@@ -12,7 +12,7 @@ export function NavigationBar() {
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/events', label: 'Events', icon: Users },
     { path: '/squads', label: 'Squads', icon: Users },
-    { path: '/settings', label: 'Settings', icon: UserCircle },
+    { path: '/settings', label: 'Settings', icon: Settings },
   ];
 
   // Context detection for Quick Expense / New Bill

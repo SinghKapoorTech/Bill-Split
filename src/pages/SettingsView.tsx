@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings, Users, History, Shield } from 'lucide-react';
+import { UserCircle, Users, History, Shield } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettingsCard } from '@/components/profile/ProfileSettingsCard';
 import { ManageFriendsCard } from '@/components/profile/ManageFriendsCard';
@@ -22,7 +22,7 @@ export default function SettingsView() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="profile" className="gap-1 text-xs md:gap-2 md:text-sm">
-            <Settings className="w-3 h-3 md:w-4 md:h-4" />
+            <UserCircle className="w-3 h-3 md:w-4 md:h-4" />
             <span>Profile</span>
           </TabsTrigger>
           <TabsTrigger value="friends" className="gap-1 text-xs md:gap-2 md:text-sm">

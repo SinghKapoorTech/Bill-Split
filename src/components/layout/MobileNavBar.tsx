@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Receipt } from 'lucide-react';
-import { MdGroups, MdAccountCircle, MdDashboard, MdAdd } from 'react-icons/md';
+import { MdGroups, MdSettings, MdDashboard, MdAdd } from 'react-icons/md';
 import { CreateOptionsDialog } from './CreateOptionsDialog';
 
 export function MobileNavBar() {
@@ -15,7 +15,7 @@ export function MobileNavBar() {
     { name: 'Events', path: '/events', icon: MdGroups },
     { name: 'Create', path: '#', icon: MdAdd }, // Placeholder for center button
     { name: 'Bills', path: '/bills', icon: Receipt },
-    { name: 'Settings', path: '/settings', icon: MdAccountCircle },
+    { name: 'Settings', path: '/settings', icon: MdSettings },
   ];
 
   // Context detection for Quick Expense / New Bill
