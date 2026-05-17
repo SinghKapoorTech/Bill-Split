@@ -55,13 +55,11 @@ export function SquadsSettingsCard() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">My Squads</h3>
-          <p className="text-sm text-muted-foreground">
-            {squads.length} {squads.length === 1 ? 'squad' : 'squads'}
-          </p>
+    <Card className="p-4 md:p-6">
+      <div className="flex items-center justify-between mb-4 md:mb-6">
+        <div className="flex items-center gap-2">
+          <Users className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+          <h2 className="text-xl md:text-2xl font-semibold">My Squads</h2>
         </div>
         <Button
           size="icon"
@@ -73,7 +71,7 @@ export function SquadsSettingsCard() {
       </div>
 
       {loading ? (
-        <Card className="p-8 space-y-4">
+        <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <div key={i} className="flex items-center gap-3 animate-pulse">
               <div className="w-10 h-10 rounded-full bg-muted" />
@@ -83,9 +81,9 @@ export function SquadsSettingsCard() {
               </div>
             </div>
           ))}
-        </Card>
+        </div>
       ) : squads.length === 0 ? (
-        <Card className="p-8 text-center space-y-4">
+        <div className="py-8 text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
             <Users className="w-8 h-8 text-primary" />
           </div>
@@ -94,7 +92,7 @@ export function SquadsSettingsCard() {
             Create a squad to easily split bills with the same group of people.
           </p>
           <Button onClick={() => setCreateDialogOpen(true)}>Create Squad</Button>
-        </Card>
+        </div>
       ) : (
         <SquadList
           squads={squads}
@@ -172,6 +170,6 @@ export function SquadsSettingsCard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </Card>
   );
 }
