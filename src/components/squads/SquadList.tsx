@@ -8,9 +8,10 @@ interface SquadListProps {
   squads: HydratedSquad[];
   onEdit: (squad: HydratedSquad) => void;
   onDelete: (squadId: string) => void;
+  onCardClick?: (squad: HydratedSquad) => void;
 }
 
-export function SquadList({ squads, onEdit, onDelete }: SquadListProps) {
+export function SquadList({ squads, onEdit, onDelete, onCardClick }: SquadListProps) {
   if (squads.length === 0) {
     return <EmptySquadList />;
   }
@@ -23,6 +24,7 @@ export function SquadList({ squads, onEdit, onDelete }: SquadListProps) {
           squad={squad}
           onEdit={() => onEdit(squad)}
           onDelete={() => onDelete(squad.id)}
+          onCardClick={onCardClick ? () => onCardClick(squad) : undefined}
         />
       ))}
     </div>
@@ -33,15 +35,16 @@ interface SquadCardProps {
   squad: HydratedSquad;
   onEdit: () => void;
   onDelete: () => void;
+  onCardClick?: () => void;
 }
 
-function SquadCard({ squad, onEdit, onDelete }: SquadCardProps) {
+function SquadCard({ squad, onEdit, onDelete, onCardClick }: SquadCardProps) {
   const navigate = useNavigate();
 
   return (
     <Card
       className="p-6 hover:shadow-lg transition-all duration-300 cursor-pointer"
-      onClick={() => navigate(`/squads/${squad.id}`)}
+      onClick={() => (onCardClick ? onCardClick() : navigate(`/squads/${squad.id}`))}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
