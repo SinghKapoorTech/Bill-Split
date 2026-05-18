@@ -33,17 +33,8 @@ export default function SquadsView() {
     squads,
     loading,
     handleCreate,
-    handleEdit,
-    handleUpdate,
     handleDelete,
-    editingSquad,
-    handleTabChange
   } = useSquadEditor();
-
-  const onEditSquad = (squad: import('@/types/squad.types').HydratedSquad) => {
-    handleEdit(squad);
-    setCreateDialogOpen(true);
-  };
 
   const onDeleteSquad = (squadId: string) => {
     const squad = squads.find(s => s.id === squadId);
@@ -60,16 +51,14 @@ export default function SquadsView() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl mb-20 animate-fade-in">
-      <div className="flex items-center justify-between mb-6">
+    <div className="h-full flex flex-col animate-fade-in container mx-auto px-4 max-w-4xl">
+      {/* Header: pinned */}
+      <div className="shrink-0 flex items-center justify-between pt-8 mb-6">
         <div>
           <h1 className="text-3xl font-bold">My Squads</h1>
           <p className="text-muted-foreground">Manage your squads</p>
         </div>
-        <Dialog open={createDialogOpen} onOpenChange={(open) => {
-          setCreateDialogOpen(open);
-          if (!open) handleTabChange('list');
-        }}>
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button size="icon" className="rounded-full h-10 w-10">
               <Plus className="w-6 h-6" />
@@ -77,59 +66,57 @@ export default function SquadsView() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingSquad ? 'Edit Squad' : 'Create New Squad'}</DialogTitle>
+              <DialogTitle>Create New Squad</DialogTitle>
             </DialogHeader>
             <SquadForm
-              initialName={editingSquad?.name}
-              initialDescription={editingSquad?.description}
-              initialMembers={editingSquad?.members}
               onSubmit={async (name, desc, members) => {
-                if (editingSquad) {
-                  await handleUpdate(name, desc, members);
-                } else {
-                  await handleCreate(name, desc, members);
-                }
+                await handleCreate(name, desc, members);
                 setCreateDialogOpen(false);
               }}
-              submitLabel={editingSquad ? 'Update' : 'Create'}
+              submitLabel="Create"
             />
           </DialogContent>
         </Dialog>
       </div>
 
-      {loading ? (
-        <Card className="p-8 space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center gap-3 animate-pulse">
-              <div className="w-10 h-10 rounded-full bg-muted" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 bg-muted rounded w-1/3" />
-                <div className="h-3 bg-muted rounded w-1/2" />
+      {/* Scrollable: loading skeleton / empty state / SquadList */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {loading ? (
+          <Card className="p-8 space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-3 animate-pulse">
+                <div className="w-10 h-10 rounded-full bg-muted" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-muted rounded w-1/3" />
+                  <div className="h-3 bg-muted rounded w-1/2" />
+                </div>
               </div>
+            ))}
+          </Card>
+        ) : squads.length === 0 ? (
+          <Card className="p-8 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <Users className="w-8 h-8 text-primary" />
             </div>
-          ))}
-        </Card>
-      ) : squads.length === 0 ? (
-        <Card className="p-8 text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-            <Users className="w-8 h-8 text-primary" />
+            <h3 className="text-lg font-semibold">No squads yet</h3>
+            <p className="text-muted-foreground">
+              Create a squad to easily split bills with the same group of people.
+            </p>
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              Create Squad
+            </Button>
+          </Card>
+        ) : (
+          <div className="pb-4">
+            <SquadList
+              squads={squads}
+              onDelete={onDeleteSquad}
+            />
           </div>
-          <h3 className="text-lg font-semibold">No squads yet</h3>
-          <p className="text-muted-foreground">
-            Create a squad to easily split bills with the same group of people.
-          </p>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            Create Squad
-          </Button>
-        </Card>
-      ) : (
-        <SquadList
-          squads={squads}
-          onEdit={onEditSquad}
-          onDelete={onDeleteSquad}
-        />
-      )}
+        )}
+      </div>
 
+      {/* AlertDialog stays outside scroll */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

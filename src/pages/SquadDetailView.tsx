@@ -97,8 +97,9 @@ export default function SquadDetailView() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl mb-20">
-      <div className="mb-8">
+    <div className="h-full flex flex-col container mx-auto px-4 max-w-4xl">
+      {/* Header: pinned */}
+      <div className="shrink-0 pt-8 mb-8">
         <Button
           variant="ghost"
           className="mb-4 gap-2"
@@ -124,80 +125,83 @@ export default function SquadDetailView() {
         </div>
       </div>
 
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Squad Bills</h2>
-        </div>
+      {/* Scrollable: Squad Bills section */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="space-y-6 pb-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Squad Bills</h2>
+          </div>
 
-        {squadBills.length === 0 ? (
-          <Card className="p-12">
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                <Receipt className="w-8 h-8 text-muted-foreground" />
+          {squadBills.length === 0 ? (
+            <Card className="p-12">
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+                  <Receipt className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-medium mb-2">No bills yet</h3>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Bills attached to this squad will appear here.
+                </p>
               </div>
-              <h3 className="text-lg font-medium mb-2">No bills yet</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                Bills attached to this squad will appear here.
-              </p>
-            </div>
-          </Card>
-        ) : (
-          <>
-            {/* Mobile List View */}
-            <div className="block md:hidden divide-y divide-border rounded-lg border bg-card">
-              {squadBills.map((b) => (
-                <MobileBillCard
-                  key={b.id}
-                  bill={b}
-                  isLatest={b.id === activeSession?.id}
-                  onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
-                  onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
-                  onDelete={(bill) => {
-                     if (window.confirm("Are you sure you want to delete this bill?")) {
-                       deleteSession(bill.id, bill.receiptFileName);
-                     }
-                  }}
-                  isResuming={isResuming}
-                  isDeleting={isDeleting}
-                  formatDate={(timestamp) => {
-                     if (!timestamp) return 'Unknown date';
-                     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-                     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                  }}
-                  getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
-                  currentUserId={user?.uid}
-                />
-              ))}
-            </div>
+            </Card>
+          ) : (
+            <>
+              {/* Mobile List View */}
+              <div className="block md:hidden divide-y divide-border rounded-lg border bg-card">
+                {squadBills.map((b) => (
+                  <MobileBillCard
+                    key={b.id}
+                    bill={b}
+                    isLatest={b.id === activeSession?.id}
+                    onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
+                    onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
+                    onDelete={(bill) => {
+                       if (window.confirm("Are you sure you want to delete this bill?")) {
+                         deleteSession(bill.id, bill.receiptFileName);
+                       }
+                    }}
+                    isResuming={isResuming}
+                    isDeleting={isDeleting}
+                    formatDate={(timestamp) => {
+                       if (!timestamp) return 'Unknown date';
+                       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    }}
+                    getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
+                    currentUserId={user?.uid}
+                  />
+                ))}
+              </div>
 
-            {/* Desktop Grid View */}
-            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {squadBills.map((b) => (
-                <DesktopBillCard
-                  key={b.id}
-                  bill={b}
-                  isLatest={b.id === activeSession?.id}
-                  onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
-                  onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
-                  onDelete={(bill) => {
-                     if (window.confirm("Are you sure you want to delete this bill?")) {
-                       deleteSession(bill.id, bill.receiptFileName);
-                     }
-                  }}
-                  isResuming={isResuming}
-                  isDeleting={isDeleting}
-                  formatDate={(timestamp) => {
-                     if (!timestamp) return 'Unknown date';
-                     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-                     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                  }}
-                  getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
-                  currentUserId={user?.uid}
-                />
-              ))}
-            </div>
-          </>
-        )}
+              {/* Desktop Grid View */}
+              <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {squadBills.map((b) => (
+                  <DesktopBillCard
+                    key={b.id}
+                    bill={b}
+                    isLatest={b.id === activeSession?.id}
+                    onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb)}
+                    onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb)}
+                    onDelete={(bill) => {
+                       if (window.confirm("Are you sure you want to delete this bill?")) {
+                         deleteSession(bill.id, bill.receiptFileName);
+                       }
+                    }}
+                    isResuming={isResuming}
+                    isDeleting={isDeleting}
+                    formatDate={(timestamp) => {
+                       if (!timestamp) return 'Unknown date';
+                       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    }}
+                    getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
+                    currentUserId={user?.uid}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
