@@ -102,8 +102,8 @@ export default function BillsView() {
   }
 
   return (
-    <div className={`${layout.page} mb-20 animate-fade-in`}>
-      <div className="flex items-center justify-between mb-6">
+    <div className="h-full flex flex-col animate-fade-in container mx-auto px-4 max-w-7xl">
+      <div className="flex items-center justify-between pt-8 mb-6 shrink-0">
         <div>
           <h1 className={layout.screen.title}>Your Bills</h1>
           <p className={layout.screen.subtitle}>Manage and track your split bills</p>
@@ -131,29 +131,31 @@ export default function BillsView() {
           <Button onClick={() => setCreateDialogOpen(true)}>Create Bill</Button>
         </Card>
       ) : (
-        <div className="flex flex-col gap-2 p-1">
-          {allBills.map((bill, index) => (
-            <motion.div
-              key={bill.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: index * 0.05, ease: [0.4, 0, 0.2, 1] }}
-            >
-              <MobileBillCard
-                bill={bill}
-                isLatest={bill.id === activeSession?.id}
-                onView={(id) => handleNavigateToBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
-                onResume={(id) => handleNavigateToBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
-                onDelete={handleDeleteBill}
-                isResuming={isResuming}
-                isDeleting={isDeleting}
-                formatDate={formatDate}
-                getBillTitle={getBillTitle}
-                isOwner={bill.ownerId === user?.uid}
-                currentUserId={user?.uid}
-              />
-            </motion.div>
-          ))}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="flex flex-col gap-2 p-1 pb-4">
+            {allBills.map((bill, index) => (
+              <motion.div
+                key={bill.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: index * 0.05, ease: [0.4, 0, 0.2, 1] }}
+              >
+                <MobileBillCard
+                  bill={bill}
+                  isLatest={bill.id === activeSession?.id}
+                  onView={(id) => handleNavigateToBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
+                  onResume={(id) => handleNavigateToBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
+                  onDelete={handleDeleteBill}
+                  isResuming={isResuming}
+                  isDeleting={isDeleting}
+                  formatDate={formatDate}
+                  getBillTitle={getBillTitle}
+                  isOwner={bill.ownerId === user?.uid}
+                  currentUserId={user?.uid}
+                />
+              </motion.div>
+            ))}
+          </div>
         </div>
       )}
 
