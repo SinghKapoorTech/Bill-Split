@@ -8,14 +8,12 @@ import { useActiveBalances } from '@/hooks/useActiveBalances';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { userService } from '@/services/userService';
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog';
-import { PullToRefresh } from '@/components/layout/PullToRefresh';
-import { layout, chip } from '@/lib/styles';
+import { chip } from '@/lib/styles';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const { balances, isLoading: isLoadingBalances, refreshBalances } = useActiveBalances();
   const { profile } = useUserProfile();
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -41,20 +39,6 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key]);
 
-  const handleRefresh = async () => {
-    setIsManualRefreshing(true);
-    try {
-      // Add a slight artificial delay (min 600ms) to ensure the user clearly sees
-      // the whole screen refresh taking place. Let both the fetch and delay finish.
-      await Promise.all([
-        refreshBalances(),
-        new Promise(resolve => setTimeout(resolve, 600))
-      ]);
-    } finally {
-      setIsManualRefreshing(false);
-    }
-  };
-
   const netBalance = balances.reduce((sum, b) => sum + (b.balance || 0), 0);
   const balanceSubtitle = Math.abs(netBalance) < 0.005
     ? "You're all settled up"
@@ -71,28 +55,28 @@ export default function Dashboard() {
   }
 
   return (
-    <PullToRefresh onRefresh={handleRefresh}>
-      <div className={`${layout.page} animate-fade-in`}>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className={layout.screen.title}>Balances</h1>
-            <p className={layout.screen.subtitle}>{balanceSubtitle}</p>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            className={`${chip.sm} bg-primary/10 text-primary hover:bg-primary/20 border-none transition-all shrink-0`}
-            onClick={() => navigate('/settings', { state: { defaultTab: 'friends' } })}
-          >
-            <Users className="h-3 w-3" />
-            Friends
-          </Button>
+    <div className="h-full flex flex-col animate-fade-in container mx-auto px-4 max-w-7xl">
+      <div className="shrink-0 flex items-center justify-between pt-8 mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Balances</h1>
+          <p className="text-muted-foreground">{balanceSubtitle}</p>
         </div>
-
-        <FriendBalancePreviewCard isRefreshing={isManualRefreshing} />
-
-        <OnboardingDialog open={showOnboarding} onComplete={handleOnboardingComplete} />
+        <Button
+          variant="secondary"
+          size="sm"
+          className={`${chip.sm} bg-primary/10 text-primary hover:bg-primary/20 border-none transition-all shrink-0`}
+          onClick={() => navigate('/settings', { state: { defaultTab: 'friends' } })}
+        >
+          <Users className="h-3 w-3" />
+          Friends
+        </Button>
       </div>
-    </PullToRefresh>
+
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <FriendBalancePreviewCard />
+      </div>
+
+      <OnboardingDialog open={showOnboarding} onComplete={handleOnboardingComplete} />
+    </div>
   );
 }

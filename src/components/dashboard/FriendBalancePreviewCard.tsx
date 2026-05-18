@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, ChevronDown, Loader2 } from 'lucide-react';
+import { Users, Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -10,12 +10,11 @@ import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpMo
 import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: boolean } = {}) {
+export function FriendBalancePreviewCard() {
   const navigate = useNavigate();
   const { balances, isLoading, refreshBalances } = useActiveBalances();
   const { getOutgoingRequestForUser, getIncomingRequestFromUser } = useSettlementRequests();
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const sortedFriends = [...balances]
@@ -27,42 +26,22 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
       return (a.name || '').localeCompare(b.name || '');
     });
 
-  const previewFriends = isExpanded ? sortedFriends : sortedFriends.slice(0, 3);
-  const hasMoreFriends = sortedFriends.length > 3;
-  const hiddenCount = sortedFriends.length - 3;
-
-
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex items-center justify-between mb-2 ml-1">
-        <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-          Balances
-        </h2>
-        <Button
-          variant="secondary"
-          size="sm"
-          className="h-7 px-2.5 text-[11px] gap-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 border-none font-medium transition-all"
-          onClick={() => navigate('/settings', { state: { defaultTab: 'friends' } })}
-        >
-          <Users className="h-3 w-3" />
-          Friends
-        </Button>
-      </div>
-
       <Card className="p-0 overflow-hidden flex-1 flex flex-col border-none bg-transparent shadow-none">
         <div className="flex-1 mb-0">
-          {isLoading || isRefreshing ? (
+          {isLoading ? (
             <div className="flex justify-center items-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
-          ) : previewFriends.length === 0 ? (
+          ) : sortedFriends.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
               <motion.div
-                className="w-[4.5rem] h-[4.5rem] bg-emerald-500/10 rounded-full flex items-center justify-center mb-3"
+                className="w-[4.5rem] h-[4.5rem] bg-success/10 rounded-full flex items-center justify-center mb-3"
                 animate={{ y: [0, -8, 0] }}
                 transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
               >
-                <Users className="w-8 h-8 text-emerald-600" />
+                <Users className="w-8 h-8 text-success" />
               </motion.div>
               <motion.h3
                 className="font-semibold text-foreground mb-1"
@@ -97,7 +76,7 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
           ) : (
             <div className="flex flex-col gap-2 p-1">
                 <AnimatePresence initial={false}>
-                  {previewFriends.map((friend, index: number) => {
+                  {sortedFriends.map((friend, index: number) => {
                     const owesYou = friend.balance && friend.balance > 0;
                     const youOwe = friend.balance && friend.balance < 0;
                     const hasBalance = friend.balance && friend.balance !== 0;
@@ -165,29 +144,6 @@ export function FriendBalancePreviewCard({ isRefreshing }: { isRefreshing?: bool
           )}
         </div>
 
-        {hasMoreFriends && (
-          <motion.div
-            className="flex justify-center mt-1"
-            initial={false}
-          >
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 px-4 text-xs font-medium text-muted-foreground hover:text-foreground rounded-full gap-1.5 transition-all"
-              onClick={() => setIsExpanded(!isExpanded)}
-            >
-              <span>
-                {isExpanded ? 'Show less' : `Show ${hiddenCount} more`}
-              </span>
-              <motion.div
-                animate={{ rotate: isExpanded ? 180 : 0 }}
-                transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-              >
-                <ChevronDown className="w-4 h-4" />
-              </motion.div>
-            </Button>
-          </motion.div>
-        )}
       </Card>
 
       {settleTarget && (
