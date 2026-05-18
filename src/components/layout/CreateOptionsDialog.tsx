@@ -84,43 +84,43 @@ export function CreateOptionsDialog({ open, onOpenChange, eventContext }: Create
         </DialogHeader>
         <div className="flex flex-col gap-3 pt-0 pb-2">
           <button
-            className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-primary/[0.03] hover:border-primary/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
+            className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-info/[0.03] hover:border-info/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
             onClick={() => handleAction('/bill/new')}
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-            <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm">
+            <div className="absolute inset-0 bg-gradient-to-r from-info/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-info/10 text-info flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm">
               <Receipt className="w-6 h-6" />
             </div>
             <div className="flex flex-col relative z-10">
-              <span className="font-semibold text-foreground text-base group-hover:text-primary transition-colors">New Bill</span>
+              <span className="font-semibold text-foreground text-base group-hover:text-info transition-colors">New Bill</span>
               <span className="text-sm text-muted-foreground mt-0.5">Split a detailed expense with friends</span>
             </div>
           </button>
 
           <button
-            className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-amber-500/[0.03] hover:border-amber-500/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
+            className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-warning/[0.03] hover:border-warning/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
             onClick={() => handleAction('/transaction/new')}
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-            <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 shadow-sm">
+            <div className="absolute inset-0 bg-gradient-to-r from-warning/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-warning/10 text-warning flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 shadow-sm">
               <Zap className="w-6 h-6" />
             </div>
             <div className="flex flex-col relative z-10">
-              <span className="font-semibold text-foreground text-base group-hover:text-amber-600 transition-colors">Quick Expense</span>
+              <span className="font-semibold text-foreground text-base group-hover:text-warning transition-colors">Quick Expense</span>
               <span className="text-sm text-muted-foreground mt-0.5">Record a fast, simple transaction</span>
             </div>
           </button>
 
           <button
-            className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-rose-500/[0.03] hover:border-rose-500/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
+            className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-destructive/[0.03] hover:border-destructive/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
             onClick={() => handleAction('/airbnb/new')}
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-rose-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-            <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 shadow-sm">
+            <div className="absolute inset-0 bg-gradient-to-r from-destructive/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-destructive/10 text-destructive flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 shadow-sm">
               <Home className="w-6 h-6" />
             </div>
             <div className="flex flex-col relative z-10">
-              <span className="font-semibold text-foreground text-base group-hover:text-rose-600 transition-colors">Airbnb / House</span>
+              <span className="font-semibold text-foreground text-base group-hover:text-destructive transition-colors">Airbnb / House</span>
               <span className="text-sm text-muted-foreground mt-0.5">Split a stay with guests & fees</span>
             </div>
           </button>

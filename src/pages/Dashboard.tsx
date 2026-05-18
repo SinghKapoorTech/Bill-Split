@@ -55,8 +55,8 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="h-full flex flex-col animate-fade-in container mx-auto px-4 max-w-7xl">
-      <div className="shrink-0 flex items-center justify-between pt-8 mb-6">
+    <div className="h-full flex flex-col animate-fade-in max-w-7xl mx-auto">
+      <div className="shrink-0 flex items-center justify-between pt-5 mb-3 px-1">
         <div>
           <h1 className="text-3xl font-bold">Balances</h1>
           <p className="text-muted-foreground">{balanceSubtitle}</p>
@@ -72,7 +72,7 @@ export default function Dashboard() {
         </Button>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-1">
         <FriendBalancePreviewCard />
       </div>
 

@@ -81,8 +81,8 @@ export default function BalanceDetailView() {
       setFriendBalance(match.balance ?? 0);
       if (!navState?.name && match.name) setTargetUserName(match.name);
       if (!navState?.photoURL && match.photoURL) setTargetUserPhoto(match.photoURL);
-    } else {
-      // No balance doc means fully settled
+    } else if (balances.length > 0) {
+      // Only conclude "fully settled" once we have real data — empty array is a transient state
       setFriendBalance(0);
     }
   }, [balances, targetUserId, eventId]);
@@ -222,13 +222,13 @@ export default function BalanceDetailView() {
   const isNameLoaded = targetUserName !== 'Friend' || navState?.name;
 
   return (
-    <div className="h-full flex flex-col container mx-auto px-4 max-w-4xl">
+    <div className="h-full flex flex-col max-w-4xl mx-auto">
       {/* Hero Card */}
       <motion.div
         initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-        className="glass-card rounded-2xl p-6 mb-6 relative overflow-hidden shrink-0 mt-6"
+        className="glass-card rounded-2xl p-4 mb-3 relative overflow-hidden shrink-0 mt-3"
       >
         {/* Subtle gradient accent behind the card */}
         <div className={`absolute inset-0 opacity-[0.04] ${
@@ -238,7 +238,7 @@ export default function BalanceDetailView() {
         }`} />
 
         {/* Back button */}
-        <div className="relative flex items-center mb-5">
+        <div className="relative flex items-center mb-2">
           <Button
             variant="ghost"
             size="icon"
@@ -259,8 +259,8 @@ export default function BalanceDetailView() {
             <UserAvatar
               name={targetUserName}
               photoURL={targetUserPhoto}
-              size="lg"
-              className="border-3 border-background shadow-lg"
+              size="md"
+              className="shadow-md"
               fallbackClassName={
                 friendBalance === null || friendBalance === 0
                   ? 'bg-muted text-muted-foreground'
@@ -271,18 +271,18 @@ export default function BalanceDetailView() {
             />
           </motion.div>
 
-          {/* Name */}
+          {/* Name — fixed height to prevent layout shift */}
           {isNameLoaded ? (
             <motion.h1
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.12 }}
-              className="text-xl font-bold tracking-tight mt-3"
+              className="text-base font-semibold tracking-tight mt-2"
             >
               {targetUserName}
             </motion.h1>
           ) : (
-            <div className="h-7 w-36 bg-muted animate-pulse rounded-lg mt-3" />
+            <div className="h-5 w-28 bg-muted animate-pulse rounded-lg mt-2" />
           )}
 
           {/* Balance */}
@@ -290,84 +290,74 @@ export default function BalanceDetailView() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.18 }}
-            className="mt-2"
+            className="mt-1"
           >
             {hasBalance ? (
               <>
-                <p className={`text-3xl font-bold tracking-tight ${
+                <p className={`text-xl font-bold tracking-tight ${
                   friendBalance! > 0 ? 'text-success' : 'text-destructive'
                 }`}>
                   ${Math.abs(friendBalance!).toFixed(2)}
                 </p>
-                <p className="text-sm text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {friendBalance! > 0 ? `${firstName} owes you` : `You owe ${firstName}`}
                 </p>
               </>
             ) : isSettledUp ? (
               <div className="flex items-center gap-1.5 text-muted-foreground">
-                <CheckCircle2 className="w-4 h-4 text-success" />
-                <span className="text-sm font-medium">All settled up!</span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                <span className="text-xs font-medium">All settled up!</span>
               </div>
             ) : friendBalance === null && !navState ? (
-              <div className="h-10 w-24 bg-muted animate-pulse rounded-lg mx-auto" />
+              <div className="h-6 w-20 bg-muted animate-pulse rounded-lg mx-auto" />
             ) : null}
           </motion.div>
 
-          {/* Settle Up / Request / Approve+Decline buttons */}
-          {hasBalance && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
-              className="mt-4"
-            >
-              {isProcessingRequest ? (
-                /* Processing: show loader until refresh */
-                <div className="flex items-center justify-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                </div>
+          {/* Button row — always reserves space to prevent layout shift */}
+          <div className="mt-2 min-h-[2rem] flex items-center justify-center">
+            {hasBalance && (
+              isProcessingRequest ? (
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
               ) : incomingRequest ? (
-                /* Creditor: incoming request to approve/decline */
-                <div className="flex flex-col items-center gap-3">
-                  <p className="text-sm text-muted-foreground">
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-xs text-muted-foreground">
                     {firstName} requested to settle
                   </p>
                   <div className="flex gap-2">
                     <Button
                       onClick={handleApproveRequest}
                       disabled={isProcessingRequest}
-                      className="rounded-full px-5 h-10 font-semibold shadow-sm bg-success hover:bg-success/90 text-success-foreground"
+                      className="rounded-full px-4 h-8 text-xs font-semibold shadow-sm bg-success hover:bg-success/90 text-success-foreground"
                     >
-                      <Check className="w-4 h-4 mr-2" />
+                      <Check className="w-3.5 h-3.5 mr-1.5" />
                       Approve
                     </Button>
                     <Button
                       onClick={handleDeclineRequest}
                       disabled={isProcessingRequest}
                       variant="outline"
-                      className="rounded-full px-5 h-10 font-semibold shadow-sm border-destructive text-destructive hover:bg-destructive/10"
+                      className="rounded-full px-4 h-8 text-xs font-semibold shadow-sm border-destructive text-destructive hover:bg-destructive/10"
                     >
-                      <X className="w-4 h-4 mr-2" />
+                      <X className="w-3.5 h-3.5 mr-1.5" />
                       Decline
                     </Button>
                   </div>
                 </div>
               ) : (
-                /* Default: normal settle button */
                 <Button
                   onClick={handleSettleUp}
-                  className={`rounded-full px-6 h-10 font-semibold shadow-sm border-none ${
+                  className={`rounded-full px-5 h-8 text-xs font-semibold shadow-sm border-none ${
                     friendBalance! < 0
                       ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
                       : 'bg-success hover:bg-success/90 text-success-foreground'
                   }`}
                 >
-                  <Banknote className="w-4 h-4 mr-2" />
+                  <Banknote className="w-3.5 h-3.5 mr-1.5" />
                   {friendBalance! < 0 ? 'Pay' : 'Settle Up'}
                 </Button>
-              )}
-            </motion.div>
-          )}
+              )
+            )}
+          </div>
         </div>
       </motion.div>
 
@@ -404,7 +394,7 @@ export default function BalanceDetailView() {
       </motion.div>
 
       {/* Bill cards — scrollable */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
         {isLoadingSessions || isPairLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />

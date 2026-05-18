@@ -214,6 +214,14 @@ export function AirbnbWizard({
         airbnbData
     });
 
+    const handlePaidByChange = (newPaidById: string) => {
+        setPaidById(newPaidById);
+        const id = billId || activeSession?.id;
+        if (id) {
+            billService.updateBill(id, { paidById: newPaidById }).catch(console.error);
+        }
+    };
+
     const handleAtomicAssignment = (itemId: string, personId: string, checked: boolean) => {
         bill.handleItemAssignment(itemId, personId, checked);
         const id = billId || activeSession?.id;
@@ -412,6 +420,8 @@ export function AirbnbWizard({
                             totalSteps={STEPS.length}
                             eventId={eventId}
                             onEventChange={onEventChange}
+                            paidById={paidById}
+                            onPaidByChange={handlePaidByChange}
                         />
                     )}
 

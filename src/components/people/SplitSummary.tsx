@@ -248,20 +248,20 @@ function PersonCompactRow({
   );
 
   return (
-    <div className={`p-3 border shadow-sm rounded-xl transition-all ${isSettled ? 'bg-green-500/10 dark:bg-green-500/20 border-green-500/40 dark:border-green-400/30 shadow-green-500/10' : isMe ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800' : 'bg-card border-border'}`}>
+    <div className={`p-3 border shadow-sm rounded-xl transition-all ${isSettled ? 'bg-success/10 border-success/40' : isMe ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800' : 'bg-card border-border'}`}>
 
       <div className="flex justify-between items-center gap-3">
         {/* Left: Name and Actions */}
         <div className="flex flex-col justify-center gap-1.5 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`font-semibold text-base md:text-lg leading-none truncate ${isSettled ? 'text-green-800 dark:text-green-200' : ''}`}>{displayName}</span>
+            <span className={`font-semibold text-base md:text-lg leading-none truncate ${isSettled ? 'text-success' : ''}`}>{displayName}</span>
             {isMe && !isSettled && (
               <span className="text-[10px] font-bold tracking-wider uppercase text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.5 rounded-sm shrink-0">
                 Me
               </span>
             )}
             {isSettled && (
-              <span className="text-[10px] font-bold tracking-wider uppercase text-green-700 dark:text-green-300 bg-green-500/20 px-1.5 py-0.5 rounded-sm shrink-0">
+              <span className="text-[10px] font-bold tracking-wider uppercase text-success bg-success/20 px-1.5 py-0.5 rounded-sm shrink-0">
                 Settled
               </span>
             )}
@@ -284,7 +284,7 @@ function PersonCompactRow({
 
               {onMarkAsSettled && showSettleButton && (
                 <button
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors active:scale-95 disabled:opacity-50 disabled:pointer-events-none ${isSettled ? 'bg-green-600/20 text-green-800 dark:text-green-200 hover:bg-green-600/30' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors active:scale-95 disabled:opacity-50 disabled:pointer-events-none ${isSettled ? 'bg-success/20 text-success hover:bg-success/30' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
                   disabled={isSettling[pt.personId]}
                   onClick={async () => {
                     setIsSettling(prev => ({ ...prev, [pt.personId]: true }));
@@ -317,7 +317,7 @@ function PersonCompactRow({
             value={pt.total}
             prefix="$"
             decimals={2}
-            className={`font-bold text-lg md:text-xl tabular-nums tracking-tight ${isSettled ? 'text-green-700 dark:text-green-300 line-through' : 'text-foreground'}`}
+            className={`font-bold text-lg md:text-xl tabular-nums tracking-tight ${isSettled ? 'text-success line-through' : 'text-foreground'}`}
           />
         </div>
       </div>

@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,19 +29,12 @@ export function SquadsSettingsCard() {
   const { squads, loading, createSquad, updateSquad, deleteSquad } = useSquadManager();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editingSquad, setEditingSquad] = useState<HydratedSquad | null>(null);
   const [membersSquad, setMembersSquad] = useState<HydratedSquad | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const handleCreate = async (name: string, desc: string, members: SquadMember[]) => {
     const id = await createSquad({ name, description: desc, members });
     if (id) setCreateDialogOpen(false);
-  };
-
-  const handleUpdate = async (name: string, desc: string, members: SquadMember[]) => {
-    if (!editingSquad) return;
-    const ok = await updateSquad(editingSquad.id, { name, description: desc, members });
-    if (ok) setEditingSquad(null);
   };
 
   const handleSaveMembers = async (members: SquadMember[]): Promise<boolean> => {
@@ -96,7 +90,7 @@ export function SquadsSettingsCard() {
       ) : (
         <SquadList
           squads={squads}
-          onEdit={(squad) => setEditingSquad(squad)}
+          variant="list"
           onDelete={(id) => {
             const squad = squads.find((s) => s.id === id);
             if (squad) setDeleteTarget({ id, name: squad.name });
@@ -112,27 +106,6 @@ export function SquadsSettingsCard() {
             <DialogTitle>Create New Squad</DialogTitle>
           </DialogHeader>
           <SquadForm onSubmit={handleCreate} submitLabel="Create" />
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit dialog */}
-      <Dialog
-        open={!!editingSquad}
-        onOpenChange={(open) => { if (!open) setEditingSquad(null); }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Squad</DialogTitle>
-          </DialogHeader>
-          {editingSquad && (
-            <SquadForm
-              initialName={editingSquad.name}
-              initialDescription={editingSquad.description}
-              initialMembers={editingSquad.members}
-              onSubmit={handleUpdate}
-              submitLabel="Update"
-            />
-          )}
         </DialogContent>
       </Dialog>
 

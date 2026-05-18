@@ -176,7 +176,7 @@ export function ManageFriendsCard() {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm md:text-base font-medium truncate">{friend.name}</p>
                             {friend.balance && friend.balance !== 0 ? (
-                              <p className={`text-[10px] uppercase font-bold ${friend.balance > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                              <p className={`text-[10px] uppercase font-bold ${friend.balance > 0 ? 'text-success' : 'text-destructive'}`}>
                                 {friend.balance > 0 ? 'Owes you' : 'You owe'} ${Math.abs(friend.balance).toFixed(2)}
                               </p>
                             ) : (

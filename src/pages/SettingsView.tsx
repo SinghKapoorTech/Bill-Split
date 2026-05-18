@@ -13,8 +13,8 @@ export default function SettingsView() {
   const [activeTab, setActiveTab] = useState(location.state?.defaultTab || 'profile');
 
   return (
-    <div className="h-full flex flex-col animate-fade-in container mx-auto px-4 max-w-7xl">
-      <div className="shrink-0 pt-8 mb-4">
+    <div className="h-full flex flex-col animate-fade-in max-w-7xl mx-auto">
+      <div className="shrink-0 pt-5 mb-2 px-1">
         <h1 className={layout.screen.title}>Settings</h1>
         <p className={layout.screen.subtitle}>Manage your profile, friends, and squads</p>
       </div>
@@ -39,19 +39,19 @@ export default function SettingsView() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile" className="flex-1 min-h-0 overflow-y-auto mt-4 pb-4">
+        <TabsContent value="profile" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
           <ProfileSettingsCard />
         </TabsContent>
 
-        <TabsContent value="friends" className="flex-1 min-h-0 overflow-y-auto mt-4 pb-4">
+        <TabsContent value="friends" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
           <ManageFriendsCard />
         </TabsContent>
 
-        <TabsContent value="history" className="flex-1 min-h-0 overflow-y-auto mt-4 pb-4">
+        <TabsContent value="history" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
           <SettlementHistoryCard />
         </TabsContent>
 
-        <TabsContent value="squads" className="flex-1 min-h-0 overflow-y-auto mt-4 pb-4">
+        <TabsContent value="squads" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
           <SquadsSettingsCard />
         </TabsContent>
       </Tabs>

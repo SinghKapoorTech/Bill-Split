@@ -7,7 +7,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Set global tint to match the app's gold primary color (hsl(42, 65%, 40%) ≈ #A87F24)
+        UIView.appearance().tintColor = UIColor(red: 0.66, green: 0.50, blue: 0.14, alpha: 1.0)
         return true
     }
 

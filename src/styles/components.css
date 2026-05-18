@@ -27,6 +27,7 @@
 
   .dark .glass-card {
     @apply bg-card/60 border-white/10;
+    box-shadow: 0 4px 24px -4px hsl(0 0% 0% / 0.6), 0 1px 4px hsl(0 0% 0% / 0.4);
   }
 
   /* ==============================================
@@ -137,6 +138,7 @@
   .btn-gradient-primary-lg {
     @apply w-full bg-gradient-to-r from-primary to-primary-glow hover:opacity-90 shadow-lg hover:shadow-xl transition-all duration-300;
   }
+
 
   /* ==============================================
      RECEIPT COMPONENTS

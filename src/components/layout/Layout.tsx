@@ -9,11 +9,11 @@ export function Layout() {
   const mainPaddingBottom = isMobile ? 'pb-24' : 'pb-12';
 
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-background to-secondary/30 flex flex-col">
+    <div className="h-dvh bg-gradient-to-b from-background to-secondary/30 flex flex-col overflow-hidden">
       {/* Render Header only if not mobile */}
       {!isMobile && <Header />}
 
-      <main className={`container mx-auto px-4 py-4 md:py-12 flex-grow ${mainPaddingBottom}`}>
+      <main className={`container mx-auto py-4 md:py-12 flex-grow min-h-0 ${mainPaddingBottom}`}>
         <div className="max-w-6xl mx-auto h-full">
           <Outlet />
         </div>

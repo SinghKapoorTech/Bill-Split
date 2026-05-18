@@ -23,6 +23,8 @@ interface AirbnbGuestsStepProps {
     onEventChange?: (eventId: string | null) => void;
     onSaveAsFriend?: (person: Person, contactInfo?: string) => void;
     onRemoveFriend?: (friendId: string) => void;
+    paidById?: string;
+    onPaidByChange?: (paidById: string) => void;
 }
 
 export function AirbnbGuestsStep({
@@ -42,7 +44,9 @@ export function AirbnbGuestsStep({
     eventId,
     onEventChange,
     onSaveAsFriend,
-    onRemoveFriend
+    onRemoveFriend,
+    paidById,
+    onPaidByChange,
 }: AirbnbGuestsStepProps) {
     const { user } = useAuth();
     const [newGuestName, setNewGuestName] = useState('');
@@ -70,6 +74,8 @@ export function AirbnbGuestsStep({
                     onUpdate={async (id, updates) => onUpdate(id, updates)}
                     onSaveAsFriend={onSaveAsFriend || (() => { })}
                     onRemoveFriend={onRemoveFriend}
+                    paidById={paidById}
+                    onPaidByChange={onPaidByChange}
                     showFooter={!isMobile}
                     currentStep={currentStep}
                     totalSteps={totalSteps}

@@ -33,8 +33,17 @@ export default function SquadsView() {
     squads,
     loading,
     handleCreate,
+    handleEdit,
+    handleUpdate,
     handleDelete,
+    editingSquad,
+    handleTabChange,
   } = useSquadEditor();
+
+  const onEditSquad = (squad: import('@/types/squad.types').HydratedSquad) => {
+    handleEdit(squad);
+    setCreateDialogOpen(true);
+  };
 
   const onDeleteSquad = (squadId: string) => {
     const squad = squads.find(s => s.id === squadId);
@@ -51,14 +60,17 @@ export default function SquadsView() {
   };
 
   return (
-    <div className="h-full flex flex-col animate-fade-in container mx-auto px-4 max-w-4xl">
+    <div className="h-full flex flex-col animate-fade-in max-w-4xl mx-auto">
       {/* Header: pinned */}
-      <div className="shrink-0 flex items-center justify-between pt-8 mb-6">
+      <div className="shrink-0 flex items-center justify-between pt-5 mb-3 px-1">
         <div>
           <h1 className="text-3xl font-bold">My Squads</h1>
           <p className="text-muted-foreground">Manage your squads</p>
         </div>
-        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <Dialog open={createDialogOpen} onOpenChange={(open) => {
+          setCreateDialogOpen(open);
+          if (!open) handleTabChange('list');
+        }}>
           <DialogTrigger asChild>
             <Button size="icon" className="rounded-full h-10 w-10">
               <Plus className="w-6 h-6" />
@@ -66,21 +78,28 @@ export default function SquadsView() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New Squad</DialogTitle>
+              <DialogTitle>{editingSquad ? 'Edit Squad' : 'Create New Squad'}</DialogTitle>
             </DialogHeader>
             <SquadForm
+              initialName={editingSquad?.name}
+              initialDescription={editingSquad?.description}
+              initialMembers={editingSquad?.members}
               onSubmit={async (name, desc, members) => {
-                await handleCreate(name, desc, members);
+                if (editingSquad) {
+                  await handleUpdate(name, desc, members);
+                } else {
+                  await handleCreate(name, desc, members);
+                }
                 setCreateDialogOpen(false);
               }}
-              submitLabel="Create"
+              submitLabel={editingSquad ? 'Update' : 'Create'}
             />
           </DialogContent>
         </Dialog>
       </div>
 
       {/* Scrollable: loading skeleton / empty state / SquadList */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
         {loading ? (
           <Card className="p-8 space-y-4">
             {[1, 2, 3].map((i) => (
@@ -110,6 +129,7 @@ export default function SquadsView() {
           <div className="pb-4">
             <SquadList
               squads={squads}
+              onEdit={onEditSquad}
               onDelete={onDeleteSquad}
             />
           </div>

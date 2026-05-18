@@ -27,9 +27,9 @@ export function FriendBalancePreviewCard() {
     });
 
   return (
-    <div className="flex flex-col h-full w-full">
-      <Card className="p-0 overflow-hidden flex-1 flex flex-col border-none bg-transparent shadow-none">
-        <div className="flex-1 mb-0">
+    <div className="w-full">
+      <Card className="p-0 border-none bg-transparent shadow-none">
+        <div>
           {isLoading ? (
             <div className="flex justify-center items-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -74,7 +74,7 @@ export function FriendBalancePreviewCard() {
               </motion.div>
             </div>
           ) : (
-            <div className="flex flex-col gap-2 p-1">
+            <div className="flex flex-col gap-2 p-1 pb-8">
                 <AnimatePresence initial={false}>
                   {sortedFriends.map((friend, index: number) => {
                     const owesYou = friend.balance && friend.balance > 0;

@@ -1,9 +1,9 @@
 import { Bill } from '@/types/bill.types';
 import { formatCurrency } from '@/utils/format';
 import { getSettlementStatus, getSettlementStatusForUser } from '@/utils/billCalculations';
-import { ChevronRight, Loader2, Play, Trash2, Zap, Home, Receipt } from 'lucide-react';
+import { Loader2, Trash2, Zap, Home, Receipt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { status as statusStyles } from '@/lib/styles';
 
 /**
  * Props interface for MobileBillCard
@@ -58,21 +58,7 @@ export default function MobileBillCard({
     .join(' • ') || '';
   const hasMoreItems = itemCount > 3;
 
-  const status = currentUserId ? getSettlementStatusForUser(bill, currentUserId) : getSettlementStatus(bill);
-
-  const statusColors = {
-    draft: 'text-slate-700 bg-slate-500/15 dark:text-slate-400 dark:bg-slate-500/10',
-    settled: 'text-emerald-700 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/10',
-    partial: 'text-amber-700 bg-amber-500/15 dark:text-amber-400 dark:bg-amber-500/10',
-    unsettled: 'text-rose-700 bg-rose-500/15 dark:text-rose-400 dark:bg-rose-500/10',
-  };
-
-  const statusText = {
-    draft: 'Draft',
-    settled: 'Settled',
-    partial: 'Partial',
-    unsettled: 'Not Settled',
-  };
+  const billStatus = currentUserId ? getSettlementStatusForUser(bill, currentUserId) : getSettlementStatus(bill);
 
   const handleRowClick = () => {
     if (isLatest) {
@@ -90,7 +76,7 @@ export default function MobileBillCard({
 
   return (
     <div
-      className="mobile-bill-item flex items-center justify-between h-[72px] px-3 glass-card rounded-xl hover:bg-muted/30 transition-colors cursor-pointer"
+      className="flex items-center justify-between h-[72px] px-3 glass-card rounded-xl hover:bg-muted/30 transition-colors cursor-pointer"
       onClick={handleRowClick}
       role="button"
       tabIndex={0}
@@ -98,21 +84,19 @@ export default function MobileBillCard({
     >
       {/* Left section: Content */}
       <div className="flex items-center gap-2.5 overflow-hidden">
-        <Avatar className="w-12 h-12 border-2 border-background shadow-sm shrink-0">
-          <AvatarFallback className={
-            bill.isSimpleTransaction ? "bg-amber-100 text-amber-600" :
-            bill.isAirbnb ? "bg-rose-100 text-rose-600" :
-            "bg-blue-100 text-blue-600"
-          }>
-            {bill.isSimpleTransaction ? (
-              <Zap className="w-6 h-6" />
-            ) : bill.isAirbnb ? (
-              <Home className="w-6 h-6" />
-            ) : (
-              <Receipt className="w-6 h-6" />
-            )}
-          </AvatarFallback>
-        </Avatar>
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+          bill.isSimpleTransaction ? "bg-warning/10 text-warning" :
+          bill.isAirbnb ? "bg-destructive/10 text-destructive" :
+          "bg-info/10 text-info"
+        }`}>
+          {bill.isSimpleTransaction ? (
+            <Zap className="w-6 h-6" />
+          ) : bill.isAirbnb ? (
+            <Home className="w-6 h-6" />
+          ) : (
+            <Receipt className="w-6 h-6" />
+          )}
+        </div>
 
         <div className="flex flex-col min-w-0 pr-2">
           <div className="flex items-center gap-2">
@@ -120,19 +104,13 @@ export default function MobileBillCard({
               {getBillTitle(bill)}
             </span>
             {isLatest && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary text-primary-foreground shrink-0">
+              <span className={`${statusStyles.pill} bg-primary text-primary-foreground`}>
                 Latest
               </span>
             )}
-            {bill.status === 'draft' ? (
-              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${statusColors.draft}`}>
-                {statusText.draft}
-              </span>
-            ) : (
-              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${statusColors[status]}`}>
-                {statusText[status]}
-              </span>
-            )}
+            <span className={`${statusStyles.pill} ${bill.status === 'draft' ? statusStyles.color.draft : statusStyles.color[billStatus]}`}>
+              {bill.status === 'draft' ? statusStyles.label.draft : statusStyles.label[billStatus]}
+            </span>
           </div>
           <span className="text-xs text-muted-foreground truncate">
             {total}

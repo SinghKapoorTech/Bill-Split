@@ -92,44 +92,42 @@ export function PaidByBanner({
           })}
         </PopoverContent>
       </Popover>
-      <span>and split</span>
-      {onSplitMethodChange ? (
-        <Popover open={splitOpen} onOpenChange={setSplitOpen}>
-          <PopoverTrigger asChild>
-            <button className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground shadow-sm">
-              {currentSplitLabel}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-1" align="center" sideOffset={6}>
-            {SPLIT_OPTIONS.map(option => (
-              <button
-                key={option.value}
-                onClick={() => {
-                  onSplitMethodChange(option.value);
-                  setSplitOpen(false);
-                }}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-colors",
-                  splitMethod === option.value
-                    ? "bg-blue-50 text-blue-700"
-                    : "hover:bg-muted text-foreground"
-                )}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{option.label}</div>
-                  <div className="text-xs text-muted-foreground">{option.description}</div>
-                </div>
-                {splitMethod === option.value && (
-                  <Check className="w-4 h-4 text-blue-600 shrink-0" />
-                )}
+      {onSplitMethodChange && (
+        <>
+          <span>and split</span>
+          <Popover open={splitOpen} onOpenChange={setSplitOpen}>
+            <PopoverTrigger asChild>
+              <button className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground shadow-sm">
+                {currentSplitLabel}
               </button>
-            ))}
-          </PopoverContent>
-        </Popover>
-      ) : (
-        <button className="h-7 px-2 py-0 border rounded hover:bg-muted font-semibold text-foreground shadow-sm">
-          equally
-        </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-1" align="center" sideOffset={6}>
+              {SPLIT_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    onSplitMethodChange(option.value);
+                    setSplitOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-colors",
+                    splitMethod === option.value
+                      ? "bg-blue-50 text-blue-700"
+                      : "hover:bg-muted text-foreground"
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium">{option.label}</div>
+                    <div className="text-xs text-muted-foreground">{option.description}</div>
+                  </div>
+                  {splitMethod === option.value && (
+                    <Check className="w-4 h-4 text-blue-600 shrink-0" />
+                  )}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+        </>
       )}
     </div>
   );

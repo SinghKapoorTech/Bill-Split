@@ -165,7 +165,7 @@ export function SettlementHistoryCard() {
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
-                    <p className={`font-semibold text-lg ${isPayer ? 'text-green-500' : 'text-red-500'}`}>
+                    <p className={`font-semibold text-lg ${isPayer ? 'text-success' : 'text-destructive'}`}>
                       {/* Usually, when you pay, you lose money, but standardly we show amount transferred */}
                       ${(settlement.amount || 0).toFixed(2)}
                     </p>

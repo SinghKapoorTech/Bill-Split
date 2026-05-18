@@ -4,6 +4,7 @@ import { ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react';
 import { UserAvatar } from '@/components/shared/UserAvatar';
 import { motion, useMotionValue, useTransform, useAnimate, PanInfo } from 'framer-motion';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { balanceDir, balanceRow } from '@/lib/styles';
 
 export type BalanceDirection = 'you-owe' | 'owes-you' | 'neutral';
 
@@ -67,47 +68,21 @@ export function BalanceListRow({
   const friendLabel = direction === 'you-owe' ? toLabel : fromLabel;
 
   const isSettled = amount === 0;
-
   const amountFormatted = isSettled ? '' : `$${amount.toFixed(2)}`;
 
-  const friendFallbackClass = isSettled
-    ? 'bg-muted text-muted-foreground'
-    : direction === 'you-owe'
-      ? 'bg-red-500/10 text-red-500 dark:bg-red-500/15 dark:text-red-400'
-      : direction === 'owes-you'
-        ? 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400'
-        : 'bg-muted text-muted-foreground';
+  // When settled, treat as neutral so direction tokens degrade gracefully
+  const effectiveDir = isSettled ? 'neutral' : direction;
 
-  // Direction indicator icon & colors
+  const friendFallbackClass = balanceDir.fallback[effectiveDir];
+  const accentBorderColor   = balanceDir.accentBorder[effectiveDir];
+  const directionBadgeClass = balanceDir.badge[effectiveDir];
+
+  // Direction indicator icon
   const directionIcon = direction === 'you-owe'
     ? <ArrowUpRight className="w-3 h-3" />
     : direction === 'owes-you'
       ? <ArrowDownLeft className="w-3 h-3" />
       : null;
-
-  const accentColor = isSettled
-    ? 'border-l-muted-foreground/20'
-    : direction === 'you-owe'
-      ? 'border-l-red-500 dark:border-l-red-400'
-      : direction === 'owes-you'
-        ? 'border-l-emerald-500 dark:border-l-emerald-400'
-        : 'border-l-muted-foreground/20';
-
-  const amountColor = isSettled
-    ? 'text-muted-foreground'
-    : direction === 'you-owe'
-      ? 'text-red-600 dark:text-red-400'
-      : direction === 'owes-you'
-        ? 'text-emerald-600 dark:text-emerald-400'
-        : 'text-muted-foreground';
-
-  const directionBadgeClass = isSettled
-    ? 'bg-muted/60 text-muted-foreground'
-    : direction === 'you-owe'
-      ? 'bg-red-500/8 text-red-600 dark:bg-red-500/15 dark:text-red-400'
-      : direction === 'owes-you'
-        ? 'bg-emerald-500/8 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400'
-        : 'bg-muted/60 text-muted-foreground';
 
   let statusText: string;
   if (isSettled) {
@@ -141,10 +116,11 @@ export function BalanceListRow({
       data-testid="balance-list-row"
       className={`
         group relative flex items-center gap-3 h-[72px] px-3
-        rounded-xl border-l-[3px] ${accentColor}
+        rounded-xl border-l-[3px]
         glass-card shadow-md hover:shadow-lg hover:bg-muted/30 transition-all
         ${onClick ? 'cursor-pointer' : ''}
       `}
+      style={{ borderLeftColor: accentBorderColor }}
       onClick={onClick}
     >
       {/* Avatar */}
@@ -166,18 +142,18 @@ export function BalanceListRow({
                   {directionIcon}
                 </span>
               )}
-              <span className="text-xs text-muted-foreground">
+              <span className={balanceRow.status}>
                 {statusText}
               </span>
               {pendingIndicator}
             </div>
-            <span className="text-[15px] font-semibold text-foreground truncate leading-tight mt-0.5">
+            <span className={`${balanceRow.name} mt-0.5`}>
               {friendLabel}
             </span>
           </>
         ) : (
           <>
-            <span className="text-[15px] font-semibold text-foreground truncate leading-tight">
+            <span className={balanceRow.name}>
               {friendLabel}
             </span>
             <div className="flex items-center gap-1.5 mt-0.5">
@@ -186,7 +162,7 @@ export function BalanceListRow({
                   {directionIcon}
                 </span>
               )}
-              <span className="text-xs text-muted-foreground capitalize">
+              <span className={`${balanceRow.status} capitalize`}>
                 {statusText}
               </span>
               {pendingIndicator}
@@ -198,7 +174,7 @@ export function BalanceListRow({
       {/* Amount + action */}
       <div className="flex items-center gap-2.5 shrink-0">
         {!isSettled && (
-          <span className={`text-lg font-bold tabular-nums tracking-tight ${amountColor}`}>
+          <span className="text-lg font-bold tabular-nums tracking-tight text-primary">
             {amountFormatted}
           </span>
         )}
@@ -206,13 +182,7 @@ export function BalanceListRow({
           <Button
             variant={action.variant ?? 'secondary'}
             size="sm"
-            className={`
-              h-8 px-3.5 text-xs font-semibold rounded-full
-              ${direction === 'you-owe'
-                ? 'bg-red-500 hover:bg-red-600 text-white border-none shadow-sm shadow-red-500/20'
-                : 'bg-emerald-500 hover:bg-emerald-600 text-white border-none shadow-sm shadow-emerald-500/20'
-              }
-            `}
+            className={`h-8 px-3.5 text-xs font-semibold rounded-full ${balanceDir.action[effectiveDir]}`}
             onClick={(e) => {
               e.stopPropagation();
               (e.currentTarget as HTMLElement).blur();
@@ -232,9 +202,7 @@ export function BalanceListRow({
       <div className="relative overflow-x-clip rounded-xl">
         {/* Action revealed behind the row */}
         <motion.div
-          className={`absolute right-0 top-0 bottom-0 flex items-center justify-center px-6 rounded-r-xl ${
-            direction === 'you-owe' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'
-          }`}
+          className={`absolute right-0 top-0 bottom-0 flex items-center justify-center px-6 rounded-r-xl ${balanceDir.swipePanel[effectiveDir]}`}
           style={{ opacity: actionOpacity, scale: actionScale }}
         >
           <span className="text-sm font-semibold">{action.label}</span>

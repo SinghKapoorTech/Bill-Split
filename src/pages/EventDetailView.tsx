@@ -336,9 +336,9 @@ export default function EventDetailView() {
   }
 
   return (
-    <div className="h-full flex flex-col container mx-auto px-4 max-w-7xl">
+    <div className="h-full flex flex-col max-w-7xl mx-auto">
       {/* Header: pinned */}
-      <div className="shrink-0 pt-4 md:pt-8 mb-4">
+      <div className="shrink-0 pt-3 md:pt-5 mb-2">
         <div className="mb-6 -ml-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-0 min-w-0 flex-1">
@@ -394,7 +394,7 @@ export default function EventDetailView() {
       </div>
 
       {/* Scrollable content: balances + bills sections */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
         <div className="flex flex-col gap-6 md:gap-10 pb-4">
           {/* Balances Section */}
           {!ledgerLoading && (

@@ -240,21 +240,21 @@ export function GuestClaimView({
   return (
     <div className="space-y-4">
       {/* User info header with total and pay button */}
-      <Card className={`p-4 ${isSettled ? 'bg-green-500/10 dark:bg-green-500/20 border-green-500/40 dark:border-green-400/30' : ''}`}>
+      <Card className={`p-4 ${isSettled ? 'bg-success/10 border-success/40' : ''}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSettled ? 'bg-green-500/20' : 'bg-primary/10'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSettled ? 'bg-success/20' : 'bg-primary/10'}`}>
               {isSettled ? (
-                <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+                <CheckCircle2 className="w-5 h-5 text-success" />
               ) : (
                 <User className="w-5 h-5 text-primary" />
               )}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className={`font-medium text-lg ${isSettled ? 'text-green-800 dark:text-green-200' : ''}`}>{currentPerson.name}</span>
+                <span className={`font-medium text-lg ${isSettled ? 'text-success' : ''}`}>{currentPerson.name}</span>
                 {isSettled && (
-                  <span className="text-[10px] font-bold tracking-wider uppercase text-green-700 dark:text-green-300 bg-green-500/20 px-1.5 py-0.5 rounded-sm shrink-0">
+                  <span className="text-[10px] font-bold tracking-wider uppercase text-success bg-success/20 px-1.5 py-0.5 rounded-sm shrink-0">
                     Settled
                   </span>
                 )}
@@ -288,7 +288,7 @@ export function GuestClaimView({
           </div>
           <div className="text-right">
             <span className="text-sm text-muted-foreground block">Total</span>
-            <span className={`text-xl font-bold ${isSettled ? 'text-green-600 dark:text-green-400 line-through' : 'text-primary'}`}>
+            <span className={`text-xl font-bold ${isSettled ? 'text-success line-through' : 'text-primary'}`}>
               ${calculatePersonTotal(items, itemAssignments, currentPerson.id).toFixed(2)}
             </span>
           </div>
@@ -296,11 +296,11 @@ export function GuestClaimView({
 
         {/* Undo Settle button - shown when settled */}
         {isSettled && (
-          <div className="mt-3 pt-3 border-t border-green-500/20">
+          <div className="mt-3 pt-3 border-t border-success/20">
             <Button
               onClick={handleUndoSettle}
               variant="outline"
-              className="w-full gap-2 border-green-500/40 text-green-700 dark:text-green-300 hover:bg-green-500/10"
+              className="w-full gap-2 border-success/40 text-success hover:bg-success/10"
               size="sm"
             >
               <Undo2 className="w-4 h-4" />

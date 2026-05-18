@@ -8,6 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { HydratedSquad, SquadMember } from '@/types/squad.types';
 import { SquadMembersEditor } from './SquadMembersEditor';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SquadMembersModalProps {
   squad: HydratedSquad;
@@ -22,6 +23,7 @@ export function SquadMembersModal({
   onOpenChange,
   onSave,
 }: SquadMembersModalProps) {
+  const { user } = useAuth();
   const [members, setMembers] = useState<SquadMember[]>(squad.members);
   const [saving, setSaving] = useState(false);
 
@@ -34,12 +36,12 @@ export function SquadMembersModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="top-[10%] translate-y-0">
         <DialogHeader>
           <DialogTitle>{squad.name}</DialogTitle>
           <p className="text-sm text-muted-foreground">Manage members</p>
         </DialogHeader>
-        <SquadMembersEditor members={members} onChange={setMembers} />
+        <SquadMembersEditor members={members} onChange={setMembers} excludeUserId={user?.uid} />
         <Button
           onClick={handleSave}
           variant="success"

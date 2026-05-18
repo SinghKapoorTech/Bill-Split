@@ -102,8 +102,8 @@ export default function BillsView() {
   }
 
   return (
-    <div className="h-full flex flex-col animate-fade-in container mx-auto px-4 max-w-7xl">
-      <div className="flex items-center justify-between pt-8 mb-6 shrink-0">
+    <div className="h-full flex flex-col animate-fade-in max-w-7xl mx-auto">
+      <div className="flex items-center justify-between pt-5 mb-3 shrink-0 px-1">
         <div>
           <h1 className={layout.screen.title}>Your Bills</h1>
           <p className={layout.screen.subtitle}>Manage and track your split bills</p>
@@ -131,7 +131,7 @@ export default function BillsView() {
           <Button onClick={() => setCreateDialogOpen(true)}>Create Bill</Button>
         </Card>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-1">
           <div className="flex flex-col gap-2 p-1 pb-4">
             {allBills.map((bill, index) => (
               <motion.div

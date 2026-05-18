@@ -97,9 +97,9 @@ export default function SquadDetailView() {
   }
 
   return (
-    <div className="h-full flex flex-col container mx-auto px-4 max-w-4xl">
+    <div className="h-full flex flex-col max-w-4xl mx-auto">
       {/* Header: pinned */}
-      <div className="shrink-0 pt-8 mb-8">
+      <div className="shrink-0 pt-5 mb-3 px-1">
         <Button
           variant="ghost"
           className="mb-4 gap-2"
@@ -126,7 +126,7 @@ export default function SquadDetailView() {
       </div>
 
       {/* Scrollable: Squad Bills section */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
         <div className="space-y-6 pb-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Squad Bills</h2>

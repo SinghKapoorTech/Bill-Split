@@ -1,12 +1,14 @@
 import { useRef, useState } from 'react';
-import { User as UserIcon, Check, X, Camera, Loader2, Trash2, MessageSquare } from 'lucide-react';
+import { User as UserIcon, Check, X, Camera, Loader2, Trash2, MessageSquare, Sun, Moon } from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { useProfileEditor } from '@/hooks/useProfileEditor';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from '@/contexts/ThemeContext';
 import { UI_TEXT, SUCCESS_MESSAGES } from '@/utils/uiConstants';
 import { UserAvatar } from '@/components/shared/UserAvatar';
 
@@ -27,6 +29,7 @@ export function ProfileSettingsCard() {
     removeProfilePhoto,
   } = useProfileEditor();
   const { toast } = useToast();
+  const { theme, toggleTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
@@ -163,12 +166,25 @@ export function ProfileSettingsCard() {
           )}
         </div>
 
+        <div className="flex items-center justify-between py-1">
+          <Label className="text-sm md:text-base">Appearance</Label>
+          <div className="flex items-center gap-2">
+            <Sun className={`w-4 h-4 ${theme === 'light' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <Switch
+              checked={theme === 'dark'}
+              onCheckedChange={() => toggleTheme()}
+              aria-label="Toggle dark mode"
+            />
+            <Moon className={`w-4 h-4 ${theme === 'dark' ? 'text-primary' : 'text-muted-foreground'}`} />
+          </div>
+        </div>
+
         {isEditing && (
           <div className="flex gap-2 pt-2">
             <Button
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 bg-green-600 hover:bg-green-700"
+              className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
             >
               <Check className="w-4 h-4 mr-2" />
               {saving ? UI_TEXT.SAVING : UI_TEXT.SAVE_CHANGES}

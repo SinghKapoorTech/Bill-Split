@@ -211,7 +211,7 @@ export function SettleUpModal({
       <Dialog open={open && dialogVisible} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-sm p-0 overflow-hidden" onOpenAutoFocus={(e) => e.preventDefault()} onCloseAutoFocus={(e) => e.preventDefault()}>
           {/* Header strip */}
-          <div className={`px-6 pt-6 pb-4 ${isPaying ? 'bg-red-500/5' : 'bg-emerald-500/5'}`}>
+          <div className={`px-6 pt-6 pb-4 ${isPaying ? 'bg-destructive/5' : 'bg-success/5'}`}>
             <DialogTitle className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4 text-center">
               Settle Up
             </DialogTitle>
@@ -227,12 +227,12 @@ export function SettleUpModal({
                   photoURL={fromPhotoURL}
                   size="lg"
                   className="w-12 h-12"
-                  fallbackClassName={`text-sm font-semibold ${isPaying ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-600'}`}
+                  fallbackClassName={`text-sm font-semibold ${isPaying ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'}`}
                 />
-                <span className={`text-xs font-semibold uppercase tracking-wide text-center w-full truncate ${isPaying ? 'text-red-500' : 'text-emerald-600'}`}>{fromName}</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-center w-full truncate text-foreground">{fromName}</span>
               </div>
               <div className="flex flex-col items-center pb-4">
-                <ArrowRight className={`w-5 h-5 ${isPaying ? 'text-red-500' : 'text-emerald-600'}`} />
+                <ArrowRight className={`w-5 h-5 ${isPaying ? 'text-destructive' : 'text-success'}`} />
               </div>
               <div className="flex flex-col items-center gap-1 w-16">
                 <UserAvatar
@@ -240,9 +240,9 @@ export function SettleUpModal({
                   photoURL={toPhotoURL}
                   size="lg"
                   className="w-12 h-12"
-                  fallbackClassName={`text-sm font-semibold ${isPaying ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-600'}`}
+                  fallbackClassName={`text-sm font-semibold ${isPaying ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'}`}
                 />
-                <span className={`text-xs font-semibold uppercase tracking-wide text-center w-full truncate ${isPaying ? 'text-red-500' : 'text-emerald-600'}`}>{toName}</span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-center w-full truncate text-foreground">{toName}</span>
               </div>
             </div>
 
@@ -290,7 +290,7 @@ export function SettleUpModal({
               <div className="flex gap-2">
                 <Button
                   type="button"
-                  className="flex-1 h-12 text-sm font-semibold rounded-xl bg-green-600 hover:bg-green-700 text-white"
+                  className="flex-1 h-12 text-sm font-semibold rounded-xl bg-success hover:bg-success/90 text-success-foreground"
                   onClick={handleApprove}
                   disabled={isApproving || isDeclining}
                 >

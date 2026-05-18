@@ -206,8 +206,8 @@ export function SplitMethodSelector({
       <div className={cn(
         "flex items-center justify-between pt-2 border-t border-border/40 text-xs font-medium",
         splitMethod === 'percentage'
-          ? (pctValid ? "text-green-600" : "text-amber-600")
-          : (exactValid ? "text-green-600" : "text-amber-600")
+          ? (pctValid ? "text-success" : "text-amber-600")
+          : (exactValid ? "text-success" : "text-amber-600")
       )}>
         <span>Total</span>
         {splitMethod === 'percentage' ? (

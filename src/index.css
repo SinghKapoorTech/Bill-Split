@@ -50,7 +50,7 @@ All colors MUST be HSL.
 
     /* Success - Warm sage (complements gold/charcoal) */
     --success: 105 30% 42%;
-    --success-foreground: 30 30% 12%;
+    --success-foreground: 0 0% 98%;
 
     /* Info - Blue */
     --info: 206 70% 50%;
@@ -62,7 +62,7 @@ All colors MUST be HSL.
 
     /* Destructive - Warm terracotta (complements gold/charcoal) */
     --destructive: 12 70% 40%;
-    --destructive-foreground: 30 30% 12%;
+    --destructive-foreground: 0 0% 98%;
 
     /* Borders and inputs - Warm light */
     --border: 35 20% 85%;
@@ -192,6 +192,10 @@ All colors MUST be HSL.
 @layer base {
   * {
     @apply border-border;
+  }
+
+  #root {
+    height: 100%;
   }
 
   body {

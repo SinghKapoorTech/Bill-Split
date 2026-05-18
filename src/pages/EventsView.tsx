@@ -101,9 +101,9 @@ export default function EventsView() {
   };
 
   return (
-    <div className="h-full flex flex-col animate-fade-in container mx-auto px-4 max-w-4xl">
+    <div className="h-full flex flex-col animate-fade-in max-w-4xl mx-auto">
       {/* Header: pinned */}
-      <div className="shrink-0 flex items-center justify-between pt-8 mb-6">
+      <div className="shrink-0 flex items-center justify-between pt-5 mb-3 px-1">
         <div>
           <h1 className="text-3xl font-bold">Your Events</h1>
           <p className="text-muted-foreground">Organize trips and group events</p>
@@ -114,7 +114,7 @@ export default function EventsView() {
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-1">
         {loading ? (
           <div className="text-center py-12 text-muted-foreground">Loading events...</div>
         ) : events.length === 0 ? (

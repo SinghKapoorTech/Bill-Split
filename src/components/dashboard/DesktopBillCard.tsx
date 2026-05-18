@@ -48,9 +48,9 @@ export default function DesktopBillCard({
   const status = currentUserId ? getSettlementStatusForUser(bill, currentUserId) : getSettlementStatus(bill);
 
   const statusColors = {
-    settled: 'text-emerald-700 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/10',
+    settled: 'text-success bg-success/15',
     partial: 'text-amber-700 bg-amber-500/15 dark:text-amber-400 dark:bg-amber-500/10',
-    unsettled: 'text-rose-700 bg-rose-500/15 dark:text-rose-400 dark:bg-rose-500/10',
+    unsettled: 'text-destructive bg-destructive/15',
   };
 
   const statusText = {
@@ -62,33 +62,33 @@ export default function DesktopBillCard({
   return (
     <TiltCard>
     <Card
-      className={`desktop-bill-card py-2 hover:shadow-lg transition-all ${isLatest ? 'ring-2 ring-primary bg-primary/5' : ''
+      className={`py-2 hover:shadow-lg transition-all ${isLatest ? 'ring-2 ring-primary bg-primary/5' : ''
         }`}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start gap-3 mb-2">
           {bill.isSimpleTransaction ? (
-            <div className="w-[4.5rem] h-[4.5rem] bg-amber-100 rounded-full flex items-center justify-center shrink-0">
-              <Zap className="w-8 h-8 text-amber-600" />
+            <div className="w-[4.5rem] h-[4.5rem] bg-warning/10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
+              <Zap className="w-8 h-8 text-warning" />
             </div>
           ) : bill.isAirbnb ? (
-            <div className="w-[4.5rem] h-[4.5rem] bg-rose-100 rounded-full flex items-center justify-center shrink-0">
-              <Home className="w-8 h-8 text-rose-600" />
+            <div className="w-[4.5rem] h-[4.5rem] bg-destructive/10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
+              <Home className="w-8 h-8 text-destructive" />
             </div>
           ) : bill.receiptImageUrl ? (
             <img
               src={bill.receiptImageUrl}
               alt="Receipt"
-              className="w-[4.5rem] h-[4.5rem] object-cover rounded-full shrink-0"
+              className="w-[4.5rem] h-[4.5rem] object-cover rounded-2xl shrink-0"
             />
           ) : (
-            <div className="w-[4.5rem] h-[4.5rem] bg-blue-100 rounded-full flex items-center justify-center shrink-0">
-              <Receipt className="w-8 h-8 text-blue-600" />
+            <div className="w-[4.5rem] h-[4.5rem] bg-info/10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
+              <Receipt className="w-8 h-8 text-info" />
             </div>
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <CardTitle className="text-lg truncate">
+              <CardTitle className="text-lg truncate text-foreground">
                 {getBillTitle(bill)}
               </CardTitle>
               {isLatest && (
