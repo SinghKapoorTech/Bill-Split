@@ -101,8 +101,9 @@ export default function EventsView() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl mb-20 animate-fade-in">
-      <div className="flex items-center justify-between mb-6">
+    <div className="h-full flex flex-col animate-fade-in container mx-auto px-4 max-w-4xl">
+      {/* Header: pinned */}
+      <div className="shrink-0 flex items-center justify-between pt-8 mb-6">
         <div>
           <h1 className="text-3xl font-bold">Your Events</h1>
           <p className="text-muted-foreground">Organize trips and group events</p>
@@ -112,34 +113,37 @@ export default function EventsView() {
         </Button>
       </div>
 
-      {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading events...</div>
-      ) : events.length === 0 ? (
-        <Card className="p-8 text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-            <CalendarDays className="w-8 h-8 text-primary" />
+      {/* Scrollable content */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {loading ? (
+          <div className="text-center py-12 text-muted-foreground">Loading events...</div>
+        ) : events.length === 0 ? (
+          <Card className="p-8 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <CalendarDays className="w-8 h-8 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold">No events yet</h3>
+            <p className="text-muted-foreground">
+              Create your first event to start organizing bills with friends for vacations, dinners, and more.
+            </p>
+            <Button onClick={() => setDialogOpen(true)}>
+              Create Event
+            </Button>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pb-4">
+            {events.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                onClick={() => handleEventClick(event.id)}
+                onDelete={handleDeleteEvent}
+                currentUserId={user?.uid}
+              />
+            ))}
           </div>
-          <h3 className="text-lg font-semibold">No events yet</h3>
-          <p className="text-muted-foreground">
-            Create your first event to start organizing bills with friends for vacations, dinners, and more.
-          </p>
-          <Button onClick={() => setDialogOpen(true)}>
-            Create Event
-          </Button>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {events.map((event) => (
-            <EventCard
-              key={event.id}
-              event={event}
-              onClick={() => handleEventClick(event.id)}
-              onDelete={handleDeleteEvent}
-              currentUserId={user?.uid}
-            />
-          ))}
-        </div>
-      )}
+        )}
+      </div>
 
       <CreateEventDialog
         open={dialogOpen}
