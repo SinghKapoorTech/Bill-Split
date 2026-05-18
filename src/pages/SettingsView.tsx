@@ -13,14 +13,14 @@ export default function SettingsView() {
   const [activeTab, setActiveTab] = useState(location.state?.defaultTab || 'profile');
 
   return (
-    <div className={`${layout.page} animate-fade-in`}>
-      <div className={layout.screen.headerWrap}>
+    <div className="h-full flex flex-col animate-fade-in container mx-auto px-4 max-w-7xl">
+      <div className="shrink-0 pt-8 mb-4">
         <h1 className={layout.screen.title}>Settings</h1>
         <p className={layout.screen.subtitle}>Manage your profile, friends, and squads</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 w-full">
+        <TabsList className="shrink-0 grid w-full grid-cols-4">
           <TabsTrigger value="profile" className="gap-1 text-xs md:gap-2 md:text-sm">
             <UserCircle className="w-3 h-3 md:w-4 md:h-4" />
             <span>Profile</span>
@@ -39,19 +39,19 @@ export default function SettingsView() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile" className="mt-4 md:mt-6">
+        <TabsContent value="profile" className="flex-1 min-h-0 overflow-y-auto mt-4 pb-4">
           <ProfileSettingsCard />
         </TabsContent>
 
-        <TabsContent value="friends" className="mt-4 md:mt-6">
+        <TabsContent value="friends" className="flex-1 min-h-0 overflow-y-auto mt-4 pb-4">
           <ManageFriendsCard />
         </TabsContent>
 
-        <TabsContent value="history" className="mt-4 md:mt-6">
+        <TabsContent value="history" className="flex-1 min-h-0 overflow-y-auto mt-4 pb-4">
           <SettlementHistoryCard />
         </TabsContent>
 
-        <TabsContent value="squads" className="mt-4 md:mt-6">
+        <TabsContent value="squads" className="flex-1 min-h-0 overflow-y-auto mt-4 pb-4">
           <SquadsSettingsCard />
         </TabsContent>
       </Tabs>
