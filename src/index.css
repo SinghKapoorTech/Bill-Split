@@ -16,88 +16,86 @@ All colors MUST be HSL.
 @layer base {
   :root {
     /* ============================================
-       PROFESSIONAL FINANCE APP COLOR PALETTE
-       Deep Indigo + Emerald + Slate
+       LIGHT MODE — Warm Cream + Rich Gold
+       Complementary to the Divit icon palette
        ============================================ */
 
-    /* Base colors - Clean slate backgrounds */
-    --background: 220 14% 96%;
-    --foreground: 224 28% 18%;
+    --background: 40 30% 97%;
+    --foreground: 30 30% 12%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 224 28% 18%;
+    --card: 38 40% 99%;
+    --card-foreground: 30 30% 12%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 28% 18%;
+    --popover: 38 40% 99%;
+    --popover-foreground: 30 30% 12%;
 
-    /* Surface for elevated components like tabs */
-    --surface-elevated: 0 0% 100%;
+    --surface-elevated: 38 30% 97%;
 
-    /* Primary - Deep Indigo (Trust & Professionalism) */
-    --primary: 234 62% 52%;
-    --primary-foreground: 0 0% 100%;
-    --primary-glow: 234 60% 65%;
+    /* Primary - Rich Gold (readable on light background) */
+    --primary: 42 65% 40%;
+    --primary-foreground: 38 40% 98%;
+    --primary-glow: 42 65% 55%;
 
-    /* Secondary - Soft slate for subtle backgrounds */
-    --secondary: 220 14% 92%;
-    --secondary-foreground: 224 28% 25%;
+    /* Secondary - Warm light gray */
+    --secondary: 35 20% 93%;
+    --secondary-foreground: 30 25% 20%;
 
-    /* Muted - Subtle backgrounds and text */
-    --muted: 220 14% 94%;
-    --muted-foreground: 220 14% 46%;
+    /* Muted - Barely-there warm tint */
+    --muted: 35 20% 95%;
+    --muted-foreground: 30 15% 45%;
 
-    /* Accent - Soft Violet for secondary highlights */
-    --accent: 262 52% 58%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent - Deep gold for hover/active */
+    --accent: 42 55% 35%;
+    --accent-foreground: 38 40% 98%;
 
-    /* Success - Emerald Green (Money & Positive Actions) */
-    --success: 158 64% 40%;
-    --success-foreground: 0 0% 100%;
+    /* Success - Warm sage (complements gold/charcoal) */
+    --success: 105 30% 42%;
+    --success-foreground: 30 30% 12%;
 
-    /* Info - Sky Blue for sharing/informational */
-    --info: 206 85% 55%;
-    --info-foreground: 0 0% 100%;
+    /* Info - Blue */
+    --info: 206 70% 50%;
+    --info-foreground: 38 40% 98%;
 
-    /* Warning - Warm Amber for caution */
-    --warning: 38 92% 50%;
-    --warning-foreground: 224 28% 15%;
+    /* Warning - Amber */
+    --warning: 38 90% 48%;
+    --warning-foreground: 30 30% 12%;
 
-    /* Destructive - Clear Red for errors */
-    --destructive: 4 72% 52%;
-    --destructive-foreground: 0 0% 100%;
+    /* Destructive - Warm terracotta (complements gold/charcoal) */
+    --destructive: 12 70% 40%;
+    --destructive-foreground: 30 30% 12%;
 
-    /* Borders and inputs - Slate tones */
-    --border: 220 14% 86%;
-    --input: 220 14% 88%;
-    --ring: 234 62% 52%;
+    /* Borders and inputs - Warm light */
+    --border: 35 20% 85%;
+    --input: 35 20% 87%;
+    --ring: 42 65% 40%;
 
     --radius: 0.75rem;
 
-    /* Gradients - Professional with subtle depth */
-    --gradient-hero: linear-gradient(135deg, hsl(234, 62%, 52%) 0%, hsl(262, 52%, 58%) 50%, hsl(158, 64%, 45%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(220, 14%, 96%) 0%, hsl(220, 14%, 93%) 100%);
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(42, 65%, 42%) 0%, hsl(35, 50%, 55%) 50%, hsl(38, 30%, 75%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(40, 30%, 97%) 0%, hsl(38, 25%, 94%) 100%);
 
-    /* Shadows - Clean, professional depth */
-    --shadow-soft: 0 2px 12px -2px hsl(224 28% 18% / 0.06);
-    --shadow-medium: 0 4px 20px -4px hsl(224 28% 18% / 0.1);
-    --shadow-strong: 0 8px 32px -8px hsl(224 28% 18% / 0.15);
+    /* Shadows */
+    --shadow-soft: 0 2px 12px -2px hsl(30 20% 12% / 0.06);
+    --shadow-medium: 0 4px 20px -4px hsl(30 20% 12% / 0.10);
+    --shadow-strong: 0 8px 32px -8px hsl(30 20% 12% / 0.15);
 
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-    /* Parallax Gradient Colors - Updated */
-    --gradient-cyan-primary: 234 62% 52%;
-    --gradient-cyan-bright: 234 65% 65%;
-    --gradient-teal: 158 64% 45%;
-    --gradient-blue: 206 85% 55%;
-    --gradient-coral: 262 52% 58%;
-    --gradient-pink: 280 60% 60%;
-    --gradient-purple: 262 52% 58%;
-    --gradient-amber: 38 92% 50%;
+    /* Parallax Gradient Colors - Warm Gold tones */
+    --gradient-cyan-primary: 42 65% 40%;
+    --gradient-cyan-bright: 42 70% 52%;
+    --gradient-teal: 35 55% 50%;
+    --gradient-blue: 30 45% 40%;
+    --gradient-coral: 38 75% 55%;
+    --gradient-pink: 42 60% 48%;
+    --gradient-purple: 35 50% 42%;
+    --gradient-amber: 38 90% 50%;
 
     /* Parallax Layer Opacities */
-    --parallax-bg-opacity: 0.10;
-    --parallax-mid-opacity: 0.15;
-    --parallax-fg-opacity: 0.08;
+    --parallax-bg-opacity: 0.08;
+    --parallax-mid-opacity: 0.12;
+    --parallax-fg-opacity: 0.06;
 
     /* Parallax Blur Amounts */
     --parallax-blur-bg: 100px;
@@ -107,67 +105,87 @@ All colors MUST be HSL.
 
   .dark {
     /* ============================================
-       DARK MODE - Professional Finance Palette
-       Deep Slate + Lighter Indigo for visibility
+       DARK MODE — Warm Espresso + Icon Gold
+       Derived from the Divit icon palette
        ============================================ */
-    --background: 224 22% 11%;
-    --foreground: 220 14% 92%;
 
-    --card: 224 20% 15%;
-    --card-foreground: 220 14% 92%;
+    --background: 30 20% 9%;
+    --foreground: 38 30% 90%;
 
-    --popover: 224 20% 15%;
-    --popover-foreground: 220 14% 92%;
+    --card: 30 22% 11%;
+    --card-foreground: 38 30% 90%;
 
-    /* Surface for elevated components like tabs */
-    --surface-elevated: 224 18% 17%;
+    --popover: 30 22% 11%;
+    --popover-foreground: 38 30% 90%;
 
-    /* Primary - Lighter Indigo for dark mode visibility */
-    --primary: 234 65% 65%;
-    --primary-foreground: 224 22% 11%;
-    --primary-glow: 234 70% 72%;
+    --surface-elevated: 30 20% 13%;
 
-    /* Secondary - Dark slate */
-    --secondary: 224 18% 20%;
-    --secondary-foreground: 220 14% 92%;
+    /* Primary - Icon gold */
+    --primary: 42 60% 55%;
+    --primary-foreground: 30 20% 9%;
+    --primary-glow: 42 65% 68%;
 
-    /* Muted backgrounds */
-    --muted: 224 16% 18%;
-    --muted-foreground: 220 10% 56%;
+    /* Secondary - Elevated warm panel */
+    --secondary: 30 18% 16%;
+    --secondary-foreground: 38 25% 80%;
 
-    /* Accent - Lighter Violet for dark mode */
-    --accent: 262 55% 68%;
-    --accent-foreground: 224 22% 11%;
+    /* Muted - Subtle warm background */
+    --muted: 30 18% 14%;
+    --muted-foreground: 35 20% 55%;
 
-    /* Success - Brighter Emerald for dark mode */
-    --success: 158 60% 52%;
-    --success-foreground: 224 22% 11%;
+    /* Accent - Deeper gold for hover/active */
+    --accent: 42 50% 45%;
+    --accent-foreground: 38 30% 90%;
 
-    /* Info - Brighter blue for dark mode */
-    --info: 206 80% 62%;
-    --info-foreground: 224 22% 11%;
+    /* Success - Warm sage (complements gold/charcoal) */
+    --success: 105 35% 50%;
+    --success-foreground: 30 20% 9%;
 
-    /* Warning - Brighter amber for dark mode */
-    --warning: 38 88% 58%;
-    --warning-foreground: 224 22% 11%;
+    /* Info - Blue */
+    --info: 206 70% 60%;
+    --info-foreground: 30 20% 9%;
 
-    /* Destructive - Brighter red for dark mode */
-    --destructive: 4 68% 58%;
-    --destructive-foreground: 220 14% 92%;
+    /* Warning - Amber */
+    --warning: 38 88% 55%;
+    --warning-foreground: 30 20% 9%;
 
-    /* Borders - Slate tones */
-    --border: 224 18% 24%;
-    --input: 224 18% 22%;
-    --ring: 234 65% 65%;
+    /* Destructive - Warm terracotta (complements gold/charcoal) */
+    --destructive: 12 65% 48%;
+    --destructive-foreground: 30 20% 9%;
 
-    /* Gradients for dark mode */
-    --gradient-hero: linear-gradient(135deg, hsl(234, 65%, 65%) 0%, hsl(262, 55%, 68%) 50%, hsl(158, 60%, 52%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(224, 22%, 11%) 0%, hsl(224, 20%, 13%) 100%);
+    /* Borders - Warm dark */
+    --border: 33 25% 18%;
+    --input: 33 25% 18%;
+    --ring: 42 60% 55%;
 
-    /* Softer shadows for dark mode */
-    --shadow-soft: 0 2px 12px -2px hsl(0 0% 0% / 0.25);
-    --shadow-medium: 0 4px 20px -4px hsl(0 0% 0% / 0.35);
-    --shadow-strong: 0 8px 32px -8px hsl(0 0% 0% / 0.45);
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(42, 65%, 45%) 0%, hsl(33, 40%, 25%) 50%, hsl(30, 20%, 9%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(30, 20%, 9%) 0%, hsl(30, 20%, 11%) 100%);
+
+    /* Shadows */
+    --shadow-soft: 0 2px 12px -2px hsl(0 0% 0% / 0.30);
+    --shadow-medium: 0 4px 20px -4px hsl(0 0% 0% / 0.40);
+    --shadow-strong: 0 8px 32px -8px hsl(0 0% 0% / 0.50);
+
+    /* Parallax Gradient Colors - Warm Gold tones for dark */
+    --gradient-cyan-primary: 42 60% 55%;
+    --gradient-cyan-bright: 42 65% 68%;
+    --gradient-teal: 35 50% 45%;
+    --gradient-blue: 30 40% 35%;
+    --gradient-coral: 38 70% 55%;
+    --gradient-pink: 42 55% 45%;
+    --gradient-purple: 35 45% 40%;
+    --gradient-amber: 38 88% 55%;
+
+    /* Parallax Layer Opacities */
+    --parallax-bg-opacity: 0.12;
+    --parallax-mid-opacity: 0.18;
+    --parallax-fg-opacity: 0.10;
+
+    /* Parallax Blur Amounts */
+    --parallax-blur-bg: 100px;
+    --parallax-blur-mid: 60px;
+    --parallax-blur-fg: 35px;
   }
 }
 
@@ -179,6 +197,7 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    overscroll-behavior: none;
 
     /* Safe area support for iOS notch and home indicator */
     padding-top: env(safe-area-inset-top);
@@ -215,40 +234,13 @@ All colors MUST be HSL.
   }
 }
 
-/* Mobile Dashboard Bill List Styles */
+/* On mobile, lock the document from scrolling — the layout wrapper scrolls instead.
+   This means pages with no overflow get zero scroll; pages with real content still
+   get native momentum and rubber-band on the inner scroll container. */
 @media (max-width: 767px) {
-  .mobile-bill-item {
-    padding: 0.5rem 1rem;
-    /* 14px 16px - comfortable touch target */
-  }
-
-  .mobile-bill-meta {
-    font-size: 0.8125rem;
-    /* 13px */
-    line-height: 1.4;
-  }
-
-  .mobile-bill-items-preview {
-    font-size: 0.75rem;
-    /* 12px */
-    line-height: 1.3;
-  }
-
-  /* Reduce header sizes on mobile dashboard */
-  .dashboard-header h1 {
-    font-size: 1.5rem;
-    /* 24px instead of 36px */
-  }
-
-  .dashboard-header p {
-    font-size: 0.875rem;
-    /* 14px */
+  html, body {
+    height: 100%;
+    overflow: hidden;
   }
 }
 
-/* Desktop Dashboard Bill Card Styles */
-@media (min-width: 768px) {
-  .desktop-bill-card {
-    /* Future desktop-specific styles */
-  }
-}
