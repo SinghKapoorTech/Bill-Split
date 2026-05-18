@@ -21,11 +21,6 @@ export function useFriendsEditor() {
   const [newFriendVenmoId, setNewFriendVenmoId] = useState('');
   const [newFriendEmail, setNewFriendEmail] = useState('');
 
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editingName, setEditingName] = useState('');
-  const [editingVenmoId, setEditingVenmoId] = useState('');
-  const [editingEmail, setEditingEmail] = useState('');
-
   const refreshFriends = async () => {
     if (!profile?.uid) return;
     setIsLoadingFriends(true);
@@ -168,46 +163,6 @@ export function useFriendsEditor() {
     await updateFriends(updatedFriends);
   };
 
-  const handleEditFriend = (index: number) => {
-    setEditingIndex(index);
-    setEditingName(friends[index].name);
-    setEditingVenmoId(friends[index].venmoId || '');
-    setEditingEmail(friends[index].email || '');
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingName.trim()) {
-      toast({
-        title: ERROR_MESSAGES.NAME_REQUIRED,
-        description: ERROR_MESSAGES.NAME_REQUIRED_DESC,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const updatedFriends = [...friends];
-    updatedFriends[editingIndex!] = {
-      ...updatedFriends[editingIndex!],
-      name: editingName.trim(),
-      venmoId: editingVenmoId.replace(/^@+/, '').trim() || undefined,
-      email: editingEmail.trim() || undefined,
-    };
-
-    setFriends(updatedFriends);
-    setEditingIndex(null);
-    setEditingName('');
-    setEditingVenmoId('');
-    setEditingEmail('');
-    await updateFriends(updatedFriends);
-  };
-
-  const handleCancelEdit = () => {
-    setEditingIndex(null);
-    setEditingName('');
-    setEditingVenmoId('');
-    setEditingEmail('');
-  };
-
   return {
     // Data
     friends,
@@ -217,10 +172,6 @@ export function useFriendsEditor() {
     newFriendName,
     newFriendVenmoId,
     newFriendEmail,
-    editingIndex,
-    editingName,
-    editingVenmoId,
-    editingEmail,
     isLoadingFriends,
 
     // Setters
@@ -228,17 +179,11 @@ export function useFriendsEditor() {
     setNewFriendName,
     setNewFriendVenmoId,
     setNewFriendEmail,
-    setEditingName,
-    setEditingVenmoId,
-    setEditingEmail,
 
     // Actions
     handleAddFromSearch,
     handleAddFriend,
     handleRemoveFriend,
-    handleEditFriend,
-    handleSaveEdit,
-    handleCancelEdit,
     refreshFriends,
   };
 }
