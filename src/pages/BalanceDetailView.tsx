@@ -222,18 +222,18 @@ export default function BalanceDetailView() {
   const isNameLoaded = targetUserName !== 'Friend' || navState?.name;
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-4xl mb-20">
+    <div className="h-full flex flex-col container mx-auto px-4 max-w-4xl">
       {/* Hero Card */}
       <motion.div
         initial={{ opacity: 0, y: -16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-        className="glass-card rounded-2xl p-6 mb-6 relative overflow-hidden"
+        className="glass-card rounded-2xl p-6 mb-6 relative overflow-hidden shrink-0 mt-6"
       >
         {/* Subtle gradient accent behind the card */}
         <div className={`absolute inset-0 opacity-[0.04] ${
           hasBalance
-            ? friendBalance! > 0 ? 'bg-gradient-to-br from-green-500 to-emerald-500' : 'bg-gradient-to-br from-red-500 to-orange-500'
+            ? friendBalance! > 0 ? 'bg-success' : 'bg-destructive'
             : 'bg-gradient-to-br from-primary to-violet-500'
         }`} />
 
@@ -265,8 +265,8 @@ export default function BalanceDetailView() {
                 friendBalance === null || friendBalance === 0
                   ? 'bg-muted text-muted-foreground'
                   : friendBalance > 0
-                    ? 'bg-emerald-500/10 text-emerald-600'
-                    : 'bg-red-500/10 text-red-500'
+                    ? 'bg-success/10 text-success'
+                    : 'bg-destructive/10 text-destructive'
               }
             />
           </motion.div>
@@ -295,7 +295,7 @@ export default function BalanceDetailView() {
             {hasBalance ? (
               <>
                 <p className={`text-3xl font-bold tracking-tight ${
-                  friendBalance! > 0 ? 'text-green-600' : 'text-destructive'
+                  friendBalance! > 0 ? 'text-success' : 'text-destructive'
                 }`}>
                   ${Math.abs(friendBalance!).toFixed(2)}
                 </p>
@@ -305,7 +305,7 @@ export default function BalanceDetailView() {
               </>
             ) : isSettledUp ? (
               <div className="flex items-center gap-1.5 text-muted-foreground">
-                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                <CheckCircle2 className="w-4 h-4 text-success" />
                 <span className="text-sm font-medium">All settled up!</span>
               </div>
             ) : friendBalance === null && !navState ? (
@@ -336,7 +336,7 @@ export default function BalanceDetailView() {
                     <Button
                       onClick={handleApproveRequest}
                       disabled={isProcessingRequest}
-                      className="rounded-full px-5 h-10 font-semibold shadow-sm bg-green-600 hover:bg-green-700 text-white"
+                      className="rounded-full px-5 h-10 font-semibold shadow-sm bg-success hover:bg-success/90 text-success-foreground"
                     >
                       <Check className="w-4 h-4 mr-2" />
                       Approve
@@ -356,10 +356,10 @@ export default function BalanceDetailView() {
                 /* Default: normal settle button */
                 <Button
                   onClick={handleSettleUp}
-                  className={`rounded-full px-6 h-10 font-semibold shadow-sm text-white border-none ${
+                  className={`rounded-full px-6 h-10 font-semibold shadow-sm border-none ${
                     friendBalance! < 0
-                      ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
-                      : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                      ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
+                      : 'bg-success hover:bg-success/90 text-success-foreground'
                   }`}
                 >
                   <Banknote className="w-4 h-4 mr-2" />
@@ -376,7 +376,7 @@ export default function BalanceDetailView() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="flex justify-center mb-5"
+        className="flex justify-center mb-5 shrink-0"
       >
         <div className="flex items-center bg-muted rounded-full p-0.5 relative">
           {(['Unsettled', 'All'] as const).map((label) => {
@@ -403,100 +403,102 @@ export default function BalanceDetailView() {
         </div>
       </motion.div>
 
-      {/* Bill cards */}
-      {isLoadingSessions || isPairLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      ) : (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={showAll ? 'all' : 'unsettled'}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.2 }}
-          >
-            {displayedBills.length === 0 ? (
-              <div className="text-center py-12 px-4 border border-border/40 rounded-2xl bg-card">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Receipt className="w-6 h-6 text-primary" />
-                </div>
-                <h3 className="font-medium text-lg mb-1">
-                  {!showAll && settledCount > 0 ? 'All settled up!' : 'No bills found'}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {!showAll && settledCount > 0
-                    ? `You have ${settledCount} settled bill${settledCount !== 1 ? 's' : ''} with ${targetUserName}.`
-                    : `You don't have any bills with ${targetUserName}${eventId ? ' in this event' : ''}.`
-                  }
-                </p>
-                {!showAll && settledCount > 0 && (
-                  <button
-                    onClick={() => setShowAll(true)}
-                    className="mt-3 text-xs font-semibold text-primary hover:underline"
-                  >
-                    Show all bills →
-                  </button>
-                )}
-              </div>
-            ) : (
-              <>
-                {/* Mobile */}
-                <div className="flex flex-col gap-2 p-1 md:hidden">
-                  {displayedBills.map((b, index) => (
-                    <motion.div
-                      key={b.id}
-                      initial={{ opacity: 0, y: 16 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, delay: index * 0.04, ease: [0.4, 0, 0.2, 1] }}
+      {/* Bill cards — scrollable */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {isLoadingSessions || isPairLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={showAll ? 'all' : 'unsettled'}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.2 }}
+            >
+              {displayedBills.length === 0 ? (
+                <div className="text-center py-12 px-4 border border-border/40 rounded-2xl bg-card">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Receipt className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="font-medium text-lg mb-1">
+                    {!showAll && settledCount > 0 ? 'All settled up!' : 'No bills found'}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {!showAll && settledCount > 0
+                      ? `You have ${settledCount} settled bill${settledCount !== 1 ? 's' : ''} with ${targetUserName}.`
+                      : `You don't have any bills with ${targetUserName}${eventId ? ' in this event' : ''}.`
+                    }
+                  </p>
+                  {!showAll && settledCount > 0 && (
+                    <button
+                      onClick={() => setShowAll(true)}
+                      className="mt-3 text-xs font-semibold text-primary hover:underline"
                     >
-                      <MobileBillCard
-                        bill={b}
-                        isLatest={b.id === activeSession?.id}
-                        onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
-                        onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
-                        onDelete={handleDeleteBill}
-                        isResuming={isResuming}
-                        isDeleting={isDeleting}
-                        formatDate={formatDate}
-                        getBillTitle={getBillTitle}
-                        isOwner={b.ownerId === user?.uid}
-                        currentUserId={user?.uid}
-                      />
-                    </motion.div>
-                  ))}
+                      Show all bills →
+                    </button>
+                  )}
                 </div>
-                {/* Desktop grid */}
-                <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {displayedBills.map((b, index) => (
-                    <motion.div
-                      key={b.id}
-                      initial={{ opacity: 0, y: 16 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, delay: index * 0.04, ease: [0.4, 0, 0.2, 1] }}
-                    >
-                      <DesktopBillCard
-                        bill={b}
-                        isLatest={b.id === activeSession?.id}
-                        onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
-                        onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
-                        onDelete={handleDeleteBill}
-                        isResuming={isResuming}
-                        isDeleting={isDeleting}
-                        formatDate={formatDate}
-                        getBillTitle={getBillTitle}
-                        isOwner={b.ownerId === user?.uid}
-                        currentUserId={user?.uid}
-                      />
-                    </motion.div>
-                  ))}
-                </div>
-              </>
-            )}
-          </motion.div>
-        </AnimatePresence>
-      )}
+              ) : (
+                <>
+                  {/* Mobile */}
+                  <div className="flex flex-col gap-2 p-1 md:hidden">
+                    {displayedBills.map((b, index) => (
+                      <motion.div
+                        key={b.id}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25, delay: index * 0.04, ease: [0.4, 0, 0.2, 1] }}
+                      >
+                        <MobileBillCard
+                          bill={b}
+                          isLatest={b.id === activeSession?.id}
+                          onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                          onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                          onDelete={handleDeleteBill}
+                          isResuming={isResuming}
+                          isDeleting={isDeleting}
+                          formatDate={formatDate}
+                          getBillTitle={getBillTitle}
+                          isOwner={b.ownerId === user?.uid}
+                          currentUserId={user?.uid}
+                        />
+                      </motion.div>
+                    ))}
+                  </div>
+                  {/* Desktop grid */}
+                  <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {displayedBills.map((b, index) => (
+                      <motion.div
+                        key={b.id}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25, delay: index * 0.04, ease: [0.4, 0, 0.2, 1] }}
+                      >
+                        <DesktopBillCard
+                          bill={b}
+                          isLatest={b.id === activeSession?.id}
+                          onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                          onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                          onDelete={handleDeleteBill}
+                          isResuming={isResuming}
+                          isDeleting={isDeleting}
+                          formatDate={formatDate}
+                          getBillTitle={getBillTitle}
+                          isOwner={b.ownerId === user?.uid}
+                          currentUserId={user?.uid}
+                        />
+                      </motion.div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        )}
+      </div>
 
       {/* Settle Up Modal */}
       {settleTarget && (
