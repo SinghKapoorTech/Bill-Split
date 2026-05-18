@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Receipt, UserPlus, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Receipt, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { InviteMembersDialog } from '@/components/events/InviteMembersDialog';
@@ -81,15 +81,6 @@ function EventBalancesSection({
   navigate: ReturnType<typeof useNavigate>;
   setSettleTarget: (target: SettleTarget) => void;
 }) {
-  const [isOthersExpanded, setIsOthersExpanded] = useState(false);
-
-  const userDebts = optimizedDebts.filter(
-    debt => user?.uid === debt.fromUserId || user?.uid === debt.toUserId
-  );
-  const otherDebts = optimizedDebts.filter(
-    debt => user?.uid !== debt.fromUserId && user?.uid !== debt.toUserId
-  );
-
   const renderDebtRow = (debt: OptimizedDebt, idx: number) => {
     const { fromName, toName } = resolveDebtNames(debt, memberProfiles, eventBills);
 
@@ -157,41 +148,9 @@ function EventBalancesSection({
             All settled up! No outstanding balances.
           </p>
         ) : (
-          <>
-            <div className="flex flex-col gap-2 p-1">
-              {userDebts.map((debt, idx) => renderDebtRow(debt, idx))}
-            </div>
-            {otherDebts.length > 0 && (
-              <>
-                {isOthersExpanded && (
-                  <div className="flex flex-col gap-2 p-1 pt-0">
-                    {otherDebts.map((debt, idx) => renderDebtRow(debt, userDebts.length + idx))}
-                  </div>
-                )}
-                <div className="border-t border-border flex justify-center">
-                  <Button
-                    variant="ghost"
-                    className="w-full h-11 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-none rounded-b-lg"
-                    onClick={() => setIsOthersExpanded(!isOthersExpanded)}
-                  >
-                    {isOthersExpanded ? (
-                      <>
-                        <span className="text-xs font-medium mr-2">Show less</span>
-                        <ChevronUp className="w-5 h-5" />
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-xs font-medium mr-2">
-                          Show {otherDebts.length} other {otherDebts.length === 1 ? 'balance' : 'balances'}
-                        </span>
-                        <ChevronDown className="w-5 h-5" />
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </>
-            )}
-          </>
+          <div className="flex flex-col gap-2 p-1">
+            {optimizedDebts.map((debt, idx) => renderDebtRow(debt, idx))}
+          </div>
         )}
       </Card>
     </div>
@@ -377,61 +336,147 @@ export default function EventDetailView() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-4 md:py-8 max-w-7xl mb-20">
-      <div className="mb-6 -ml-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-0 min-w-0 flex-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
-              onClick={() => navigate('/events')}
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <h1 className="text-2xl md:text-3xl font-bold break-words line-clamp-2 md:line-clamp-none min-w-0 flex-1">
-              {event.name}
-            </h1>
-          </div>
+    <div className="h-full flex flex-col container mx-auto px-4 max-w-7xl">
+      {/* Header: pinned */}
+      <div className="shrink-0 pt-4 md:pt-8 mb-4">
+        <div className="mb-6 -ml-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-0 min-w-0 flex-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={() => navigate('/events')}
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <h1 className="text-2xl md:text-3xl font-bold break-words line-clamp-2 md:line-clamp-none min-w-0 flex-1">
+                {event.name}
+              </h1>
+            </div>
 
-          <div className="flex items-center">
-            <Button
-              onClick={() => setInviteDialogOpen(true)}
-              variant="outline"
-              className="h-9 px-4 text-sm gap-2 rounded-full whitespace-nowrap"
-            >
-              <UserPlus className="w-4 h-4 shrink-0" />
-              Invite
-            </Button>
+            <div className="flex items-center">
+              <Button
+                onClick={() => setInviteDialogOpen(true)}
+                variant="outline"
+                className="h-9 px-4 text-sm gap-2 rounded-full whitespace-nowrap"
+              >
+                <UserPlus className="w-4 h-4 shrink-0" />
+                Invite
+              </Button>
+            </div>
           </div>
+          {event.memberIds && event.memberIds.length > 0 && (
+            <button
+              onClick={() => setManageMembersDialogOpen(true)}
+              className="text-xs text-primary hover:underline transition-colors text-left mt-0 truncate block w-full pl-7 pr-4"
+              title="View and manage members"
+            >
+              {(() => {
+                const rawNames = event.memberIds
+                  .map(id => memberProfiles[id]?.displayName || memberProfiles[id]?.username)
+                  .filter((name): name is string => Boolean(name));
+
+                const shortVersions = rawNames.map(formatShortName);
+                const counts = new Map<string, number>();
+                shortVersions.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
+
+                return rawNames
+                  .map((full, i) => (counts.get(shortVersions[i])! > 1 ? full : shortVersions[i]))
+                  .join(', ') || '...';
+              })()}
+            </button>
+          )}
         </div>
-        {event.memberIds && event.memberIds.length > 0 && (
-          <button
-            onClick={() => setManageMembersDialogOpen(true)}
-            className="text-xs text-primary hover:underline transition-colors text-left mt-0 truncate block w-full pl-7 pr-4"
-            title="View and manage members"
-          >
-            {(() => {
-              const rawNames = event.memberIds
-                .map(id => memberProfiles[id]?.displayName || memberProfiles[id]?.username)
-                .filter((name): name is string => Boolean(name));
-
-              const shortVersions = rawNames.map(formatShortName);
-              const counts = new Map<string, number>();
-              shortVersions.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
-
-              return rawNames
-                .map((full, i) => (counts.get(shortVersions[i])! > 1 ? full : shortVersions[i]))
-                .join(', ') || '...';
-            })()}
-          </button>
+        {event.description && (
+          <p className="text-sm text-muted-foreground mb-4 mt-2">{event.description}</p>
         )}
       </div>
-      {event.description && (
-        <p className="text-sm text-muted-foreground mb-6 mt-2">{event.description}</p>
-      )}
 
-      {/* Reusing CreateOptionsDialog with event context */}
+      {/* Scrollable content: balances + bills sections */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex flex-col gap-6 md:gap-10 pb-4">
+          {/* Balances Section */}
+          {!ledgerLoading && (
+            <EventBalancesSection
+              optimizedDebts={optimizedDebts}
+              memberProfiles={memberProfiles}
+              eventBills={eventBills}
+              user={user}
+              eventId={eventId}
+              navigate={navigate}
+              setSettleTarget={setSettleTarget}
+            />
+          )}
+
+          {/* Bills Section */}
+          <div>
+            <div className="flex items-center justify-between mb-1 ml-1">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                Bills
+              </h2>
+            </div>
+            <div className="flex flex-col gap-4">
+              {eventBills.length === 0 ? (
+                <div className="flex flex-col gap-3">
+                  <button
+                    className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-primary/[0.03] hover:border-primary/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
+                    onClick={() => handleCreateEventBill()}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                    <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm">
+                      <Receipt className="w-6 h-6" />
+                    </div>
+                    <div className="flex flex-col relative z-10 w-full">
+                      <span className="font-semibold text-foreground text-base group-hover:text-primary transition-colors">Start First Bill</span>
+                      <span className="text-sm text-muted-foreground mt-0.5">Split a detailed expense with the squad</span>
+                    </div>
+                  </button>
+
+                  <button
+                    className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-amber-500/[0.03] hover:border-amber-500/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
+                    onClick={() => navigate('/transaction/new', { state: { targetEventId: event.id, targetEventName: event.name } })}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                    <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 shadow-sm">
+                      <Zap className="w-6 h-6" />
+                    </div>
+                    <div className="flex flex-col relative z-10 w-full">
+                      <span className="font-semibold text-foreground text-base group-hover:text-amber-600 transition-colors">Quick Expense</span>
+                      <span className="text-sm text-muted-foreground mt-0.5">Record a fast, simple transaction</span>
+                    </div>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2 p-1">
+                  {eventBills.map((b) => (
+                    <MobileBillCard
+                      key={b.id}
+                      bill={b}
+                      isLatest={b.id === activeSession?.id}
+                      onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                      onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                      onDelete={handleDeleteBill}
+                      isResuming={isResuming}
+                      isDeleting={isDeleting}
+                      isOwner={b.ownerId === user?.uid}
+                      currentUserId={user?.uid}
+                      formatDate={(timestamp: any) => {
+                        if (!timestamp) return 'Unknown date';
+                        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp as any);
+                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                      }}
+                      getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Dialogs outside scroll */}
       <CreateOptionsDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
@@ -456,86 +501,6 @@ export default function EventDetailView() {
           eventName={event.name}
         />
       )}
-
-      <div className="flex flex-col gap-6 md:gap-10">
-        {/* Balances Section */}
-        {!ledgerLoading && (
-          <EventBalancesSection
-            optimizedDebts={optimizedDebts}
-            memberProfiles={memberProfiles}
-            eventBills={eventBills}
-            user={user}
-            eventId={eventId}
-            navigate={navigate}
-            setSettleTarget={setSettleTarget}
-          />
-        )}
-
-        {/* Bills Section */}
-        <div>
-          <div className="flex items-center justify-between mb-1 ml-1">
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-              Bills
-            </h2>
-          </div>
-          <div className="flex flex-col gap-4">
-            {eventBills.length === 0 ? (
-              <div className="flex flex-col gap-3">
-                <button
-                  className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-primary/[0.03] hover:border-primary/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
-                  onClick={() => handleCreateEventBill()}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                  <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm">
-                    <Receipt className="w-6 h-6" />
-                  </div>
-                  <div className="flex flex-col relative z-10 w-full">
-                    <span className="font-semibold text-foreground text-base group-hover:text-primary transition-colors">Start First Bill</span>
-                    <span className="text-sm text-muted-foreground mt-0.5">Split a detailed expense with the squad</span>
-                  </div>
-                </button>
-
-                <button
-                  className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-amber-500/[0.03] hover:border-amber-500/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
-                  onClick={() => navigate('/transaction/new', { state: { targetEventId: event.id, targetEventName: event.name } })}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                  <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 shadow-sm">
-                    <Zap className="w-6 h-6" />
-                  </div>
-                  <div className="flex flex-col relative z-10 w-full">
-                    <span className="font-semibold text-foreground text-base group-hover:text-amber-600 transition-colors">Quick Expense</span>
-                    <span className="text-sm text-muted-foreground mt-0.5">Record a fast, simple transaction</span>
-                  </div>
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2 p-1">
-                {eventBills.map((b) => (
-                  <MobileBillCard
-                    key={b.id}
-                    bill={b}
-                    isLatest={b.id === activeSession?.id}
-                    onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
-                    onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
-                    onDelete={handleDeleteBill}
-                    isResuming={isResuming}
-                    isDeleting={isDeleting}
-                    isOwner={b.ownerId === user?.uid}
-                    currentUserId={user?.uid}
-                    formatDate={(timestamp: any) => {
-                      if (!timestamp) return 'Unknown date';
-                      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp as any);
-                      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                    }}
-                    getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
 
       {settleTarget && user && (
         <SettleUpModal
