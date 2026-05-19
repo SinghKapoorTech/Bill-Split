@@ -520,8 +520,8 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
   };
 
   return (
-    <>
-      <div className="wizard-stepper mb-4 pr-4">
+    <div className="h-full flex flex-col">
+      <div className="wizard-stepper shrink-0 mb-4 pr-4">
         {isMobile ? (
           <PillProgress
             steps={STEPS}
@@ -549,7 +549,7 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
         onSwipeRight={currentStep > (isOwner ? 0 : 2) && isOwner ? handlePrevStep : undefined}
         canSwipeLeft={canProceed() && isOwner}
         canSwipeRight={currentStep > (isOwner ? 0 : 2) && isOwner}
-        className={isMobile ? 'pb-[140px] relative' : ''}
+        className={isMobile ? 'flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-[140px] relative' : 'flex-1 min-h-0 overflow-y-auto scrollbar-hide'}
       >
         <StepContent stepKey={currentStep} direction={stepDirection}>
           {currentStep === 0 && (
@@ -636,6 +636,6 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
           isMobile={isMobile}
         />
       )}
-    </>
+    </div>
   );
 }

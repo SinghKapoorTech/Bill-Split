@@ -6,16 +6,18 @@ export default function SimpleTransactionView() {
   const [title, setTitle] = useState('');
 
   return (
-    <>
-      <HeroSection
-        hasBillData={false}
-        title={title}
-        onTitleChange={setTitle}
-        titlePlaceholder={"Quick Expense"}
-      />
-      <div className="w-full bg-background">
+    <div className="h-full flex flex-col">
+      <div className="shrink-0">
+        <HeroSection
+          hasBillData={false}
+          title={title}
+          onTitleChange={setTitle}
+          titlePlaceholder={"Quick Expense"}
+        />
+      </div>
+      <div className="flex-1 min-h-0 w-full bg-background">
         <SimpleTransactionWizard externalTitle={title} setExternalTitle={setTitle} />
       </div>
-    </>
+    </div>
   );
 }
