@@ -568,7 +568,7 @@ export function BillWizard({
     };
 
     return (
-        <>
+        <div className="h-full flex flex-col">
             {/* Success Animation Overlay */}
             <ScanSuccessAnimation
                 show={showSuccessAnimation}
@@ -576,7 +576,7 @@ export function BillWizard({
             />
 
             {/* Stepper - Use PillProgress on mobile for modern look */}
-            <div className="wizard-stepper">
+            <div className="wizard-stepper shrink-0">
                 {isMobile ? (
                     <PillProgress
                         steps={STEPS}
@@ -602,7 +602,7 @@ export function BillWizard({
                 onSwipeRight={wizard.currentStep > (isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2)) ? wizard.handlePrevStep : undefined}
                 canSwipeLeft={wizard.canProceedFromStep(wizard.currentStep)}
                 canSwipeRight={wizard.currentStep > (isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2))}
-                className={isMobile ? 'pb-[140px] relative' : ''}
+                className={isMobile ? 'flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-[140px] relative' : 'flex-1 min-h-0 overflow-y-auto scrollbar-hide'}
             >
                 <StepContent stepKey={wizard.currentStep} direction={stepDirection}>
                     {wizard.currentStep === 0 && (
@@ -775,7 +775,7 @@ export function BillWizard({
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </>
+        </div>
     );
 }
 

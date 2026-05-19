@@ -283,14 +283,16 @@ export default function AIScanView() {
   };
 
   return (
-    <>
-      <HeroSection
-        hasBillData={!!billData}
-        onShare={handleGenerateShareLink}
-        title={title}
-        onTitleChange={setTitle}
-        titlePlaceholder={formatDate(effectiveSession?.createdAt)}
-      />
+    <div className="h-full flex flex-col">
+      <div className="shrink-0">
+        <HeroSection
+          hasBillData={!!billData}
+          onShare={handleGenerateShareLink}
+          title={title}
+          onTitleChange={setTitle}
+          titlePlaceholder={formatDate(effectiveSession?.createdAt)}
+        />
+      </div>
 
       <BillWizard
         activeSession={effectiveSession}
@@ -314,7 +316,6 @@ export default function AIScanView() {
         onEventChange={handleEventChange}
       />
 
-      {/* Share Link Dialog */}
       {effectiveSession && (
         <ShareLinkDialog
           billId={effectiveSession.id}
@@ -326,6 +327,6 @@ export default function AIScanView() {
           onOpenChange={setShowShareLinkDialog}
         />
       )}
-    </>
+    </div>
   );
 }
