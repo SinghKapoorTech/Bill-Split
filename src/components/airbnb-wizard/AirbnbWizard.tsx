@@ -360,8 +360,8 @@ export function AirbnbWizard({
     const isAssignStep = !splitEvenly && wizard.currentStep === 3;
 
     return (
-        <>
-            <div className="wizard-stepper">
+        <div className="h-full flex flex-col">
+            <div className="wizard-stepper shrink-0">
                 {isMobile ? (
                     <PillProgress
                         steps={STEPS}
@@ -385,7 +385,7 @@ export function AirbnbWizard({
                 onSwipeRight={canSwipeRight() ? wizard.handlePrevStep : undefined}
                 canSwipeLeft={wizard.canProceedFromStep(wizard.currentStep)}
                 canSwipeRight={canSwipeRight()}
-                className={isMobile ? 'pb-[140px] relative' : ''}
+                className={isMobile ? 'flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-[140px] relative' : 'flex-1 min-h-0 overflow-y-auto scrollbar-hide'}
             >
                 <StepContent stepKey={wizard.currentStep} direction={stepDirection}>
                     {wizard.currentStep === 0 && (
@@ -489,6 +489,6 @@ export function AirbnbWizard({
                     isMobile={isMobile}
                 />
             )}
-        </>
+        </div>
     );
 }

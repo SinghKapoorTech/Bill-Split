@@ -251,7 +251,8 @@ export default function AirbnbView() {
     };
 
     return (
-        <>
+        <div className="h-full flex flex-col">
+            <div className="shrink-0">
             <HeroSection
                 hasBillData={!!billData}
                 onShare={handleGenerateShareLink}
@@ -259,6 +260,7 @@ export default function AirbnbView() {
                 onTitleChange={setTitle}
                 titlePlaceholder={formatDate(effectiveSession?.createdAt) + ' Trip'}
             />
+            </div>
 
             <AirbnbWizard
                 activeSession={effectiveSession}
@@ -291,6 +293,6 @@ export default function AirbnbView() {
                     onOpenChange={setShowShareLinkDialog}
                 />
             )}
-        </>
+        </div>
     );
 }
