@@ -26,7 +26,7 @@ export function MobileNavBar() {
   } : undefined;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-10 md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-10 lg:hidden">
       {/* Backdrop blur and gradient background */}
       <div className="absolute inset-0 bg-gradient-to-t from-card via-card/95 to-card/80 backdrop-blur-lg border-t border-border/50" />
       
