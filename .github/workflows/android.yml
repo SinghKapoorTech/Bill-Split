@@ -50,12 +50,14 @@ jobs:
 
       - name: Build release AAB
         working-directory: android
-        run: ./gradlew bundleRelease
+        run: |
+          export VERSION_CODE=$(( ${{ github.run_number }} + 100 ))
+          echo "Building with VERSION_CODE=$VERSION_CODE"
+          ./gradlew bundleRelease
         env:
           KEYSTORE_PATH: app/release.keystore
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: upload-key
-          VERSION_CODE: ${{ github.run_number + 100 }}
 
       - name: Debug service account
         run: |
