@@ -4,11 +4,6 @@ const config: CapacitorConfig = {
   appId: 'com.singhkapoortech.divit',
   appName: 'Divit',
   webDir: 'dist',
-  loggingBehavior: 'debug',
-  android: {
-    loggingBehavior: 'debug',
-    webContentsDebuggingEnabled: true,
-  },
   server: {
     androidScheme: 'https',
     iosScheme: 'https',
