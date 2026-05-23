@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "162777511812-n753ukmn6085eto94dd2r3pbf8g5704u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.singhkapoortech.divit",
+            "certificate_hash": "cb2118a0c36df33b89b643b28ff739d0e0d1be48"
+          }
+        },
+        {
           "client_id": "162777511812-d2onrgj3o3o4ssjvd68566ht8iupb5f6.apps.googleusercontent.com",
           "client_type": 3
         }
