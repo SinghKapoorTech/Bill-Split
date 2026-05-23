@@ -4,9 +4,11 @@ const config: CapacitorConfig = {
   appId: 'com.singhkapoortech.divit',
   appName: 'Divit',
   webDir: 'dist',
+  loggingBehavior: 'debug',
   server: {
     androidScheme: 'https',
-    iosScheme: 'https'
+    iosScheme: 'https',
+    hostname: 'localhost'
   },
   plugins: {
     FirebaseAuthentication: {
