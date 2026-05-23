@@ -5,6 +5,10 @@ const config: CapacitorConfig = {
   appName: 'Divit',
   webDir: 'dist',
   loggingBehavior: 'debug',
+  android: {
+    loggingBehavior: 'debug',
+    webContentsDebuggingEnabled: true,
+  },
   server: {
     androidScheme: 'https',
     iosScheme: 'https',
