@@ -99,12 +99,15 @@ export function useBillSplitter({
     }
   };
 
-  // When split evenly is enabled, automatically assign new items or people
+  // When split evenly is enabled, automatically assign new items or people.
+  // Use a stable key derived from item IDs so replacements (same count,
+  // different IDs — e.g. changing Airbnb dates) also trigger a re-sync.
+  const itemIdKey = billData?.items?.map(i => i.id).join(',') ?? '';
   useEffect(() => {
     if (splitEvenly && billData && people.length > 0) {
       assignEveryoneToAllItems();
     }
-  }, [splitEvenly, billData?.items?.length, people.length]);
+  }, [splitEvenly, itemIdKey, people.length]);
 
 
 

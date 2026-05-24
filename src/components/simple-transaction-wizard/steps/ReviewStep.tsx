@@ -129,6 +129,7 @@ export function ReviewStep({
       itemsSubtotal: personAmount,
       tax: 0,
       tip: 0,
+      otherFees: 0,
       total: personAmount,
     };
   });

@@ -35,28 +35,25 @@ export function computeEventBalances(bills: Bill[]): ComputedEventBalances {
 
     if (!bill.billData?.items?.length || !creditorId || people.length === 0) continue;
 
-    // Compute person totals — handles both splitEvenly and item-assignment splits
-    let personTotals;
+    // Compute person totals — when splitEvenly, build full assignments so the
+    // shared calculation handles tax/tip/otherFees proportionally instead of
+    // rounding a lump share (which loses cents on non-even splits).
+    let effectiveAssignments = bill.itemAssignments || {};
     if (bill.splitEvenly) {
-      const share = bill.billData.total / people.length;
-      personTotals = people.map(p => ({
-        personId: p.id,
-        name: p.name,
-        itemsSubtotal: share,
-        tax: 0,
-        tip: 0,
-        total: parseFloat(share.toFixed(2)),
-      }));
-    } else {
-      personTotals = calculatePersonTotals(
-        bill.billData,
-        people,
-        bill.itemAssignments || {},
-        bill.billData.tip,
-        bill.billData.tax,
-        bill.billData.otherFees ?? 0
-      );
+      effectiveAssignments = {};
+      for (const item of bill.billData.items) {
+        effectiveAssignments[item.id] = people.map(p => p.id);
+      }
     }
+
+    const personTotals = calculatePersonTotals(
+      bill.billData,
+      people,
+      effectiveAssignments,
+      bill.billData.tip,
+      bill.billData.tax,
+      bill.billData.otherFees ?? 0
+    );
 
     // Build directed pair debts: each non-creditor participant owes the creditor
     for (const pt of personTotals) {
