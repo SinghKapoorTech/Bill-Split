@@ -120,8 +120,10 @@ export function useBillSession({
                 currentStep: props.currentStep,
             };
 
-            // Keep status as draft if we haven't finished the wizard
-            if (isDraft || (targetActiveId && latestProps.current.activeSession?.status === 'draft')) {
+            // Only set status when creating a brand-new draft.
+            // For existing bills, never include status in auto-save —
+            // the draft→active transition is handled exclusively by handleDone().
+            if (isDraft) {
                 savePayload.status = 'draft';
             }
 

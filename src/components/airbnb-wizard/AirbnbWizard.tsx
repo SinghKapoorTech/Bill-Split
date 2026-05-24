@@ -312,13 +312,14 @@ export function AirbnbWizard({
     const targetEventId = activeSession?.eventId || routerState?.targetEventId;
 
     const handleDone = async () => {
-        // Set the bill status to 'active' on completion
-        const id = billId || activeSession?.id;
-        if (id) {
-            try {
-                await billService.updateBill(id, { status: 'active' });
-            } catch (e) {
-                console.error("Failed to mark bill as active", e);
+        if (wizard.currentStep === STEPS.length - 1) {
+            const id = billId || activeSession?.id;
+            if (id) {
+                try {
+                    await billService.updateBill(id, { status: 'active' });
+                } catch (e) {
+                    console.error("Failed to mark bill as active", e);
+                }
             }
         }
 
