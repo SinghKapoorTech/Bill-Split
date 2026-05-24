@@ -248,6 +248,7 @@ export const userService = {
           venmoId: friendProfile.venmoId,
           photoURL: friendProfile.photoURL,
           balance: includeBalances ? (balanceMap[friendId] ?? 0) : 0,
+          isShadow: !!(friendProfile as any).isShadow,
         });
       }
     }
@@ -301,6 +302,16 @@ export const userService = {
 
     await setDoc(doc(db, USERS_COLLECTION, newUserId), newProfile);
     return newUserId;
+  },
+
+  async updateShadowUser(userId: string, updates: { name?: string; email?: string; venmoId?: string }): Promise<void> {
+    const payload: Record<string, any> = {};
+    if (updates.name !== undefined) payload.displayName = updates.name;
+    if (updates.email !== undefined) payload.email = updates.email;
+    if (updates.venmoId !== undefined) payload.venmoId = updates.venmoId;
+    if (Object.keys(payload).length > 0) {
+      await updateDoc(doc(db, USERS_COLLECTION, userId), payload);
+    }
   },
 
   /**

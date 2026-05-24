@@ -22,7 +22,8 @@ export interface Friend {
   username?: string;
   venmoId?: string;
   photoURL?: string;
-  balance?: number; // Added for hydrated friend profiles
+  balance?: number;
+  isShadow?: boolean;
 }
 
 

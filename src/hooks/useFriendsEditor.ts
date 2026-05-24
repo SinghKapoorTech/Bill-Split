@@ -163,6 +163,19 @@ export function useFriendsEditor() {
     await updateFriends(updatedFriends);
   };
 
+  const handleEditFriend = async (friendId: string, updates: { name?: string; email?: string; venmoId?: string }) => {
+    try {
+      await userService.updateShadowUser(friendId, updates);
+      await refreshFriends();
+    } catch (error: unknown) {
+      toast({
+        title: 'Error updating friend',
+        description: (error as Error).message,
+        variant: 'destructive',
+      });
+    }
+  };
+
   return {
     // Data
     friends,
@@ -183,6 +196,7 @@ export function useFriendsEditor() {
     // Actions
     handleAddFromSearch,
     handleAddFriend,
+    handleEditFriend,
     handleRemoveFriend,
     refreshFriends,
   };

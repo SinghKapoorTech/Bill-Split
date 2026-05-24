@@ -19,10 +19,10 @@ Source: Aakaash Kapoor feedback, 2026-05-12 → 2026-05-14
 
 ## Friends Tab
 
-- **"Manage Friends ID" should not be shown** — Remove that affordance from the friends list.
-- **Remove "Edit" for actual (real / linked) users** — Editing a real Bill-Split user from the friends list should not be possible; only manual entries should be editable.
-- **Edit doesn't work at all in friends tab** — The edit action on the friends tab is non-functional even for manual friends.
-- **Distinguish manual vs. real users** — Visually differentiate manually-entered friends from friends who are real authenticated Bill-Split users (badge, icon, or label).
+- ~~**"Manage Friends ID" should not be shown**~~ — Header changed from "Manage Friends" to "Friends". **Fixed**.
+- ~~**Remove "Edit" for actual (real / linked) users**~~ — **Won't fix**: edit removed entirely for all friend types. Friends are saved contacts for quick-add; editing is unnecessary.
+- ~~**Edit doesn't work at all in friends tab**~~ — **Won't fix**: edit button removed. Users can remove and re-add if details change.
+- ~~**Distinguish manual vs. real users**~~ — **Won't fix**: balances already track all users regardless of friend status; the manual/app distinction is an implementation detail users don't need to see.
 
 ## Bills (potential feature)
 
@@ -38,7 +38,7 @@ Source: Aakaash Kapoor feedback, 2026-05-12 → 2026-05-14
 
 | Severity | Items |
 |---|---|
-| High | ~~Draft bills visible to others~~, ~~Split-evenly broken~~, Edit broken in friends tab |
-| Medium | Pinch zoom, numeric keyboard, distinguish manual vs. real, remove Edit for real users, remove Manage Friends ID |
+| High | ~~Draft bills visible to others~~, ~~Split-evenly broken~~, ~~Edit broken in friends tab~~ |
+| Medium | Pinch zoom, numeric keyboard, ~~distinguish manual vs. real (won't fix)~~, ~~remove Edit for real users~~, ~~remove Manage Friends ID~~ |
 | Low / UX polish | Pull-to-refresh on history, scroll on empty screens |
 | Open question | Reject bills feature |
