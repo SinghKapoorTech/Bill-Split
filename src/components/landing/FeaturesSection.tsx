@@ -19,37 +19,37 @@ export function FeaturesSection() {
       icon: Camera,
       title: 'AI Receipt Scanning',
       description: 'Upload any receipt and our AI automatically extracts items, prices, tax, and tip. No manual entry required.',
-      gradient: 'from-indigo-500 to-violet-500',
+      gradient: 'from-amber-600 to-yellow-500',
     },
     {
       icon: Calculator,
       title: 'Fair Splitting',
       description: 'Proportional tax and tip distribution. Split items evenly or assign specific items to specific people.',
-      gradient: 'from-violet-500 to-purple-500',
+      gradient: 'from-yellow-600 to-amber-400',
     },
     {
       icon: Share2,
       title: 'Shareable Links',
       description: 'Send a link to friends. No app download required.',
-      gradient: 'from-purple-500 to-pink-500',
+      gradient: 'from-amber-500 to-orange-400',
     },
     {
       icon: Calendar,
       title: 'Multi-Receipt Events',
       description: 'Create events with multiple receipts from the whole group. Perfect for trips or group activities.',
-      gradient: 'from-indigo-500 to-emerald-500',
+      gradient: 'from-yellow-700 to-amber-500',
     },
     {
       icon: Users,
       title: 'Save Friends & Squads',
       description: 'Save your frequent groups and friends for faster bill splitting. No more re-entering names every time.',
-      gradient: 'from-emerald-500 to-teal-500',
+      gradient: 'from-amber-700 to-yellow-600',
     },
     {
       icon: CreditCard,
       title: 'Payment Integration',
       description: 'Seamless Venmo integration. Send payment requests with itemized breakdowns instantly.',
-      gradient: 'from-rose-500 to-orange-500',
+      gradient: 'from-orange-500 to-amber-400',
     },
   ];
 
@@ -66,10 +66,10 @@ export function FeaturesSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
+          <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
             Everything You Need
           </h2>
-          <p className="text-xl md:text-2xl text-slate-600 max-w-3xl mx-auto">
+          <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto">
             Powerful features designed to make bill splitting effortless and fair
           </p>
         </motion.div>
@@ -101,7 +101,7 @@ export function FeaturesSection() {
                   return (
                     <div
                       key={index}
-                      className="flex-shrink-0 w-[300px] md:w-[352px] bg-white/90 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-slate-200 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 group"
+                      className="flex-shrink-0 w-[300px] md:w-[352px] bg-card/90 backdrop-blur-sm p-6 md:p-8 rounded-2xl border border-border shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 group"
                     >
                       {/* Icon */}
                       <div
@@ -111,10 +111,10 @@ export function FeaturesSection() {
                       </div>
 
                       {/* Content */}
-                      <h3 className="text-lg md:text-2xl font-bold text-slate-900 mb-2 md:mb-3">
+                      <h3 className="text-lg md:text-2xl font-bold text-foreground mb-2 md:mb-3">
                         {feature.title}
                       </h3>
-                      <p className="text-sm md:text-base text-slate-600 leading-relaxed">
+                      <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
                         {feature.description}
                       </p>
                     </div>

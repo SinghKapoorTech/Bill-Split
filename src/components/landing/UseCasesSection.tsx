@@ -13,27 +13,27 @@ export function UseCasesSection() {
       title: 'Restaurant Dinners',
       description: 'Split the check perfectly, even with shared appetizers and separate drinks',
       detail: 'No more awkward math at the table. Scan the receipt, assign items, and send payment requests - all in under a minute.',
-      gradient: 'from-indigo-500 to-violet-500',
-      iconBg: 'bg-indigo-50',
-      iconColor: 'text-indigo-600',
+      gradient: 'from-amber-600 to-yellow-500',
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
     },
     {
       icon: ShoppingCart,
       title: 'Grocery Shopping',
       description: 'Roommates can split household items fairly without the spreadsheet headache',
       detail: 'Mixed personal and shared items? No problem. Tag items as you scan and everyone pays their fair share.',
-      gradient: 'from-violet-500 to-purple-500',
-      iconBg: 'bg-violet-50',
-      iconColor: 'text-violet-600',
+      gradient: 'from-yellow-600 to-amber-400',
+      iconBg: 'bg-yellow-50',
+      iconColor: 'text-yellow-700',
     },
     {
       icon: Plane,
       title: 'Group Trips',
       description: 'Track hotels, meals, activities - settle up once at trip\'s end',
       detail: 'Create an event for your trip and add receipts throughout. Everyone can see the running total and settle at once.',
-      gradient: 'from-emerald-500 to-teal-500',
-      iconBg: 'bg-emerald-50',
-      iconColor: 'text-emerald-600',
+      gradient: 'from-orange-500 to-amber-400',
+      iconBg: 'bg-orange-50',
+      iconColor: 'text-orange-600',
     },
   ];
 
@@ -47,10 +47,10 @@ export function UseCasesSection() {
           transition={{ duration: 0.6 }}
           className="text-center mb-16"
         >
-          <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
+          <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
             Perfect For Any Situation
           </h2>
-          <p className="text-xl md:text-2xl text-slate-600 max-w-3xl mx-auto">
+          <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto">
             From casual dinners to group adventures, Divit has you covered
           </p>
         </motion.div>
@@ -89,21 +89,21 @@ export function UseCasesSection() {
 
                 {/* Content side */}
                 <div className="flex-1 space-y-4">
-                  <div className={`inline-block px-4 py-2 rounded-full bg-gradient-to-r ${useCase.gradient} bg-opacity-10`}>
-                    <span className="text-sm font-semibold bg-gradient-to-r ${useCase.gradient} bg-clip-text text-transparent">
+                  <div className="inline-block px-4 py-2 rounded-full bg-primary/10">
+                    <span className={`text-sm font-semibold bg-gradient-to-r ${useCase.gradient} bg-clip-text text-transparent`}>
                       Use Case {index + 1}
                     </span>
                   </div>
 
-                  <h3 className="text-3xl md:text-4xl font-bold text-slate-900">
+                  <h3 className="text-3xl md:text-4xl font-bold text-foreground">
                     {useCase.title}
                   </h3>
 
-                  <p className="text-xl md:text-2xl text-slate-700 font-medium">
+                  <p className="text-xl md:text-2xl text-foreground/80 font-medium">
                     {useCase.description}
                   </p>
 
-                  <p className="text-lg text-slate-600 leading-relaxed">
+                  <p className="text-lg text-muted-foreground leading-relaxed">
                     {useCase.detail}
                   </p>
                 </div>

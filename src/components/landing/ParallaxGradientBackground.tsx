@@ -59,9 +59,9 @@ export function ParallaxGradientBackground() {
           className="absolute inset-0 w-full h-full"
           style={{
             background:
-              "radial-gradient(circle at 20% 20%, hsla(202, 80%, 62%, 0.12) 0%, transparent 50%), " +
-              "radial-gradient(circle at 80% 30%, hsla(270, 70%, 65%, 0.12) 0%, transparent 50%), " +
-              "radial-gradient(circle at 40% 80%, hsla(12, 100%, 50%, 0.15) 0%, transparent 50%)",
+              "radial-gradient(circle at 20% 20%, hsla(42, 65%, 40%, 0.12) 0%, transparent 50%), " +
+              "radial-gradient(circle at 80% 30%, hsla(35, 55%, 50%, 0.12) 0%, transparent 50%), " +
+              "radial-gradient(circle at 40% 80%, hsla(38, 75%, 55%, 0.15) 0%, transparent 50%)",
           }}
         />
       </div>

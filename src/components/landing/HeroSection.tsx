@@ -1,4 +1,4 @@
-import { Sparkles, ArrowRight, CheckCircle2, Receipt, Share2, ScanLine, LayoutDashboard } from 'lucide-react';
+import { Sparkles, ArrowRight, CheckCircle2, Receipt, Share2, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,20 +35,20 @@ export function HeroSection() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.2 }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 text-slate-700 font-medium text-sm mx-auto lg:mx-0"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary text-secondary-foreground font-medium text-sm mx-auto lg:mx-0"
               >
-                <Sparkles className="w-4 h-4 text-cyan-500" />
+                <Sparkles className="w-4 h-4 text-primary" />
                 <span>New: AI Receipt Scanning</span>
               </motion.div>
 
               <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1]">
-                <span className="block text-slate-900">Split bills fairly</span>
-                <span className="bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 bg-clip-text text-transparent">
+                <span className="block text-foreground">Split bills fairly</span>
+                <span className="bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-500 bg-clip-text text-transparent">
                   in seconds
                 </span>
               </h1>
 
-              <p className="text-xl md:text-2xl text-slate-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
+              <p className="text-xl md:text-2xl text-muted-foreground leading-relaxed max-w-xl mx-auto lg:mx-0">
                 The AI-powered receipt scanner that itemizes costs instantly. No math, no awkwardness.
               </p>
             </div>
@@ -59,7 +59,7 @@ export function HeroSection() {
                 <Button
                   onClick={() => navigate('/dashboard')}
                   size="lg"
-                  className="w-full sm:w-auto px-8 py-6 text-lg font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
+                  className="w-full sm:w-auto px-8 py-6 text-lg font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
                 >
                   <LayoutDashboard className="mr-2 w-5 h-5" />
                   Go to Dashboard
@@ -68,29 +68,29 @@ export function HeroSection() {
                 <Button
                   onClick={() => navigate('/auth')}
                   size="lg"
-                  className="w-full sm:w-auto px-8 py-6 text-lg font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
+                  className="w-full sm:w-auto px-8 py-6 text-lg font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
                 >
                   Scan a Receipt Now
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
               )}
-              <p className="text-sm text-slate-500 font-medium">
+              <p className="text-sm text-muted-foreground font-medium">
                 No download required for friends
               </p>
             </div>
 
             {/* Trust signals */}
-            <div className="pt-4 flex items-center justify-center lg:justify-start gap-6 text-slate-500 text-sm font-medium">
+            <div className="pt-4 flex items-center justify-center lg:justify-start gap-6 text-muted-foreground text-sm font-medium">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                <CheckCircle2 className="w-4 h-4 text-success" />
                 <span>Free to use</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                <CheckCircle2 className="w-4 h-4 text-success" />
                 <span>No hidden fees</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                <CheckCircle2 className="w-4 h-4 text-success" />
                 <span>Secure</span>
               </div>
             </div>
@@ -103,14 +103,14 @@ export function HeroSection() {
               initial={{ rotate: -6, x: -20, opacity: 0 }}
               animate={{ rotate: -6, x: -20, opacity: 1 }}
               transition={{ delay: 0.4, duration: 0.8 }}
-              className="absolute left-0 top-10 w-72 bg-white shadow-xl border border-slate-200 p-6 rounded-sm z-10 origin-bottom-left"
+              className="absolute left-0 top-10 w-72 bg-card shadow-xl border border-border p-6 rounded-sm z-10 origin-bottom-left"
               style={{ filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.1))' }}
             >
-              <div className="border-b-2 border-dashed border-slate-300 pb-4 mb-4 text-center">
-                <div className="font-mono font-bold text-2xl text-slate-800">RECEIPT</div>
-                <div className="text-xs text-slate-400 mt-1">Order #4923</div>
+              <div className="border-b-2 border-dashed border-border pb-4 mb-4 text-center">
+                <div className="font-mono font-bold text-2xl text-foreground">RECEIPT</div>
+                <div className="text-xs text-muted-foreground mt-1">Order #4923</div>
               </div>
-              <div className="space-y-4 font-mono text-sm text-slate-600 mb-6 relative">
+              <div className="space-y-4 font-mono text-sm text-muted-foreground mb-6 relative">
                 {[
                   { name: 'Burger', price: '$15.00' },
                   { name: 'Fries', price: '$6.00' },
@@ -135,13 +135,13 @@ export function HeroSection() {
                           delay: i * 0.3,
                           times: [0, 0.2, 0.8]
                         }}
-                        className="absolute -inset-1 border-2 border-cyan-400/50 rounded bg-cyan-400/10"
+                        className="absolute -inset-1 border-2 border-primary/50 rounded bg-primary/10"
                       />
                     )}
                   </div>
                 ))}
               </div>
-              <div className="border-t-2 border-dashed border-slate-300 pt-4">
+              <div className="border-t-2 border-dashed border-border pt-4">
                 <div className="flex justify-between font-bold text-lg">
                   <span>TOTAL</span>
                   <span>$71.00</span>
@@ -154,10 +154,10 @@ export function HeroSection() {
               initial={{ x: 100, opacity: 0 }}
               animate={{ x: 40, opacity: 1 }}
               transition={{ delay: 0.6, duration: 0.8 }}
-              className="absolute right-10 top-0 w-80 bg-white rounded-[2.5rem] border-[8px] border-slate-900 shadow-2xl overflow-hidden z-20 h-[580px] flex flex-col"
+              className="absolute right-10 top-0 w-80 bg-card rounded-[2.5rem] border-[3px] border-amber-500/80 shadow-2xl overflow-hidden z-20 h-[580px] flex flex-col"
             >
               {/* App Header */}
-              <div className="bg-white p-6 pb-2 border-b border-slate-100">
+              <div className="bg-card p-6 pb-2 border-b border-border/50">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -171,36 +171,36 @@ export function HeroSection() {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex p-1 bg-slate-100 rounded-lg mb-2">
-                  <div className="flex-1 py-1.5 text-center text-xs font-medium bg-white rounded-md shadow-sm text-slate-900">
+                <div className="flex p-1 bg-secondary rounded-lg mb-2">
+                  <div className="flex-1 py-1.5 text-center text-xs font-medium bg-card rounded-md shadow-sm text-foreground">
                     Split Items
                   </div>
-                  <div className="flex-1 py-1.5 text-center text-xs font-medium text-slate-500">
+                  <div className="flex-1 py-1.5 text-center text-xs font-medium text-muted-foreground">
                     Review
                   </div>
                 </div>
               </div>
 
               {/* App Content - Scrollable List */}
-              <div className="flex-1 overflow-hidden relative bg-slate-50/50">
+              <div className="flex-1 overflow-hidden relative bg-secondary/50">
                 <div className="p-4 space-y-3">
                   {[
-                    { name: 'Burger', price: '$15.00', assigned: ['You'], color: 'bg-cyan-100 text-cyan-700' },
-                    { name: 'Fries', price: '$6.00', assigned: ['You', 'Sarah'], color: 'bg-purple-100 text-purple-700' },
+                    { name: 'Burger', price: '$15.00', assigned: ['You'], color: 'bg-amber-100 text-amber-700' },
+                    { name: 'Fries', price: '$6.00', assigned: ['You', 'Sarah'], color: 'bg-yellow-100 text-yellow-700' },
                     { name: 'Soda', price: '$3.00', assigned: ['Mike'], color: 'bg-orange-100 text-orange-700' },
-                    { name: 'Salad', price: '$12.00', assigned: ['Sarah'], color: 'bg-blue-100 text-blue-700' },
-                    { name: 'Pasta', price: '$18.00', assigned: ['Mike'], color: 'bg-pink-100 text-pink-700' },
+                    { name: 'Salad', price: '$12.00', assigned: ['Sarah'], color: 'bg-amber-50 text-amber-600' },
+                    { name: 'Pasta', price: '$18.00', assigned: ['Mike'], color: 'bg-yellow-50 text-yellow-600' },
                   ].map((item, i) => (
                     <motion.div
                       key={i}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 1.2 + (i * 0.1) }}
-                      className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm"
+                      className="bg-card p-3 rounded-xl border border-border/50 shadow-sm"
                     >
                       <div className="flex justify-between items-start mb-2">
-                        <span className="font-medium text-sm text-slate-900">{item.name}</span>
-                        <span className="font-semibold text-sm text-slate-900">{item.price}</span>
+                        <span className="font-medium text-sm text-foreground">{item.name}</span>
+                        <span className="font-semibold text-sm text-foreground">{item.price}</span>
                       </div>
                       <div className="flex gap-1 flex-wrap">
                         {item.assigned.map((person, j) => (
@@ -215,18 +215,18 @@ export function HeroSection() {
               </div>
 
               {/* App Footer - Summary */}
-              <div className="bg-white p-4 border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-10">
+              <div className="bg-card p-4 border-t border-border/50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-10">
                 <div className="space-y-2 mb-4">
-                  <div className="flex justify-between text-xs text-slate-500">
+                  <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Subtotal</span>
                     <span>$54.00</span>
                   </div>
-                  <div className="flex justify-between text-xs text-slate-500">
+                  <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Tax & Tip</span>
                     <span>$17.00</span>
                   </div>
                 </div>
-                <Button className="w-full bg-slate-900 text-white rounded-xl py-3 text-sm font-semibold shadow-lg shadow-slate-900/20">
+                <Button className="w-full bg-primary text-primary-foreground rounded-xl py-3 text-sm font-semibold shadow-lg shadow-primary/20">
                   Send Requests
                 </Button>
               </div>
