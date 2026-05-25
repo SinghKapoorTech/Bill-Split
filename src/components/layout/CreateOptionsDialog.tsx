@@ -5,7 +5,7 @@ import {
   DialogTitle
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Receipt, Zap, Home } from "lucide-react";
+import { Receipt, Zap, Home, Repeat } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
@@ -122,6 +122,20 @@ export function CreateOptionsDialog({ open, onOpenChange, eventContext }: Create
             <div className="flex flex-col relative z-10">
               <span className="font-semibold text-foreground text-base group-hover:text-destructive transition-colors">Airbnb / House</span>
               <span className="text-sm text-muted-foreground mt-0.5">Split a stay with guests & fees</span>
+            </div>
+          </button>
+
+          <button
+            className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-success/[0.03] hover:border-success/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
+            onClick={() => handleAction('/recurring/new')}
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-success/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-success/10 text-success flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm">
+              <Repeat className="w-6 h-6" />
+            </div>
+            <div className="flex flex-col relative z-10">
+              <span className="font-semibold text-foreground text-base group-hover:text-success transition-colors">Recurring Bill</span>
+              <span className="text-sm text-muted-foreground mt-0.5">Auto-charge on a schedule</span>
             </div>
           </button>
         </div>

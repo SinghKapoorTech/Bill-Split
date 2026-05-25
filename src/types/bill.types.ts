@@ -102,6 +102,10 @@ export interface Bill {
   isSimpleTransaction?: boolean;
   paidById?: string;
 
+  // Recurring Bills
+  recurringBillId?: string;      // links generated bill back to its template
+  recurringCycleDate?: string;   // ISO date this instance represents
+
   // Airbnb / House
   isAirbnb?: boolean;
   airbnbData?: {

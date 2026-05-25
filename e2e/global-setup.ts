@@ -61,21 +61,28 @@ async function globalSetup() {
 
   try {
     await page.goto('http://localhost:8080/auth');
-    const popupPromise = page.waitForEvent('popup');
-    await page.getByRole('button', { name: 'Sign in with Google' }).click();
-    const popup = await popupPromise;
-    await completeEmulatorPopup(popup);
+    const popup = await Promise.race([
+      page.waitForEvent('popup', { timeout: 15000 }),
+      page.getByRole('button', { name: 'Sign in with Google' }).click().then(() =>
+        page.waitForEvent('popup', { timeout: 15000 })
+      ),
+    ]).catch(() => null);
 
-    try {
-      await page.waitForURL(/\/dashboard/, { timeout: 20000 });
-    } catch {
-      await page.goto('http://localhost:8080/dashboard');
+    if (popup) {
+      await completeEmulatorPopup(popup);
+      try {
+        await page.waitForURL(/\/dashboard/, { timeout: 20000 });
+      } catch {
+        await page.goto('http://localhost:8080/dashboard');
+      }
+      console.log('Emulator warm-up complete. Tests will be faster.');
+    } else {
+      console.warn('Warm-up: popup did not appear (non-fatal, tests will cold-start).');
     }
-    console.log('Emulator warm-up complete. Tests will be faster.');
   } catch (e) {
-    // Non-fatal: warm-up failed but tests can still run with cold start
-    console.warn('Warm-up login failed (non-fatal):', e);
+    console.warn('Warm-up login failed (non-fatal):', (e as Error).message);
   } finally {
+    await context.close();
     await browser.close();
   }
 }

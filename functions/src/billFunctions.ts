@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import { calculatePersonTotals } from '../../shared/calculations.js';
 import {
   getFriendBalanceId,
@@ -11,33 +12,57 @@ import {
 const BILLS_COLLECTION = 'bills';
 const FRIEND_BALANCES_COLLECTION = 'balances';
 
-export const createBill = onCall(
-  {
-    cors: true,
-    timeoutSeconds: 60,
-    memory: '256MiB',
-  },
-  async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'User must be authenticated');
-  }
+/**
+ * Parameters for the shared bill creation logic.
+ */
+export interface CreateBillCoreParams {
+  billType: string;
+  billData: {
+    items: { id: string; name: string; price: number }[];
+    subtotal: number;
+    tax: number;
+    tip: number;
+    otherFees: number;
+    total: number;
+    restaurantName?: string;
+  };
+  people: { id: string; name: string; venmoId?: string }[];
+  ownerId: string;
+  ownerName: string;
+  paidById?: string;
+  eventId?: string;
+  squadId?: string;
+  status?: string;
+  splitEvenly?: boolean;
+  isSimpleTransaction?: boolean;
+  itemAssignments?: Record<string, string[]>;
+  /** Extra fields merged into the bill document (e.g. recurringBillId). */
+  extraFields?: Record<string, unknown>;
+}
 
-  const db = getFirestore();
-  const { 
-    billType, 
-    billData, 
-    people, 
-    ownerId, 
-    ownerName, 
-    paidById, 
-    eventId, 
-    squadId, 
-    status = 'active' 
-  } = request.data;
-
-  if (!billData || !people || !ownerId) {
-    throw new HttpsError('invalid-argument', 'Missing required fields');
-  }
+/**
+ * Shared bill creation logic — atomically creates a bill and updates balances.
+ * Used by both the createBill onCall handler and the recurring bill processor.
+ */
+export async function createBillCore(
+  db: Firestore,
+  params: CreateBillCoreParams
+): Promise<string> {
+  const {
+    billType,
+    billData,
+    people,
+    ownerId,
+    ownerName,
+    paidById,
+    eventId,
+    squadId,
+    status = 'active',
+    splitEvenly = false,
+    isSimpleTransaction = false,
+    itemAssignments = {},
+    extraFields = {},
+  } = params;
 
   const billRef = db.collection(BILLS_COLLECTION).doc();
   const billId = billRef.id;
@@ -59,7 +84,7 @@ export const createBill = onCall(
   const personTotals = calculatePersonTotals(
     billData,
     people,
-    {}, // itemAssignments starts empty for new bills via createBill (wizard handles it later or simple trans)
+    itemAssignments,
     billData.tip,
     billData.tax,
     billData.otherFees ?? 0
@@ -75,63 +100,107 @@ export const createBill = onCall(
     creditorId,
   });
 
+  await db.runTransaction(async (tx) => {
+    // 1. Create the bill document
+    const billDoc: Record<string, unknown> = {
+      id: billId,
+      billType,
+      status,
+      ownerId,
+      ...(eventId && { eventId }),
+      ...(squadId && { squadId }),
+      billData,
+      itemAssignments,
+      people,
+      participantIds,
+      unsettledParticipantIds: participantIds,
+      splitEvenly,
+      isSimpleTransaction,
+      paidById: creditorId,
+      members: [{
+        userId: ownerId,
+        name: ownerName,
+        joinedAt: now,
+        isAnonymous: false,
+      }],
+      createdAt: now,
+      updatedAt: now,
+      lastActivity: now,
+      processedBalances: newFootprint,
+      _ledgerVersion: 1,
+      ...extraFields,
+    };
+
+    tx.set(billRef, billDoc);
+
+    // 2. Update balances atomically
+    for (const [friendId, amount] of Object.entries(newFootprint)) {
+      if (Math.abs(amount) < BALANCE_THRESHOLD) continue;
+
+      const balanceId = getFriendBalanceId(creditorId, friendId);
+      const balanceRef = db.collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
+      const balanceSnap = await tx.get(balanceRef);
+
+      const existing = balanceSnap.exists ? balanceSnap.data()! : null;
+      const currentBalance = (existing?.balance ?? 0) as number;
+      const deltaSingle = toSingleBalance(creditorId, friendId, amount);
+
+      tx.set(balanceRef, {
+        id: balanceId,
+        participants: [creditorId, friendId].sort(),
+        balance: currentBalance + deltaSingle,
+        unsettledBillIds: FieldValue.arrayUnion(billId),
+        lastUpdatedAt: now,
+        lastBillId: billId,
+      }, { merge: true });
+    }
+  });
+
+  return billId;
+}
+
+export const createBill = onCall(
+  {
+    cors: true,
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const {
+    billType,
+    billData,
+    people,
+    ownerId,
+    ownerName,
+    paidById,
+    eventId,
+    squadId,
+    status = 'active',
+  } = request.data;
+
+  if (!billData || !people || !ownerId) {
+    throw new HttpsError('invalid-argument', 'Missing required fields');
+  }
+
   try {
-    await db.runTransaction(async (tx) => {
-      // 1. Create the bill document
-      const billDoc = {
-        id: billId,
-        billType,
-        status,
-        ownerId,
-        ...(eventId && { eventId }),
-        ...(squadId && { squadId }),
-        billData,
-        itemAssignments: {},
-        people,
-        participantIds,
-        unsettledParticipantIds: participantIds,
-        splitEvenly: request.data.splitEvenly || false,
-        isSimpleTransaction: request.data.isSimpleTransaction || false,
-        paidById: creditorId,
-        members: [{
-          userId: ownerId,
-          name: ownerName,
-          joinedAt: now,
-          isAnonymous: false
-        }],
-        createdAt: now,
-        updatedAt: now,
-        lastActivity: now,
-        // Mark as processed immediately to prevent trigger double-count
-        processedBalances: newFootprint,
-        _ledgerVersion: 1
-      };
-
-      tx.set(billRef, billDoc);
-
-      // 2. Update balances atomically
-      for (const [friendId, amount] of Object.entries(newFootprint)) {
-        if (Math.abs(amount) < BALANCE_THRESHOLD) continue;
-
-        const balanceId = getFriendBalanceId(creditorId, friendId);
-        const balanceRef = db.collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
-        const balanceSnap = await tx.get(balanceRef);
-        
-        const existing = balanceSnap.exists ? balanceSnap.data()! : null;
-        const currentBalance = (existing?.balance ?? 0) as number;
-        const deltaSingle = toSingleBalance(creditorId, friendId, amount);
-
-        tx.set(balanceRef, {
-          id: balanceId,
-          participants: [creditorId, friendId].sort(),
-          balance: currentBalance + deltaSingle,
-          unsettledBillIds: FieldValue.arrayUnion(billId),
-          lastUpdatedAt: now,
-          lastBillId: billId,
-        }, { merge: true });
-      }
+    const db = getFirestore();
+    const billId = await createBillCore(db, {
+      billType,
+      billData,
+      people,
+      ownerId,
+      ownerName,
+      paidById,
+      eventId,
+      squadId,
+      status,
+      splitEvenly: request.data.splitEvenly || false,
+      isSimpleTransaction: request.data.isSimpleTransaction || false,
     });
-
     return { billId };
   } catch (error) {
     console.error('Failed to create bill atomically:', error);

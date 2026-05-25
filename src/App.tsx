@@ -27,6 +27,7 @@ import SquadsView from "./pages/SquadsView";
 import SquadDetailView from "./pages/SquadDetailView";
 import SimpleTransactionView from "./pages/SimpleTransactionView";
 import AirbnbView from "./pages/AirbnbView";
+import RecurringBillView from "./pages/RecurringBillView";
 import BalanceDetailView from "./pages/BalanceDetailView";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import BillsView from "./pages/BillsView";
@@ -113,6 +114,8 @@ const App = () => (
                   <Route path="bill/:billId" element={<AIScanView />} />
                   <Route path="transaction/:billId" element={<SimpleTransactionView />} />
                   <Route path="airbnb/:billId" element={<AirbnbView />} />
+                  <Route path="recurring/new" element={<RecurringBillView />} />
+                  <Route path="recurring/:recurringBillId" element={<RecurringBillView />} />
                   <Route path="events" element={<EventsView />} />
                   <Route path="events/:eventId" element={<EventDetailView />} />
                   <Route path="squads" element={<SquadsView />} />

@@ -432,3 +432,12 @@ export const reverseSettlement = onCall<import('./settlementReversal.js').Revers
  * in a single transaction.
  */
 export { createBill, joinBillAsGuest, leaveBillAsGuest, updateGuestName, claimShadowUser } from './billFunctions.js';
+
+/**
+ * Cloud Function: Recurring Bill Processor
+ *
+ * Scheduled function that runs every hour. Queries active recurring bill
+ * templates whose nextRunDate <= today, creates bills for all due/missed
+ * cycles, and advances the schedule.
+ */
+export { processRecurringBills } from './recurringBillProcessor.js';

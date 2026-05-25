@@ -1,7 +1,7 @@
 import { Bill } from '@/types/bill.types';
 import { formatCurrency } from '@/utils/format';
 import { getSettlementStatus, getSettlementStatusForUser } from '@/utils/billCalculations';
-import { Loader2, Trash2, Zap, Home, Receipt } from 'lucide-react';
+import { Loader2, Trash2, Zap, Home, Receipt, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { status as statusStyles } from '@/lib/styles';
 
@@ -106,6 +106,11 @@ export default function MobileBillCard({
             {isLatest && (
               <span className={`${statusStyles.pill} bg-primary text-primary-foreground`}>
                 Latest
+              </span>
+            )}
+            {bill.recurringBillId && (
+              <span className={`${statusStyles.pill} bg-emerald-500/10 text-emerald-600`}>
+                <Repeat className="w-3 h-3" />
               </span>
             )}
             <span className={`${statusStyles.pill} ${bill.status === 'draft' ? statusStyles.color.draft : statusStyles.color[billStatus]}`}>
