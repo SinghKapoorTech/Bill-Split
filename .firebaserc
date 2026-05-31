@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "divit-6d217"
+    "default": "divit-6d217",
+    "prod": "divit-6d217",
+    "beta": "divit-beta"
   }
 }

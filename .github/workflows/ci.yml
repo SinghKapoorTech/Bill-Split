@@ -1,0 +1,43 @@
+name: CI
+
+# Backend-focused gate for every PR (and pushes to main/develop). Must pass
+# before a change can be merged and deployed. Frontend/app releases are gated
+# manually via the app stores, so this intentionally focuses on backend safety:
+# lint, unit tests for shared/backend logic, and a functions typecheck/build.
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      # Informational only: the repo currently has pre-existing lint errors, so
+      # this reports them without blocking. Make it a hard gate once they're cleaned up.
+      - name: Lint (non-blocking)
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Unit tests (shared/backend logic)
+        run: npm test
+
+      # Compiles functions/src AND ../shared — catches backend type errors before deploy.
+      - name: Functions typecheck/build
+        working-directory: functions
+        run: |
+          npm ci
+          npm run build
