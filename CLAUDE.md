@@ -657,6 +657,34 @@ feature branch → PR → CI gates (unit tests + functions build)
 2. Merge to `develop` → it deploys to beta. Test with `npm run dev:beta` (frontend → beta backend), force-run a scheduled function from the GCP Cloud Scheduler console, or call functions directly.
 3. When beta looks good, promote `develop → main` → prod deploys automatically.
 
+### Promoting `develop` → `main` (ship to prod)
+
+Only promote after the change is verified on **beta** and CI is green. Merging to
+`main` auto-deploys to prod with **no approval gate**, so "merge to main" = "ship it."
+
+**Preferred — Pull Request (auditable, re-runs CI):**
+1. Open a PR `develop → main`:
+   ```bash
+   gh pr create --base main --head develop --fill
+   ```
+   (or via the GitHub UI).
+2. Confirm CI passes on the PR and review the diff.
+3. Merge the PR. The push to `main` triggers `deploy-backend.yml` → **prod deploy**.
+
+**Fast-forward from the CLI** (when `develop` is strictly ahead of `main`):
+```bash
+git checkout main
+git pull origin main            # make sure local main is current
+git merge --ff-only develop     # fast-forward main up to develop
+git push origin main            # triggers the prod deploy (no gate)
+git checkout develop            # return to the working branch
+```
+
+Notes:
+- If `--ff-only` fails (branches diverged), rebase `develop` onto `main` or use a normal merge / PR instead of forcing it.
+- After a release, `main` and `develop` point at the same commit; new work moves `develop` ahead again.
+- Never develop directly on `main` — every push there deploys to prod.
+
 ### Manual deploy (break-glass only)
 
 ```bash
