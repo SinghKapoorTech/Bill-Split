@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Repeat, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Repeat } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { useRecurringBills } from '@/hooks/useRecurringBills';
 import { RecurringBillList } from '@/components/recurring/RecurringBillList';
@@ -47,18 +46,9 @@ export function RecurringBillsSettingsCard() {
 
   return (
     <Card className="p-4 md:p-6">
-      <div className="flex items-center justify-between mb-4 md:mb-6">
-        <div className="flex items-center gap-2">
-          <Repeat className="w-5 h-5 md:w-6 md:h-6 text-success" />
-          <h2 className="text-xl md:text-2xl font-semibold">Recurring Bills</h2>
-        </div>
-        <Button
-          size="icon"
-          className="rounded-full h-10 w-10"
-          onClick={() => navigate('/recurring/new')}
-        >
-          <Plus className="w-6 h-6" />
-        </Button>
+      <div className="flex items-center gap-2 mb-4 md:mb-6">
+        <Repeat className="w-5 h-5 md:w-6 md:h-6 text-success" />
+        <h2 className="text-xl md:text-2xl font-semibold">Recurring Bills</h2>
       </div>
 
       {isLoading ? (
@@ -80,9 +70,10 @@ export function RecurringBillsSettingsCard() {
           </div>
           <h3 className="text-lg font-semibold">No recurring bills</h3>
           <p className="text-muted-foreground">
-            Set up a recurring bill to automatically charge people on a schedule.
+            Create one from the <span className="font-medium text-foreground">Bills</span> page
+            using the <span className="font-medium text-foreground">+</span> button. They'll show
+            up here so you can pause, edit, or delete them.
           </p>
-          <Button onClick={() => navigate('/recurring/new')}>Create Recurring Bill</Button>
         </div>
       ) : (
         <RecurringBillList

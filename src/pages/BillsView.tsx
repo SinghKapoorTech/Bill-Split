@@ -16,9 +16,12 @@ import {
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveBalances } from '@/hooks/useActiveBalances';
+import { useRecurringBills } from '@/hooks/useRecurringBills';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
+import MobileRecurringBillCard from '@/components/dashboard/MobileRecurringBillCard';
 import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
 import { Bill } from '@/types/bill.types';
+import { RecurringBill } from '@/types/recurring.types';
 import { motion } from 'framer-motion';
 import { layout } from '@/lib/styles';
 
@@ -38,6 +41,7 @@ export default function BillsView() {
   } = useBillContext();
 
   const { refreshBalances } = useActiveBalances();
+  const { recurringBills, isLoading: isLoadingRecurring } = useRecurringBills();
 
   const allBills = [
     ...(activeSession ? [activeSession] : []),
@@ -48,6 +52,18 @@ export default function BillsView() {
     const hasTitle = !!bill.title && bill.title.trim().length > 0;
     return hasItems || hasReceipt || hasTitle;
   });
+
+  // Recurring-bill templates surface inline alongside regular bills (hide completed).
+  const visibleRecurring = recurringBills.filter(b => b.status !== 'completed');
+
+  // Merge bills and recurring templates into one list, sorted by most-recently updated.
+  type FeedItem =
+    | { kind: 'bill'; data: Bill; sortKey: number }
+    | { kind: 'recurring'; data: RecurringBill; sortKey: number };
+  const feed: FeedItem[] = [
+    ...allBills.map((b): FeedItem => ({ kind: 'bill', data: b, sortKey: b.updatedAt?.toMillis?.() ?? 0 })),
+    ...visibleRecurring.map((r): FeedItem => ({ kind: 'recurring', data: r, sortKey: r.updatedAt?.toMillis?.() ?? 0 })),
+  ].sort((a, b) => b.sortKey - a.sortKey);
 
   // Silently delete empty stale bills on mount
   useEffect(() => {
@@ -119,40 +135,53 @@ export default function BillsView() {
 
       <CreateOptionsDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
 
-      {allBills.length === 0 ? (
-        <Card className="p-8 text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-            <Receipt className="w-8 h-8 text-primary" />
+      {feed.length === 0 ? (
+        isLoadingRecurring ? (
+          <div className="flex items-center justify-center flex-1 min-h-0">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
-          <h3 className="text-lg font-semibold">No bills yet</h3>
-          <p className="text-muted-foreground">
-            Create your first bill to start splitting expenses with friends.
-          </p>
-          <Button onClick={() => setCreateDialogOpen(true)}>Create Bill</Button>
-        </Card>
+        ) : (
+          <Card className="p-8 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <Receipt className="w-8 h-8 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold">No bills yet</h3>
+            <p className="text-muted-foreground">
+              Create your first bill to start splitting expenses with friends.
+            </p>
+            <Button onClick={() => setCreateDialogOpen(true)}>Create Bill</Button>
+          </Card>
+        )
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-1">
           <div className="flex flex-col gap-2 p-1 pb-4">
-            {allBills.map((bill, index) => (
+            {feed.map((item, index) => (
               <motion.div
-                key={bill.id}
+                key={`${item.kind}-${item.data.id}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25, delay: index * 0.05, ease: [0.4, 0, 0.2, 1] }}
               >
-                <MobileBillCard
-                  bill={bill}
-                  isLatest={bill.id === activeSession?.id}
-                  onView={(id) => handleNavigateToBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
-                  onResume={(id) => handleNavigateToBill(id, bill.isSimpleTransaction, bill.isAirbnb, bill.ownerId === user?.uid)}
-                  onDelete={handleDeleteBill}
-                  isResuming={isResuming}
-                  isDeleting={isDeleting}
-                  formatDate={formatDate}
-                  getBillTitle={getBillTitle}
-                  isOwner={bill.ownerId === user?.uid}
-                  currentUserId={user?.uid}
-                />
+                {item.kind === 'recurring' ? (
+                  <MobileRecurringBillCard
+                    bill={item.data}
+                    onView={(id) => navigate(`/recurring/${id}`)}
+                  />
+                ) : (
+                  <MobileBillCard
+                    bill={item.data}
+                    isLatest={item.data.id === activeSession?.id}
+                    onView={(id) => handleNavigateToBill(id, item.data.isSimpleTransaction, item.data.isAirbnb, item.data.ownerId === user?.uid)}
+                    onResume={(id) => handleNavigateToBill(id, item.data.isSimpleTransaction, item.data.isAirbnb, item.data.ownerId === user?.uid)}
+                    onDelete={handleDeleteBill}
+                    isResuming={isResuming}
+                    isDeleting={isDeleting}
+                    formatDate={formatDate}
+                    getBillTitle={getBillTitle}
+                    isOwner={item.data.ownerId === user?.uid}
+                    currentUserId={user?.uid}
+                  />
+                )}
               </motion.div>
             ))}
           </div>
