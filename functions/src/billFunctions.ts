@@ -100,7 +100,28 @@ export async function createBillCore(
     creditorId,
   });
 
+  // Balance docs we'll touch (only friends with a non-trivial amount).
+  const footprintEntries = Object.entries(newFootprint).filter(
+    ([, amount]) => Math.abs(amount) >= BALANCE_THRESHOLD
+  );
+
   await db.runTransaction(async (tx) => {
+    // ── Phase 1: READS ──
+    // Firestore requires ALL reads before ANY writes in a transaction, so read
+    // every balance doc up front (before writing the bill or the balances).
+    const balanceReads: Record<string, { ref: FirebaseFirestore.DocumentReference; currentBalance: number }> = {};
+    for (const [friendId] of footprintEntries) {
+      const balanceId = getFriendBalanceId(creditorId, friendId);
+      const balanceRef = db.collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
+      const balanceSnap = await tx.get(balanceRef);
+      const existing = balanceSnap.exists ? balanceSnap.data()! : null;
+      balanceReads[friendId] = {
+        ref: balanceRef,
+        currentBalance: (existing?.balance ?? 0) as number,
+      };
+    }
+
+    // ── Phase 2: WRITES ──
     // 1. Create the bill document
     const billDoc: Record<string, unknown> = {
       id: billId,
@@ -134,19 +155,12 @@ export async function createBillCore(
     tx.set(billRef, billDoc);
 
     // 2. Update balances atomically
-    for (const [friendId, amount] of Object.entries(newFootprint)) {
-      if (Math.abs(amount) < BALANCE_THRESHOLD) continue;
-
-      const balanceId = getFriendBalanceId(creditorId, friendId);
-      const balanceRef = db.collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
-      const balanceSnap = await tx.get(balanceRef);
-
-      const existing = balanceSnap.exists ? balanceSnap.data()! : null;
-      const currentBalance = (existing?.balance ?? 0) as number;
+    for (const [friendId, amount] of footprintEntries) {
+      const { ref, currentBalance } = balanceReads[friendId];
       const deltaSingle = toSingleBalance(creditorId, friendId, amount);
 
-      tx.set(balanceRef, {
-        id: balanceId,
+      tx.set(ref, {
+        id: ref.id,
         participants: [creditorId, friendId].sort(),
         balance: currentBalance + deltaSingle,
         unsettledBillIds: FieldValue.arrayUnion(billId),
