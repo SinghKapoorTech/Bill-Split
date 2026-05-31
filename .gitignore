@@ -39,6 +39,12 @@ firebase-debug.*.log
 *.sw?
 e2e/.auth-state.json
 
+# Playwright / E2E test artifacts
+test-results/
+playwright-report/
+blob-report/
+.playwright-mcp/
+
 # Skills (installed via npx skills)
 .agents
 .claude/*
