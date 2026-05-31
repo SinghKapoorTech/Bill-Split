@@ -33,8 +33,16 @@ This ensures the environment is properly set up before making changes.
 ## Development Commands
 
 ```bash
-# Start development server (http://localhost:8080)
+# Start development server (http://localhost:8080) — talks to PROD Firebase
 npm run dev
+
+# Start dev server pointed at the BETA Firebase project (divit-beta)
+# Loads .env.beta (gitignored); use this to test backend changes on beta.
+npm run dev:beta
+
+# Run unit tests (Vitest) for pure shared/backend logic — see tests/
+npm test
+npm run test:watch
 
 # Build for production
 npm run build
@@ -42,12 +50,18 @@ npm run build
 # Build for development (with sourcemaps)
 npm run build:dev
 
-# Run linter
+# Run linter (currently has pre-existing errors — see CI note below)
 npm run lint
 
 # Preview production build locally
 npm preview
 ```
+
+### Unit tests (Vitest)
+
+Pure logic in `shared/` (e.g. `recurringSchedule.ts`, `calculations.ts`) is unit-tested with **Vitest**. Tests live in **`tests/`** (root), config in `vitest.config.ts` (resolves `@shared`/`@`).
+
+> **Do NOT put test files inside `shared/`.** The Cloud Functions `tsconfig` compiles `../shared`, so a `vitest` import there breaks the functions build. Keep tests in `tests/`.
 
 ## E2E Testing
 
@@ -602,36 +616,60 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 ```
 
-## Firebase Deployment
+## Environments & Backend Deployment Pipeline
 
-The project uses Firebase for backend services. Configuration files:
+Backend changes (Cloud Functions, Firestore rules/indexes, Storage rules) flow
+through a **beta → prod** pipeline so production doesn't break. Frontend/app
+releases are gated separately via the app stores and are NOT part of this.
 
-- **`firebase.json`** - Firebase project configuration
-  - Defines Firestore rules location (`firestore.rules`)
-  - Defines Firestore indexes location (`firestore.indexes.json`)
-  - Defines Storage rules location (`storage.rules`)
-  - Configures Cloud Functions (if any)
+### Two Firebase projects
 
-- **`firestore.rules`** - Security rules for Firestore database
-- **`firestore.indexes.json`** - Required composite indexes for queries
-- **`storage.rules`** - Security rules for Cloud Storage
+| Alias (`.firebaserc`) | Project ID     | Role |
+| --------------------- | -------------- | ---- |
+| `prod` / `default`    | `divit-6d217`  | Production |
+| `beta`                | `divit-beta`   | Testing/staging (mirrors prod) |
 
-**Deploying changes:**
-```bash
-# Deploy all Firebase resources
-firebase deploy
+Both are on Blaze, same Firestore location (`nam5`), and beta has its own
+`GEMINI_API_KEY` secret + web app. The beta web client config lives in a
+gitignored **`.env.beta`** (used by `npm run dev:beta`); regenerate with
+`firebase apps:sdkconfig WEB <betaAppId> --project beta`.
 
-# Deploy only Firestore rules
-firebase deploy --only firestore:rules
+### Branch → environment mapping
 
-# Deploy only Storage rules
-firebase deploy --only storage
-
-# Deploy only indexes
-firebase deploy --only firestore:indexes
+```
+feature branch → PR → CI gates (unit tests + functions build)
+   → merge to `develop`  → AUTO-deploys backend to BETA (divit-beta)
+   → merge `develop` → `main` → AUTO-deploys backend to PROD (divit-6d217), NO approval gate
 ```
 
-**Note**: Firestore indexes can also be auto-created by running queries in development mode. Firebase will provide a link to create missing indexes.
+- **`develop`** = integration branch / what's on beta. Do day-to-day work here (or via feature branches PR'd into it).
+- **`main`** = production. Treat "merge to main" as "ship to prod." Promote with a `develop → main` PR or `git merge --ff-only develop`.
+- A gate can be added anytime: repo **Settings → Environments → `production` → Required reviewers** (no code change).
+
+### GitHub Actions (`.github/workflows/`)
+
+- **`ci.yml`** — on every PR + push to `main`/`develop`. Hard gates: **`npm test`** (Vitest) and **functions `tsc` build**. Lint runs but is **non-blocking** (`continue-on-error`) because the repo has pre-existing lint errors; make it a hard gate once those are fixed.
+- **`deploy-backend.yml`** — on push to `develop`/`main` touching backend paths (or manual dispatch). Picks the project by branch and runs `firebase deploy --only functions,firestore,storage --project <beta|prod>`. Deploys via dedicated `github-deployer` service accounts (focused roles), keyed by GitHub secrets **`FIREBASE_SERVICE_ACCOUNT`** (prod) and **`FIREBASE_SERVICE_ACCOUNT_BETA`** (beta). Each deployer SA also has `billing.viewer` on the billing account (the Blaze pre-check needs it).
+
+### Testing a backend change
+
+1. Branch off `develop`, make the change, open a PR → CI must pass.
+2. Merge to `develop` → it deploys to beta. Test with `npm run dev:beta` (frontend → beta backend), force-run a scheduled function from the GCP Cloud Scheduler console, or call functions directly.
+3. When beta looks good, promote `develop → main` → prod deploys automatically.
+
+### Manual deploy (break-glass only)
+
+```bash
+firebase deploy --only functions,firestore,storage --project beta   # or prod
+```
+
+Prefer the GitHub Action — local `firebase deploy` ships your *local* tree and reintroduces prod-vs-git drift. Use manual only when CI is unavailable.
+
+### Gotchas
+
+- **First 2nd-gen deploy to a fresh project** fails on Eventarc/Cloud Run service-agent propagation ("first time using 2nd gen… retry in a few minutes") — just re-run; idempotent.
+- **Firebase Storage** must be initialized once per project via the console (**Storage → Get Started**) before `--only storage` works; it's not reliably CLI-provisionable.
+- Firestore indexes can also be auto-created by running queries in dev — Firebase prints a creation link.
 
 ## Component Structure
 
