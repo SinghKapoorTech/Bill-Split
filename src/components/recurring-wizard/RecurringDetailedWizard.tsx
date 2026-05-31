@@ -149,7 +149,7 @@ export function RecurringDetailedWizard({
     if (!user || !billData) return;
     setIsSaving(true);
     try {
-      await recurringBillService.createRecurringBill({
+      const input = {
         ownerId: user.uid,
         ownerName: user.displayName || 'Anonymous',
         title,
@@ -157,7 +157,7 @@ export function RecurringDetailedWizard({
         paidById,
         people,
         splitEvenly,
-        generatedType: 'detailed',
+        generatedType: 'detailed' as const,
         billData,
         itemAssignments,
         schedule: {
@@ -166,10 +166,15 @@ export function RecurringDetailedWizard({
           startDate,
           ...(hasEndDate && endDate ? { endDate } : {}),
         },
-      });
+      };
+      if (existing?.id) {
+        await recurringBillService.updateRecurringBillFromInput(existing.id, input);
+      } else {
+        await recurringBillService.createRecurringBill(input);
+      }
       navigate('/dashboard');
     } catch (err) {
-      console.error('Failed to create recurring bill:', err);
+      console.error('Failed to save recurring bill:', err);
     } finally {
       setIsSaving(false);
     }
@@ -311,6 +316,7 @@ export function RecurringDetailedWizard({
               paidById={paidById}
               people={people}
               isSaving={isSaving}
+              isEditing={!!existing}
               onPrev={handlePrev}
               onComplete={handleComplete}
               currentStep={currentStep}

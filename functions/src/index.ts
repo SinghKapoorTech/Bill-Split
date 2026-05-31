@@ -441,3 +441,13 @@ export { createBill, joinBillAsGuest, leaveBillAsGuest, updateGuestName, claimSh
  * cycles, and advances the schedule.
  */
 export { processRecurringBills } from './recurringBillProcessor.js';
+
+/**
+ * Dev-only manual trigger for the recurring-bill generator. Exported ONLY when
+ * running under the Firebase emulator so it is never deployed to production.
+ * Lets you run a generation pass on demand (the scheduler doesn't fire locally),
+ * e.g. curl ".../devTriggerRecurringBills?today=2026-05-30".
+ */
+import { devTriggerRecurringBills as _devTriggerRecurringBills } from './recurringBillProcessor.js';
+export const devTriggerRecurringBills =
+  process.env.FUNCTIONS_EMULATOR === 'true' ? _devTriggerRecurringBills : undefined;

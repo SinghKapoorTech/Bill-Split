@@ -17,6 +17,7 @@ import { useBillContext } from '@/contexts/BillSessionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveBalances } from '@/hooks/useActiveBalances';
 import { useRecurringBills } from '@/hooks/useRecurringBills';
+import { recurringBillService } from '@/services/recurringBillService';
 import MobileBillCard from '@/components/dashboard/MobileBillCard';
 import MobileRecurringBillCard from '@/components/dashboard/MobileRecurringBillCard';
 import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
@@ -30,6 +31,7 @@ export default function BillsView() {
   const { user } = useAuth();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [billToDelete, setBillToDelete] = useState<{ id: string; receiptFileName?: string; title: string } | null>(null);
+  const [recurringToDelete, setRecurringToDelete] = useState<{ id: string; title: string } | null>(null);
 
   const {
     activeSession,
@@ -109,6 +111,12 @@ export default function BillsView() {
     refreshBalances();
   };
 
+  const confirmDeleteRecurring = async () => {
+    if (!recurringToDelete) return;
+    await recurringBillService.deleteRecurringBill(recurringToDelete.id);
+    setRecurringToDelete(null);
+  };
+
   if (isLoadingSessions) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-200px)]">
@@ -166,6 +174,7 @@ export default function BillsView() {
                   <MobileRecurringBillCard
                     bill={item.data}
                     onView={(id) => navigate(`/recurring/${id}`)}
+                    onDelete={(b) => setRecurringToDelete({ id: b.id, title: b.title })}
                   />
                 ) : (
                   <MobileBillCard
@@ -201,6 +210,24 @@ export default function BillsView() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">
               Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!recurringToDelete} onOpenChange={(open) => !open && setRecurringToDelete(null)}>
+        <AlertDialogContent onCloseAutoFocus={(e) => e.preventDefault()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Recurring Bill</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{recurringToDelete?.title}"? No new bills will be
+              generated. Previously generated bills will not be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteRecurring} className="bg-destructive hover:bg-destructive/90">
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

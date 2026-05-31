@@ -179,7 +179,7 @@ export function RecurringAirbnbWizard({
     setIsSaving(true);
     try {
       const finalTitle = title || billData.restaurantName || 'Recurring stay';
-      await recurringBillService.createRecurringBill({
+      const input = {
         ownerId: user.uid,
         ownerName: user.displayName || 'Anonymous',
         title: finalTitle,
@@ -187,7 +187,7 @@ export function RecurringAirbnbWizard({
         paidById,
         people,
         splitEvenly,
-        generatedType: 'airbnb',
+        generatedType: 'airbnb' as const,
         billData,
         itemAssignments,
         isAirbnb: true,
@@ -198,10 +198,15 @@ export function RecurringAirbnbWizard({
           startDate,
           ...(hasEndDate && endDate ? { endDate } : {}),
         },
-      });
+      };
+      if (existing?.id) {
+        await recurringBillService.updateRecurringBillFromInput(existing.id, input);
+      } else {
+        await recurringBillService.createRecurringBill(input);
+      }
       navigate('/dashboard');
     } catch (err) {
-      console.error('Failed to create recurring bill:', err);
+      console.error('Failed to save recurring bill:', err);
     } finally {
       setIsSaving(false);
     }
@@ -330,6 +335,7 @@ export function RecurringAirbnbWizard({
               paidById={paidById}
               people={people}
               isSaving={isSaving}
+              isEditing={!!existing}
               onPrev={handlePrev}
               onComplete={handleComplete}
               currentStep={currentStep}

@@ -1,6 +1,9 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onRequest } from 'firebase-functions/v2/https';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import { createBillCore } from './billFunctions.js';
+import { firstRunDate, advanceRunDate } from '../../shared/recurringSchedule.js';
 
 interface BillDataShape {
   items: { id: string; name: string; price: number }[];
@@ -47,33 +50,6 @@ interface RecurringBillDoc {
     totalStayCost?: number;
     fees?: { id: string; name: string; amount: number }[];
   };
-}
-
-/**
- * Advance a date by the given frequency.
- */
-function advanceDate(
-  dateStr: string,
-  frequency: 'weekly' | 'biweekly' | 'monthly',
-  dayOfMonth?: number
-): string {
-  const d = new Date(dateStr + 'T00:00:00Z');
-
-  if (frequency === 'weekly') {
-    d.setUTCDate(d.getUTCDate() + 7);
-  } else if (frequency === 'biweekly') {
-    d.setUTCDate(d.getUTCDate() + 14);
-  } else {
-    // Monthly: advance to same day next month, clamp to last day.
-    // Must set day to 1 first to avoid month overflow (e.g., Jan 31 → Feb 31 → Mar 3).
-    const targetDay = dayOfMonth ?? d.getUTCDate();
-    d.setUTCDate(1);
-    d.setUTCMonth(d.getUTCMonth() + 1);
-    const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-    d.setUTCDate(Math.min(targetDay, lastDay));
-  }
-
-  return d.toISOString().split('T')[0];
 }
 
 /**
@@ -142,9 +118,130 @@ function buildBillPayload(template: RecurringBillDoc) {
 }
 
 /**
- * Scheduled Cloud Function that runs every hour.
- * Queries active recurring bills whose nextRunDate <= today,
- * creates bills for all due/missed cycles, and advances the schedule.
+ * Core generation pass: for every active template due on/before `todayStr`,
+ * create bills for all missed cycles and advance the schedule. Pure of any
+ * trigger plumbing so it can be driven by the hourly scheduler, a dev HTTP
+ * trigger, or a unit test. `todayStr` is injectable so backfill can be tested
+ * deterministically.
+ */
+export async function generateDueRecurringBills(
+  db: Firestore,
+  todayStr: string
+): Promise<{ processed: number; created: number }> {
+  // Query all active recurring bills that are due
+  const snapshot = await db
+    .collection('recurring_bills')
+    .where('status', '==', 'active')
+    .where('nextRunDate', '<=', todayStr)
+    .get();
+
+  if (snapshot.empty) {
+    console.log('No recurring bills due.');
+    return { processed: 0, created: 0 };
+  }
+
+  console.log(`Processing ${snapshot.size} recurring bill(s)...`);
+  let created = 0;
+
+  for (const docSnap of snapshot.docs) {
+    const template = docSnap.data() as RecurringBillDoc;
+    const templateRef = docSnap.ref;
+
+    try {
+      // Catch-up loop: create bills for all missed cycles. On the very first
+      // run, anchor to the aligned firstRunDate (repairs legacy docs whose
+      // nextRunDate was seeded to the raw, unaligned startDate).
+      let currentRunDate = template.lastRunDate
+        ? template.nextRunDate
+        : firstRunDate(template.schedule);
+      const newBillIds: string[] = [];
+
+      while (currentRunDate <= todayStr) {
+        // Check end date
+        if (template.schedule.endDate && currentRunDate > template.schedule.endDate) {
+          break;
+        }
+
+        // Idempotency check: skip if bill already exists for this cycle
+        const existing = await db
+          .collection('bills')
+          .where('recurringBillId', '==', template.id)
+          .where('recurringCycleDate', '==', currentRunDate)
+          .limit(1)
+          .get();
+
+        if (existing.empty) {
+          const { billData, itemAssignments } = buildBillPayload(template);
+          const generatedType = template.generatedType ?? 'quick';
+
+          // Type-specific flags spread into the generated bill doc.
+          const extraFields: Record<string, unknown> = {
+            recurringBillId: template.id,
+            recurringCycleDate: currentRunDate,
+            title: template.title,
+          };
+          if (generatedType === 'airbnb') {
+            extraFields.isAirbnb = true;
+            if (template.airbnbData) extraFields.airbnbData = template.airbnbData;
+          }
+
+          const billId = await createBillCore(db, {
+            billType: template.eventId ? 'event' : 'private',
+            billData,
+            people: template.people,
+            ownerId: template.ownerId,
+            ownerName: template.ownerName,
+            paidById: template.paidById,
+            eventId: template.eventId,
+            status: 'active',
+            splitEvenly: template.splitEvenly,
+            isSimpleTransaction: generatedType === 'quick',
+            itemAssignments,
+            extraFields,
+          });
+
+          newBillIds.push(billId);
+          created++;
+          console.log(`Created bill ${billId} for recurring ${template.id} (cycle ${currentRunDate})`);
+        }
+
+        // Advance to next cycle
+        currentRunDate = advanceRunDate(
+          currentRunDate,
+          template.schedule.frequency,
+          template.schedule.dayOfMonth
+        );
+      }
+
+      // Update the template
+      const updates: Record<string, unknown> = {
+        lastRunDate: todayStr,
+        nextRunDate: currentRunDate,
+        updatedAt: Timestamp.now(),
+      };
+
+      if (newBillIds.length > 0) {
+        updates.generatedBillIds = FieldValue.arrayUnion(...newBillIds);
+      }
+
+      // If next run is past end date, mark as completed
+      if (template.schedule.endDate && currentRunDate > template.schedule.endDate) {
+        updates.status = 'completed';
+      }
+
+      await templateRef.update(updates);
+    } catch (error) {
+      console.error(`Failed to process recurring bill ${template.id}:`, error);
+      // Continue with other templates — don't let one failure block the rest
+    }
+  }
+
+  console.log('Recurring bill processing complete.');
+  return { processed: snapshot.size, created };
+}
+
+/**
+ * Scheduled Cloud Function that runs every hour and generates all due bills.
  */
 export const processRecurringBills = onSchedule(
   {
@@ -155,109 +252,21 @@ export const processRecurringBills = onSchedule(
   async () => {
     const db = getFirestore();
     const todayStr = new Date().toISOString().split('T')[0];
-
-    // Query all active recurring bills that are due
-    const snapshot = await db
-      .collection('recurring_bills')
-      .where('status', '==', 'active')
-      .where('nextRunDate', '<=', todayStr)
-      .get();
-
-    if (snapshot.empty) {
-      console.log('No recurring bills due.');
-      return;
-    }
-
-    console.log(`Processing ${snapshot.size} recurring bill(s)...`);
-
-    for (const docSnap of snapshot.docs) {
-      const template = docSnap.data() as RecurringBillDoc;
-      const templateRef = docSnap.ref;
-
-      try {
-        // Catch-up loop: create bills for all missed cycles
-        let currentRunDate = template.nextRunDate;
-        const newBillIds: string[] = [];
-
-        while (currentRunDate <= todayStr) {
-          // Check end date
-          if (template.schedule.endDate && currentRunDate > template.schedule.endDate) {
-            break;
-          }
-
-          // Idempotency check: skip if bill already exists for this cycle
-          const existing = await db
-            .collection('bills')
-            .where('recurringBillId', '==', template.id)
-            .where('recurringCycleDate', '==', currentRunDate)
-            .limit(1)
-            .get();
-
-          if (existing.empty) {
-            const { billData, itemAssignments } = buildBillPayload(template);
-            const generatedType = template.generatedType ?? 'quick';
-
-            // Type-specific flags spread into the generated bill doc.
-            const extraFields: Record<string, unknown> = {
-              recurringBillId: template.id,
-              recurringCycleDate: currentRunDate,
-              title: template.title,
-            };
-            if (generatedType === 'airbnb') {
-              extraFields.isAirbnb = true;
-              if (template.airbnbData) extraFields.airbnbData = template.airbnbData;
-            }
-
-            const billId = await createBillCore(db, {
-              billType: template.eventId ? 'event' : 'private',
-              billData,
-              people: template.people,
-              ownerId: template.ownerId,
-              ownerName: template.ownerName,
-              paidById: template.paidById,
-              eventId: template.eventId,
-              status: 'active',
-              splitEvenly: template.splitEvenly,
-              isSimpleTransaction: generatedType === 'quick',
-              itemAssignments,
-              extraFields,
-            });
-
-            newBillIds.push(billId);
-            console.log(`Created bill ${billId} for recurring ${template.id} (cycle ${currentRunDate})`);
-          }
-
-          // Advance to next cycle
-          currentRunDate = advanceDate(
-            currentRunDate,
-            template.schedule.frequency,
-            template.schedule.dayOfMonth
-          );
-        }
-
-        // Update the template
-        const updates: Record<string, unknown> = {
-          lastRunDate: todayStr,
-          nextRunDate: currentRunDate,
-          updatedAt: Timestamp.now(),
-        };
-
-        if (newBillIds.length > 0) {
-          updates.generatedBillIds = FieldValue.arrayUnion(...newBillIds);
-        }
-
-        // If next run is past end date, mark as completed
-        if (template.schedule.endDate && currentRunDate > template.schedule.endDate) {
-          updates.status = 'completed';
-        }
-
-        await templateRef.update(updates);
-      } catch (error) {
-        console.error(`Failed to process recurring bill ${template.id}:`, error);
-        // Continue with other templates — don't let one failure block the rest
-      }
-    }
-
-    console.log('Recurring bill processing complete.');
+    await generateDueRecurringBills(db, todayStr);
   }
 );
+
+/**
+ * Dev-only HTTP trigger to run a generation pass on demand against the
+ * emulator (the scheduler never fires locally). Pass ?today=YYYY-MM-DD to
+ * simulate a run date for backfill testing. Exported ONLY under the emulator
+ * (see index.ts) so it is never deployed to production.
+ */
+export const devTriggerRecurringBills = onRequest(async (req, res) => {
+  const db = getFirestore();
+  const today =
+    (typeof req.query.today === 'string' && req.query.today) ||
+    new Date().toISOString().split('T')[0];
+  const result = await generateDueRecurringBills(db, today);
+  res.json({ ok: true, today, ...result });
+});

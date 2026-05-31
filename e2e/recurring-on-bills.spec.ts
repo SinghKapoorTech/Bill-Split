@@ -57,6 +57,43 @@ test.describe('Recurring bills on the Bills page', () => {
     expect(page.url()).toMatch(/\/recurring\/(?!new$)[^/]+$/);
   });
 
+  test('a recurring bill on the Bills page can be deleted via its trash button', async ({ page }) => {
+    await loginAsTestUser(page);
+
+    // Create a recurring bill via the wizard.
+    await page.goto('/recurring/new');
+    await page.waitForURL(/\/recurring\/new/, { timeout: 15000 });
+    await page.getByRole('button', { name: /quick expense/i }).click();
+    await page.locator('#title').fill('Netflix Premium');
+    await page.locator('#amount').fill('22.99');
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('button', { name: /add (another person|a person)/i }).click();
+    const nameInput = page.locator('#manual-name');
+    await nameInput.waitFor({ state: 'visible', timeout: 10000 });
+    await nameInput.fill('Sibling');
+    await nameInput.press('Enter');
+    await expect(page.getByText('Sibling').first()).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+
+    // On the Bills page it shows with a delete button.
+    await page.goto('/bills');
+    await page.waitForURL(/\/bills/, { timeout: 15000 });
+    await expect(page.getByText('Netflix Premium', { exact: true })).toHaveCount(1, { timeout: 15000 });
+
+    const deleteBtn = page.getByRole('button', { name: 'Delete recurring bill Netflix Premium' });
+    await expect(deleteBtn).toBeVisible({ timeout: 10000 });
+    await deleteBtn.click();
+
+    // Confirm in the dialog.
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+
+    // It disappears from the list (status → completed, dropped by the live subscription).
+    await expect(page.getByText('Netflix Premium', { exact: true })).toHaveCount(0, { timeout: 15000 });
+  });
+
   test('Settings → Recurring has no create affordance', async ({ page }) => {
     await loginAsTestUser(page);
 

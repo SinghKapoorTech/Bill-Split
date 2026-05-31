@@ -72,6 +72,49 @@ test.describe('Recurring Bill Wizard', () => {
     await expect(page.getByText('Brother').first()).toBeVisible();
   });
 
+  test('editing a recurring bill updates it in place — no duplicate is created', async ({ page }) => {
+    await loginAsTestUser(page);
+    await page.goto('/recurring/new');
+    await page.waitForURL(/\/recurring\/new/, { timeout: 15000 });
+
+    // Create a Quick recurring bill.
+    await page.getByRole('button', { name: /quick expense/i }).click();
+    await page.locator('#title').fill('Gym Membership');
+    await page.locator('#amount').fill('40.00');
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    await page.getByRole('button', { name: /add (another person|a person)/i }).click();
+    const personInput = page.locator('#manual-name');
+    await personInput.waitFor({ state: 'visible', timeout: 10000 });
+    await personInput.fill('Partner');
+    await personInput.press('Enter');
+    await expect(page.getByText('Partner').first()).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    // Schedule → Review → Create
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+
+    // It shows on the Bills page exactly once.
+    await page.goto('/bills');
+    await page.waitForURL(/\/bills/, { timeout: 15000 });
+    await expect(page.getByText('Gym Membership', { exact: true })).toHaveCount(1, { timeout: 15000 });
+
+    // Open it (edit mode jumps to the Review step) — the action now reads "Save".
+    await page.getByText('Gym Membership', { exact: true }).click();
+    await page.waitForURL(/\/recurring\/(?!new$)[^/]+$/, { timeout: 15000 });
+    const saveBtn = page.getByRole('button', { name: 'Save', exact: true });
+    await expect(saveBtn).toBeVisible({ timeout: 10000 });
+    await saveBtn.click();
+    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+
+    // Still exactly one template — the edit updated in place rather than duplicating.
+    await page.goto('/bills');
+    await page.waitForURL(/\/bills/, { timeout: 15000 });
+    await expect(page.getByText('Gym Membership', { exact: true })).toHaveCount(1, { timeout: 15000 });
+  });
+
   test('weekly frequency shows day-of-week picker', async ({ page }) => {
     await loginAsTestUser(page);
     await page.goto('/recurring/new');

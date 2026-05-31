@@ -1,11 +1,13 @@
 import { RecurringBill, RecurringGeneratedType } from '@/types/recurring.types';
 import { formatCurrency } from '@/utils/format';
-import { Repeat, Zap, Receipt, Home } from 'lucide-react';
+import { Repeat, Zap, Receipt, Home, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { status as statusStyles } from '@/lib/styles';
 
 interface MobileRecurringBillCardProps {
   bill: RecurringBill;
   onView: (billId: string) => void;
+  onDelete?: (bill: RecurringBill) => void;
 }
 
 const FREQUENCY_LABEL: Record<RecurringBill['schedule']['frequency'], string> = {
@@ -30,12 +32,18 @@ const STATUS_PILL: Record<'active' | 'paused', { label: string; color: string }>
  * styled to match MobileBillCard so it sits naturally inline with regular bills.
  * Tapping the row opens the recurring bill's detail/edit page.
  */
-export default function MobileRecurringBillCard({ bill, onView }: MobileRecurringBillCardProps) {
+export default function MobileRecurringBillCard({ bill, onView, onDelete }: MobileRecurringBillCardProps) {
   const pill = bill.status === 'paused' ? STATUS_PILL.paused : STATUS_PILL.active;
   const typeMeta = TYPE_META[bill.generatedType ?? 'quick'];
   const subtitle = `${formatCurrency(bill.amount)} • ${typeMeta.label} • ${FREQUENCY_LABEL[bill.schedule.frequency]}`;
 
   const handleRowClick = () => onView(bill.id);
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    // Don't let the delete click open the detail page.
+    e.stopPropagation();
+    onDelete?.(bill);
+  };
 
   return (
     <div
@@ -67,6 +75,21 @@ export default function MobileRecurringBillCard({ bill, onView }: MobileRecurrin
           </span>
         </div>
       </div>
+
+      {/* Right section: Actions */}
+      {onDelete && (
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            onClick={handleDeleteClick}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            aria-label={`Delete recurring bill ${bill.title}`}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

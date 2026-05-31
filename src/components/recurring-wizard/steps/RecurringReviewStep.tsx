@@ -1,5 +1,6 @@
 import { Person, PersonTotal, BillData, ItemAssignment } from '@/types';
 import { RecurringFrequency } from '@/types/recurring.types';
+import { firstRunDate, nextRunDates } from '@shared/recurringSchedule';
 import { Loader2, Calendar, Repeat } from 'lucide-react';
 import { SplitSummary } from '@/components/people/SplitSummary';
 import { StepFooter } from '@/components/shared/StepFooter';
@@ -15,6 +16,7 @@ interface RecurringReviewStepProps {
   paidById: string;
   people: Person[];
   isSaving: boolean;
+  isEditing?: boolean;
   onPrev: () => void;
   onComplete: () => void;
   currentStep: number;
@@ -59,7 +61,9 @@ function formatScheduleSummary(
     freq = `Every month on the ${dayOfMonth}${suffix}`;
   }
 
-  const start = new Date(startDate + 'T00:00:00').toLocaleDateString('en-US', {
+  // "starting" reflects the first aligned occurrence, not the raw start date.
+  const firstDate = firstRunDate({ frequency, dayOfWeek, dayOfMonth, startDate, endDate });
+  const start = new Date(firstDate + 'T00:00:00').toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -84,31 +88,15 @@ function getNextBillDates(
   startDate: string,
   count: number
 ): string[] {
-  const dates: string[] = [];
-  let current = new Date(startDate + 'T00:00:00');
-
-  for (let i = 0; i < count; i++) {
-    dates.push(
-      current.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    );
-
-    if (frequency === 'weekly') {
-      current = new Date(current.getTime() + 7 * 24 * 60 * 60 * 1000);
-    } else if (frequency === 'biweekly') {
-      current = new Date(current.getTime() + 14 * 24 * 60 * 60 * 1000);
-    } else {
-      const nextMonth = new Date(current);
-      // Must set day to 1 first to avoid month overflow (e.g., Jan 31 → Feb 31 → Mar 3)
-      const targetDay = dayOfMonth;
-      nextMonth.setDate(1);
-      nextMonth.setMonth(nextMonth.getMonth() + 1);
-      const lastDay = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0).getDate();
-      nextMonth.setDate(Math.min(targetDay, lastDay));
-      current = nextMonth;
-    }
-  }
-
-  return dates;
+  // Aligned occurrences from the shared helper (the same logic the generator
+  // uses), formatted for display.
+  return nextRunDates({ frequency, dayOfWeek, dayOfMonth, startDate }, count).map((d) =>
+    new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  );
 }
 
 export function RecurringReviewStep({
@@ -117,6 +105,7 @@ export function RecurringReviewStep({
   paidById,
   people,
   isSaving,
+  isEditing,
   onPrev,
   onComplete,
   currentStep,
@@ -248,7 +237,9 @@ export function RecurringReviewStep({
       {isSaving && (
         <div className="flex flex-col items-center justify-center gap-2 p-4 text-muted-foreground mt-4 py-8">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
-          <p className="text-sm font-medium animate-pulse">Creating recurring bill...</p>
+          <p className="text-sm font-medium animate-pulse">
+            {isEditing ? 'Saving changes...' : 'Creating recurring bill...'}
+          </p>
         </div>
       )}
 
@@ -259,7 +250,7 @@ export function RecurringReviewStep({
           totalSteps={totalSteps}
           onBack={onPrev}
           onComplete={onComplete}
-          completeLabel="Create"
+          completeLabel={isEditing ? 'Save' : 'Create'}
         />
       </div>
     </div>
