@@ -23,7 +23,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'VITE_USE_EMULATORS=true npm run dev',
+    // VITE_USE_EMULATORS is supplied via the `env` block below — do NOT prefix it
+    // onto the command (the `VAR=val cmd` shell form fails on Windows cmd.exe).
+    command: 'npm run dev',
     url: 'http://localhost:8080',
     reuseExistingServer: true,
     env: {

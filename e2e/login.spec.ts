@@ -18,7 +18,7 @@ test.describe('Login Flow', () => {
     await expect(page).toHaveURL(/\/auth/);
 
     // 4. Verify the auth page content
-    await expect(page.getByRole('heading', { name: 'SplitBill' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Divit' })).toBeVisible();
     await expect(page.getByText('Split bills fairly with AI-powered receipt scanning')).toBeVisible();
 
     // 5. Verify Google sign-in button is present
