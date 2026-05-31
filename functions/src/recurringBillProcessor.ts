@@ -2,6 +2,16 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { createBillCore } from './billFunctions.js';
 
+interface BillDataShape {
+  items: { id: string; name: string; price: number }[];
+  subtotal: number;
+  tax: number;
+  tip: number;
+  otherFees: number;
+  total: number;
+  restaurantName?: string;
+}
+
 interface RecurringBillDoc {
   id: string;
   ownerId: string;
@@ -24,6 +34,19 @@ interface RecurringBillDoc {
   lastRunDate: string | null;
   generatedBillIds: string[];
   eventId?: string;
+
+  // Bill-type generalization (absent on legacy docs → 'quick')
+  generatedType?: 'quick' | 'detailed' | 'airbnb';
+  billData?: BillDataShape;
+  itemAssignments?: Record<string, string[]>;
+  isAirbnb?: boolean;
+  airbnbData?: {
+    startDate: string;
+    endDate: string;
+    nights: number;
+    totalStayCost?: number;
+    fees?: { id: string; name: string; amount: number }[];
+  };
 }
 
 /**
@@ -55,8 +78,19 @@ function advanceDate(
 
 /**
  * Build the billData and itemAssignments for a generated bill from the template.
+ *
+ * New templates (quick/detailed/airbnb) store a full bill snapshot — copy it
+ * verbatim. Legacy quick templates have no snapshot, so fall back to the
+ * amount-based builder below.
  */
 function buildBillPayload(template: RecurringBillDoc) {
+  if (template.billData) {
+    return {
+      billData: template.billData,
+      itemAssignments: template.itemAssignments ?? {},
+    };
+  }
+
   const { amount, title, people, splitEvenly, exactAmounts } = template;
 
   if (splitEvenly) {
@@ -161,6 +195,18 @@ export const processRecurringBills = onSchedule(
 
           if (existing.empty) {
             const { billData, itemAssignments } = buildBillPayload(template);
+            const generatedType = template.generatedType ?? 'quick';
+
+            // Type-specific flags spread into the generated bill doc.
+            const extraFields: Record<string, unknown> = {
+              recurringBillId: template.id,
+              recurringCycleDate: currentRunDate,
+              title: template.title,
+            };
+            if (generatedType === 'airbnb') {
+              extraFields.isAirbnb = true;
+              if (template.airbnbData) extraFields.airbnbData = template.airbnbData;
+            }
 
             const billId = await createBillCore(db, {
               billType: template.eventId ? 'event' : 'private',
@@ -172,13 +218,9 @@ export const processRecurringBills = onSchedule(
               eventId: template.eventId,
               status: 'active',
               splitEvenly: template.splitEvenly,
-              isSimpleTransaction: true,
+              isSimpleTransaction: generatedType === 'quick',
               itemAssignments,
-              extraFields: {
-                recurringBillId: template.id,
-                recurringCycleDate: currentRunDate,
-                title: template.title,
-              },
+              extraFields,
             });
 
             newBillIds.push(billId);

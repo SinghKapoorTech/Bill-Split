@@ -15,6 +15,9 @@ test.describe('Recurring Bill Wizard', () => {
     await page.goto('/recurring/new');
     await page.waitForURL(/\/recurring\/new/, { timeout: 15000 });
 
+    // ── Step 0: Type ── pick Quick Expense
+    await page.getByRole('button', { name: /quick expense/i }).click();
+
     // ── Step 1: Details ──
     // Fill in the title
     const titleInput = page.locator('#title');
@@ -29,16 +32,12 @@ test.describe('Recurring Bill Wizard', () => {
     await page.getByRole('button', { name: 'Next' }).click();
 
     // ── Step 2: People ──
-    // Owner should already be in the list. Add another person.
-    const personNameInput = page.getByPlaceholder(/name/i);
+    // Owner is already in the list. Add another person via the add dialog.
+    await page.getByRole('button', { name: /add (another person|a person)/i }).click();
+    const personNameInput = page.locator('#manual-name');
     await personNameInput.waitFor({ state: 'visible', timeout: 10000 });
     await personNameInput.fill('Brother');
-
-    // Click add
-    const addPersonButton = page.getByRole('button', { name: /^add$/i }).or(
-      page.locator('button').filter({ has: page.locator('.lucide-user-plus') })
-    );
-    await addPersonButton.click();
+    await personNameInput.press('Enter');
 
     // Verify person was added
     await expect(page.getByText('Brother').first()).toBeVisible({ timeout: 5000 });
@@ -47,12 +46,10 @@ test.describe('Recurring Bill Wizard', () => {
     await page.getByRole('button', { name: 'Next' }).click();
 
     // ── Step 3: Schedule ──
-    // Monthly should be the default frequency
-    await expect(page.getByText('Monthly')).toBeVisible({ timeout: 10000 });
-
-    // Verify the frequency buttons are visible
-    await expect(page.getByText('Weekly')).toBeVisible();
-    await expect(page.getByText('Biweekly')).toBeVisible();
+    // Frequency buttons are visible (exact, since "Weekly" is a substring of "Biweekly").
+    await expect(page.getByRole('button', { name: 'Monthly', exact: true })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('button', { name: 'Weekly', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Biweekly', exact: true })).toBeVisible();
 
     // The day of month input should be visible (since Monthly is default)
     const dayOfMonthInput = page.locator('#dayOfMonth');
@@ -80,32 +77,32 @@ test.describe('Recurring Bill Wizard', () => {
     await page.goto('/recurring/new');
     await page.waitForURL(/\/recurring\/new/, { timeout: 15000 });
 
-    // Fill required details step
+    // Pick Quick Expense type, then fill required details step
+    await page.getByRole('button', { name: /quick expense/i }).click();
     await page.locator('#title').fill('Rent');
     await page.locator('#amount').fill('500');
     await page.getByRole('button', { name: 'Next' }).click();
 
-    // Add a person
-    const personInput = page.getByPlaceholder(/name/i);
+    // Add a person via the add dialog
+    await page.getByRole('button', { name: /add (another person|a person)/i }).click();
+    const personInput = page.locator('#manual-name');
     await personInput.waitFor({ state: 'visible', timeout: 10000 });
     await personInput.fill('Roommate');
-    const addBtn = page.getByRole('button', { name: /^add$/i }).or(
-      page.locator('button').filter({ has: page.locator('.lucide-user-plus') })
-    );
-    await addBtn.click();
+    await personInput.press('Enter');
+    await expect(page.getByText('Roommate').first()).toBeVisible({ timeout: 5000 });
     await page.getByRole('button', { name: 'Next' }).click();
 
-    // Now on Schedule step — click Weekly
-    await page.getByText('Weekly').click();
+    // Now on Schedule step — click Weekly (exact: "Weekly" is a substring of "Biweekly")
+    await page.getByRole('button', { name: 'Weekly', exact: true }).click();
 
-    // Day-of-week buttons should appear
-    await expect(page.getByText('Mon')).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('Tue')).toBeVisible();
-    await expect(page.getByText('Wed')).toBeVisible();
-    await expect(page.getByText('Thu')).toBeVisible();
-    await expect(page.getByText('Fri')).toBeVisible();
-    await expect(page.getByText('Sat')).toBeVisible();
-    await expect(page.getByText('Sun')).toBeVisible();
+    // Day-of-week buttons should appear (exact: "Mon" is a substring of "Monthly")
+    await expect(page.getByRole('button', { name: 'Mon', exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Tue', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Wed', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Thu', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fri', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sat', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sun', exact: true })).toBeVisible();
 
     // Day of month input should NOT be visible
     await expect(page.locator('#dayOfMonth')).not.toBeVisible();

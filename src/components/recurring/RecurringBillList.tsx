@@ -5,6 +5,12 @@ import { status as statusStyles } from '@/lib/styles';
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const TYPE_LABEL: Record<'quick' | 'detailed' | 'airbnb', string> = {
+  quick: 'Quick',
+  detailed: 'Detailed',
+  airbnb: 'Airbnb',
+};
+
 interface RecurringBillListProps {
   bills: RecurringBill[];
   onDelete: (bill: RecurringBill) => void;
@@ -83,6 +89,9 @@ function RecurringBillRow({ bill, onDelete, onTogglePause, onEdit }: RecurringBi
         <div className="flex items-center gap-2 mb-1">
           <p className="font-medium truncate">{bill.title}</p>
           <StatusBadge status={bill.status} />
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0">
+            {TYPE_LABEL[bill.generatedType ?? 'quick']}
+          </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

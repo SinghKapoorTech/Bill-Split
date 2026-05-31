@@ -13,9 +13,14 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/config/firebase';
-import { RecurringBill } from '@/types/recurring.types';
+import {
+  RecurringBill,
+  RecurringBillSchedule,
+  RecurringGeneratedType,
+  RecurringAirbnbData,
+} from '@/types/recurring.types';
 import { Person } from '@/types/person.types';
-import { RecurringBillSchedule } from '@/types/recurring.types';
+import { BillData } from '@/types/bill.types';
 
 const COLLECTION = 'recurring_bills';
 
@@ -38,6 +43,11 @@ export const recurringBillService = {
     exactAmounts?: Record<string, number>;
     schedule: RecurringBillSchedule;
     eventId?: string;
+    generatedType?: RecurringGeneratedType;
+    billData?: BillData;
+    itemAssignments?: Record<string, string[]>;
+    isAirbnb?: boolean;
+    airbnbData?: RecurringAirbnbData;
   }): Promise<string> {
     const ref = doc(collection(db, COLLECTION));
     const nextRunDate = computeNextRunDate(params.schedule);
@@ -67,6 +77,7 @@ export const recurringBillService = {
       splitEvenly: params.splitEvenly,
       schedule: cleanSchedule,
       status: 'active',
+      generatedType: params.generatedType ?? 'quick',
       nextRunDate,
       lastRunDate: null,
       generatedBillIds: [],
@@ -79,6 +90,19 @@ export const recurringBillService = {
     }
     if (params.eventId) {
       data.eventId = params.eventId;
+    }
+    // Bill snapshot copied into each generated occurrence (detailed/airbnb/quick).
+    if (params.billData) {
+      data.billData = params.billData;
+    }
+    if (params.itemAssignments) {
+      data.itemAssignments = params.itemAssignments;
+    }
+    if (params.isAirbnb) {
+      data.isAirbnb = true;
+    }
+    if (params.airbnbData) {
+      data.airbnbData = params.airbnbData;
     }
 
     await setDoc(ref, data);

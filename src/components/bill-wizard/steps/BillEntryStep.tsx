@@ -40,6 +40,9 @@ interface BillEntryStepProps {
     isMobile: boolean;
     removeItemAssignments: (itemId: string) => void;
     onTriggerSave?: (options?: { overrideData?: Partial<import('@/types/bill.types').Bill>; forceSave?: boolean }) => void;
+    // When true, render manual item entry only (no AI receipt scanning). Used by the
+    // recurring-bill wizard, where items are fixed and regenerate each cycle.
+    hideReceiptScan?: boolean;
 }
 
 /**
@@ -64,7 +67,8 @@ export function BillEntryStep({
     totalSteps,
     isMobile,
     removeItemAssignments,
-    onTriggerSave
+    onTriggerSave,
+    hideReceiptScan = false
 }: BillEntryStepProps) {
     const upload = useFileUpload();
     const editor = useItemEditor(
@@ -119,6 +123,44 @@ export function BillEntryStep({
             return () => clearTimeout(timeout);
         }
     }, [hasReceipt, hasItems, isAnalyzing, isMobile]);
+
+    // Manual-only layout (recurring wizard): single-column item entry, no AI scan.
+    if (hideReceiptScan) {
+        return (
+            <div>
+                <Card className="bill-card-full-width max-w-2xl mx-auto">
+                    <div className="section-header">
+                        <Receipt className="icon-md icon-primary" />
+                        <h3 className="section-title">{UI_TEXT.BILL_ITEMS}</h3>
+                    </div>
+                    <p className="text-description-mb">
+                        Add the fixed items for this recurring bill. They regenerate every cycle.
+                    </p>
+
+                    <BillItems {...billItemsProps} />
+
+                    <BillSummary
+                        billData={billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }}
+                        onUpdate={(updates) => {
+                            const newBillData = { ...(billData || { items: [], subtotal: 0, tax: 0, tip: 0, total: 0 }), ...updates };
+                            setBillData(newBillData);
+                            onTriggerSave?.({ overrideData: { billData: newBillData }, forceSave: true });
+                        }}
+                    />
+                </Card>
+
+                {/* Desktop only: StepFooter */}
+                <div className="hidden md:block">
+                    <StepFooter
+                        currentStep={currentStep}
+                        totalSteps={totalSteps}
+                        onNext={onNext}
+                        nextDisabled={!canProceed}
+                    />
+                </div>
+            </div>
+        );
+    }
 
     // Mobile: Tab-based layout
     if (isMobile) {

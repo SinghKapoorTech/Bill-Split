@@ -15,6 +15,9 @@ test.describe('Recurring bills on the Bills page', () => {
     await page.goto('/recurring/new');
     await page.waitForURL(/\/recurring\/new/, { timeout: 15000 });
 
+    // Pick Quick Expense type
+    await page.getByRole('button', { name: /quick expense/i }).click();
+
     await page.locator('#title').fill('Spotify Family');
     await page.locator('#amount').fill('19.99');
     await page.getByRole('button', { name: 'Next' }).click();

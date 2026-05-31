@@ -1,6 +1,6 @@
-import { RecurringBill } from '@/types/recurring.types';
+import { RecurringBill, RecurringGeneratedType } from '@/types/recurring.types';
 import { formatCurrency } from '@/utils/format';
-import { Repeat } from 'lucide-react';
+import { Repeat, Zap, Receipt, Home } from 'lucide-react';
 import { status as statusStyles } from '@/lib/styles';
 
 interface MobileRecurringBillCardProps {
@@ -12,6 +12,12 @@ const FREQUENCY_LABEL: Record<RecurringBill['schedule']['frequency'], string> = 
   weekly: 'Weekly',
   biweekly: 'Biweekly',
   monthly: 'Monthly',
+};
+
+const TYPE_META: Record<RecurringGeneratedType, { label: string; icon: typeof Repeat }> = {
+  quick: { label: 'Quick', icon: Zap },
+  detailed: { label: 'Detailed', icon: Receipt },
+  airbnb: { label: 'Airbnb', icon: Home },
 };
 
 const STATUS_PILL: Record<'active' | 'paused', { label: string; color: string }> = {
@@ -26,7 +32,8 @@ const STATUS_PILL: Record<'active' | 'paused', { label: string; color: string }>
  */
 export default function MobileRecurringBillCard({ bill, onView }: MobileRecurringBillCardProps) {
   const pill = bill.status === 'paused' ? STATUS_PILL.paused : STATUS_PILL.active;
-  const subtitle = `${formatCurrency(bill.amount)} • ${FREQUENCY_LABEL[bill.schedule.frequency]}`;
+  const typeMeta = TYPE_META[bill.generatedType ?? 'quick'];
+  const subtitle = `${formatCurrency(bill.amount)} • ${typeMeta.label} • ${FREQUENCY_LABEL[bill.schedule.frequency]}`;
 
   const handleRowClick = () => onView(bill.id);
 
@@ -40,13 +47,16 @@ export default function MobileRecurringBillCard({ bill, onView }: MobileRecurrin
     >
       <div className="flex items-center gap-2.5 overflow-hidden">
         <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm bg-success/10 text-success">
-          <Repeat className="w-6 h-6" />
+          <typeMeta.icon className="w-6 h-6" />
         </div>
 
         <div className="flex flex-col min-w-0 pr-2">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground truncate">
               {bill.title}
+            </span>
+            <span className={`${statusStyles.pill} bg-success/10 text-success`} title="Recurring">
+              <Repeat className="w-3 h-3" />
             </span>
             <span className={`${statusStyles.pill} ${pill.color}`}>
               {pill.label}

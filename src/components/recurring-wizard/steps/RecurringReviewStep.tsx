@@ -28,6 +28,11 @@ interface RecurringReviewStepProps {
   dayOfMonth: number;
   startDate: string;
   endDate?: string;
+  // Overrides for detailed/airbnb types, which build a real billData snapshot
+  // rather than deriving one from a single amount + split method.
+  billDataOverride?: BillData;
+  itemAssignmentsOverride?: ItemAssignment;
+  personTotalsOverride?: PersonTotal[];
 }
 
 function formatScheduleSummary(
@@ -124,9 +129,12 @@ export function RecurringReviewStep({
   dayOfMonth,
   startDate,
   endDate,
+  billDataOverride,
+  itemAssignmentsOverride,
+  personTotalsOverride,
 }: RecurringReviewStepProps) {
   const { user } = useAuth();
-  const numAmount = Number(amount) || 0;
+  const numAmount = billDataOverride ? billDataOverride.total : Number(amount) || 0;
 
   const getPersonAmount = (personId: string, index: number): number => {
     if (splitMethod === 'percentage') {
@@ -191,6 +199,11 @@ export function RecurringReviewStep({
     };
   });
 
+  // Detailed/airbnb pass real snapshots; quick derives from amount + split method.
+  const finalBillData = billDataOverride ?? dummyBillData;
+  const finalItemAssignments = itemAssignmentsOverride ?? dummyItemAssignments;
+  const finalPersonTotals = personTotalsOverride ?? personTotals;
+
   const scheduleSummary = formatScheduleSummary(frequency, dayOfWeek, dayOfMonth, startDate, endDate);
   const nextDates = getNextBillDates(frequency, dayOfWeek, dayOfMonth, startDate, 3);
 
@@ -216,17 +229,17 @@ export function RecurringReviewStep({
         </div>
       </div>
 
-      {personTotals.length > 1 && (
-        <SplitDonutChart personTotals={personTotals} total={numAmount} />
+      {finalPersonTotals.length > 1 && (
+        <SplitDonutChart personTotals={finalPersonTotals} total={numAmount} />
       )}
 
       <div className="w-full">
         <SplitSummary
-          personTotals={personTotals}
+          personTotals={finalPersonTotals}
           allItemsAssigned={true}
           people={people}
-          billData={dummyBillData}
-          itemAssignments={dummyItemAssignments}
+          billData={finalBillData}
+          itemAssignments={finalItemAssignments}
           paidById={paidById}
           ownerId={user?.uid}
         />
