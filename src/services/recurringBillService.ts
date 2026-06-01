@@ -12,7 +12,8 @@ import {
   orderBy,
   Unsubscribe,
 } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '@/config/firebase';
 import {
   RecurringBill,
   RecurringBillSchedule,
@@ -24,6 +25,24 @@ import { BillData } from '@/types/bill.types';
 import { firstRunDate } from '@shared/recurringSchedule';
 
 const COLLECTION = 'recurring_bills';
+
+/**
+ * Fire the server-side generator for a just-saved template so any already-due /
+ * overdue cycles are created immediately (instead of waiting for the hourly
+ * scheduler). Best-effort: failures are swallowed because the template is
+ * already persisted and the hourly pass will catch up.
+ */
+async function triggerImmediateGeneration(recurringBillId: string): Promise<void> {
+  try {
+    const fn = httpsCallable<{ recurringBillId: string }, { created: number }>(
+      functions,
+      'generateRecurringBillNow'
+    );
+    await fn({ recurringBillId });
+  } catch (err) {
+    console.error('Immediate recurring-bill generation failed (hourly job will catch up):', err);
+  }
+}
 
 /**
  * The first run date, aligned to the schedule's dayOfWeek / dayOfMonth on or
@@ -110,6 +129,7 @@ export const recurringBillService = {
     };
 
     await setDoc(ref, data);
+    await triggerImmediateGeneration(ref.id);
     return ref.id;
   },
 
@@ -124,6 +144,7 @@ export const recurringBillService = {
       nextRunDate: computeNextRunDate(params.schedule),
       updatedAt: serverTimestamp(),
     });
+    await triggerImmediateGeneration(id);
   },
 
   async getRecurringBill(id: string): Promise<RecurringBill | null> {

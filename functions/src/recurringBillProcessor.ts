@@ -118,6 +118,106 @@ function buildBillPayload(template: RecurringBillDoc) {
 }
 
 /**
+ * Generate all due/missed bills for a SINGLE template and advance its schedule.
+ * Shared by the hourly batch pass and the immediate generate-on-create/edit path.
+ * Returns the number of bills created. Throws on failure (callers decide whether
+ * to swallow — the batch pass logs and continues, the catch-up is idempotent).
+ */
+async function generateForTemplate(
+  db: Firestore,
+  docSnap: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot,
+  todayStr: string
+): Promise<number> {
+  const template = docSnap.data() as RecurringBillDoc;
+  const templateRef = docSnap.ref;
+  let created = 0;
+
+  // Catch-up loop: create bills for all missed cycles. On the very first
+  // run, anchor to the aligned firstRunDate (repairs legacy docs whose
+  // nextRunDate was seeded to the raw, unaligned startDate).
+  let currentRunDate = template.lastRunDate
+    ? template.nextRunDate
+    : firstRunDate(template.schedule);
+  const newBillIds: string[] = [];
+
+  while (currentRunDate <= todayStr) {
+    // Check end date
+    if (template.schedule.endDate && currentRunDate > template.schedule.endDate) {
+      break;
+    }
+
+    // Idempotency check: skip if bill already exists for this cycle
+    const existing = await db
+      .collection('bills')
+      .where('recurringBillId', '==', template.id)
+      .where('recurringCycleDate', '==', currentRunDate)
+      .limit(1)
+      .get();
+
+    if (existing.empty) {
+      const { billData, itemAssignments } = buildBillPayload(template);
+      const generatedType = template.generatedType ?? 'quick';
+
+      // Type-specific flags spread into the generated bill doc.
+      const extraFields: Record<string, unknown> = {
+        recurringBillId: template.id,
+        recurringCycleDate: currentRunDate,
+        title: template.title,
+      };
+      if (generatedType === 'airbnb') {
+        extraFields.isAirbnb = true;
+        if (template.airbnbData) extraFields.airbnbData = template.airbnbData;
+      }
+
+      const billId = await createBillCore(db, {
+        billType: template.eventId ? 'event' : 'private',
+        billData,
+        people: template.people,
+        ownerId: template.ownerId,
+        ownerName: template.ownerName,
+        paidById: template.paidById,
+        eventId: template.eventId,
+        status: 'active',
+        splitEvenly: template.splitEvenly,
+        isSimpleTransaction: generatedType === 'quick',
+        itemAssignments,
+        extraFields,
+      });
+
+      newBillIds.push(billId);
+      created++;
+      console.log(`Created bill ${billId} for recurring ${template.id} (cycle ${currentRunDate})`);
+    }
+
+    // Advance to next cycle
+    currentRunDate = advanceRunDate(
+      currentRunDate,
+      template.schedule.frequency,
+      template.schedule.dayOfMonth
+    );
+  }
+
+  // Update the template
+  const updates: Record<string, unknown> = {
+    lastRunDate: todayStr,
+    nextRunDate: currentRunDate,
+    updatedAt: Timestamp.now(),
+  };
+
+  if (newBillIds.length > 0) {
+    updates.generatedBillIds = FieldValue.arrayUnion(...newBillIds);
+  }
+
+  // If next run is past end date, mark as completed
+  if (template.schedule.endDate && currentRunDate > template.schedule.endDate) {
+    updates.status = 'completed';
+  }
+
+  await templateRef.update(updates);
+  return created;
+}
+
+/**
  * Core generation pass: for every active template due on/before `todayStr`,
  * create bills for all missed cycles and advance the schedule. Pure of any
  * trigger plumbing so it can be driven by the hourly scheduler, a dev HTTP
@@ -144,100 +244,49 @@ export async function generateDueRecurringBills(
   let created = 0;
 
   for (const docSnap of snapshot.docs) {
-    const template = docSnap.data() as RecurringBillDoc;
-    const templateRef = docSnap.ref;
-
     try {
-      // Catch-up loop: create bills for all missed cycles. On the very first
-      // run, anchor to the aligned firstRunDate (repairs legacy docs whose
-      // nextRunDate was seeded to the raw, unaligned startDate).
-      let currentRunDate = template.lastRunDate
-        ? template.nextRunDate
-        : firstRunDate(template.schedule);
-      const newBillIds: string[] = [];
-
-      while (currentRunDate <= todayStr) {
-        // Check end date
-        if (template.schedule.endDate && currentRunDate > template.schedule.endDate) {
-          break;
-        }
-
-        // Idempotency check: skip if bill already exists for this cycle
-        const existing = await db
-          .collection('bills')
-          .where('recurringBillId', '==', template.id)
-          .where('recurringCycleDate', '==', currentRunDate)
-          .limit(1)
-          .get();
-
-        if (existing.empty) {
-          const { billData, itemAssignments } = buildBillPayload(template);
-          const generatedType = template.generatedType ?? 'quick';
-
-          // Type-specific flags spread into the generated bill doc.
-          const extraFields: Record<string, unknown> = {
-            recurringBillId: template.id,
-            recurringCycleDate: currentRunDate,
-            title: template.title,
-          };
-          if (generatedType === 'airbnb') {
-            extraFields.isAirbnb = true;
-            if (template.airbnbData) extraFields.airbnbData = template.airbnbData;
-          }
-
-          const billId = await createBillCore(db, {
-            billType: template.eventId ? 'event' : 'private',
-            billData,
-            people: template.people,
-            ownerId: template.ownerId,
-            ownerName: template.ownerName,
-            paidById: template.paidById,
-            eventId: template.eventId,
-            status: 'active',
-            splitEvenly: template.splitEvenly,
-            isSimpleTransaction: generatedType === 'quick',
-            itemAssignments,
-            extraFields,
-          });
-
-          newBillIds.push(billId);
-          created++;
-          console.log(`Created bill ${billId} for recurring ${template.id} (cycle ${currentRunDate})`);
-        }
-
-        // Advance to next cycle
-        currentRunDate = advanceRunDate(
-          currentRunDate,
-          template.schedule.frequency,
-          template.schedule.dayOfMonth
-        );
-      }
-
-      // Update the template
-      const updates: Record<string, unknown> = {
-        lastRunDate: todayStr,
-        nextRunDate: currentRunDate,
-        updatedAt: Timestamp.now(),
-      };
-
-      if (newBillIds.length > 0) {
-        updates.generatedBillIds = FieldValue.arrayUnion(...newBillIds);
-      }
-
-      // If next run is past end date, mark as completed
-      if (template.schedule.endDate && currentRunDate > template.schedule.endDate) {
-        updates.status = 'completed';
-      }
-
-      await templateRef.update(updates);
+      created += await generateForTemplate(db, docSnap, todayStr);
     } catch (error) {
-      console.error(`Failed to process recurring bill ${template.id}:`, error);
+      console.error(`Failed to process recurring bill ${docSnap.id}:`, error);
       // Continue with other templates — don't let one failure block the rest
     }
   }
 
   console.log('Recurring bill processing complete.');
   return { processed: snapshot.size, created };
+}
+
+/**
+ * Immediate, single-template generation for the create/edit flow. Verifies the
+ * caller owns the template, then runs the same catch-up generation so any
+ * already-due / overdue cycles are created right away instead of waiting up to
+ * an hour for the scheduler. Idempotent with the hourly pass (existing-cycle
+ * check prevents duplicates).
+ */
+export async function generateRecurringBillNowCore(
+  db: Firestore,
+  recurringBillId: string,
+  ownerId: string,
+  todayStr: string
+): Promise<{ created: number }> {
+  const docSnap = await db.collection('recurring_bills').doc(recurringBillId).get();
+
+  if (!docSnap.exists) {
+    throw new Error('Recurring bill not found');
+  }
+
+  const template = docSnap.data() as RecurringBillDoc;
+  if (template.ownerId !== ownerId) {
+    throw new Error('Not authorized to generate this recurring bill');
+  }
+
+  // Only active templates generate; paused/completed are no-ops.
+  if (template.status !== 'active') {
+    return { created: 0 };
+  }
+
+  const created = await generateForTemplate(db, docSnap, todayStr);
+  return { created };
 }
 
 /**

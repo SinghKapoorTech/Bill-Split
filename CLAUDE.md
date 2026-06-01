@@ -637,12 +637,12 @@ gitignored **`.env.beta`** (used by `npm run dev:beta`); regenerate with
 ### Branch → environment mapping
 
 ```
-feature branch → PR → CI gates (unit tests + functions build)
-   → merge to `develop`  → AUTO-deploys backend to BETA (divit-beta)
+work on `develop` → CI gates (unit tests + functions build)
+   → push to `develop`  → AUTO-deploys backend to BETA (divit-beta)
    → merge `develop` → `main` → AUTO-deploys backend to PROD (divit-6d217), NO approval gate
 ```
 
-- **`develop`** = integration branch / what's on beta. Do day-to-day work here (or via feature branches PR'd into it).
+- **`develop`** = integration branch / what's on beta. **Commit day-to-day work directly to `develop` — do NOT create feature branches.** (Assistants: never `git checkout -b` for routine work; stay on `develop`.)
 - **`main`** = production. Treat "merge to main" as "ship to prod." Promote with a `develop → main` PR or `git merge --ff-only develop`.
 - A gate can be added anytime: repo **Settings → Environments → `production` → Required reviewers** (no code change).
 
@@ -653,8 +653,8 @@ feature branch → PR → CI gates (unit tests + functions build)
 
 ### Testing a backend change
 
-1. Branch off `develop`, make the change, open a PR → CI must pass.
-2. Merge to `develop` → it deploys to beta. Test with `npm run dev:beta` (frontend → beta backend), force-run a scheduled function from the GCP Cloud Scheduler console, or call functions directly.
+1. Make the change on `develop`; CI runs on push and must pass.
+2. Push to `develop` → it deploys to beta. Test with `npm run dev:beta` (frontend → beta backend), force-run a scheduled function from the GCP Cloud Scheduler console, or call functions directly.
 3. When beta looks good, promote `develop → main` → prod deploys automatically.
 
 ### Promoting `develop` → `main` (ship to prod)

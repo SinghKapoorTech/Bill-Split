@@ -443,6 +443,45 @@ export { createBill, joinBillAsGuest, leaveBillAsGuest, updateGuestName, claimSh
 export { processRecurringBills } from './recurringBillProcessor.js';
 
 /**
+ * Cloud Function: Generate a recurring bill's due occurrences immediately.
+ *
+ * Called by the client right after a template is created or edited so any
+ * already-due / overdue cycles are generated at once (with balances updated via
+ * the ledger pipeline) instead of waiting up to an hour for the scheduler.
+ * Idempotent with the hourly pass.
+ */
+export const generateRecurringBillNow = onCall<{ recurringBillId: string }>(
+  { timeoutSeconds: 120, memory: '512MiB' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { recurringBillId } = request.data;
+    if (!recurringBillId) {
+      throw new HttpsError('invalid-argument', 'recurringBillId is required');
+    }
+
+    try {
+      const { generateRecurringBillNowCore } = await import('./recurringBillProcessor.js');
+      const db = getFirestore();
+      const todayStr = new Date().toISOString().split('T')[0];
+      return await generateRecurringBillNowCore(db, recurringBillId, request.auth.uid, todayStr);
+    } catch (error) {
+      console.error('Failed to generate recurring bill now:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      if (message === 'Recurring bill not found') {
+        throw new HttpsError('not-found', message);
+      }
+      if (message === 'Not authorized to generate this recurring bill') {
+        throw new HttpsError('permission-denied', message);
+      }
+      throw new HttpsError('internal', `Failed to generate recurring bill: ${message}`);
+    }
+  }
+);
+
+/**
  * Dev-only manual trigger for the recurring-bill generator. Exported ONLY when
  * running under the Firebase emulator so it is never deployed to production.
  * Lets you run a generation pass on demand (the scheduler doesn't fire locally),
