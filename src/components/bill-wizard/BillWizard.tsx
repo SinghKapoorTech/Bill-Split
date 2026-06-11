@@ -543,7 +543,13 @@ export function BillWizard({
     };
 
     const { state: routerState } = useLocation();
-    const targetEventId = activeSession?.eventId || routerState?.targetEventId;
+    // `eventId` prop is hydrated from the loaded bill (or nav state for fresh drafts)
+    // and is specific to THIS bill; `routerState` covers the brief pre-hydration window
+    // on a draft coming from an event. We deliberately do NOT fall back to
+    // `activeSession?.eventId` — activeSession is the globally-newest bill, not
+    // necessarily the one being edited, so it can both miss the event and wrongly
+    // pull a private bill into one.
+    const targetEventId = eventId ?? routerState?.targetEventId;
 
     // ── Auto-apply balances when the user reaches the Review step ───────────
     // Ledger balances are now applied automatically by the server-side pipeline
