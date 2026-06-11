@@ -41,10 +41,11 @@ function DeepLinkHandler() {
   useEffect(() => {
     // Listen for deep links
     let listenerHandle: { remove: () => void } | null = null;
+    let cancelled = false;
 
     CapApp.addListener('appUrlOpen', (event) => {
       const url = event.url;
-      
+
       try {
         const urlObj = new URL(url);
         const path = urlObj.pathname + urlObj.search;
@@ -53,10 +54,15 @@ function DeepLinkHandler() {
         console.error('Error parsing deep link URL:', error);
       }
     }).then(handle => {
-      listenerHandle = handle;
+      if (cancelled) {
+        handle.remove();
+      } else {
+        listenerHandle = handle;
+      }
     });
 
     return () => {
+      cancelled = true;
       if (listenerHandle) {
         listenerHandle.remove();
       }
