@@ -566,7 +566,7 @@ export function BillWizard({
         if (targetEventId) {
             navigate(`/events/${targetEventId}`);
         } else {
-            navigate('/dashboard');
+            navigate('/bills');
         }
     };
 
