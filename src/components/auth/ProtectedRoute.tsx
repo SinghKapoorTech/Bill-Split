@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { getAuthGate } from '@/utils/authGate';
 import { Loader2 } from 'lucide-react';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -9,19 +10,23 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
   const location = useLocation();
 
+  // 'loading' while auth is still resolving (incl. the `user === undefined`
+  // window) so we never redirect an authenticated user mid-restore.
+  const decision = getAuthGate(loading, user);
+
   useEffect(() => {
-    // Show toast when redirecting unauthenticated users
-    if (!loading && !user) {
+    // Show toast only once auth has genuinely resolved to no user.
+    if (decision === 'redirect') {
       toast({
         title: 'Authentication Required',
         description: 'Please sign in to access this page.',
         variant: 'default',
       });
     }
-  }, [loading, user, toast]);
+  }, [decision, toast]);
 
   // Show loading spinner while determining auth state
-  if (loading) {
+  if (decision === 'loading') {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -30,7 +35,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   // Redirect to landing page if not authenticated
-  if (!user) {
+  if (decision === 'redirect') {
     return <Navigate to="/" replace state={{ from: location }} />;
   }
 

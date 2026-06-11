@@ -76,8 +76,10 @@ function RootRoute() {
   const { user, loading } = useAuth();
   const { isNative } = usePlatform();
 
-  // Show loading screen during auth state check
-  if (loading) {
+  // Show loading screen while auth is still resolving. `user === undefined`
+  // means Firebase has not answered yet — on native this prevents flashing the
+  // sign-in screen before a persisted session is restored.
+  if (loading || user === undefined) {
     return <LoadingScreen />;
   }
 
