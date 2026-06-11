@@ -161,6 +161,8 @@ export const billService = {
     return onSnapshot(q, (snapshot) => {
       const bills = snapshot.docs.map(doc => doc.data() as Bill);
       callback(bills);
+    }, (error) => {
+      console.error('[billService] subscribeBillsByEvent error', error);
     });
   },
 
@@ -191,6 +193,8 @@ export const billService = {
     return onSnapshot(q, (snapshot) => {
       const bills = snapshot.docs.map(doc => doc.data() as Bill);
       callback(bills);
+    }, (error) => {
+      console.error('[billService] subscribeBillsBySquad error', error);
     });
   },
 

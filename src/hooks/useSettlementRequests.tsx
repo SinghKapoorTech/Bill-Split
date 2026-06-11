@@ -69,6 +69,11 @@ export function SettlementRequestsProvider({ children }: { children: React.React
       setOutgoingRequests(requests);
       outLoaded = true;
       if (inLoaded) setLoading(false);
+    }, (error) => {
+      console.error('[useSettlementRequests] outgoing subscription error', error);
+      setOutgoingRequests([]);
+      outLoaded = true;
+      if (inLoaded) setLoading(false);
     });
 
     const unsubIn = onSnapshot(inQ, (snap) => {
@@ -76,6 +81,11 @@ export function SettlementRequestsProvider({ children }: { children: React.React
         .map(d => ({ ...d.data(), id: d.id } as SettlementRequest))
         .filter(r => !isStale(r));
       setIncomingRequests(requests);
+      inLoaded = true;
+      if (outLoaded) setLoading(false);
+    }, (error) => {
+      console.error('[useSettlementRequests] incoming subscription error', error);
+      setIncomingRequests([]);
       inLoaded = true;
       if (outLoaded) setLoading(false);
     });
