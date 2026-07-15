@@ -126,9 +126,13 @@ export async function processEventSettlementCore(
     const billSnaps = await Promise.all(billRefs.map(ref => tx.get(ref)));
 
     // 3. Mark each bill as settled for the debtor.
-    //    Zero both processedEventBalances[debtorUid] and processedBalances[debtorUid]
-    //    to prevent the ledgerProcessor from re-applying stale deltas when it
-    //    fires from the settledPersonIds change.
+    //    Zero ONLY processedEventBalances[debtorUid] — the event pair balance
+    //    is zeroed directly below, so the pipeline must see no event delta.
+    //    processedBalances is deliberately left untouched: when the
+    //    ledgerProcessor fires from the settledPersonIds change, it computes a
+    //    zero footprint for the debtor, diffs it against the stale
+    //    processedBalances entry, and applies the negative delta to the global
+    //    balances doc — the flow-through described in this file's docstring.
     const settledBillIds: string[] = [];
     const now = Timestamp.now();
 
@@ -154,11 +158,7 @@ export async function processEventSettlementCore(
       // Skip if already settled
       if ((bill.settledPersonIds ?? []).includes(debtorPersonId)) continue;
 
-      // Zero this participant's processedBalances and processedEventBalances entries
-      const currentProcessed: Record<string, number> = bill.processedBalances ?? {};
-      const updatedProcessed = { ...currentProcessed };
-      delete updatedProcessed[debtorUid];
-
+      // Zero this participant's processedEventBalances entry (event ledger only)
       const currentProcessedEvent: Record<string, number> = bill.processedEventBalances ?? {};
       const updatedProcessedEvent = { ...currentProcessedEvent };
       delete updatedProcessedEvent[debtorUid];
@@ -166,7 +166,6 @@ export async function processEventSettlementCore(
       tx.update(billRefs[i], {
         settledPersonIds: FieldValue.arrayUnion(debtorPersonId),
         unsettledParticipantIds: FieldValue.arrayRemove(debtorUid),
-        processedBalances: updatedProcessed,
         processedEventBalances: updatedProcessedEvent,
       });
 

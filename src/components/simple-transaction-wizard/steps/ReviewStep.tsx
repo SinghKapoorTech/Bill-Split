@@ -8,6 +8,7 @@ import { arrayUnion, arrayRemove } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { SplitMethod } from "../SplitMethodSelector";
 import { SplitDonutChart } from "@/components/shared/SplitDonutChart";
+import { resolveSplitAmounts, buildPerPersonShareItems } from "@shared/splitAmounts";
 
 interface ReviewStepProps {
   amount: string;
@@ -71,23 +72,9 @@ export function ReviewStep({
 
   const numAmount = Number(amount) || 0;
 
-  // Compute per-person amounts based on split method
-  const getPersonAmount = (personId: string, index: number): number => {
-    if (splitMethod === 'percentage') {
-      if (index === people.length - 1) {
-        const othersTotal = people.slice(0, -1).reduce(
-          (sum, p) => sum + Math.round(numAmount * (percentages[p.id] || 0) / 100 * 100) / 100, 0
-        );
-        return Math.round((numAmount - othersTotal) * 100) / 100;
-      }
-      return Math.round(numAmount * (percentages[personId] || 0) / 100 * 100) / 100;
-    }
-    if (splitMethod === 'exact') {
-      return exactAmounts[personId] || 0;
-    }
-    // Equal
-    return people.length > 0 ? numAmount / people.length : 0;
-  };
+  // Per-person amounts — same shared math as the save path, so the review
+  // screen always shows exactly what gets persisted.
+  const personAmounts = resolveSplitAmounts(numAmount, people, splitMethod, percentages, exactAmounts);
 
   // Build billData and assignments matching the split method
   let dummyBillData: BillData;
@@ -103,11 +90,7 @@ export function ReviewStep({
     };
     dummyItemAssignments = { "dummy-item": people.map(p => p.id) };
   } else {
-    const items = people.map((p, i) => ({
-      id: `item-${p.id}`,
-      name: `${p.name}'s share`,
-      price: getPersonAmount(p.id, i),
-    }));
+    const { items, itemAssignments } = buildPerPersonShareItems(people, personAmounts);
     dummyBillData = {
       items,
       subtotal: numAmount,
@@ -115,14 +98,11 @@ export function ReviewStep({
       tip: 0,
       total: numAmount,
     };
-    dummyItemAssignments = {};
-    people.forEach(p => {
-      dummyItemAssignments[`item-${p.id}`] = [p.id];
-    });
+    dummyItemAssignments = itemAssignments;
   }
 
-  const personTotals: PersonTotal[] = people.map((p, i) => {
-    const personAmount = getPersonAmount(p.id, i);
+  const personTotals: PersonTotal[] = people.map(p => {
+    const personAmount = personAmounts[p.id] ?? 0;
     return {
       personId: p.id,
       name: p.name,

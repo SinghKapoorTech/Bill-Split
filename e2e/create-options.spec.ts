@@ -11,7 +11,7 @@ test.describe('CreateOptionsDialog', () => {
   test('shows all four bill creation options', async ({ page }) => {
     await loginAsTestUser(page);
     await page.waitForURL(/\/dashboard/, { timeout: 20000 });
-    await expect(page.getByText('Welcome back')).toBeVisible({ timeout: 45000 });
+    await expect(page.getByRole('heading', { name: 'Balances' })).toBeVisible({ timeout: 45000 });
 
     // Open the create dialog via the + button on the Bills section
     // Navigate to the bills tab first

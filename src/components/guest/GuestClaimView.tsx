@@ -4,7 +4,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { User, Receipt, Edit2, Loader2, AlertTriangle, CheckCircle2, Undo2 } from 'lucide-react';
 import { arrayRemove } from 'firebase/firestore';
-import { Bill, BillItem } from '@/types/bill.types';
+import { Bill } from '@/types/bill.types';
+import { computeBillPersonTotals } from '@shared/calculations';
 import { billService } from '@/services/billService';
 import { useToast } from '@/hooks/use-toast';
 import { Person } from '@/types/person.types';
@@ -157,13 +158,23 @@ export function GuestClaimView({
     ) || null;
   }, [session.paidById, session.ownerId, session.people]);
 
+  // What the current person owes — same shared calculation as the ledger
+  // pipeline (includes proportional tax/tip/fees), so the Venmo amount
+  // always matches what the balance docs record.
+  const myTotal = useMemo(() => {
+    if (!currentPerson) return 0;
+    const totals = computeBillPersonTotals(
+      session.billData,
+      session.people || [],
+      session.itemAssignments || {},
+      Boolean(session.splitEvenly)
+    );
+    return totals.find(t => t.personId === currentPerson.id)?.total ?? 0;
+  }, [session.billData, session.people, session.itemAssignments, session.splitEvenly, currentPerson]);
+
   const handlePayOnVenmo = () => {
     if (!currentPerson || !payerPerson) return;
-    const total = calculatePersonTotal(
-      session.billData?.items || [],
-      session.itemAssignments || {},
-      currentPerson.id
-    );
+    const total = myTotal;
     if (total <= 0) return;
 
     // Build itemized description
@@ -181,8 +192,9 @@ export function GuestClaimView({
     });
 
     const restaurantName = session.billData?.restaurantName || (session.isSimpleTransaction && session.billData?.items?.[0]?.name) || 'Divit';
+    const hasExtras = (session.billData?.tax || 0) + (session.billData?.tip || 0) + (session.billData?.otherFees || 0) > 0;
     const note = assignedItems.length > 0
-      ? `${restaurantName}: ${assignedItems.join(', ')}`
+      ? `${restaurantName}: ${assignedItems.join(', ')}${hasExtras ? ' (incl. tax/tip)' : ''}`
       : `${restaurantName} - Your share`;
 
     const charge: VenmoCharge = {
@@ -289,7 +301,7 @@ export function GuestClaimView({
           <div className="text-right">
             <span className="text-sm text-muted-foreground block">Total</span>
             <span className={`text-xl font-bold ${isSettled ? 'text-success line-through' : 'text-primary'}`}>
-              ${calculatePersonTotal(items, itemAssignments, currentPerson.id).toFixed(2)}
+              ${myTotal.toFixed(2)}
             </span>
           </div>
         </div>
@@ -310,7 +322,7 @@ export function GuestClaimView({
         )}
 
         {/* Pay on Venmo button - hidden when settled */}
-        {!isSettled && payerPerson && currentPerson.id !== payerPerson.id && calculatePersonTotal(items, itemAssignments, currentPerson.id) > 0 && (
+        {!isSettled && payerPerson && currentPerson.id !== payerPerson.id && myTotal > 0 && (
           <div className="mt-3 pt-3 border-t">
             <Button
               onClick={handlePayOnVenmo}
@@ -441,27 +453,5 @@ export function GuestClaimView({
       </Dialog>
     </div>
   );
-}
-
-/**
- * Calculate what this person owes based on their claimed items
- * Items are split equally among all people who claimed them
- */
-function calculatePersonTotal(
-  items: BillItem[],
-  itemAssignments: Record<string, string[]>,
-  personId: string
-): number {
-  let total = 0;
-
-  for (const item of items) {
-    const assignedTo = itemAssignments[item.id] || [];
-    if (assignedTo.includes(personId)) {
-      // Split price among all claimers
-      total += item.price / assignedTo.length;
-    }
-  }
-
-  return total;
 }
 

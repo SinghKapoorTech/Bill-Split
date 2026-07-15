@@ -19,6 +19,7 @@ import { PeopleStep } from './steps/PeopleStep';
 import { ReviewStep } from './steps/ReviewStep';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { ensureUserInPeople, generateUserId } from '@/utils/billCalculations';
+import { distributeEvenly, resolveSplitAmounts, isSplitConfigValid, buildPerPersonShareItems } from '@shared/splitAmounts';
 import { userService } from '@/services/userService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
@@ -242,42 +243,29 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
   // Sync split data when people change
   useEffect(() => {
     if (people.length < 2) return;
-    const equalPct = Math.round((100 / people.length) * 100) / 100;
-    const equalAmt = Math.round((Number(amount) / people.length) * 100) / 100;
 
-    setPercentages(prev => {
-      const next: Record<string, number> = {};
+    const peopleChanged = (prev: Record<string, number>) => {
       const existingIds = new Set(Object.keys(prev));
       const currentIds = new Set(people.map(p => p.id));
-      // If people changed (added/removed), redistribute equally
-      const changed = people.some(p => !existingIds.has(p.id)) ||
+      return people.some(p => !existingIds.has(p.id)) ||
         [...existingIds].some(id => !currentIds.has(id));
-      if (changed || Object.keys(prev).length === 0) {
-        people.forEach((p, i) => {
-          next[p.id] = i === people.length - 1
-            ? Math.round((100 - equalPct * (people.length - 1)) * 100) / 100
-            : equalPct;
-        });
-        return next;
-      }
-      return prev;
+    };
+
+    // If people changed (added/removed), redistribute equally
+    setPercentages(prev => {
+      if (!peopleChanged(prev) && Object.keys(prev).length > 0) return prev;
+      const shares = distributeEvenly(100, people.length);
+      const next: Record<string, number> = {};
+      people.forEach((p, i) => { next[p.id] = shares[i]; });
+      return next;
     });
 
     setExactAmounts(prev => {
-      const existingIds = new Set(Object.keys(prev));
-      const currentIds = new Set(people.map(p => p.id));
-      const changed = people.some(p => !existingIds.has(p.id)) ||
-        [...existingIds].some(id => !currentIds.has(id));
-      if (changed || Object.keys(prev).length === 0) {
-        const next: Record<string, number> = {};
-        people.forEach((p, i) => {
-          next[p.id] = i === people.length - 1
-            ? Math.round((Number(amount) - equalAmt * (people.length - 1)) * 100) / 100
-            : equalAmt;
-        });
-        return next;
-      }
-      return prev;
+      if (!peopleChanged(prev) && Object.keys(prev).length > 0) return prev;
+      const shares = distributeEvenly(Number(amount), people.length);
+      const next: Record<string, number> = {};
+      people.forEach((p, i) => { next[p.id] = shares[i]; });
+      return next;
     });
   }, [people.map(p => p.id).join(','), amount]);
 
@@ -303,28 +291,9 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
       };
     }
 
-    // Percentage or exact: create per-person items
-    const items: BillData['items'] = [];
-    const assignments: Record<string, string[]> = {};
-    let runningTotal = 0;
-
-    people.forEach((person, i) => {
-      const itemId = `item-${person.id}`;
-      let price: number;
-
-      if (i === people.length - 1) {
-        // Last person gets remainder to handle rounding
-        price = Math.round((numAmount - runningTotal) * 100) / 100;
-      } else if (splitMethod === 'percentage') {
-        price = Math.round(numAmount * (percentages[person.id] || 0) / 100 * 100) / 100;
-      } else {
-        price = Math.round((exactAmounts[person.id] || 0) * 100) / 100;
-      }
-
-      runningTotal += price;
-      items.push({ id: itemId, name: `${person.name}'s share`, price });
-      assignments[itemId] = [person.id];
-    });
+    // Percentage or exact: create per-person items (last person absorbs rounding)
+    const amounts = resolveSplitAmounts(numAmount, people, splitMethod, percentages, exactAmounts);
+    const { items, itemAssignments } = buildPerPersonShareItems(people, amounts);
 
     return {
       billData: {
@@ -335,23 +304,13 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
         total: numAmount,
         restaurantName: title,
       },
-      itemAssignments: assignments,
+      itemAssignments,
       splitEvenly: false,
     };
   };
 
-  const isSplitValid = () => {
-    if (splitMethod === 'equal') return true;
-    if (splitMethod === 'percentage') {
-      const sum = Object.values(percentages).reduce((a, b) => a + b, 0);
-      return Math.abs(sum - 100) < 0.02;
-    }
-    if (splitMethod === 'exact') {
-      const sum = Object.values(exactAmounts).reduce((a, b) => a + b, 0);
-      return Math.abs(sum - Number(amount)) < 0.02;
-    }
-    return true;
-  };
+  const isSplitValid = () =>
+    isSplitConfigValid(splitMethod, Number(amount), percentages, exactAmounts);
 
   const canProceed = () => {
     if (currentStep === 0) {

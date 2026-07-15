@@ -1,1 +1,6 @@
-export { calculatePersonTotals, areAllItemsAssigned } from '@shared/calculations';
+export {
+  calculatePersonTotals,
+  areAllItemsAssigned,
+  buildEvenSplitAssignments,
+  computeBillPersonTotals,
+} from '@shared/calculations';

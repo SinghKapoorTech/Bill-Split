@@ -1,6 +1,7 @@
 import { Person, PersonTotal, BillData, ItemAssignment } from '@/types';
 import { RecurringFrequency } from '@/types/recurring.types';
 import { firstRunDate, nextRunDates } from '@shared/recurringSchedule';
+import { resolveSplitAmounts, buildPerPersonShareItems } from '@shared/splitAmounts';
 import { Loader2, Calendar, Repeat } from 'lucide-react';
 import { SplitSummary } from '@/components/people/SplitSummary';
 import { StepFooter } from '@/components/shared/StepFooter';
@@ -125,24 +126,9 @@ export function RecurringReviewStep({
   const { user } = useAuth();
   const numAmount = billDataOverride ? billDataOverride.total : Number(amount) || 0;
 
-  const getPersonAmount = (personId: string, index: number): number => {
-    if (splitMethod === 'percentage') {
-      if (index === people.length - 1) {
-        const othersTotal = people
-          .slice(0, -1)
-          .reduce(
-            (sum, p) => sum + Math.round((numAmount * (percentages[p.id] || 0)) / 100 * 100) / 100,
-            0
-          );
-        return Math.round((numAmount - othersTotal) * 100) / 100;
-      }
-      return Math.round((numAmount * (percentages[personId] || 0)) / 100 * 100) / 100;
-    }
-    if (splitMethod === 'exact') {
-      return exactAmounts[personId] || 0;
-    }
-    return people.length > 0 ? numAmount / people.length : 0;
-  };
+  // Per-person amounts — same shared math as the saved snapshot, so the
+  // review screen always shows exactly what gets persisted.
+  const personAmounts = resolveSplitAmounts(numAmount, people, splitMethod, percentages, exactAmounts);
 
   let dummyBillData: BillData;
   let dummyItemAssignments: ItemAssignment;
@@ -157,11 +143,7 @@ export function RecurringReviewStep({
     };
     dummyItemAssignments = { 'dummy-item': people.map((p) => p.id) };
   } else {
-    const items = people.map((p, i) => ({
-      id: `item-${p.id}`,
-      name: `${p.name}'s share`,
-      price: getPersonAmount(p.id, i),
-    }));
+    const { items, itemAssignments } = buildPerPersonShareItems(people, personAmounts);
     dummyBillData = {
       items,
       subtotal: numAmount,
@@ -169,14 +151,11 @@ export function RecurringReviewStep({
       tip: 0,
       total: numAmount,
     };
-    dummyItemAssignments = {};
-    people.forEach((p) => {
-      dummyItemAssignments[`item-${p.id}`] = [p.id];
-    });
+    dummyItemAssignments = itemAssignments;
   }
 
-  const personTotals: PersonTotal[] = people.map((p, i) => {
-    const personAmount = getPersonAmount(p.id, i);
+  const personTotals: PersonTotal[] = people.map((p) => {
+    const personAmount = personAmounts[p.id] ?? 0;
     return {
       personId: p.id,
       name: p.name,

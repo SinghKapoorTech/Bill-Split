@@ -23,7 +23,7 @@
 
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp, type DocumentData } from 'firebase-admin/firestore';
 
 // Lazy-initialized: getFirestore() must not run at import time because
 // initializeApp() in index.ts may not have executed yet.
@@ -49,74 +49,86 @@ function extractFriendUids(friends: Array<string | { userId?: string; id?: strin
   return uids;
 }
 
+/**
+ * Core retro-scan logic for a users/{userId} update. Extracted for
+ * in-process integration testing.
+ */
+export async function processFriendAdd(
+  userId: string,
+  before: DocumentData | undefined,
+  after: DocumentData | undefined
+): Promise<void> {
+  if (!before || !after) return;
+
+  // Extract friend UIDs from before and after
+  const beforeFriends = extractFriendUids(before.friends || []);
+  const afterFriends = extractFriendUids(after.friends || []);
+
+  // Find newly added friend UIDs
+  const newFriendUids: string[] = [];
+  for (const uid of afterFriends) {
+    if (!beforeFriends.has(uid)) {
+      newFriendUids.push(uid);
+    }
+  }
+
+  if (newFriendUids.length === 0) {
+    return; // No new friends added, nothing to do
+  }
+
+  logger.info('New friends detected', { userId, newFriendUids, count: newFriendUids.length });
+
+  // For each new friend, find shared bills and trigger re-processing
+  let totalBillsTouched = 0;
+
+  for (const newFriendUid of newFriendUids) {
+    if (totalBillsTouched >= MAX_BILLS_PER_SCAN) {
+      logger.warn('Batch limit reached', { userId, limit: MAX_BILLS_PER_SCAN, totalBillsTouched });
+      break;
+    }
+
+    // Query bills owned by this user that include the new friend.
+    // Uses existing composite index: participantIds ARRAY-CONTAINS + ownerId
+    const billsSnap = await db()
+      .collection(BILLS_COLLECTION)
+      .where('participantIds', 'array-contains', newFriendUid)
+      .where('ownerId', '==', userId)
+      .get();
+
+    if (billsSnap.empty) {
+      logger.info('No shared bills found', { userId, friendUid: newFriendUid });
+      continue;
+    }
+
+    const remaining = MAX_BILLS_PER_SCAN - totalBillsTouched;
+    const billsToTouch = billsSnap.docs.slice(0, remaining);
+
+    // Batch-write _friendScanTrigger to re-trigger the ledger pipeline.
+    // The pipeline's hasRelevantChange() includes _friendScanTrigger,
+    // so changing it causes the pipeline to re-process the bill.
+    const batch = db().batch();
+    const now = Timestamp.now();
+
+    for (const billDoc of billsToTouch) {
+      batch.update(billDoc.ref, { _friendScanTrigger: now });
+    }
+
+    await batch.commit();
+    totalBillsTouched += billsToTouch.length;
+
+    logger.info('Bills touched for friend', { userId, friendUid: newFriendUid, billsTouched: billsToTouch.length });
+  }
+
+  logger.info('Friend scan complete', { userId, totalBillsTouched });
+}
+
 export const friendAddProcessor = onDocumentUpdated(
   { document: 'users/{userId}', timeoutSeconds: 60, memory: '256MiB' },
   async (event) => {
-    const userId = event.params.userId;
-    const before = event.data?.before?.data();
-    const after = event.data?.after?.data();
-
-    if (!before || !after) return;
-
-    // Extract friend UIDs from before and after
-    const beforeFriends = extractFriendUids(before.friends || []);
-    const afterFriends = extractFriendUids(after.friends || []);
-
-    // Find newly added friend UIDs
-    const newFriendUids: string[] = [];
-    for (const uid of afterFriends) {
-      if (!beforeFriends.has(uid)) {
-        newFriendUids.push(uid);
-      }
-    }
-
-    if (newFriendUids.length === 0) {
-      return; // No new friends added, nothing to do
-    }
-
-    logger.info('New friends detected', { userId, newFriendUids, count: newFriendUids.length });
-
-    // For each new friend, find shared bills and trigger re-processing
-    let totalBillsTouched = 0;
-
-    for (const newFriendUid of newFriendUids) {
-      if (totalBillsTouched >= MAX_BILLS_PER_SCAN) {
-        logger.warn('Batch limit reached', { userId, limit: MAX_BILLS_PER_SCAN, totalBillsTouched });
-        break;
-      }
-
-      // Query bills owned by this user that include the new friend.
-      // Uses existing composite index: participantIds ARRAY-CONTAINS + ownerId
-      const billsSnap = await db()
-        .collection(BILLS_COLLECTION)
-        .where('participantIds', 'array-contains', newFriendUid)
-        .where('ownerId', '==', userId)
-        .get();
-
-      if (billsSnap.empty) {
-        logger.info('No shared bills found', { userId, friendUid: newFriendUid });
-        continue;
-      }
-
-      const remaining = MAX_BILLS_PER_SCAN - totalBillsTouched;
-      const billsToTouch = billsSnap.docs.slice(0, remaining);
-
-      // Batch-write _friendScanTrigger to re-trigger the ledger pipeline.
-      // The pipeline's hasRelevantChange() includes _friendScanTrigger,
-      // so changing it causes the pipeline to re-process the bill.
-      const batch = db().batch();
-      const now = Timestamp.now();
-
-      for (const billDoc of billsToTouch) {
-        batch.update(billDoc.ref, { _friendScanTrigger: now });
-      }
-
-      await batch.commit();
-      totalBillsTouched += billsToTouch.length;
-
-      logger.info('Bills touched for friend', { userId, friendUid: newFriendUid, billsTouched: billsToTouch.length });
-    }
-
-    logger.info('Friend scan complete', { userId, totalBillsTouched });
+    await processFriendAdd(
+      event.params.userId,
+      event.data?.before?.data(),
+      event.data?.after?.data()
+    );
   }
 );

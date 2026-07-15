@@ -3,6 +3,7 @@ import { Person } from '@/types';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { RotateCcw } from 'lucide-react';
+import { distributeEvenly } from '@shared/splitAmounts';
 
 export type { SplitMethod } from '@/components/shared/wizard-steps/PaidByBanner';
 
@@ -78,22 +79,14 @@ export function SplitMethodSelector({
   const distributeEqually = () => {
     if (people.length === 0) return;
     if (splitMethod === 'percentage') {
-      const equalPct = Math.round((100 / people.length) * 100) / 100;
+      const shares = distributeEvenly(100, people.length);
       const newPcts: Record<string, number> = {};
-      people.forEach((p, i) => {
-        newPcts[p.id] = i === people.length - 1
-          ? Math.round((100 - equalPct * (people.length - 1)) * 100) / 100
-          : equalPct;
-      });
+      people.forEach((p, i) => { newPcts[p.id] = shares[i]; });
       onPercentagesChange(newPcts);
     } else if (splitMethod === 'exact') {
-      const equalAmt = Math.round((amount / people.length) * 100) / 100;
+      const shares = distributeEvenly(amount, people.length);
       const newAmts: Record<string, number> = {};
-      people.forEach((p, i) => {
-        newAmts[p.id] = i === people.length - 1
-          ? Math.round((amount - equalAmt * (people.length - 1)) * 100) / 100
-          : equalAmt;
-      });
+      people.forEach((p, i) => { newAmts[p.id] = shares[i]; });
       onExactAmountsChange(newAmts);
     }
   };
@@ -104,26 +97,16 @@ export function SplitMethodSelector({
     if (others.length === 0) return;
 
     if (splitMethod === 'percentage') {
-      const thisPct = percentages[personId] ?? 0;
-      const remaining = 100 - thisPct;
-      const equalShare = Math.round((remaining / others.length) * 100) / 100;
+      const remaining = 100 - (percentages[personId] ?? 0);
+      const shares = distributeEvenly(remaining, others.length);
       const newPcts = { ...percentages };
-      others.forEach((p, i) => {
-        newPcts[p.id] = i === others.length - 1
-          ? Math.round((remaining - equalShare * (others.length - 1)) * 100) / 100
-          : equalShare;
-      });
+      others.forEach((p, i) => { newPcts[p.id] = shares[i]; });
       onPercentagesChange(newPcts);
     } else if (splitMethod === 'exact') {
-      const thisAmt = exactAmounts[personId] ?? 0;
-      const remaining = amount - thisAmt;
-      const equalShare = Math.round((remaining / others.length) * 100) / 100;
+      const remaining = amount - (exactAmounts[personId] ?? 0);
+      const shares = distributeEvenly(remaining, others.length);
       const newAmts = { ...exactAmounts };
-      others.forEach((p, i) => {
-        newAmts[p.id] = i === others.length - 1
-          ? Math.round((remaining - equalShare * (others.length - 1)) * 100) / 100
-          : equalShare;
-      });
+      others.forEach((p, i) => { newAmts[p.id] = shares[i]; });
       onExactAmountsChange(newAmts);
     }
   };

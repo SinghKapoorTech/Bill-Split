@@ -4,34 +4,32 @@ import { loginAsTestUser } from './helpers/auth';
 /**
  * Dashboard — Basic Structure
  *
- * Verifies the dashboard loads correctly after login.
+ * Verifies the dashboard (Balances page) loads correctly after login,
+ * and that the Bills page renders its section structure.
  *
- * We test the structural elements that are ALWAYS visible regardless of
- * bill loading state — avoiding the `isLoadingSessions` spinner timing issue.
- * The dashboard always shows "My Bills" and "Friend Balances" headers.
+ * Current UI: /dashboard renders an h1 "Balances" with a net-balance
+ * subtitle and the friend balance preview card; bills live at /bills
+ * under an h1 "Your Bills".
  */
 test.describe('Dashboard', () => {
     test('shows the dashboard structure after login', async ({ page }) => {
         await loginAsTestUser(page);
         await page.waitForURL(/\/dashboard/, { timeout: 20000 });
 
-        // "Welcome back" is rendered before isLoadingSessions resolves.
-        // It's inside the return block AFTER the spinner, so this verifies
-        // the full dashboard rendered. Use a long timeout for cold emulator.
-        await expect(page.getByText('Welcome back')).toBeVisible({ timeout: 45000 });
+        // The "Balances" heading renders after isLoadingBalances resolves.
+        // Use a long timeout for cold emulator.
+        await expect(page.getByRole('heading', { name: 'Balances' })).toBeVisible({ timeout: 45000 });
 
-        // Friend Balances is also always rendered once loading completes
-        await expect(page.getByText('Friend Balances')).toBeVisible({ timeout: 5000 });
+        // Fresh test user has no balances → settled-up subtitle is deterministic
+        await expect(page.getByText("You're all settled up")).toBeVisible({ timeout: 5000 });
     });
 
-    test('shows the My Bills section and the friend balances section', async ({ page }) => {
+    test('shows the Bills page section after login', async ({ page }) => {
         await loginAsTestUser(page);
         await page.waitForURL(/\/dashboard/, { timeout: 15000 });
 
-        // "My Bills" section heading is rendered after isLoadingSessions resolves
-        await expect(page.getByText('My Bills')).toBeVisible({ timeout: 45000 });
-
-        // Friend Balances is always rendered regardless of data
-        await expect(page.getByText('Friend Balances')).toBeVisible({ timeout: 5000 });
+        // Bills moved from the dashboard to their own /bills page
+        await page.goto('/bills');
+        await expect(page.getByRole('heading', { name: 'Your Bills' })).toBeVisible({ timeout: 45000 });
     });
 });

@@ -9,7 +9,7 @@
  */
 
 import { Bill } from '@/types/bill.types';
-import { calculatePersonTotals } from '@shared/calculations';
+import { computeBillPersonTotals } from '@shared/calculations';
 import { personIdToFirebaseUid } from '@shared/ledgerCalculations';
 import { simplifyDebts, OptimizedDebt } from '@shared/optimizeDebts';
 
@@ -35,24 +35,13 @@ export function computeEventBalances(bills: Bill[]): ComputedEventBalances {
 
     if (!bill.billData?.items?.length || !creditorId || people.length === 0) continue;
 
-    // Compute person totals — when splitEvenly, build full assignments so the
-    // shared calculation handles tax/tip/otherFees proportionally instead of
-    // rounding a lump share (which loses cents on non-even splits).
-    let effectiveAssignments = bill.itemAssignments || {};
-    if (bill.splitEvenly) {
-      effectiveAssignments = {};
-      for (const item of bill.billData.items) {
-        effectiveAssignments[item.id] = people.map(p => p.id);
-      }
-    }
-
-    const personTotals = calculatePersonTotals(
+    // Shared single source of truth — same calculation the ledger pipeline uses,
+    // including splitEvenly expansion (proportional tax/tip, no rounding drift).
+    const personTotals = computeBillPersonTotals(
       bill.billData,
       people,
-      effectiveAssignments,
-      bill.billData.tip,
-      bill.billData.tax,
-      bill.billData.otherFees ?? 0
+      bill.itemAssignments || {},
+      Boolean(bill.splitEvenly)
     );
 
     // Build directed pair debts: each non-creditor participant owes the creditor

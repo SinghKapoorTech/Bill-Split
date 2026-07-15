@@ -57,6 +57,69 @@ export function calculatePersonTotals(
   return results;
 }
 
+/**
+ * Builds the full assignment map for an even split: every person on every item.
+ * Single source of truth for the "split evenly" → assignments expansion
+ * (used by the ledger pipeline, event balance calculator, and bill splitter UI).
+ */
+export function buildEvenSplitAssignments(
+  billData: BillData | null,
+  people: Person[]
+): ItemAssignment {
+  if (!billData?.items?.length || people.length === 0) return {};
+
+  const assignments: ItemAssignment = {};
+  const everyone = people.map(person => person.id);
+  billData.items.forEach(item => {
+    assignments[item.id] = everyone;
+  });
+  return assignments;
+}
+
+/**
+ * Computes person totals for a bill, handling the splitEvenly flag.
+ * This is the single entry point for "what does each person owe on this bill?" —
+ * it routes even splits through the same proportional calculation as itemized
+ * splits, so client and server always agree and shares sum exactly to the total.
+ */
+export function computeBillPersonTotals(
+  billData: BillData | null,
+  people: Person[],
+  itemAssignments: ItemAssignment,
+  splitEvenly: boolean
+): PersonTotal[] {
+  if (!billData || people.length === 0) return [];
+
+  let effectiveAssignments = itemAssignments || {};
+
+  if (splitEvenly) {
+    if (billData.items?.length) {
+      effectiveAssignments = buildEvenSplitAssignments(billData, people);
+    } else {
+      // No items to split (legacy/edge data): exact even share of the total.
+      const share = billData.total / people.length;
+      return people.map(person => ({
+        personId: person.id,
+        name: person.name,
+        itemsSubtotal: share,
+        tax: 0,
+        tip: 0,
+        otherFees: 0,
+        total: share,
+      }));
+    }
+  }
+
+  return calculatePersonTotals(
+    billData,
+    people,
+    effectiveAssignments,
+    billData.tip || 0,
+    billData.tax || 0,
+    billData.otherFees || 0
+  );
+}
+
 export function areAllItemsAssigned(billData: BillData | null, itemAssignments: ItemAssignment): boolean {
   if (!billData || !billData.items) return false;
   return billData.items.every(item => {

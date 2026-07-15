@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect } from 'react';
 import { BillData, ItemAssignment, PersonTotal, Person } from '@/types';
-import { calculatePersonTotals, areAllItemsAssigned } from '@/utils/calculations';
+import { calculatePersonTotals, areAllItemsAssigned, buildEvenSplitAssignments } from '@/utils/calculations';
 import { useToast } from './use-toast';
 
 interface BillSplitterProps {
@@ -76,12 +76,7 @@ export function useBillSplitter({
 
   const assignEveryoneToAllItems = () => {
     if (!billData || people.length === 0) return;
-
-    const newAssignments: ItemAssignment = {};
-    billData.items.forEach(item => {
-      newAssignments[item.id] = people.map(person => person.id);
-    });
-    setItemAssignments(newAssignments);
+    setItemAssignments(buildEvenSplitAssignments(billData, people));
   };
 
   const clearAllAssignments = () => {

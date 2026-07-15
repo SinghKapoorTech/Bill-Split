@@ -10,6 +10,7 @@ import { Person, BillData } from '@/types';
 import { RecurringFrequency, RecurringBill } from '@/types/recurring.types';
 import { recurringBillService } from '@/services/recurringBillService';
 import { ensureUserInPeople } from '@/utils/billCalculations';
+import { distributeEvenly, resolveSplitAmounts, isSplitConfigValid, buildPerPersonShareItems } from '@shared/splitAmounts';
 import { SplitMethod } from '@/components/simple-transaction-wizard/SplitMethodSelector';
 import { Stepper, StepContent } from '@/components/ui/stepper';
 import { PillProgress } from '@/components/ui/pill-progress';
@@ -146,50 +147,33 @@ export function RecurringQuickWizard({
   // Sync split data when people change
   useEffect(() => {
     if (people.length < 2) return;
-    const equalPct = Math.round((100 / people.length) * 100) / 100;
-    const equalAmt = Math.round((Number(amount) / people.length) * 100) / 100;
 
-    setPercentages((prev) => {
+    const peopleChanged = (prev: Record<string, number>) => {
       const existingIds = new Set(Object.keys(prev));
       const currentIds = new Set(people.map((p) => p.id));
-      const changed = people.some((p) => !existingIds.has(p.id)) || [...existingIds].some((id) => !currentIds.has(id));
-      if (changed || Object.keys(prev).length === 0) {
-        const next: Record<string, number> = {};
-        people.forEach((p, i) => {
-          next[p.id] = i === people.length - 1 ? Math.round((100 - equalPct * (people.length - 1)) * 100) / 100 : equalPct;
-        });
-        return next;
-      }
-      return prev;
+      return people.some((p) => !existingIds.has(p.id)) || [...existingIds].some((id) => !currentIds.has(id));
+    };
+
+    // If people changed (added/removed), redistribute equally
+    setPercentages((prev) => {
+      if (!peopleChanged(prev) && Object.keys(prev).length > 0) return prev;
+      const shares = distributeEvenly(100, people.length);
+      const next: Record<string, number> = {};
+      people.forEach((p, i) => { next[p.id] = shares[i]; });
+      return next;
     });
 
     setExactAmounts((prev) => {
-      const existingIds = new Set(Object.keys(prev));
-      const currentIds = new Set(people.map((p) => p.id));
-      const changed = people.some((p) => !existingIds.has(p.id)) || [...existingIds].some((id) => !currentIds.has(id));
-      if (changed || Object.keys(prev).length === 0) {
-        const next: Record<string, number> = {};
-        people.forEach((p, i) => {
-          next[p.id] = i === people.length - 1 ? Math.round((Number(amount) - equalAmt * (people.length - 1)) * 100) / 100 : equalAmt;
-        });
-        return next;
-      }
-      return prev;
+      if (!peopleChanged(prev) && Object.keys(prev).length > 0) return prev;
+      const shares = distributeEvenly(Number(amount), people.length);
+      const next: Record<string, number> = {};
+      people.forEach((p, i) => { next[p.id] = shares[i]; });
+      return next;
     });
   }, [people.map((p) => p.id).join(','), amount]);
 
-  const isSplitValid = () => {
-    if (splitMethod === 'equal') return true;
-    if (splitMethod === 'percentage') {
-      const sum = Object.values(percentages).reduce((a, b) => a + b, 0);
-      return Math.abs(sum - 100) < 0.02;
-    }
-    if (splitMethod === 'exact') {
-      const sum = Object.values(exactAmounts).reduce((a, b) => a + b, 0);
-      return Math.abs(sum - Number(amount)) < 0.02;
-    }
-    return true;
-  };
+  const isSplitValid = () =>
+    isSplitConfigValid(splitMethod, Number(amount), percentages, exactAmounts);
 
   const canProceed = () => {
     if (currentStep === 0) return Number(amount) > 0 && title.trim().length > 0;
@@ -211,20 +195,6 @@ export function RecurringQuickWizard({
   const buildSnapshot = (): { billData: BillData; itemAssignments: Record<string, string[]> } => {
     const numAmount = Number(amount) || 0;
 
-    const getPersonAmount = (personId: string, index: number): number => {
-      if (splitMethod === 'percentage') {
-        if (index === people.length - 1) {
-          const othersTotal = people
-            .slice(0, -1)
-            .reduce((sum, p) => sum + Math.round((numAmount * (percentages[p.id] || 0)) / 100 * 100) / 100, 0);
-          return Math.round((numAmount - othersTotal) * 100) / 100;
-        }
-        return Math.round((numAmount * (percentages[personId] || 0)) / 100 * 100) / 100;
-      }
-      if (splitMethod === 'exact') return exactAmounts[personId] || 0;
-      return people.length > 0 ? numAmount / people.length : 0;
-    };
-
     if (splitMethod === 'equal') {
       const itemId = 'item-recurring';
       return {
@@ -241,13 +211,9 @@ export function RecurringQuickWizard({
       };
     }
 
-    const items = people.map((p, i) => ({
-      id: `item-${p.id}`,
-      name: `${p.name}'s share`,
-      price: getPersonAmount(p.id, i),
-    }));
-    const itemAssignments: Record<string, string[]> = {};
-    people.forEach((p) => { itemAssignments[`item-${p.id}`] = [p.id]; });
+    // Percentage or exact: per-person items (last person absorbs rounding)
+    const amounts = resolveSplitAmounts(numAmount, people, splitMethod, percentages, exactAmounts);
+    const { items, itemAssignments } = buildPerPersonShareItems(people, amounts);
     return {
       billData: {
         items,

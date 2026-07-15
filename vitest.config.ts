@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, configDefaults } from 'vitest/config';
 import path from 'path';
 
 // Unit tests for pure logic (no DOM, no Firebase). Tests live in /tests so they
@@ -14,5 +14,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.{test,spec}.ts'],
+    exclude: [...configDefaults.exclude, 'tests/integration/**'],
   },
 });

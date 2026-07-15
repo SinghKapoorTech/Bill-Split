@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "firebase emulators:exec --only firestore --project demo-bill-split-test \"vitest run --config vitest.integration.config.ts\"",
     "preview": "vite preview",
     "cap:sync": "cap sync",
     "cap:ios": "cap open ios",

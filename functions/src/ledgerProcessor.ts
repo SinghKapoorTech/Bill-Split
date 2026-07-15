@@ -16,8 +16,8 @@
 
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
-import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { calculatePersonTotals } from '../../shared/calculations.js';
+import { getFirestore, FieldValue, Timestamp, type DocumentData } from 'firebase-admin/firestore';
+import { computeBillPersonTotals } from '../../shared/calculations.js';
 import {
   getFriendBalanceId,
   getEventBalanceId,
@@ -122,26 +122,14 @@ function computePersonTotals(bill: Record<string, unknown>): PersonTotal[] {
   const billData = bill.billData as BillData;
   const people = bill.people as Array<{ id: string; name: string }> || [];
 
-  if (bill.splitEvenly) {
-    const share = billData.total / people.length;
-    return people.map((p) => ({
-      personId: p.id,
-      name: p.name,
-      itemsSubtotal: share,
-      tax: 0,
-      tip: 0,
-      otherFees: 0,
-      total: parseFloat(share.toFixed(2)),
-    }));
-  }
-
-  return calculatePersonTotals(
+  // Shared single source of truth — handles splitEvenly by expanding full
+  // assignments so tax/tip/fees distribute proportionally and shares sum
+  // exactly to the bill total (no per-share rounding drift).
+  return computeBillPersonTotals(
     billData,
     people,
     (bill.itemAssignments as Record<string, string[]>) || {},
-    billData.tip,
-    billData.tax,
-    billData.otherFees ?? 0
+    Boolean(bill.splitEvenly)
   );
 }
 
@@ -174,6 +162,52 @@ function computeDeltas(
 
 // ─── Stage 2: Friend Ledger (authoritative, single balance) ─────────────────
 
+/**
+ * A planned mutation to one balance doc, composed from up to two sources:
+ * the old anchor's reversal and the new anchor's delta.
+ *
+ * Firestore transactions require ALL reads to precede ALL writes, and when
+ * the anchor flips within the same pair (e.g. paidById alice → bob on an
+ * alice+bob bill) the reversal doc and the new-delta doc are the SAME
+ * document — so both effects must be composed into a single per-doc write
+ * whose balance is computed from one pre-composition read.
+ */
+interface PlannedBalanceOp {
+  participants: string[];
+  /** Reversal contribution — applied only if the idempotency guard passes at read time. */
+  reversalDelta: number;
+  hasReversal: boolean;
+  /** New-footprint delta contribution (single-balance sign convention). */
+  newDelta: number;
+  hasNewDelta: boolean;
+  /** true → arrayUnion(billId); false → arrayRemove(billId). New footprint's op wins. */
+  addBillId: boolean;
+  /** Event pair docs carry an eventId field. */
+  eventId?: string;
+}
+
+function getPlanEntry(
+  plan: Map<string, PlannedBalanceOp>,
+  docId: string,
+  participants: string[],
+  eventId?: string
+): PlannedBalanceOp {
+  let entry = plan.get(docId);
+  if (!entry) {
+    entry = {
+      participants,
+      reversalDelta: 0,
+      hasReversal: false,
+      newDelta: 0,
+      hasNewDelta: false,
+      addBillId: false,
+      ...(eventId && { eventId }),
+    };
+    plan.set(docId, entry);
+  }
+  return entry;
+}
+
 async function applyFriendLedger(
   billId: string,
   anchorId: string,
@@ -190,46 +224,20 @@ async function applyFriendLedger(
 
     const billData = billSnap.data()!;
 
-    // ── Phase 0: Reverse old anchor's footprint (if anchor changed) ──
-    // Done inside this transaction to prevent partial-reversal corruption.
+    // ── Phase 0: Plan all mutations in memory (no I/O) ──
+    // Reversal (if anchor changed) is done inside this transaction to prevent
+    // partial-reversal corruption, and composed per-doc with the new deltas so
+    // every read happens before every write (Firestore transaction rule).
+    const plan = new Map<string, PlannedBalanceOp>();
+
     if (reversal) {
       const { oldAnchorId, oldFootprint } = reversal;
-
-      // Read all old balance docs
-      const oldRefs: Record<string, FirebaseFirestore.DocumentReference> = {};
-      const oldSnaps: Record<string, FirebaseFirestore.DocumentSnapshot> = {};
-
       for (const [friendId, amount] of Object.entries(oldFootprint)) {
         if (Math.abs(amount) < BALANCE_THRESHOLD) continue;
         const balanceId = getFriendBalanceId(oldAnchorId, friendId);
-        const ref = db().collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
-        oldRefs[friendId] = ref;
-        oldSnaps[friendId] = await tx.get(ref);
-      }
-
-      // Reverse old deltas
-      const now = Timestamp.now();
-      for (const [friendId, amount] of Object.entries(oldFootprint)) {
-        if (Math.abs(amount) < BALANCE_THRESHOLD) continue;
-        const ref = oldRefs[friendId];
-        const snap = oldSnaps[friendId];
-        if (!snap?.exists) continue;
-
-        const existing = snap.data()!;
-        const unsettledBillIds: string[] = existing.unsettledBillIds || [];
-        if (!unsettledBillIds.includes(billId)) continue; // Already reversed (idempotent)
-
-        const currentBalance: number = (existing?.balance ?? 0) as number;
-        const reversalDelta = toSingleBalance(oldAnchorId, friendId, -amount);
-
-        tx.set(ref, {
-          id: ref.id,
-          participants: [oldAnchorId, friendId].sort(),
-          balance: currentBalance + reversalDelta,
-          unsettledBillIds: FieldValue.arrayRemove(billId),
-          lastUpdatedAt: now,
-          lastBillId: billId,
-        }, { merge: true });
+        const entry = getPlanEntry(plan, balanceId, [oldAnchorId, friendId].sort());
+        entry.reversalDelta += toSingleBalance(oldAnchorId, friendId, -amount);
+        entry.hasReversal = true;
       }
     }
 
@@ -239,39 +247,57 @@ async function applyFriendLedger(
 
     if (Object.keys(deltas).length === 0 && !reversal) return;
 
-    // Phase 1b: Read all friend_balance docs for new anchor
+    for (const friendId of Object.keys(deltas)) {
+      const balanceId = getFriendBalanceId(anchorId, friendId);
+      const entry = getPlanEntry(plan, balanceId, [anchorId, friendId].sort());
+      // Convert anchor-relative delta to single-balance sign convention
+      entry.newDelta += toSingleBalance(anchorId, friendId, deltas[friendId]);
+      entry.hasNewDelta = true;
+      // Track unsettled bills — supersedes the reversal's arrayRemove on a shared doc
+      entry.addBillId = Math.abs(newFootprint[friendId] ?? 0) > BALANCE_THRESHOLD;
+    }
+
+    // ── Phase 1b: Read every involved balance doc (all reads precede all writes) ──
     const balanceRefs: Record<string, FirebaseFirestore.DocumentReference> = {};
     const balanceSnaps: Record<string, FirebaseFirestore.DocumentSnapshot> = {};
 
-    for (const friendId of Object.keys(deltas)) {
-      const balanceId = getFriendBalanceId(anchorId, friendId);
+    for (const balanceId of plan.keys()) {
       const ref = db().collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
-      balanceRefs[friendId] = ref;
-      balanceSnaps[friendId] = await tx.get(ref);
+      balanceRefs[balanceId] = ref;
+      balanceSnaps[balanceId] = await tx.get(ref);
     }
 
-    // Phase 2: Write single-balance updates for new anchor
+    // ── Phase 2: Emit exactly one write per doc, composing reversal + delta ──
     const now = Timestamp.now();
-    for (const friendId of Object.keys(deltas)) {
-      const delta = deltas[friendId];
-      const ref = balanceRefs[friendId];
-      const snap = balanceSnaps[friendId];
+    for (const [balanceId, entry] of plan) {
+      const ref = balanceRefs[balanceId];
+      const snap = balanceSnaps[balanceId];
       const existing = snap.exists ? snap.data()! : null;
       const currentBalance: number = (existing?.balance ?? 0) as number;
 
-      // Convert anchor-relative delta to single-balance sign convention
-      const deltaSingle = toSingleBalance(anchorId, friendId, delta);
+      // Idempotency guard: only apply the reversal if this bill is still
+      // recorded on the doc (already-reversed / missing docs are skipped).
+      let totalDelta = entry.newDelta;
+      let reversalApplied = false;
+      if (entry.hasReversal) {
+        const unsettledBillIds: string[] = existing?.unsettledBillIds || [];
+        if (snap.exists && unsettledBillIds.includes(billId)) {
+          totalDelta += entry.reversalDelta;
+          reversalApplied = true;
+        }
+      }
 
-      // Track unsettled bills
-      const friendAmount = newFootprint[friendId] ?? 0;
-      const billIdUpdate = Math.abs(friendAmount) > BALANCE_THRESHOLD
+      // Reversal-only doc whose guard failed: nothing to write.
+      if (!entry.hasNewDelta && !reversalApplied) continue;
+
+      const billIdUpdate = entry.hasNewDelta && entry.addBillId
         ? { unsettledBillIds: FieldValue.arrayUnion(billId) }
         : { unsettledBillIds: FieldValue.arrayRemove(billId) };
 
       tx.set(ref, {
         id: ref.id,
-        participants: [anchorId, friendId].sort(),
-        balance: currentBalance + deltaSingle,
+        participants: entry.participants,
+        balance: currentBalance + totalDelta,
         ...billIdUpdate,
         lastUpdatedAt: now,
         lastBillId: billId,
@@ -404,44 +430,20 @@ async function applyEventPairLedger(
 
     const billData = billSnap.data()!;
 
-    // ── Phase 0: Reverse old anchor's event footprint (if anchor changed) ──
+    // ── Phase 0: Plan all mutations in memory (no I/O) ──
+    // Same structure as applyFriendLedger: reversal (if anchor changed) is
+    // composed per-doc with the new deltas so every read precedes every write,
+    // and an anchor flip within the same pair/event hits the SAME doc exactly once.
+    const plan = new Map<string, PlannedBalanceOp>();
+
     if (reversal) {
       const { oldAnchorId, oldEventId, oldFootprint } = reversal;
-
-      const oldRefs: Record<string, FirebaseFirestore.DocumentReference> = {};
-      const oldSnaps: Record<string, FirebaseFirestore.DocumentSnapshot> = {};
-
       for (const [participantId, amount] of Object.entries(oldFootprint)) {
         if (Math.abs(amount) < BALANCE_THRESHOLD) continue;
         const balanceId = getEventBalanceId(oldEventId, oldAnchorId, participantId);
-        const ref = db().collection(EVENT_BALANCES_COLLECTION).doc(balanceId);
-        oldRefs[participantId] = ref;
-        oldSnaps[participantId] = await tx.get(ref);
-      }
-
-      const now = Timestamp.now();
-      for (const [participantId, amount] of Object.entries(oldFootprint)) {
-        if (Math.abs(amount) < BALANCE_THRESHOLD) continue;
-        const ref = oldRefs[participantId];
-        const snap = oldSnaps[participantId];
-        if (!snap?.exists) continue;
-
-        const existing = snap.data()!;
-        const unsettledBillIds: string[] = existing.unsettledBillIds || [];
-        if (!unsettledBillIds.includes(billId)) continue;
-
-        const currentBalance: number = (existing?.balance ?? 0) as number;
-        const reversalDelta = toSingleBalance(oldAnchorId, participantId, -amount);
-
-        tx.set(ref, {
-          id: ref.id,
-          eventId: oldEventId,
-          participants: [oldAnchorId, participantId].sort(),
-          balance: currentBalance + reversalDelta,
-          unsettledBillIds: FieldValue.arrayRemove(billId),
-          lastUpdatedAt: now,
-          lastBillId: billId,
-        }, { merge: true });
+        const entry = getPlanEntry(plan, balanceId, [oldAnchorId, participantId].sort(), oldEventId);
+        entry.reversalDelta += toSingleBalance(oldAnchorId, participantId, -amount);
+        entry.hasReversal = true;
       }
     }
 
@@ -451,38 +453,56 @@ async function applyEventPairLedger(
 
     if (Object.keys(deltas).length === 0 && !reversal) return;
 
-    // Phase 1b: Read all event pair balance docs
+    for (const participantId of Object.keys(deltas)) {
+      const balanceId = getEventBalanceId(eventId, anchorId, participantId);
+      const entry = getPlanEntry(plan, balanceId, [anchorId, participantId].sort(), eventId);
+      entry.newDelta += toSingleBalance(anchorId, participantId, deltas[participantId]);
+      entry.hasNewDelta = true;
+      entry.addBillId = Math.abs(newFootprint[participantId] ?? 0) > BALANCE_THRESHOLD;
+      entry.eventId = eventId; // new footprint's eventId wins on a shared doc
+    }
+
+    // ── Phase 1b: Read every involved balance doc (all reads precede all writes) ──
     const balanceRefs: Record<string, FirebaseFirestore.DocumentReference> = {};
     const balanceSnaps: Record<string, FirebaseFirestore.DocumentSnapshot> = {};
 
-    for (const participantId of Object.keys(deltas)) {
-      const balanceId = getEventBalanceId(eventId, anchorId, participantId);
+    for (const balanceId of plan.keys()) {
       const ref = db().collection(EVENT_BALANCES_COLLECTION).doc(balanceId);
-      balanceRefs[participantId] = ref;
-      balanceSnaps[participantId] = await tx.get(ref);
+      balanceRefs[balanceId] = ref;
+      balanceSnaps[balanceId] = await tx.get(ref);
     }
 
-    // Phase 2: Write per-pair balance updates
+    // ── Phase 2: Emit exactly one write per doc, composing reversal + delta ──
     const now = Timestamp.now();
-    for (const participantId of Object.keys(deltas)) {
-      const delta = deltas[participantId];
-      const ref = balanceRefs[participantId];
-      const snap = balanceSnaps[participantId];
+    for (const [balanceId, entry] of plan) {
+      const ref = balanceRefs[balanceId];
+      const snap = balanceSnaps[balanceId];
       const existing = snap.exists ? snap.data()! : null;
       const currentBalance: number = (existing?.balance ?? 0) as number;
 
-      const deltaSingle = toSingleBalance(anchorId, participantId, delta);
+      // Idempotency guard: only apply the reversal if this bill is still recorded
+      let totalDelta = entry.newDelta;
+      let reversalApplied = false;
+      if (entry.hasReversal) {
+        const unsettledBillIds: string[] = existing?.unsettledBillIds || [];
+        if (snap.exists && unsettledBillIds.includes(billId)) {
+          totalDelta += entry.reversalDelta;
+          reversalApplied = true;
+        }
+      }
 
-      const participantAmount = newFootprint[participantId] ?? 0;
-      const billIdUpdate = Math.abs(participantAmount) > BALANCE_THRESHOLD
+      // Reversal-only doc whose guard failed: nothing to write.
+      if (!entry.hasNewDelta && !reversalApplied) continue;
+
+      const billIdUpdate = entry.hasNewDelta && entry.addBillId
         ? { unsettledBillIds: FieldValue.arrayUnion(billId) }
         : { unsettledBillIds: FieldValue.arrayRemove(billId) };
 
       tx.set(ref, {
         id: ref.id,
-        eventId,
-        participants: [anchorId, participantId].sort(),
-        balance: currentBalance + deltaSingle,
+        eventId: entry.eventId,
+        participants: entry.participants,
+        balance: currentBalance + totalDelta,
         ...billIdUpdate,
         lastUpdatedAt: now,
         lastBillId: billId,
@@ -551,133 +571,146 @@ export async function reverseEventFootprint(
 
 // ─── Main trigger ─────────────────────────────────────────────────────────────
 
+/**
+ * Core pipeline logic for a bills/{billId} write. Extracted from the trigger
+ * so integration tests can invoke it in-process (same pattern as
+ * processSettlementCore etc.). MUST stay behavior-identical to the trigger.
+ */
+export async function processLedgerWrite(
+  billId: string,
+  before: DocumentData | undefined,
+  after: DocumentData | undefined
+): Promise<void> {
+  // ── DELETE ──────────────────────────────────────────────────────────────
+  if (before && !after) {
+    const anchorId = before.paidById || before.ownerId;
+    logger.info('Bill deleted', { billId, anchorId, stage: 'DELETE' });
+
+    const previousBalances = before.processedBalances;
+    if (previousBalances && Object.keys(previousBalances).length > 0) {
+      await reverseFootprint(billId, anchorId, previousBalances);
+      logger.info('Stage 2: reversed footprint', { billId, friendsReversed: Object.keys(previousBalances).length });
+    }
+
+    if (before.eventId) {
+      const previousEventBalances = before.processedEventBalances;
+      if (previousEventBalances && Object.keys(previousEventBalances).length > 0) {
+        try {
+          await reverseEventFootprint(billId, before.eventId, anchorId, previousEventBalances);
+          logger.info('Stage 3: reversed event footprint', { billId, eventId: before.eventId, participantsReversed: Object.keys(previousEventBalances).length });
+        } catch (err) {
+          logger.error('Stage 3 failed (non-fatal)', { billId, eventId: before.eventId, error: String(err) });
+        }
+      }
+    }
+    return;
+  }
+
+  // ── CREATE or UPDATE ────────────────────────────────────────────────────
+  if (!after) return;
+
+  if (before && !hasRelevantChange(before, after)) {
+    return;
+  }
+
+  const operation = before ? 'UPDATE' : 'CREATE';
+  const ownerId = after.ownerId;
+  const creditorId = after.paidById || ownerId;
+
+  logger.info('Processing bill', { billId, operation, creditorId, eventId: after.eventId || null });
+
+  // Handle Anchor Change (e.g. user edits who paid the bill)
+  // Reversal is done atomically inside applyFriendLedger/applyEventPairLedger
+  // to prevent partial-reversal corruption if the function crashes mid-way.
+  let forceClearPrevious = false;
+  let friendReversal: { oldAnchorId: string; oldFootprint: Record<string, number> } | undefined;
+  let eventReversal: { oldAnchorId: string; oldEventId: string; oldFootprint: Record<string, number> } | undefined;
+  if (before && after) {
+    const previousAnchorId = before.paidById || before.ownerId;
+    if (previousAnchorId !== creditorId) {
+      logger.info('Anchor changed, will reverse previous balances atomically', { previousAnchorId, currentAnchorId: creditorId });
+
+      if (before.processedBalances && Object.keys(before.processedBalances).length > 0) {
+        friendReversal = { oldAnchorId: previousAnchorId, oldFootprint: before.processedBalances };
+      }
+
+      if (before.eventId && before.processedEventBalances && Object.keys(before.processedEventBalances).length > 0) {
+        eventReversal = { oldAnchorId: previousAnchorId, oldEventId: before.eventId, oldFootprint: before.processedEventBalances };
+      }
+
+      forceClearPrevious = true;
+    }
+  }
+
+  // ── Stage 1: VALIDATE & CALCULATE ───────────────────────────────────────
+  const people = after.people || [];
+
+  if (!after.billData?.items?.length || !ownerId || people.length === 0) {
+    logger.info('Stage 1: incomplete data, skipping', { billId });
+    return;
+  }
+
+  const settledPersonIds = after.settledPersonIds || [];
+  const personTotals = computePersonTotals(after);
+
+  if (personTotals.length === 0) {
+    logger.info('Stage 1: no person totals, skipping', { billId });
+    return;
+  }
+
+  // ── Stage 2: FRIEND LEDGER (authoritative, in transaction) ──────────────
+  const participantIds = after.participantIds || [];
+  const linkedFriendUids = await resolveEligibleFriends(creditorId, ownerId, participantIds, people);
+  let stage2Wrote = false;
+
+  if (linkedFriendUids.size > 0) {
+    const newFootprint = calculateFriendFootprint({
+      people, personTotals, settledPersonIds,
+      linkedFriendUids, ownerId, creditorId,
+    });
+
+    const deltasApplied = await applyFriendLedger(billId, creditorId, newFootprint, forceClearPrevious, friendReversal);
+    stage2Wrote = deltasApplied > 0;
+    logger.info('Stage 2: friend ledger updated', { billId, deltasApplied, linkedFriends: linkedFriendUids.size });
+  } else {
+    logger.info('Stage 2: no linked friends, skipping', { billId, ownerId });
+  }
+
+  if (!stage2Wrote) {
+    const billRef = db().collection(BILLS_COLLECTION).doc(billId);
+    const currentVersion: number = (after._ledgerVersion ?? 0);
+    await billRef.update({ _ledgerVersion: currentVersion + 1 });
+  }
+
+  // ── Stage 3: EVENT PAIR LEDGER (per-pair deltas, in transaction) ────────
+  if (after.eventId) {
+    try {
+      const eventParticipants = await resolveEventParticipants(creditorId, after.eventId, linkedFriendUids);
+
+      if (eventParticipants.size > 0) {
+        const eventFootprint = calculateEventFootprint(
+          people, personTotals, settledPersonIds,
+          eventParticipants, ownerId, creditorId
+        );
+
+        const eventDeltasApplied = await applyEventPairLedger(billId, after.eventId, creditorId, eventFootprint, forceClearPrevious, eventReversal);
+        logger.info('Stage 3: event pair ledger updated', { billId, eventId: after.eventId, deltasApplied: eventDeltasApplied });
+      } else {
+        logger.info('Stage 3: no event participants, skipping', { billId, eventId: after.eventId });
+      }
+    } catch (err) {
+      logger.error('Stage 3 failed (non-fatal)', { billId, eventId: after.eventId, error: String(err) });
+    }
+  }
+}
+
 export const ledgerProcessor = onDocumentWritten(
   { document: 'bills/{billId}', timeoutSeconds: 60, memory: '256MiB' },
   async (event) => {
-    const billId = event.params.billId;
-    const before = event.data?.before?.data();
-    const after = event.data?.after?.data();
-
-    // ── DELETE ──────────────────────────────────────────────────────────────
-    if (before && !after) {
-      const anchorId = before.paidById || before.ownerId;
-      logger.info('Bill deleted', { billId, anchorId, stage: 'DELETE' });
-
-      const previousBalances = before.processedBalances;
-      if (previousBalances && Object.keys(previousBalances).length > 0) {
-        await reverseFootprint(billId, anchorId, previousBalances);
-        logger.info('Stage 2: reversed footprint', { billId, friendsReversed: Object.keys(previousBalances).length });
-      }
-
-      if (before.eventId) {
-        const previousEventBalances = before.processedEventBalances;
-        if (previousEventBalances && Object.keys(previousEventBalances).length > 0) {
-          try {
-            await reverseEventFootprint(billId, before.eventId, anchorId, previousEventBalances);
-            logger.info('Stage 3: reversed event footprint', { billId, eventId: before.eventId, participantsReversed: Object.keys(previousEventBalances).length });
-          } catch (err) {
-            logger.error('Stage 3 failed (non-fatal)', { billId, eventId: before.eventId, error: String(err) });
-          }
-        }
-      }
-      return;
-    }
-
-    // ── CREATE or UPDATE ────────────────────────────────────────────────────
-    if (!after) return;
-
-    if (before && !hasRelevantChange(before, after)) {
-      return;
-    }
-
-    const operation = before ? 'UPDATE' : 'CREATE';
-    const ownerId = after.ownerId;
-    const creditorId = after.paidById || ownerId;
-
-    logger.info('Processing bill', { billId, operation, creditorId, eventId: after.eventId || null });
-
-    // Handle Anchor Change (e.g. user edits who paid the bill)
-    // Reversal is done atomically inside applyFriendLedger/applyEventPairLedger
-    // to prevent partial-reversal corruption if the function crashes mid-way.
-    let forceClearPrevious = false;
-    let friendReversal: { oldAnchorId: string; oldFootprint: Record<string, number> } | undefined;
-    let eventReversal: { oldAnchorId: string; oldEventId: string; oldFootprint: Record<string, number> } | undefined;
-    if (before && after) {
-      const previousAnchorId = before.paidById || before.ownerId;
-      if (previousAnchorId !== creditorId) {
-        logger.info('Anchor changed, will reverse previous balances atomically', { previousAnchorId, currentAnchorId: creditorId });
-
-        if (before.processedBalances && Object.keys(before.processedBalances).length > 0) {
-          friendReversal = { oldAnchorId: previousAnchorId, oldFootprint: before.processedBalances };
-        }
-
-        if (before.eventId && before.processedEventBalances && Object.keys(before.processedEventBalances).length > 0) {
-          eventReversal = { oldAnchorId: previousAnchorId, oldEventId: before.eventId, oldFootprint: before.processedEventBalances };
-        }
-
-        forceClearPrevious = true;
-      }
-    }
-
-    // ── Stage 1: VALIDATE & CALCULATE ───────────────────────────────────────
-    const people = after.people || [];
-
-    if (!after.billData?.items?.length || !ownerId || people.length === 0) {
-      logger.info('Stage 1: incomplete data, skipping', { billId });
-      return;
-    }
-
-    const settledPersonIds = after.settledPersonIds || [];
-    const personTotals = computePersonTotals(after);
-
-    if (personTotals.length === 0) {
-      logger.info('Stage 1: no person totals, skipping', { billId });
-      return;
-    }
-
-    // ── Stage 2: FRIEND LEDGER (authoritative, in transaction) ──────────────
-    const participantIds = after.participantIds || [];
-    const linkedFriendUids = await resolveEligibleFriends(creditorId, ownerId, participantIds, people);
-    let stage2Wrote = false;
-
-    if (linkedFriendUids.size > 0) {
-      const newFootprint = calculateFriendFootprint({
-        people, personTotals, settledPersonIds,
-        linkedFriendUids, ownerId, creditorId,
-      });
-
-      const deltasApplied = await applyFriendLedger(billId, creditorId, newFootprint, forceClearPrevious, friendReversal);
-      stage2Wrote = deltasApplied > 0;
-      logger.info('Stage 2: friend ledger updated', { billId, deltasApplied, linkedFriends: linkedFriendUids.size });
-    } else {
-      logger.info('Stage 2: no linked friends, skipping', { billId, ownerId });
-    }
-
-    if (!stage2Wrote) {
-      const billRef = db().collection(BILLS_COLLECTION).doc(billId);
-      const currentVersion: number = (after._ledgerVersion ?? 0);
-      await billRef.update({ _ledgerVersion: currentVersion + 1 });
-    }
-
-    // ── Stage 3: EVENT PAIR LEDGER (per-pair deltas, in transaction) ────────
-    if (after.eventId) {
-      try {
-        const eventParticipants = await resolveEventParticipants(creditorId, after.eventId, linkedFriendUids);
-
-        if (eventParticipants.size > 0) {
-          const eventFootprint = calculateEventFootprint(
-            people, personTotals, settledPersonIds,
-            eventParticipants, ownerId, creditorId
-          );
-
-          const eventDeltasApplied = await applyEventPairLedger(billId, after.eventId, creditorId, eventFootprint, forceClearPrevious, eventReversal);
-          logger.info('Stage 3: event pair ledger updated', { billId, eventId: after.eventId, deltasApplied: eventDeltasApplied });
-        } else {
-          logger.info('Stage 3: no event participants, skipping', { billId, eventId: after.eventId });
-        }
-      } catch (err) {
-        logger.error('Stage 3 failed (non-fatal)', { billId, eventId: after.eventId, error: String(err) });
-      }
-    }
+    await processLedgerWrite(
+      event.params.billId,
+      event.data?.before?.data(),
+      event.data?.after?.data()
+    );
   }
 );

@@ -63,6 +63,28 @@ Pure logic in `shared/` (e.g. `recurringSchedule.ts`, `calculations.ts`) is unit
 
 > **Do NOT put test files inside `shared/`.** The Cloud Functions `tsconfig` compiles `../shared`, so a `vitest` import there breaks the functions build. Keep tests in `tests/`.
 
+### Integration tests (Firestore emulator)
+
+Full backend flows (ledger pipeline, settlements, event cascade, recurring
+generation) are integration-tested in `tests/integration/*.int.test.ts`:
+
+```bash
+npm run test:integration   # starts the Firestore emulator (Java required), runs, tears down
+```
+
+- Runs under the offline-only project `demo-bill-split-test` — can never touch
+  prod or beta. The setup guard (`tests/integration/helpers/env.ts`) throws if
+  `FIRESTORE_EMULATOR_HOST` is unset.
+- Cloud Function logic is invoked in-process via the exported cores
+  (`processLedgerWrite`, `processFriendAdd`, `processEventDelete`,
+  `process*Core`); `tests/integration/helpers/triggerLoop.ts` simulates
+  Firestore trigger re-fires until the pipeline quiesces.
+- Excluded from `npm test` (units stay Java-free) and not wired into CI
+  (local-only for now).
+- Config: `vitest.integration.config.ts` — it routes all `firebase-admin` /
+  `firebase-functions` imports to the single copy in `functions/node_modules`
+  so tests and pipeline code share one admin app instance.
+
 ## E2E Testing
 
 ### Prerequisites

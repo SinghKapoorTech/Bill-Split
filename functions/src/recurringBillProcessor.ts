@@ -4,6 +4,7 @@ import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { createBillCore } from './billFunctions.js';
 import { firstRunDate, advanceRunDate } from '../../shared/recurringSchedule.js';
+import { resolveSplitAmounts, buildPerPersonShareItems } from '../../shared/splitAmounts.js';
 
 interface BillDataShape {
   items: { id: string; name: string; price: number }[];
@@ -85,23 +86,9 @@ function buildBillPayload(template: RecurringBillDoc) {
     };
   }
 
-  // Per-person exact amounts
-  const items: { id: string; name: string; price: number }[] = [];
-  const assignments: Record<string, string[]> = {};
-  let runningTotal = 0;
-
-  people.forEach((person, i) => {
-    const itemId = `item-${person.id}`;
-    let price: number;
-    if (i === people.length - 1) {
-      price = Math.round((amount - runningTotal) * 100) / 100;
-    } else {
-      price = Math.round((exactAmounts?.[person.id] || 0) * 100) / 100;
-    }
-    runningTotal += price;
-    items.push({ id: itemId, name: `${person.name}'s share`, price });
-    assignments[itemId] = [person.id];
-  });
+  // Per-person exact amounts (shared math: last person absorbs rounding)
+  const amounts = resolveSplitAmounts(amount, people, 'exact', undefined, exactAmounts);
+  const { items, itemAssignments } = buildPerPersonShareItems(people, amounts);
 
   return {
     billData: {
@@ -113,7 +100,7 @@ function buildBillPayload(template: RecurringBillDoc) {
       total: amount,
       restaurantName: title,
     },
-    itemAssignments: assignments,
+    itemAssignments,
   };
 }
 
