@@ -68,14 +68,36 @@ describe('computeBillPersonTotals', () => {
     expect(actual.reduce((s, t) => s + t.total, 0)).toBeCloseTo(bill.total, 10);
   });
 
-  it('splitEvenly with no items: splits the total evenly and exactly', () => {
+  it('splitEvenly with a discount: splits billData.total, not the component sum', () => {
+    // AI-scanned receipt: items $90, tax $10, $10 discount → total $90.
+    // Users are shown and agree to $90; each of 2 people owes $45 —
+    // not (90 + 10) / 2 = $50.
+    const discountedBill: BillData = {
+      items: [{ id: 'x', name: 'Feast', price: 90 }],
+      subtotal: 90,
+      tax: 10,
+      tip: 0,
+      otherFees: 0,
+      total: 90,
+    };
+    const totals = computeBillPersonTotals(discountedBill, people.slice(0, 2), {}, true);
+    expect(totals).toHaveLength(2);
+    expect(totals[0].total).toBeCloseTo(45, 10);
+    expect(totals[1].total).toBeCloseTo(45, 10);
+    expect(totals[0].total + totals[1].total).toBeCloseTo(90, 10);
+  });
+
+  it('splitEvenly with no items: splits the total into cent-exact shares', () => {
+    // 100.01 / 2 = 50.005 is not a payable amount — naive division would
+    // render as two $50.01 Venmo charges ($100.02, a cent over the bill).
     const emptyBill: BillData = {
       items: [], subtotal: 0, tax: 0, tip: 0, otherFees: 0, total: 100.01,
     };
     const totals = computeBillPersonTotals(emptyBill, people.slice(0, 2), {}, true);
     expect(totals).toHaveLength(2);
     expect(totals[0].total + totals[1].total).toBeCloseTo(100.01, 10);
-    expect(totals[0].total).toBeCloseTo(50.005, 10);
+    expect(totals[0].total).toBe(50.01);   // cent-exact
+    expect(totals[1].total).toBe(50);      // last share absorbs the remainder
   });
 
   it('itemized: delegates to calculatePersonTotals with the given assignments', () => {

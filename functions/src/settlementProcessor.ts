@@ -18,7 +18,7 @@
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { getFriendBalanceId, BALANCE_THRESHOLD } from '../../shared/ledgerCalculations.js';
+import { getFriendBalanceId, BALANCE_THRESHOLD, toSingleBalance } from '../../shared/ledgerCalculations.js';
 
 let _db: ReturnType<typeof getFirestore> | null = null;
 function db() {
@@ -94,9 +94,12 @@ export async function processSettlementCore(
   const balanceRef = db().collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
   const settlementRef = db().collection(SETTLEMENTS_COLLECTION).doc();
 
+  // Result counters are assigned from the committed attempt at the end of the
+  // transaction closure — never accumulated inside it — so a Firestore retry
+  // (which re-runs the whole closure) can't double-count or duplicate them.
   let billsSettled = 0;
+  let billsSkipped = 0;
   let amountSettled = 0;
-  const skippedBillIds: string[] = [];
 
   await db().runTransaction(async (tx) => {
     // 1. Read balances
@@ -113,24 +116,26 @@ export async function processSettlementCore(
       return; // Already settled
     }
 
-    amountSettled = Math.abs(currentBalance);
-    const { debtorUid, creditorUid } = deriveDebtorCreditor(
-      balanceData.participants,
-      currentBalance
-    );
-
     // 2. Read all unsettled bills
     const billRefs = unsettledBillIds.map(id =>
       db().collection(BILLS_COLLECTION).doc(id)
     );
     const billSnaps = await Promise.all(billRefs.map(ref => tx.get(ref)));
 
-    // 3. Mark each bill as settled for the debtor.
+    // 3. Mark each bill as settled for THAT BILL's debtor — the pair member
+    //    who did not pay it. A pair's unsettled bills can point in both
+    //    directions (mixed/offsetting debts), so the aggregate debtor must
+    //    not be blanket-settled onto every bill: that would settle the
+    //    creditor on reverse-direction bills and silently erase the debt.
     //    CRITICAL: Also update processedBalances to zero the debtor's entry.
     //    Without this, the ledgerProcessor would fire (settledPersonIds changed),
     //    see a non-zero processedBalances, compute a delta, and re-apply it on
     //    top of the already-zeroed balances — causing a double-count.
     const settledBillIds: string[] = [];
+    const skippedBillIds: string[] = [];   // declared INSIDE the closure (retry-safe)
+    // Balance-sign contribution of the bills we actually settle. The pair
+    // balance is reduced by EXACTLY this — so bills we skip keep their debt.
+    let settledDelta = 0;
     const now = Timestamp.now();
 
     for (let i = 0; i < billRefs.length; i++) {
@@ -140,12 +145,17 @@ export async function processSettlementCore(
       const bill = snap.data()!;
       const people = bill.people ?? [];
 
-      // Find the debtor's person ID in this bill
-      const debtorPersonId = findPersonId(people, debtorUid);
-      if (!debtorPersonId) {
-        logger.warn('Settlement: could not find debtor in bill people array', {
+      // This bill's debtor = the pair member who is not its payer/anchor.
+      const billAnchorUid = toUid(bill.paidById || bill.ownerId);
+      const billDebtorUid =
+        billAnchorUid === callerId ? friendUserId :
+        billAnchorUid === friendUserId ? callerId : null;
+      const debtorPersonId = billDebtorUid ? findPersonId(people, billDebtorUid) : null;
+      if (!billDebtorUid || !debtorPersonId) {
+        logger.warn('Settlement: could not resolve this bill\'s debtor', {
           billId: unsettledBillIds[i],
-          debtorUid,
+          billAnchorUid,
+          pair: [callerId, friendUserId],
           peopleIds: people.map((p: { id: string }) => p.id),
         });
         skippedBillIds.push(unsettledBillIds[i]);
@@ -158,27 +168,45 @@ export async function processSettlementCore(
       // Zero out this friend's processedBalances entry so the ledgerProcessor
       // sees no delta when it fires from the settledPersonIds change.
       const currentProcessed: Record<string, number> = bill.processedBalances ?? {};
+      settledDelta += toSingleBalance(billAnchorUid, billDebtorUid, currentProcessed[billDebtorUid] ?? 0);
       const updatedProcessed = { ...currentProcessed };
-      delete updatedProcessed[debtorUid];
+      delete updatedProcessed[billDebtorUid];
 
       tx.update(billRefs[i], {
         settledPersonIds: FieldValue.arrayUnion(debtorPersonId),
-        unsettledParticipantIds: FieldValue.arrayRemove(debtorUid),
+        unsettledParticipantIds: FieldValue.arrayRemove(billDebtorUid),
         processedBalances: updatedProcessed,
       });
 
       settledBillIds.push(unsettledBillIds[i]);
-      billsSettled++;
     }
 
-    // 4. Zero the balance and clear unsettled bill IDs
+    // Publish counters from THIS attempt's inner state (retry-safe).
+    billsSettled = settledBillIds.length;
+    billsSkipped = skippedBillIds.length;
+
+    // Nothing actually settled (e.g. every bill skipped) → leave the balance
+    // and record untouched rather than wiping unresolved debt.
+    if (settledBillIds.length === 0) return;
+
+    // Direction of the immutable record follows the amount ACTUALLY settled,
+    // not the aggregate balance — with skips they can point opposite ways.
+    amountSettled = Math.abs(settledDelta);
+    const { debtorUid, creditorUid } = deriveDebtorCreditor(
+      balanceData.participants,
+      settledDelta
+    );
+
+    // 4. Reduce the balance by ONLY the settled portion and drop only the
+    //    settled bills. Skipped bills keep their debt and stay in
+    //    unsettledBillIds so the pipeline can still reverse them.
     tx.update(balanceRef, {
-      balance: 0,
-      unsettledBillIds: [],
+      balance: currentBalance - settledDelta,
+      unsettledBillIds: skippedBillIds,
       lastUpdatedAt: now,
     });
 
-    // 5. Write settlement record
+    // 5. Write settlement record (amount = what was actually settled)
     tx.set(settlementRef, {
       id: settlementRef.id,
       fromUserId: debtorUid,
@@ -200,14 +228,14 @@ export async function processSettlementCore(
     callerId,
     friendUserId,
     billsSettled,
-    billsSkipped: skippedBillIds.length,
+    billsSkipped,
     amountSettled,
   });
 
   return {
     settlementId: settlementRef.id,
     billsSettled,
-    billsSkipped: skippedBillIds.length,
+    billsSkipped,
     amountSettled,
   };
 }

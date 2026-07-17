@@ -41,7 +41,7 @@ const EVENT_BALANCES_COLLECTION = 'event_balances';
 // processedBalances and _ledgerVersion are excluded to prevent infinite loops.
 const RELEVANT_FIELDS = [
   'billData', 'people', 'itemAssignments', 'settledPersonIds',
-  'paidById', 'splitEvenly', 'ownerId', '_friendScanTrigger',
+  'paidById', 'splitEvenly', 'ownerId', 'eventId', '_friendScanTrigger',
 ] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -210,10 +210,8 @@ function getPlanEntry(
 
 async function applyFriendLedger(
   billId: string,
-  anchorId: string,
-  newFootprint: Record<string, number>,
-  forceClearPrevious: boolean = false,
-  reversal?: { oldAnchorId: string; oldFootprint: Record<string, number> }
+  linkedFriendUids: Set<string>,
+  payloadPreviousAnchorId?: string
 ): Promise<number> {
   const billRef = db().collection(BILLS_COLLECTION).doc(billId);
   let deltasApplied = 0;
@@ -224,7 +222,47 @@ async function applyFriendLedger(
 
     const billData = billSnap.data()!;
 
-    // ── Phase 0: Plan all mutations in memory (no I/O) ──
+    // ── Recompute the footprint from FRESH committed bill state ──
+    // The applied amounts and the anchor come from the freshly-read bill, not
+    // the trigger payload, so a redelivered/out-of-order SUPERSEDED write can't
+    // apply stale amounts (its payload described an older bill state).
+    const ownerId: string = billData.ownerId;
+    const anchorId: string = billData.paidById || ownerId;
+    const people = (billData.people as Array<{ id: string; name: string }>) || [];
+    const personTotals = computeBillPersonTotals(
+      billData.billData as BillData,
+      people,
+      (billData.itemAssignments as Record<string, string[]>) || {},
+      Boolean(billData.splitEvenly)
+    );
+    const newFootprint = calculateFriendFootprint({
+      people,
+      personTotals,
+      settledPersonIds: (billData.settledPersonIds as string[]) || [],
+      linkedFriendUids,
+      ownerId,
+      creditorId: anchorId,
+    });
+
+    // ── Phase 0: Decide reversal/force-clear from FRESH bill state ──
+    // Trigger delivery is at-least-once: the anchor-flip decision must come
+    // from the committed footprint's own anchor, not the event payload —
+    // otherwise a redelivered flip event re-applies the reversal + full delta.
+    // Legacy bills without processedBalancesAnchorId fall back to the
+    // payload's before-anchor (their footprint was written under it).
+    const storedFootprint: Record<string, number> = billData.processedBalances || {};
+    const storedAnchorId: string =
+      billData.processedBalancesAnchorId ?? payloadPreviousAnchorId ?? anchorId;
+
+    let reversal: { oldAnchorId: string; oldFootprint: Record<string, number> } | undefined;
+    let previousBalances: Record<string, number> = storedFootprint;
+    if (storedAnchorId !== anchorId) {
+      if (Object.keys(storedFootprint).length > 0) {
+        reversal = { oldAnchorId: storedAnchorId, oldFootprint: storedFootprint };
+      }
+      previousBalances = {};
+    }
+
     // Reversal (if anchor changed) is done inside this transaction to prevent
     // partial-reversal corruption, and composed per-doc with the new deltas so
     // every read happens before every write (Firestore transaction rule).
@@ -242,7 +280,6 @@ async function applyFriendLedger(
     }
 
     // ── Phase 1: Compute deltas for new anchor ──
-    const previousBalances = forceClearPrevious ? {} : (billData.processedBalances || {});
     const deltas = computeDeltas(newFootprint, previousBalances);
 
     if (Object.keys(deltas).length === 0 && !reversal) return;
@@ -304,10 +341,11 @@ async function applyFriendLedger(
       }, { merge: true });
     }
 
-    // Save footprint and bump version on the bill
+    // Save footprint (with the anchor it was computed under) and bump version
     const currentVersion: number = (billData._ledgerVersion ?? 0);
     tx.update(billRef, {
       processedBalances: stripZeros(newFootprint),
+      processedBalancesAnchorId: anchorId,
       _ledgerVersion: currentVersion + 1,
     });
     deltasApplied = Object.keys(deltas).length;
@@ -416,10 +454,9 @@ function calculateEventFootprint(
 async function applyEventPairLedger(
   billId: string,
   eventId: string,
-  anchorId: string,
-  newFootprint: Record<string, number>,
-  forceClearPrevious: boolean = false,
-  reversal?: { oldAnchorId: string; oldEventId: string; oldFootprint: Record<string, number> }
+  eventParticipants: Set<string>,
+  payloadPreviousAnchorId?: string,
+  payloadPreviousEventId?: string
 ): Promise<number> {
   const billRef = db().collection(BILLS_COLLECTION).doc(billId);
   let deltasApplied = 0;
@@ -430,7 +467,59 @@ async function applyEventPairLedger(
 
     const billData = billSnap.data()!;
 
-    // ── Phase 0: Plan all mutations in memory (no I/O) ──
+    // A newer write may have moved/removed the bill's event and committed first
+    // (at-least-once / out-of-order delivery). Only apply to `eventId` when the
+    // COMMITTED bill still belongs to it — otherwise this is a stale event; its
+    // own trigger (or clearStaleEventFootprint) already handled the transition.
+    if (billData.eventId !== eventId) return;
+
+    // ── Recompute the footprint from FRESH committed bill state ──
+    // Same reasoning as applyFriendLedger: applied amounts + anchor come from
+    // the freshly-read bill, defeating superseded-write redelivery.
+    const ownerId: string = billData.ownerId;
+    const anchorId: string = billData.paidById || ownerId;
+    const people = (billData.people as Array<{ id: string; name: string }>) || [];
+    const personTotals = computeBillPersonTotals(
+      billData.billData as BillData,
+      people,
+      (billData.itemAssignments as Record<string, string[]>) || {},
+      Boolean(billData.splitEvenly)
+    );
+    const newFootprint = calculateEventFootprint(
+      people,
+      personTotals,
+      (billData.settledPersonIds as string[]) || [],
+      eventParticipants,
+      ownerId,
+      anchorId
+    );
+
+    // ── Phase 0: Decide reversal/force-clear from FRESH bill state ──
+    // Same idempotency rule as applyFriendLedger: a redelivered flip event
+    // must see the committed footprint already anchored to the new creditor
+    // and no-op, so the decision comes from the stored anchor, not the payload.
+    // The stored footprint also remembers WHICH event it was applied to
+    // (processedEventId) — moving a bill between events must reverse the old
+    // event's pair docs, not just start writing to the new event's.
+    const storedFootprint: Record<string, number> = billData.processedEventBalances || {};
+    const storedAnchorId: string =
+      billData.processedEventBalancesAnchorId ?? payloadPreviousAnchorId ?? anchorId;
+    const storedEventId: string =
+      billData.processedEventId ?? payloadPreviousEventId ?? eventId;
+
+    let reversal: { oldAnchorId: string; oldEventId: string; oldFootprint: Record<string, number> } | undefined;
+    let previousEventBalances: Record<string, number> = storedFootprint;
+    if (storedAnchorId !== anchorId || storedEventId !== eventId) {
+      if (Object.keys(storedFootprint).length > 0) {
+        reversal = {
+          oldAnchorId: storedAnchorId,
+          oldEventId: storedEventId,
+          oldFootprint: storedFootprint,
+        };
+      }
+      previousEventBalances = {};
+    }
+
     // Same structure as applyFriendLedger: reversal (if anchor changed) is
     // composed per-doc with the new deltas so every read precedes every write,
     // and an anchor flip within the same pair/event hits the SAME doc exactly once.
@@ -448,7 +537,6 @@ async function applyEventPairLedger(
     }
 
     // ── Phase 1: Compute deltas for new anchor ──
-    const previousEventBalances = forceClearPrevious ? {} : (billData.processedEventBalances || {});
     const deltas = computeDeltas(newFootprint, previousEventBalances);
 
     if (Object.keys(deltas).length === 0 && !reversal) return;
@@ -509,14 +597,93 @@ async function applyEventPairLedger(
       }, { merge: true });
     }
 
-    // Save event footprint on the bill
+    // Save event footprint (with the anchor and event it was computed under)
     tx.update(billRef, {
       processedEventBalances: stripZeros(newFootprint),
+      processedEventBalancesAnchorId: anchorId,
+      processedEventId: eventId,
     });
     deltasApplied = Object.keys(deltas).length;
   });
 
   return deltasApplied;
+}
+
+/**
+ * Cleanup for a bill that has left its event (eventId removed) but still has a
+ * stale event footprint recorded. Reverses the old event's pair docs AND clears
+ * the footprint fields in ONE transaction, deciding everything from FRESH bill
+ * state — so a redelivered/out-of-order "removed from event" trigger cannot
+ * wipe a footprint a newer write already re-applied to a different event, and a
+ * crash can never leave the pair reversed but the footprint uncleared.
+ */
+async function clearStaleEventFootprint(
+  billId: string,
+  payloadPreviousAnchorId?: string,
+  payloadPreviousEventId?: string
+): Promise<void> {
+  const billRef = db().collection(BILLS_COLLECTION).doc(billId);
+
+  await db().runTransaction(async (tx) => {
+    const billSnap = await tx.get(billRef);
+    if (!billSnap.exists) return;
+
+    const billData = billSnap.data()!;
+
+    // A newer write may have re-added the bill to an event and committed first
+    // (at-least-once / out-of-order delivery). Only clean up when the COMMITTED
+    // bill genuinely has no event — otherwise this is a stale trigger, no-op.
+    if (billData.eventId) return;
+
+    const staleFootprint: Record<string, number> = billData.processedEventBalances || {};
+    const staleEventId: string | undefined = billData.processedEventId ?? payloadPreviousEventId;
+    if (!staleEventId || Object.keys(staleFootprint).length === 0) return;
+
+    const staleAnchorId: string =
+      billData.processedEventBalancesAnchorId ?? payloadPreviousAnchorId ?? (billData.paidById || billData.ownerId);
+
+    // Read all involved pair docs (all reads precede all writes).
+    const targets: Array<{
+      ref: FirebaseFirestore.DocumentReference;
+      snap: FirebaseFirestore.DocumentSnapshot;
+      participantId: string;
+      amount: number;
+    }> = [];
+    for (const [participantId, amount] of Object.entries(staleFootprint)) {
+      if (Math.abs(amount) < BALANCE_THRESHOLD) continue;
+      const balanceId = getEventBalanceId(staleEventId, staleAnchorId, participantId);
+      const ref = db().collection(EVENT_BALANCES_COLLECTION).doc(balanceId);
+      targets.push({ ref, snap: await tx.get(ref), participantId, amount });
+    }
+
+    const now = Timestamp.now();
+    for (const { ref, snap, participantId, amount } of targets) {
+      if (!snap.exists) continue;
+      const existing = snap.data()!;
+      // Idempotency: skip if this bill was already reversed off the pair doc.
+      const unsettledBillIds: string[] = existing.unsettledBillIds || [];
+      if (!unsettledBillIds.includes(billId)) continue;
+
+      const currentBalance: number = (existing.balance ?? 0) as number;
+      const reversalDelta = toSingleBalance(staleAnchorId, participantId, -amount);
+      tx.set(ref, {
+        id: ref.id,
+        eventId: staleEventId,
+        participants: [staleAnchorId, participantId].sort(),
+        balance: currentBalance + reversalDelta,
+        unsettledBillIds: FieldValue.arrayRemove(billId),
+        lastUpdatedAt: now,
+        lastBillId: billId,
+      }, { merge: true });
+    }
+
+    // Clear the stale event footprint in the SAME transaction as the reversal.
+    tx.update(billRef, {
+      processedEventBalances: {},
+      processedEventBalancesAnchorId: FieldValue.delete(),
+      processedEventId: FieldValue.delete(),
+    });
+  });
 }
 
 export async function reverseEventFootprint(
@@ -588,18 +755,23 @@ export async function processLedgerWrite(
 
     const previousBalances = before.processedBalances;
     if (previousBalances && Object.keys(previousBalances).length > 0) {
-      await reverseFootprint(billId, anchorId, previousBalances);
+      // Reverse under the anchor the footprint was recorded with (falls back
+      // to the payload anchor for legacy bills without the anchor field).
+      await reverseFootprint(billId, before.processedBalancesAnchorId ?? anchorId, previousBalances);
       logger.info('Stage 2: reversed footprint', { billId, friendsReversed: Object.keys(previousBalances).length });
     }
 
-    if (before.eventId) {
+    // Prefer the event the footprint was actually applied to (a bill can be
+    // deleted after moving events, before the pipeline caught up).
+    const deletedEventId = before.processedEventId ?? before.eventId;
+    if (deletedEventId) {
       const previousEventBalances = before.processedEventBalances;
       if (previousEventBalances && Object.keys(previousEventBalances).length > 0) {
         try {
-          await reverseEventFootprint(billId, before.eventId, anchorId, previousEventBalances);
-          logger.info('Stage 3: reversed event footprint', { billId, eventId: before.eventId, participantsReversed: Object.keys(previousEventBalances).length });
+          await reverseEventFootprint(billId, deletedEventId, before.processedEventBalancesAnchorId ?? anchorId, previousEventBalances);
+          logger.info('Stage 3: reversed event footprint', { billId, eventId: deletedEventId, participantsReversed: Object.keys(previousEventBalances).length });
         } catch (err) {
-          logger.error('Stage 3 failed (non-fatal)', { billId, eventId: before.eventId, error: String(err) });
+          logger.error('Stage 3 failed (non-fatal)', { billId, eventId: deletedEventId, error: String(err) });
         }
       }
     }
@@ -619,28 +791,13 @@ export async function processLedgerWrite(
 
   logger.info('Processing bill', { billId, operation, creditorId, eventId: after.eventId || null });
 
-  // Handle Anchor Change (e.g. user edits who paid the bill)
-  // Reversal is done atomically inside applyFriendLedger/applyEventPairLedger
-  // to prevent partial-reversal corruption if the function crashes mid-way.
-  let forceClearPrevious = false;
-  let friendReversal: { oldAnchorId: string; oldFootprint: Record<string, number> } | undefined;
-  let eventReversal: { oldAnchorId: string; oldEventId: string; oldFootprint: Record<string, number> } | undefined;
-  if (before && after) {
-    const previousAnchorId = before.paidById || before.ownerId;
-    if (previousAnchorId !== creditorId) {
-      logger.info('Anchor changed, will reverse previous balances atomically', { previousAnchorId, currentAnchorId: creditorId });
-
-      if (before.processedBalances && Object.keys(before.processedBalances).length > 0) {
-        friendReversal = { oldAnchorId: previousAnchorId, oldFootprint: before.processedBalances };
-      }
-
-      if (before.eventId && before.processedEventBalances && Object.keys(before.processedEventBalances).length > 0) {
-        eventReversal = { oldAnchorId: previousAnchorId, oldEventId: before.eventId, oldFootprint: before.processedEventBalances };
-      }
-
-      forceClearPrevious = true;
-    }
-  }
+  // Anchor changes (e.g. user edits who paid the bill) are detected and
+  // reversed atomically INSIDE applyFriendLedger/applyEventPairLedger, from
+  // the freshly-read bill's processed*AnchorId — so redelivered trigger
+  // events (at-least-once semantics) are no-ops. The payload's before-anchor
+  // is passed only as a fallback for legacy bills without the anchor field.
+  const payloadPreviousAnchorId = before ? (before.paidById || before.ownerId) : undefined;
+  const payloadPreviousEventId = before?.eventId;
 
   // ── Stage 1: VALIDATE & CALCULATE ───────────────────────────────────────
   const people = after.people || [];
@@ -650,7 +807,8 @@ export async function processLedgerWrite(
     return;
   }
 
-  const settledPersonIds = after.settledPersonIds || [];
+  // Payload-based totals gate Stage 1 only; the authoritative footprint is
+  // recomputed from fresh committed state inside the ledger transactions.
   const personTotals = computePersonTotals(after);
 
   if (personTotals.length === 0) {
@@ -664,12 +822,9 @@ export async function processLedgerWrite(
   let stage2Wrote = false;
 
   if (linkedFriendUids.size > 0) {
-    const newFootprint = calculateFriendFootprint({
-      people, personTotals, settledPersonIds,
-      linkedFriendUids, ownerId, creditorId,
-    });
-
-    const deltasApplied = await applyFriendLedger(billId, creditorId, newFootprint, forceClearPrevious, friendReversal);
+    // The footprint is recomputed from fresh committed state INSIDE the
+    // transaction (redelivery-safe); we only pass the eligible-friend set.
+    const deltasApplied = await applyFriendLedger(billId, linkedFriendUids, payloadPreviousAnchorId);
     stage2Wrote = deltasApplied > 0;
     logger.info('Stage 2: friend ledger updated', { billId, deltasApplied, linkedFriends: linkedFriendUids.size });
   } else {
@@ -688,18 +843,24 @@ export async function processLedgerWrite(
       const eventParticipants = await resolveEventParticipants(creditorId, after.eventId, linkedFriendUids);
 
       if (eventParticipants.size > 0) {
-        const eventFootprint = calculateEventFootprint(
-          people, personTotals, settledPersonIds,
-          eventParticipants, ownerId, creditorId
-        );
-
-        const eventDeltasApplied = await applyEventPairLedger(billId, after.eventId, creditorId, eventFootprint, forceClearPrevious, eventReversal);
+        // Footprint recomputed from fresh committed state inside the
+        // transaction (redelivery-safe); we only pass the participant set.
+        const eventDeltasApplied = await applyEventPairLedger(billId, after.eventId, eventParticipants, payloadPreviousAnchorId, payloadPreviousEventId);
         logger.info('Stage 3: event pair ledger updated', { billId, eventId: after.eventId, deltasApplied: eventDeltasApplied });
       } else {
         logger.info('Stage 3: no event participants, skipping', { billId, eventId: after.eventId });
       }
     } catch (err) {
       logger.error('Stage 3 failed (non-fatal)', { billId, eventId: after.eventId, error: String(err) });
+    }
+  } else {
+    // Bill has no event but a stale event footprint may remain (eventId was
+    // removed): reverse the old event's pair docs and clear the footprint —
+    // atomically, from fresh committed state (redelivery/crash safe).
+    try {
+      await clearStaleEventFootprint(billId, payloadPreviousAnchorId, payloadPreviousEventId);
+    } catch (err) {
+      logger.error('Stage 3 event-removal reversal failed (non-fatal)', { billId, error: String(err) });
     }
   }
 }

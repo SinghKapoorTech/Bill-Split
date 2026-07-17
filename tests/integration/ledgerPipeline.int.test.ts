@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Timestamp } from 'firebase-admin/firestore';
 import { db, clearFirestore } from './helpers/env';
-import { makeBill } from './helpers/builders';
+import { makeBill, makeEvent } from './helpers/builders';
 import { writeBill, updateBill, deleteBill } from './helpers/triggerLoop';
+import { processLedgerWrite } from '../../functions/src/ledgerProcessor';
 
 const ALICE = 'alice';
 const BOB = 'bob';
@@ -105,6 +106,119 @@ describe('ledger pipeline — core flows', () => {
     expect(bal!.unsettledBillIds).not.toContain('bill-1');
     const bill = await getBill('bill-1');
     expect(bill.processedBalances).toEqual({});          // stripZeros removed bob
+  });
+
+  it('redelivering the same paidById-flip event does not double-count (at-least-once semantics)', async () => {
+    await writeBill('bill-1', standardBill());               // Alice creditor: +12
+    const eventBefore = await getBill('bill-1');             // state the flip event's `before` snapshot carries
+    await updateBill('bill-1', { paidById: BOB });           // first delivery (+ pipeline refires)
+
+    const bal1 = await getBalance(PAIR_ID);
+    expect(bal1!.balance).toBeCloseTo(-12, 2);               // Alice owes Bob 12
+
+    // Cloud Functions triggers are at-least-once: the SAME event payload can
+    // be delivered again after the first run committed. Must be a no-op.
+    const eventAfter = { ...eventBefore, paidById: BOB };
+    await processLedgerWrite('bill-1', eventBefore, eventAfter);
+
+    const bal2 = await getBalance(PAIR_ID);
+    expect(bal2!.balance).toBeCloseTo(-12, 2);               // NOT -36
+    const bill = await getBill('bill-1');
+    expect(bill.processedBalances).toEqual({ [ALICE]: expect.closeTo(12, 2) });
+  });
+
+  it('redelivering the same paidById-flip event does not double-count the event pair ledger', async () => {
+    await db.collection('events').doc('trip').set(makeEvent({ ownerId: ALICE, memberIds: [ALICE, BOB] }));
+    await writeBill('bill-1', standardBill({ eventId: 'trip' }));
+    const eventBefore = await getBill('bill-1');
+    await updateBill('bill-1', { paidById: BOB });
+
+    const pairId = 'trip_alice_bob';
+    const pair1 = (await db.collection('event_balances').doc(pairId).get()).data()!;
+    expect(pair1.balance).toBeCloseTo(-12, 2);
+
+    await processLedgerWrite('bill-1', eventBefore, { ...eventBefore, paidById: BOB });
+
+    const pair2 = (await db.collection('event_balances').doc(pairId).get()).data()!;
+    expect(pair2.balance).toBeCloseTo(-12, 2);               // NOT -36
+    const bal = await getBalance(PAIR_ID);
+    expect(bal!.balance).toBeCloseTo(-12, 2);
+  });
+
+  it('redelivering a SUPERSEDED write does not apply stale amounts (footprint recomputed from fresh state)', async () => {
+    await writeBill('bill-1', standardBill());                  // Pizza 20 → Bob owes 12
+    const supersededCreate = await getBill('bill-1');           // the $20 CREATE payload
+
+    // Edit DOWN to Pizza 10 (subtotal 10, total 14 → each 5 + 1 tax + 1 tip = 7)
+    await updateBill('bill-1', {
+      billData: {
+        items: [{ id: 'item-1', name: 'Pizza', price: 10 }],
+        subtotal: 10, tax: 2, tip: 2, total: 14, restaurantName: 'Test Diner',
+      },
+    });
+    expect((await getBalance(PAIR_ID))!.balance).toBeCloseTo(7, 2);
+
+    // A late / duplicate delivery of the ORIGINAL $20 CREATE arrives after the
+    // $10 edit already committed. Its payload still describes the $20 state
+    // (Bob owes 12). The pipeline must recompute from FRESH state ($10) and
+    // no-op — NOT re-apply the stale $12 on top of the $7.
+    await processLedgerWrite('bill-1', undefined, supersededCreate);
+
+    const bal = await getBalance(PAIR_ID);
+    expect(bal!.balance).toBeCloseTo(7, 2);                     // NOT 12
+    const bill = await getBill('bill-1');
+    expect(bill.processedBalances).toEqual({ [BOB]: expect.closeTo(7, 2) });
+  });
+
+  it('redelivering a superseded write does not apply stale amounts to the event pair ledger', async () => {
+    await db.collection('events').doc('trip').set(makeEvent({ ownerId: ALICE, memberIds: [ALICE, BOB] }));
+    await writeBill('bill-1', standardBill({ eventId: 'trip' }));   // Bob owes 12
+    const supersededCreate = await getBill('bill-1');
+
+    await updateBill('bill-1', {
+      billData: {
+        items: [{ id: 'item-1', name: 'Pizza', price: 10 }],
+        subtotal: 10, tax: 2, tip: 2, total: 14, restaurantName: 'Test Diner',
+      },
+    });
+    const pairId = 'trip_alice_bob';
+    expect((await db.collection('event_balances').doc(pairId).get()).data()!.balance).toBeCloseTo(7, 2);
+
+    await processLedgerWrite('bill-1', undefined, supersededCreate);
+
+    expect((await db.collection('event_balances').doc(pairId).get()).data()!.balance).toBeCloseTo(7, 2); // NOT 12
+    expect((await getBalance(PAIR_ID))!.balance).toBeCloseTo(7, 2);
+  });
+
+  it('a LEGACY bill without processedBalancesAnchorId flips anchor correctly via the payload fallback', async () => {
+    // Every bill that predates the processedBalancesAnchorId field takes the
+    // `?? payloadPreviousAnchorId` fallback on its FIRST post-deploy write.
+    // Seed exactly that state: a committed +12 balance and a bill carrying
+    // processedBalances but NO anchor field.
+    await db.collection('bills').doc('legacy-1').set({
+      ...standardBill(),
+      processedBalances: { [BOB]: 12 },   // NO processedBalancesAnchorId
+      _ledgerVersion: 1,
+    });
+    await db.collection('balances').doc(PAIR_ID).set({
+      id: PAIR_ID,
+      participants: [ALICE, BOB],
+      balance: 12,
+      unsettledBillIds: ['legacy-1'],
+      lastUpdatedAt: Timestamp.now(),
+      lastBillId: 'legacy-1',
+    });
+
+    // Flip who paid. The reversal MUST anchor to the payload's before-anchor
+    // (alice), not default to the new anchor (bob) — else the old +12 is never
+    // reversed and the balance ends wrong.
+    await updateBill('legacy-1', { paidById: BOB });
+
+    const bal = await getBalance(PAIR_ID);
+    expect(bal!.balance).toBeCloseTo(-12, 2);        // Alice now owes Bob 12
+    const bill = await getBill('legacy-1');
+    expect(bill.processedBalances).toEqual({ [ALICE]: expect.closeTo(12, 2) });
+    expect(bill.processedBalancesAnchorId).toBe(BOB);
   });
 
   it('unlinked guests are excluded from balances', async () => {

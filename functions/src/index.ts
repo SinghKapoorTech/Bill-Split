@@ -443,6 +443,28 @@ export { createBill, joinBillAsGuest, leaveBillAsGuest, updateGuestName, claimSh
 export { processRecurringBills } from './recurringBillProcessor.js';
 
 /**
+ * Cloud Function: one-time migration to reconcile event footprints orphaned
+ * before processedEventId existed (bills removed from an event pre-deploy whose
+ * contribution is stranded in event_balances). Guarded: requires auth AND that
+ * the caller's uid matches the MIGRATION_ADMIN_UID env var, so it is inert
+ * unless an operator explicitly sets that variable before running it once.
+ */
+export const reconcileEventFootprints = onCall(
+  { timeoutSeconds: 300, memory: '512MiB' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    const adminUid = process.env.MIGRATION_ADMIN_UID;
+    if (!adminUid || request.auth.uid !== adminUid) {
+      throw new HttpsError('permission-denied', 'Not authorized to run migrations');
+    }
+    const { reconcileOrphanedEventFootprints } = await import('./migrations/reconcileOrphanedEventFootprints.js');
+    return reconcileOrphanedEventFootprints(getFirestore());
+  }
+);
+
+/**
  * Dev-only manual trigger for the recurring-bill generator. Exported ONLY when
  * running under the Firebase emulator so it is never deployed to production.
  * Lets you run a generation pass on demand (the scheduler doesn't fire locally),

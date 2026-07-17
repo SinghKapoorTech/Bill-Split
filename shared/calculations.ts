@@ -5,6 +5,7 @@
  */
 
 import { BillData, Person, PersonTotal, ItemAssignment } from './types.js';
+import { distributeEvenly } from './splitAmounts.js';
 
 export function calculatePersonTotals(
   billData: BillData | null,
@@ -33,11 +34,15 @@ export function calculatePersonTotals(
     }
   });
 
-  const totalAssignedSubtotal = Object.values(personSubtotals).reduce((sum, val) => sum + val, 0);
+  // Tax/tip/fees are shared in proportion to each person's slice of the WHOLE
+  // bill (sum of all item prices), not just the currently-assigned items —
+  // otherwise the first claimer on a partially-assigned bill absorbs 100% of
+  // the tax/tip. Fully-assigned bills are unaffected (the sums are equal).
+  const totalItemsSubtotal = billData.items.reduce((sum, item) => sum + item.price, 0);
 
   const results: PersonTotal[] = people.map(person => {
     const personSubtotal = personSubtotals[person.id];
-    const proportion = totalAssignedSubtotal > 0 ? personSubtotal / totalAssignedSubtotal : 0;
+    const proportion = totalItemsSubtotal > 0 ? personSubtotal / totalItemsSubtotal : 0;
     const personTax = effectiveTax * proportion;
     const personTip = effectiveTip * proportion;
     const personOtherFees = effectiveOtherFees * proportion;
@@ -94,18 +99,42 @@ export function computeBillPersonTotals(
 
   if (splitEvenly) {
     if (billData.items?.length) {
+      // When the declared total disagrees with the component sum (discounts,
+      // unparsed receipt lines), the users were shown and agreed to
+      // billData.total — split THAT, cent-exact. The proportional item
+      // expansion below would silently charge the component sum instead.
+      const componentSum =
+        billData.items.reduce((sum, item) => sum + item.price, 0) +
+        (billData.tax || 0) + (billData.tip || 0) + (billData.otherFees || 0);
+      const declaredTotal = billData.total;
+      if (
+        typeof declaredTotal === 'number' && isFinite(declaredTotal) &&
+        Math.abs(componentSum - declaredTotal) > 0.01
+      ) {
+        const shares = distributeEvenly(declaredTotal, people.length);
+        return people.map((person, i) => ({
+          personId: person.id,
+          name: person.name,
+          itemsSubtotal: shares[i],
+          tax: 0,
+          tip: 0,
+          otherFees: 0,
+          total: shares[i],
+        }));
+      }
       effectiveAssignments = buildEvenSplitAssignments(billData, people);
     } else {
-      // No items to split (legacy/edge data): exact even share of the total.
-      const share = billData.total / people.length;
-      return people.map(person => ({
+      // No items to split (legacy/edge data): cent-exact even shares of the
+      // total (naive division yields unpayable fractions like 50.005).
+      const shares = distributeEvenly(billData.total, people.length);
+      return people.map((person, i) => ({
         personId: person.id,
         name: person.name,
-        itemsSubtotal: share,
+        itemsSubtotal: shares[i],
         tax: 0,
         tip: 0,
         otherFees: 0,
-        total: share,
+        total: shares[i],
       }));
     }
   }

@@ -50,6 +50,44 @@ describe('recurring bill generation', () => {
     expect(bal!.balance).toBeCloseTo(50, 2);
   });
 
+  it('legacy exact-split template generates an internally consistent bill (items sum to total)', async () => {
+    // Legacy quick template: no billData snapshot, exact amounts that pre-date
+    // the strict tolerance and sum to 10.01, not the declared amount 10. The
+    // generated bill must be internally consistent — its declared total must
+    // equal the sum of its per-person items (charged verbatim), not the stale
+    // template `amount`, or the ledger records a different number than the bill.
+    const legacyExact = {
+      id: 'rec-exact',
+      ownerId: ALICE,
+      ownerName: 'Alice',
+      title: 'Utilities',
+      amount: 10,
+      paidById: ALICE,
+      people: [
+        { id: `user-${ALICE}`, name: 'Alice' },
+        { id: `user-${BOB}`, name: 'Bob' },
+      ],
+      splitEvenly: false,
+      exactAmounts: { [`user-${ALICE}`]: 5, [`user-${BOB}`]: 5.01 },
+      schedule: { frequency: 'monthly', dayOfMonth: 1, startDate: '2026-01-01' },
+      status: 'active',
+      nextRunDate: '2026-07-01',
+      lastRunDate: '2026-06-01',
+      generatedBillIds: [],
+    };
+    await db.collection('recurring_bills').doc('rec-exact').set(legacyExact);
+
+    const result = await generateDueRecurringBills(db, '2026-07-01');
+    expect(result.created).toBe(1);
+
+    const bills = await db.collection('bills').where('recurringBillId', '==', 'rec-exact').get();
+    const bill = bills.docs[0].data();
+    const itemsSum = bill.billData.items.reduce((s: number, it: { price: number }) => s + it.price, 0);
+    expect(itemsSum).toBeCloseTo(10.01, 5);                 // typed amounts charged verbatim
+    expect(bill.billData.total).toBeCloseTo(itemsSum, 5);   // internally consistent
+    expect(bill.billData.subtotal).toBeCloseTo(itemsSum, 5);
+  });
+
   it('running the same generation pass twice is idempotent', async () => {
     await db.collection('recurring_bills').doc('rec1').set(template);
 

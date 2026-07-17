@@ -41,6 +41,32 @@ describe('calculatePersonTotals', () => {
     expect(calculatePersonTotals(null, people, {}, 0, 0)).toEqual([]);
     expect(calculatePersonTotals(bill, [], {}, 0, 0)).toEqual([]);
   });
+
+  it('partially-assigned bill: tax/tip share is proportional to the FULL bill, not just assigned items', () => {
+    // Guest-claim regression: $100 bill ($10 claimed, $90 unclaimed), $18 tax+tip.
+    // The sole claimer must owe 10 + 18 * (10/100) = 11.80 — not 10 + all $18 = 28.
+    const partialBill: BillData = {
+      items: [
+        { id: 'mine', name: 'Salad', price: 10 },
+        { id: 'rest', name: 'Steak', price: 90 },
+      ],
+      subtotal: 100,
+      tax: 8,
+      tip: 10,
+      otherFees: 0,
+      total: 118,
+    };
+    const totals = calculatePersonTotals(partialBill, people, { mine: ['p1'] }, partialBill.tip, partialBill.tax, 0);
+
+    const alice = totals.find((t) => t.personId === 'p1')!;
+    const bob = totals.find((t) => t.personId === 'p2')!;
+
+    expect(alice.itemsSubtotal).toBeCloseTo(10, 5);
+    expect(alice.tax).toBeCloseTo(0.8, 5);
+    expect(alice.tip).toBeCloseTo(1, 5);
+    expect(alice.total).toBeCloseTo(11.8, 5);
+    expect(bob.total).toBeCloseTo(0, 5);
+  });
 });
 
 describe('areAllItemsAssigned', () => {

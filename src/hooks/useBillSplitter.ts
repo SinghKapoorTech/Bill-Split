@@ -1,6 +1,7 @@
 import { useMemo, useRef, useEffect } from 'react';
 import { BillData, ItemAssignment, PersonTotal, Person } from '@/types';
-import { calculatePersonTotals, areAllItemsAssigned, buildEvenSplitAssignments } from '@/utils/calculations';
+import { areAllItemsAssigned, buildEvenSplitAssignments } from '@/utils/calculations';
+import { selectOwnerPersonTotals } from '@/utils/ownerBillTotals';
 import { useToast } from './use-toast';
 
 interface BillSplitterProps {
@@ -32,9 +33,11 @@ export function useBillSplitter({
   }, [billData, itemAssignments]);
 
   const personTotals = useMemo((): PersonTotal[] => {
-    if (!allItemsAssigned) return [];
-    return calculatePersonTotals(billData, people, itemAssignments, billData?.tip || 0, billData?.tax || 0, billData?.otherFees ?? 0);
-  }, [billData, people, itemAssignments, allItemsAssigned]);
+    // Route through the shared entry point the ledger pipeline uses, so the
+    // owner UI / Venmo charges never diverge from what balances records
+    // (e.g. splitEvenly discount bills charge billData.total, not the sum).
+    return selectOwnerPersonTotals(billData, people, itemAssignments, splitEvenly, allItemsAssigned);
+  }, [billData, people, itemAssignments, splitEvenly, allItemsAssigned]);
 
   const handleItemAssignment = (itemId: string, personId: string, checked: boolean) => {
     const currentAssignments = itemAssignments[itemId] || [];

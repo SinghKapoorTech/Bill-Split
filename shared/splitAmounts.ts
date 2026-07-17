@@ -12,8 +12,15 @@ import type { BillItem, ItemAssignment } from './types.js';
 
 export type SplitMethod = 'equal' | 'percentage' | 'exact';
 
-/** Tolerance (in dollars or percent points) for split validation. */
+/** Tolerance (in percent points) for percentage-split validation. */
 export const SPLIT_TOLERANCE = 0.02;
+
+/**
+ * Tolerance for exact-split validation: float noise only (half a cent).
+ * Deliberately strict — a looser tolerance would force someone's typed
+ * amount to be silently altered to make the items sum to the total.
+ */
+export const EXACT_SPLIT_TOLERANCE = 0.005;
 
 /** Rounds a value to two decimal places (cents). */
 export function roundCents(value: number): number {
@@ -34,9 +41,12 @@ export function distributeEvenly(total: number, count: number): number[] {
 
 /**
  * Resolves the amount each person owes for a split configuration.
- * For every method the last person absorbs the rounding remainder, so the
- * returned amounts sum exactly to `amount` — matching what gets persisted
- * as bill items and what the ledger pipeline records.
+ * For equal/percentage splits the last person absorbs the rounding remainder,
+ * so the returned amounts sum exactly to `amount` — matching what gets
+ * persisted as bill items and what the ledger pipeline records.
+ * Exact splits return each person's typed amount verbatim — the entered
+ * numbers ARE the agreement and are never silently altered;
+ * isSplitConfigValid guarantees they sum to `amount`.
  */
 export function resolveSplitAmounts(
   amount: number,
@@ -56,16 +66,20 @@ export function resolveSplitAmounts(
     return result;
   }
 
+  if (method === 'exact') {
+    people.forEach(person => {
+      result[person.id] = roundCents(exactAmounts?.[person.id] || 0);
+    });
+    return result;
+  }
+
+  // percentage: round each share; the last person absorbs the remainder
+  // (percent points cannot express exact cents, so drift is unavoidable).
   let runningTotal = 0;
   people.forEach((person, i) => {
-    let share: number;
-    if (i === people.length - 1) {
-      share = roundCents(amount - runningTotal);
-    } else if (method === 'percentage') {
-      share = roundCents(amount * (percentages?.[person.id] || 0) / 100);
-    } else {
-      share = roundCents(exactAmounts?.[person.id] || 0);
-    }
+    const share = i === people.length - 1
+      ? roundCents(amount - runningTotal)
+      : roundCents(amount * (percentages?.[person.id] || 0) / 100);
     runningTotal += share;
     result[person.id] = share;
   });
@@ -74,7 +88,9 @@ export function resolveSplitAmounts(
 
 /**
  * Validates a split configuration: percentages must sum to ~100,
- * exact amounts must sum to ~the total. Equal splits are always valid.
+ * exact amounts must sum to the total (float noise only — typed amounts are
+ * charged verbatim, so any real drift must be corrected by the user, not
+ * silently absorbed). Equal splits are always valid.
  */
 export function isSplitConfigValid(
   method: SplitMethod,
@@ -88,7 +104,7 @@ export function isSplitConfigValid(
   }
   if (method === 'exact') {
     const sum = Object.values(exactAmounts || {}).reduce((a, b) => a + b, 0);
-    return Math.abs(sum - amount) < SPLIT_TOLERANCE;
+    return Math.abs(sum - amount) < EXACT_SPLIT_TOLERANCE;
   }
   return true;
 }

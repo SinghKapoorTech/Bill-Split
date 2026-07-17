@@ -4,7 +4,7 @@ import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { createBillCore } from './billFunctions.js';
 import { firstRunDate, advanceRunDate } from '../../shared/recurringSchedule.js';
-import { resolveSplitAmounts, buildPerPersonShareItems } from '../../shared/splitAmounts.js';
+import { resolveSplitAmounts, buildPerPersonShareItems, roundCents } from '../../shared/splitAmounts.js';
 
 interface BillDataShape {
   items: { id: string; name: string; price: number }[];
@@ -86,18 +86,24 @@ function buildBillPayload(template: RecurringBillDoc) {
     };
   }
 
-  // Per-person exact amounts (shared math: last person absorbs rounding)
+  // Per-person exact amounts are charged verbatim (the entered numbers ARE the
+  // agreement). Derive subtotal/total from the ACTUAL sum of those items rather
+  // than the template `amount` — legacy templates may carry exact amounts that
+  // don't sum to `amount`, and the generated bill must stay internally
+  // consistent (items sum == total) or the ledger records a different number
+  // than the bill shows.
   const amounts = resolveSplitAmounts(amount, people, 'exact', undefined, exactAmounts);
   const { items, itemAssignments } = buildPerPersonShareItems(people, amounts);
+  const resolvedTotal = roundCents(Object.values(amounts).reduce((sum, v) => sum + v, 0));
 
   return {
     billData: {
       items,
-      subtotal: amount,
+      subtotal: resolvedTotal,
       tax: 0,
       tip: 0,
       otherFees: 0,
-      total: amount,
+      total: resolvedTotal,
       restaurantName: title,
     },
     itemAssignments,

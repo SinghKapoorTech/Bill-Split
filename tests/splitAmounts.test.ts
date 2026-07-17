@@ -68,24 +68,31 @@ describe('resolveSplitAmounts', () => {
     expect(amounts.p3).toBe(33.34);
   });
 
-  it('exact: last person is forced to the remainder so items sum to the total', () => {
-    // User typed 5.00 + 5.01 against a $10 total (within the 0.02 tolerance).
-    const amounts = resolveSplitAmounts(10, people.slice(0, 2), 'exact', undefined, {
-      p1: 5, p2: 5.01,
+  it('exact: every person gets exactly what they typed — never silently altered', () => {
+    // The typed amounts ARE the agreement; validation guarantees they sum.
+    const amounts = resolveSplitAmounts(20.01, people.slice(0, 2), 'exact', undefined, {
+      p1: 10, p2: 10.01,
     });
-    expect(amounts.p1).toBe(5);
-    expect(amounts.p2).toBe(5); // remainder, not the typed 5.01
+    expect(amounts.p1).toBe(10);
+    expect(amounts.p2).toBe(10.01); // the typed value, not a forced remainder
+  });
+
+  it('exact: even an out-of-balance config is returned as typed (callers gate via isSplitConfigValid)', () => {
+    const amounts = resolveSplitAmounts(20, people.slice(0, 2), 'exact', undefined, {
+      p1: 10, p2: 10.01,
+    });
+    expect(amounts.p2).toBe(10.01); // never overridden to the remainder (10.00)
   });
 
   it('returns {} for empty people', () => {
     expect(resolveSplitAmounts(100, [], 'equal')).toEqual({});
   });
 
-  it('single person gets the full amount in every method', () => {
+  it('single person gets the full amount for equal/percentage, their typed amount for exact', () => {
     const one = people.slice(0, 1);
     expect(resolveSplitAmounts(42.42, one, 'equal')).toEqual({ p1: 42.42 });
     expect(resolveSplitAmounts(42.42, one, 'percentage', { p1: 100 })).toEqual({ p1: 42.42 });
-    expect(resolveSplitAmounts(42.42, one, 'exact', undefined, { p1: 40 })).toEqual({ p1: 42.42 });
+    expect(resolveSplitAmounts(42.42, one, 'exact', undefined, { p1: 42.42 })).toEqual({ p1: 42.42 });
   });
 });
 
@@ -100,9 +107,14 @@ describe('isSplitConfigValid', () => {
     expect(isSplitConfigValid('percentage', 100, { p1: 60, p2: 50 })).toBe(false);
   });
 
-  it('exact requires the sum to be within 0.02 of the amount', () => {
-    expect(isSplitConfigValid('exact', 10, undefined, { p1: 5, p2: 5.01 })).toBe(true);
+  it('exact requires the amounts to sum to the total (no cent drift is tolerated)', () => {
+    // A loose tolerance here is what allowed resolveSplitAmounts to silently
+    // alter a typed amount: 10.00 + 10.01 must NOT validate against 20.00.
+    expect(isSplitConfigValid('exact', 20, undefined, { p1: 10, p2: 10.01 })).toBe(false);
+    expect(isSplitConfigValid('exact', 20.01, undefined, { p1: 10, p2: 10.01 })).toBe(true);
     expect(isSplitConfigValid('exact', 10, undefined, { p1: 5, p2: 4 })).toBe(false);
+    // Float noise must still validate: 0.1 + 0.2 === 0.30000000000000004
+    expect(isSplitConfigValid('exact', 0.3, undefined, { p1: 0.1, p2: 0.2 })).toBe(true);
   });
 });
 

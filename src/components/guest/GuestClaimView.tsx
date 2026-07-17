@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ItemAssignmentBadges } from '@/components/shared/ItemAssignmentBadges';
 import { EditPersonDialog } from '@/components/people/EditPersonDialog';
 import { VenmoChargeDialog } from '@/components/venmo/VenmoChargeDialog';
+import { describeIncludedExtras } from '@/utils/venmo';
 import {
   Dialog,
   DialogContent,
@@ -161,8 +162,11 @@ export function GuestClaimView({
   // What the current person owes — same shared calculation as the ledger
   // pipeline (includes proportional tax/tip/fees), so the Venmo amount
   // always matches what the balance docs record.
+  // A bill with no items yet is not payable: the view tells the guest to
+  // wait for the host, and the ledger pipeline skips no-item bills, so a
+  // payment here would never be reflected in any balance.
   const myTotal = useMemo(() => {
-    if (!currentPerson) return 0;
+    if (!currentPerson || !session.billData?.items?.length) return 0;
     const totals = computeBillPersonTotals(
       session.billData,
       session.people || [],
@@ -192,9 +196,9 @@ export function GuestClaimView({
     });
 
     const restaurantName = session.billData?.restaurantName || (session.isSimpleTransaction && session.billData?.items?.[0]?.name) || 'Divit';
-    const hasExtras = (session.billData?.tax || 0) + (session.billData?.tip || 0) + (session.billData?.otherFees || 0) > 0;
+    const extrasSuffix = describeIncludedExtras(session.billData?.tax, session.billData?.tip, session.billData?.otherFees);
     const note = assignedItems.length > 0
-      ? `${restaurantName}: ${assignedItems.join(', ')}${hasExtras ? ' (incl. tax/tip)' : ''}`
+      ? `${restaurantName}: ${assignedItems.join(', ')}${extrasSuffix}`
       : `${restaurantName} - Your share`;
 
     const charge: VenmoCharge = {

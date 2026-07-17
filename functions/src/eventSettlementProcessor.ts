@@ -19,7 +19,7 @@
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { getEventBalanceId, BALANCE_THRESHOLD } from '../../shared/ledgerCalculations.js';
+import { getEventBalanceId, BALANCE_THRESHOLD, toSingleBalance } from '../../shared/ledgerCalculations.js';
 
 let _db: ReturnType<typeof getFirestore> | null = null;
 function db() {
@@ -94,9 +94,12 @@ export async function processEventSettlementCore(
   const balanceRef = db().collection(EVENT_BALANCES_COLLECTION).doc(balanceId);
   const settlementRef = db().collection(SETTLEMENTS_COLLECTION).doc();
 
+  // Result counters are assigned from the committed attempt at the end of the
+  // transaction closure — never accumulated inside it — so a Firestore retry
+  // (which re-runs the whole closure) can't double-count or duplicate them.
   let billsSettled = 0;
+  let billsSkipped = 0;
   let amountSettled = 0;
-  const skippedBillIds: string[] = [];
 
   await db().runTransaction(async (tx) => {
     // 1. Read event pair balance
@@ -113,27 +116,29 @@ export async function processEventSettlementCore(
       return; // Already settled
     }
 
-    amountSettled = Math.abs(currentBalance);
-    const { debtorUid, creditorUid } = deriveDebtorCreditor(
-      balanceData.participants,
-      currentBalance
-    );
-
     // 2. Read all unsettled bills
     const billRefs = unsettledBillIds.map(id =>
       db().collection(BILLS_COLLECTION).doc(id)
     );
     const billSnaps = await Promise.all(billRefs.map(ref => tx.get(ref)));
 
-    // 3. Mark each bill as settled for the debtor.
-    //    Zero ONLY processedEventBalances[debtorUid] — the event pair balance
-    //    is zeroed directly below, so the pipeline must see no event delta.
-    //    processedBalances is deliberately left untouched: when the
+    // 3. Mark each bill as settled for THAT BILL's debtor — the pair member
+    //    who did not pay it. Offsetting bills (balance ~0 with unsettled
+    //    bills in both directions) must each settle their own debtor;
+    //    blanket-settling the aggregate debtor would settle the creditor on
+    //    reverse-direction bills and silently erase those debts.
+    //    Zero ONLY processedEventBalances[billDebtorUid] — the event pair
+    //    balance is zeroed directly below, so the pipeline must see no event
+    //    delta. processedBalances is deliberately left untouched: when the
     //    ledgerProcessor fires from the settledPersonIds change, it computes a
     //    zero footprint for the debtor, diffs it against the stale
     //    processedBalances entry, and applies the negative delta to the global
     //    balances doc — the flow-through described in this file's docstring.
     const settledBillIds: string[] = [];
+    const skippedBillIds: string[] = [];   // declared INSIDE the closure (retry-safe)
+    // Balance-sign contribution of the bills we actually settle. The event
+    // pair balance is reduced by EXACTLY this — skipped bills keep their debt.
+    let settledDelta = 0;
     const now = Timestamp.now();
 
     for (let i = 0; i < billRefs.length; i++) {
@@ -143,11 +148,17 @@ export async function processEventSettlementCore(
       const bill = snap.data()!;
       const people = bill.people ?? [];
 
-      const debtorPersonId = findPersonId(people, debtorUid);
-      if (!debtorPersonId) {
-        logger.warn('Event settlement: could not find debtor in bill people array', {
+      // This bill's debtor = the pair member who is not its payer/anchor.
+      const billAnchorUid = toUid(bill.paidById || bill.ownerId);
+      const billDebtorUid =
+        billAnchorUid === callerId ? friendUserId :
+        billAnchorUid === friendUserId ? callerId : null;
+      const debtorPersonId = billDebtorUid ? findPersonId(people, billDebtorUid) : null;
+      if (!billDebtorUid || !debtorPersonId) {
+        logger.warn('Event settlement: could not resolve this bill\'s debtor', {
           billId: unsettledBillIds[i],
-          debtorUid,
+          billAnchorUid,
+          pair: [callerId, friendUserId],
           eventId,
           peopleIds: people.map((p: { id: string }) => p.id),
         });
@@ -160,27 +171,44 @@ export async function processEventSettlementCore(
 
       // Zero this participant's processedEventBalances entry (event ledger only)
       const currentProcessedEvent: Record<string, number> = bill.processedEventBalances ?? {};
+      settledDelta += toSingleBalance(billAnchorUid, billDebtorUid, currentProcessedEvent[billDebtorUid] ?? 0);
       const updatedProcessedEvent = { ...currentProcessedEvent };
-      delete updatedProcessedEvent[debtorUid];
+      delete updatedProcessedEvent[billDebtorUid];
 
       tx.update(billRefs[i], {
         settledPersonIds: FieldValue.arrayUnion(debtorPersonId),
-        unsettledParticipantIds: FieldValue.arrayRemove(debtorUid),
+        unsettledParticipantIds: FieldValue.arrayRemove(billDebtorUid),
         processedEventBalances: updatedProcessedEvent,
       });
 
       settledBillIds.push(unsettledBillIds[i]);
-      billsSettled++;
     }
 
-    // 4. Zero the event pair balance
+    // Publish counters from THIS attempt's inner state (retry-safe).
+    billsSettled = settledBillIds.length;
+    billsSkipped = skippedBillIds.length;
+
+    // Nothing actually settled (e.g. every bill skipped) → leave the event
+    // pair balance and record untouched rather than wiping unresolved debt.
+    if (settledBillIds.length === 0) return;
+
+    // Direction of the immutable record follows the amount ACTUALLY settled,
+    // not the aggregate balance — with skips they can point opposite ways.
+    amountSettled = Math.abs(settledDelta);
+    const { debtorUid, creditorUid } = deriveDebtorCreditor(
+      balanceData.participants,
+      settledDelta
+    );
+
+    // 4. Reduce the event pair balance by ONLY the settled portion and drop
+    //    only the settled bills; skipped bills keep their debt and stay tracked.
     tx.update(balanceRef, {
-      balance: 0,
-      unsettledBillIds: [],
+      balance: currentBalance - settledDelta,
+      unsettledBillIds: skippedBillIds,
       lastUpdatedAt: now,
     });
 
-    // 5. Write settlement record with eventId
+    // 5. Write settlement record with eventId (amount = what was actually settled)
     tx.set(settlementRef, {
       id: settlementRef.id,
       fromUserId: debtorUid,
@@ -204,14 +232,14 @@ export async function processEventSettlementCore(
     friendUserId,
     eventId,
     billsSettled,
-    billsSkipped: skippedBillIds.length,
+    billsSkipped,
     amountSettled,
   });
 
   return {
     settlementId: settlementRef.id,
     billsSettled,
-    billsSkipped: skippedBillIds.length,
+    billsSkipped,
     amountSettled,
   };
 }
