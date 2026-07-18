@@ -4,7 +4,8 @@
 	"webDir": "dist",
 	"server": {
 		"androidScheme": "https",
-		"iosScheme": "https"
+		"iosScheme": "https",
+		"hostname": "localhost"
 	},
 	"plugins": {
 		"FirebaseAuthentication": {
@@ -15,7 +16,7 @@
 		},
 		"SplashScreen": {
 			"launchShowDuration": 2000,
-			"backgroundColor": "#ffffff",
+			"backgroundColor": "#0D0D0D",
 			"showSpinner": false
 		}
 	},

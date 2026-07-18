@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
-import { ParallaxGradientBackground } from '@/components/landing/ParallaxGradientBackground';
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { ParallaxGradientBackground } from "@/components/landing/ParallaxGradientBackground";
 
 const MobileAuth = () => {
   const { user, loading, signInWithGoogle } = useAuth();
@@ -14,9 +14,9 @@ const MobileAuth = () => {
   // Use localStorage to persist guest claim ID across OAuth redirects
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const claimGuestId = params.get('claimGuestId');
+    const claimGuestId = params.get("claimGuestId");
     if (claimGuestId) {
-      localStorage.setItem('pending_claim_guest_id', claimGuestId);
+      localStorage.setItem("pending_claim_guest_id", claimGuestId);
     }
   }, []);
 
@@ -24,22 +24,22 @@ const MobileAuth = () => {
   useEffect(() => {
     const processUserAndRedirect = async () => {
       if (user) {
-        const pendingClaimId = localStorage.getItem('pending_claim_guest_id');
-        
+        const pendingClaimId = localStorage.getItem("pending_claim_guest_id");
+
         if (pendingClaimId) {
           try {
             setIsSigningIn(true);
-            const { billService } = await import('@/services/billService');
+            const { billService } = await import("@/services/billService");
             await billService.claimShadowUser(pendingClaimId);
-            localStorage.removeItem('pending_claim_guest_id');
+            localStorage.removeItem("pending_claim_guest_id");
           } catch (error) {
-            console.error('Error claiming shadow user:', error);
+            console.error("Error claiming shadow user:", error);
           } finally {
             setIsSigningIn(false);
           }
         }
-        
-        navigate('/dashboard');
+
+        navigate("/dashboard");
       }
     };
 
@@ -53,7 +53,7 @@ const MobileAuth = () => {
     try {
       await signInWithGoogle();
     } catch (error: unknown) {
-      console.error('[MobileAuth] Sign-in error:', error);
+      console.error("[MobileAuth] Sign-in error:", error);
     } finally {
       setIsSigningIn(false);
     }
@@ -64,7 +64,7 @@ const MobileAuth = () => {
     return (
       <div className="fixed inset-0 w-full h-full flex items-center justify-center">
         <ParallaxGradientBackground />
-        <Loader2 className="w-12 h-12 animate-spin text-indigo-500" />
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
       </div>
     );
   }
@@ -119,14 +119,14 @@ const MobileAuth = () => {
           <img
             src="/divit-icon.png"
             alt="Divit"
-            className="w-20 h-20 rounded-3xl shadow-2xl shadow-indigo-500/30"
+            className="w-20 h-20 rounded-3xl shadow-2xl shadow-primary/30"
           />
         </motion.div>
 
         {/* App Name with Gradient */}
         <motion.h1
           variants={itemVariants}
-          className="text-5xl md:text-6xl font-extrabold text-center mb-4 bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-500 bg-clip-text text-transparent"
+          className="text-5xl md:text-6xl font-extrabold text-center mb-4 bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent"
         >
           Divit
         </motion.h1>
@@ -134,7 +134,7 @@ const MobileAuth = () => {
         {/* Tagline */}
         <motion.h2
           variants={itemVariants}
-          className="text-xl md:text-2xl text-slate-900 font-semibold text-center mb-2"
+          className="text-xl md:text-2xl text-foreground font-semibold text-center mb-2"
         >
           Split bills fairly in seconds
         </motion.h2>
@@ -142,7 +142,7 @@ const MobileAuth = () => {
         {/* Description */}
         <motion.p
           variants={itemVariants}
-          className="text-base md:text-lg text-slate-600 text-center mb-8 max-w-md"
+          className="text-base md:text-lg text-muted-foreground text-center mb-8 max-w-md"
         >
           AI-powered receipt scanner that makes splitting bills with friends
           effortless and fair

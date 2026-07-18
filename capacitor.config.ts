@@ -1,22 +1,22 @@
-import { CapacitorConfig } from '@capacitor/cli';
+import { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: 'com.singhkapoortech.divit',
-  appName: 'Divit',
-  webDir: 'dist',
+  appId: "com.singhkapoortech.divit",
+  appName: "Divit",
+  webDir: "dist",
   server: {
-    androidScheme: 'https',
-    iosScheme: 'https',
-    hostname: 'localhost'
+    androidScheme: "https",
+    iosScheme: "https",
+    hostname: "localhost",
   },
   plugins: {
     FirebaseAuthentication: {
       skipNativeAuth: false,
-      providers: ['google.com'],
+      providers: ["google.com"],
     },
     SplashScreen: {
       launchShowDuration: 2000,
-      backgroundColor: '#ffffff',
+      backgroundColor: "#0D0D0D",
       showSpinner: false,
     },
   },
