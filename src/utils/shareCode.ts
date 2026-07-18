@@ -16,7 +16,7 @@ export function generateShareCode(): string {
   return code;
 }
 
-const PROD_URL = 'https://bill-split-omega.vercel.app';
+const PROD_URL = 'https://www.divit-bill.com'; // Replace with your production URL
 
 /**
  * Returns the web-accessible base URL for shareable links.
