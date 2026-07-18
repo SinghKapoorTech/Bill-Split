@@ -269,13 +269,13 @@ function PersonCompactRow({
 
           {/* Inline Action Badges */}
           {(!isSettled || showSettleButton) && (showVenmoButton || showSettleButton) && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+            <div className="flex flex-wrap items-center gap-2 mt-1">
               {!isSettled && showVenmoButton && (
                 <button
-                  className="flex items-center gap-1 bg-[#008CFF]/10 hover:bg-[#008CFF]/20 text-[#008CFF] px-2.5 py-1 rounded-full text-xs font-semibold transition-colors active:scale-95"
+                  className="flex items-center justify-center gap-1.5 bg-[#008CFF]/10 hover:bg-[#008CFF]/20 text-[#008CFF] px-3 py-1.5 min-h-[36px] rounded-full text-[13px] font-semibold transition-colors active:scale-95"
                   onClick={() => handleChargeOnVenmo(pt, person?.venmoId, venmoType)}
                 >
-                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z" />
                   </svg>
                   {venmoType === 'charge' ? 'Charge' : 'Pay'}
@@ -284,7 +284,7 @@ function PersonCompactRow({
 
               {onMarkAsSettled && showSettleButton && (
                 <button
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-colors active:scale-95 disabled:opacity-50 disabled:pointer-events-none ${isSettled ? 'bg-success/20 text-success hover:bg-success/30' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
+                  className={`flex items-center justify-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-full text-[13px] font-semibold transition-colors active:scale-95 disabled:opacity-50 disabled:pointer-events-none ${isSettled ? 'bg-success/20 text-success hover:bg-success/30' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}
                   disabled={isSettling[pt.personId]}
                   onClick={async () => {
                     setIsSettling(prev => ({ ...prev, [pt.personId]: true }));
@@ -299,7 +299,7 @@ function PersonCompactRow({
                     <>Undo Settle</>
                   ) : (
                     <>
-                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M20 6 9 17l-5-5" />
                       </svg>
                       Settle
