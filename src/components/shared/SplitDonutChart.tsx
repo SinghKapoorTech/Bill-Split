@@ -6,6 +6,8 @@ interface SplitDonutChartProps {
   personTotals: PersonTotal[];
   total: number;
   size?: number;
+  /** Optional role tags (e.g. 'Created', 'Paid') keyed by personId. */
+  roleLabels?: Record<string, string>;
 }
 
 const COLORS = [
@@ -23,7 +25,7 @@ const COLORS = [
  * SplitDonutChart - Animated SVG donut chart showing each person's share of the bill.
  * Segments animate in sequentially with staggered delays.
  */
-export function SplitDonutChart({ personTotals, total, size = 160 }: SplitDonutChartProps) {
+export function SplitDonutChart({ personTotals, total, size = 160, roleLabels }: SplitDonutChartProps) {
   if (total <= 0 || personTotals.length === 0) return null;
 
   const strokeWidth = 18;
@@ -100,7 +102,15 @@ export function SplitDonutChart({ personTotals, total, size = 160 }: SplitDonutC
               className="w-2.5 h-2.5 rounded-full"
               style={{ backgroundColor: COLORS[index % COLORS.length] }}
             />
-            <span className="text-xs text-muted-foreground">{pt.name}</span>
+            <span className="text-xs text-muted-foreground">
+              {pt.name}
+              {roleLabels?.[pt.personId] && (
+                <span className="text-muted-foreground/70">
+                  {' '}
+                  ({roleLabels[pt.personId]})
+                </span>
+              )}
+            </span>
           </div>
         ))}
       </div>

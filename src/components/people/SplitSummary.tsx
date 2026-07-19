@@ -23,9 +23,11 @@ interface Props {
   paidById?: string;
   ownerId?: string;
   onMarkAsSettled?: (personId: string, isSettled: boolean) => void;
+  /** Optional role tags (e.g. 'Created', 'Paid') keyed by personId. */
+  roleLabels?: Record<string, string>;
 }
 
-export function SplitSummary({ personTotals, allItemsAssigned, people, billData, itemAssignments, billName = 'Divit', settledPersonIds = [], paidById, ownerId, onMarkAsSettled }: Props) {
+export function SplitSummary({ personTotals, allItemsAssigned, people, billData, itemAssignments, billName = 'Divit', settledPersonIds = [], paidById, ownerId, onMarkAsSettled, roleLabels }: Props) {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { toast } = useToast();
@@ -174,6 +176,7 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
                 pt={pt}
                 person={person}
                 displayName={displayNames[pt.personId] || pt.name}
+                roleLabel={roleLabels?.[pt.personId]}
                 isSettled={isSettled}
                 isMe={isMe}
                 showVenmoButton={showVenmoButton}
@@ -211,6 +214,7 @@ function PersonCompactRow({
   pt,
   person,
   displayName,
+  roleLabel,
   isSettled,
   isMe,
   showVenmoButton,
@@ -227,6 +231,7 @@ function PersonCompactRow({
   pt: PersonTotal;
   person: Person | undefined;
   displayName: string;
+  roleLabel?: string;
   isSettled: boolean;
   isMe: boolean;
   showVenmoButton: boolean;
@@ -254,7 +259,15 @@ function PersonCompactRow({
         {/* Left: Name and Actions */}
         <div className="flex flex-col justify-center gap-1.5 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`font-semibold text-base md:text-lg leading-none truncate ${isSettled ? 'text-success' : ''}`}>{displayName}</span>
+            <span className={`font-semibold text-base md:text-lg leading-none truncate ${isSettled ? 'text-success' : ''}`}>
+              {displayName}
+              {roleLabel && (
+                <span className="font-normal text-xs text-muted-foreground">
+                  {' '}
+                  ({roleLabel})
+                </span>
+              )}
+            </span>
             {isMe && !isSettled && (
               <span className="text-[10px] font-bold tracking-wider uppercase text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.5 rounded-sm shrink-0">
                 Me

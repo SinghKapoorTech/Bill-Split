@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { User, Receipt, Edit2, Loader2, AlertTriangle, CheckCircle2, Undo2 } from 'lucide-react';
-import { arrayRemove } from 'firebase/firestore';
+import { arrayRemove, arrayUnion } from 'firebase/firestore';
 import { Bill } from '@/types/bill.types';
 import { computeBillPersonTotals } from '@shared/calculations';
+import { SplitSummary } from '@/components/people/SplitSummary';
+import { SplitDonutChart } from '@/components/shared/SplitDonutChart';
+import { describeBillAttribution, buildParticipantRoles } from '@/utils/billParticipants';
 import { billService } from '@/services/billService';
 import { useToast } from '@/hooks/use-toast';
 import { Person } from '@/types/person.types';
@@ -176,6 +179,67 @@ export function GuestClaimView({
     return totals.find(t => t.personId === currentPerson.id)?.total ?? 0;
   }, [session.billData, session.people, session.itemAssignments, session.splitEvenly, currentPerson]);
 
+  // Is the logged-in viewer the person who paid (the creditor)? Mirrors the
+  // `didIPay` check in SplitSummary. Anonymous guests are never the creditor.
+  const creditorId = session.paidById || session.ownerId;
+  const didIPay = Boolean(
+    user && creditorId && (creditorId === user.uid || creditorId === `user-${user.uid}`)
+  );
+
+  // Full roster totals + assignment completeness — only needed for the payer view.
+  const personTotals = useMemo(() => {
+    if (!didIPay || !session.billData?.items?.length) return [];
+    return computeBillPersonTotals(
+      session.billData,
+      session.people || [],
+      session.itemAssignments || {},
+      Boolean(session.splitEvenly)
+    );
+  }, [didIPay, session.billData, session.people, session.itemAssignments, session.splitEvenly]);
+
+  const allItemsAssigned = useMemo(() => {
+    const items = session.billData?.items || [];
+    if (items.length === 0) return false;
+    return items.every(item => ((session.itemAssignments || {})[item.id] || []).length > 0);
+  }, [session.billData, session.itemAssignments]);
+
+  // Role tags ('Created' / 'Paid') shown next to names on the payer view.
+  const roleLabels = useMemo(
+    () => buildParticipantRoles(session.people || [], session.ownerId, session.paidById),
+    [session.people, session.ownerId, session.paidById]
+  );
+
+  // Names for the 'Created by / Paid by' header (debtor/guest view).
+  const attribution = useMemo(
+    () => describeBillAttribution(session.ownerId, session.paidById, session.people || [], session.members || []),
+    [session.ownerId, session.paidById, session.people, session.members]
+  );
+
+  // Creditor marks a debtor's share settled (or undoes it). Permitted for a
+  // participant by the settlement-only rule in firestore.rules. Mirrors
+  // ReviewStep.handleMarkAsSettled.
+  const handleMarkDebtorSettled = async (personId: string, settled: boolean) => {
+    try {
+      await billService.updateBill(session.id, {
+        settledPersonIds: (settled ? arrayUnion(personId) : arrayRemove(personId)) as unknown as string[],
+      });
+      toast({
+        title: settled ? 'Marked as Settled' : 'Undo Settled',
+        description: settled
+          ? 'Their balance has been updated to $0 for this bill.'
+          : 'Their balance has been restored for this bill.',
+      });
+    } catch (error) {
+      console.error('Failed to mark as settled', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to mark as settled. Please try again.',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
   const handlePayOnVenmo = () => {
     if (!currentPerson || !payerPerson) return;
     const total = myTotal;
@@ -255,7 +319,59 @@ export function GuestClaimView({
   // User is in people list: show items with badge-style assignment UI
   return (
     <div className="space-y-4">
-      {/* User info header with total and pay button */}
+      {/* Who created / who paid — shown to debtors/guests so they know whom to
+          pay. The payer gets the standard review screen instead (below). */}
+      {!didIPay && (attribution.creatorName || attribution.payerName) && (
+        <Card className="p-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Receipt className="w-4 h-4 text-muted-foreground shrink-0" />
+            {attribution.ownerIsPayer ? (
+              <span className="text-muted-foreground">
+                Created &amp; paid by{' '}
+                <span className="font-medium text-foreground">{attribution.creatorName ?? 'Unknown'}</span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">
+                Created by{' '}
+                <span className="font-medium text-foreground">{attribution.creatorName ?? 'Unknown'}</span>
+                {' · '}
+                <span className="font-medium text-foreground">{attribution.payerName ?? 'Unknown'}</span>{' '}
+                paid
+              </span>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Payer (creditor) view: identical to the /bill review step —
+          donut chart + SplitSummary (Charge + Settle per person). */}
+      {didIPay && (
+        <Card className="bill-card-full-width">
+          {allItemsAssigned && personTotals.length > 1 && session.billData && (
+            <SplitDonutChart
+              personTotals={personTotals}
+              total={session.billData.total}
+              roleLabels={roleLabels}
+            />
+          )}
+          <SplitSummary
+            personTotals={personTotals}
+            allItemsAssigned={allItemsAssigned}
+            people={session.people || []}
+            billData={session.billData!}
+            itemAssignments={session.itemAssignments || {}}
+            roleLabels={roleLabels}
+            billName={session.billData?.restaurantName || (session.isSimpleTransaction && session.billData?.items?.[0]?.name) || 'Divit'}
+            settledPersonIds={session.settledPersonIds || []}
+            paidById={session.paidById}
+            ownerId={session.ownerId}
+            onMarkAsSettled={handleMarkDebtorSettled}
+          />
+        </Card>
+      )}
+
+      {/* User info header with total and pay button (debtors / guests) */}
+      {!didIPay && (
       <Card className={`p-4 ${isSettled ? 'bg-success/10 border-success/40' : ''}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -341,6 +457,7 @@ export function GuestClaimView({
           </div>
         )}
       </Card>
+      )}
 
       {/* Edit Person Dialog */}
       <EditPersonDialog
@@ -351,7 +468,7 @@ export function GuestClaimView({
         existingNames={session.people?.map(p => p.name) || []}
       />
 
-      {items.length === 0 ? (
+      {!didIPay && (items.length === 0 ? (
         <Card className="p-8 text-center">
           <p className="text-muted-foreground">
             No items on the bill yet. Wait for the host to add items.
@@ -402,7 +519,7 @@ export function GuestClaimView({
             })}
           </div>
         </Card>
-      )}
+      ))}
 
       {/* Guest Upsell Card */}
       {!user && currentPerson && (
