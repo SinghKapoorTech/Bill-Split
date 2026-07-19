@@ -234,7 +234,7 @@ export default function BalanceDetailView() {
         <div className={`absolute inset-0 opacity-[0.04] ${
           hasBalance
             ? friendBalance! > 0 ? 'bg-success' : 'bg-destructive'
-            : 'bg-gradient-to-br from-primary to-violet-500'
+            : 'bg-gradient-to-br from-primary to-accent'
         }`} />
 
         {/* Back button */}

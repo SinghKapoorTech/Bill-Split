@@ -3,7 +3,7 @@ import { Users, Check } from 'lucide-react';
 import { OnboardingSlide } from '../OnboardingSlide';
 
 const squadMembers = ['Alex', 'Jamie', 'Sam'];
-const avatarColors = ['bg-indigo-500', 'bg-violet-500', 'bg-emerald-500'];
+const avatarColors = ['bg-amber-500', 'bg-rose-500', 'bg-emerald-500'];
 
 export function EventsSlide() {
   return (

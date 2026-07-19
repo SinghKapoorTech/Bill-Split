@@ -9,7 +9,7 @@ const people = [
     tax: '$2.09',
     tip: '$3.30',
     total: '$27.39',
-    color: 'bg-indigo-500',
+    color: 'bg-amber-500',
     initial: 'Y',
   },
   {

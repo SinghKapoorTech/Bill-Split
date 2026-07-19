@@ -84,7 +84,7 @@ export function AirbnbAssignStep({
                 {categorizedItems.nights.length > 0 && (
                     <div className="flex flex-col gap-3">
                         <h3 className="font-semibold text-lg flex items-center gap-2">
-                            <Moon className="w-5 h-5 text-indigo-500" />
+                            <Moon className="w-5 h-5 text-primary" />
                             Nightly Stays
                         </h3>
                         {categorizedItems.nights.map(night => (

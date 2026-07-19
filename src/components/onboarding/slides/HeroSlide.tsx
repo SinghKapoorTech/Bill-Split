@@ -9,7 +9,7 @@ const mockItems = [
 ];
 
 const avatarColors: Record<string, string> = {
-  A: 'bg-indigo-500',
+  A: 'bg-amber-500',
   J: 'bg-rose-500',
   S: 'bg-emerald-500',
 };
@@ -29,7 +29,7 @@ export function HeroSlide() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.4 }}
         >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center shadow-sm">
             <Camera className="w-4.5 h-4.5 text-white" />
           </div>
 
