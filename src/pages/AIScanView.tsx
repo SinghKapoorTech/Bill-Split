@@ -294,6 +294,7 @@ export default function AIScanView() {
         />
       </div>
 
+      <div className="flex-1 min-h-0 w-full">
       <BillWizard
         activeSession={effectiveSession}
         billId={billId}
@@ -315,6 +316,7 @@ export default function AIScanView() {
         eventId={eventId}
         onEventChange={handleEventChange}
       />
+      </div>
 
       {effectiveSession && (
         <ShareLinkDialog

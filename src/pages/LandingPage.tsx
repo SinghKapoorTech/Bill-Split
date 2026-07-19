@@ -8,7 +8,7 @@ import { LandingFooter } from '@/components/landing/LandingFooter';
 
 export default function LandingPage() {
   return (
-    <div className="relative min-h-screen">
+    <div className="relative h-full min-h-screen overflow-y-auto">
       <ParallaxGradientBackground />
       <LandingHeader />
       <main>

@@ -262,6 +262,7 @@ export default function AirbnbView() {
             />
             </div>
 
+            <div className="flex-1 min-h-0 w-full">
             <AirbnbWizard
                 activeSession={effectiveSession}
                 billId={billId}
@@ -281,6 +282,7 @@ export default function AirbnbView() {
                 onEventChange={handleEventChange}
                 initialAirbnbData={airbnbData}
             />
+            </div>
 
             {effectiveSession && (
                 <ShareLinkDialog

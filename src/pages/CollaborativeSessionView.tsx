@@ -133,8 +133,8 @@ export default function CollaborativeSessionView() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-2xl">
-      <div className="mb-6 space-y-3">
+    <div className="h-full flex flex-col w-full max-w-2xl mx-auto px-4 py-6">
+      <div className="shrink-0 mb-6 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {user && (
@@ -155,6 +155,7 @@ export default function CollaborativeSessionView() {
         </div>
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-6">
       <GuestClaimView
         session={session}
         onAddSelfToPeople={handleAddSelfToPeople}
@@ -162,6 +163,7 @@ export default function CollaborativeSessionView() {
         onUpdatePerson={handleUpdatePerson}
         onRemovePerson={handleRemovePerson}
       />
+      </div>
     </div>
   );
 }
