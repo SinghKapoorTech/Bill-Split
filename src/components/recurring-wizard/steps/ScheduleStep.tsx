@@ -72,6 +72,13 @@ export function ScheduleStep({
   currentStep,
   totalSteps,
 }: ScheduleStepProps) {
+  // An end date before the first aligned occurrence yields a template that can
+  // never fire. Surface it here rather than only disabling Next with no reason.
+  const generatesNothing =
+    !!startDate &&
+    hasEndDate &&
+    !!endDate &&
+    !scheduleHasOccurrences({ frequency, dayOfWeek, dayOfMonth, startDate, endDate });
 
   return (
     <div className="flex flex-col gap-6 p-4 max-w-md mx-auto mt-4 w-full">
