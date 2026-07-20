@@ -1,40 +1,47 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { usePeopleManager } from '@/hooks/usePeopleManager';
-import { useBillSplitter } from '@/hooks/useBillSplitter';
-import { useFileUpload } from '@/hooks/useFileUpload';
-import { Person, BillData, ItemAssignment } from '@/types';
-import { RecurringFrequency, RecurringBill } from '@/types/recurring.types';
-import { recurringBillService } from '@/services/recurringBillService';
-import { Stepper, StepContent } from '@/components/ui/stepper';
-import { PillProgress } from '@/components/ui/pill-progress';
-import { SwipeableStepContainer } from '@/components/ui/swipeable-container';
-import { WizardNavigation } from '@/components/bill-wizard/WizardNavigation';
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { usePeopleManager } from "@/hooks/usePeopleManager";
+import { useBillSplitter } from "@/hooks/useBillSplitter";
+import { useFileUpload } from "@/hooks/useFileUpload";
+import { Person, BillData, ItemAssignment } from "@/types";
+import { RecurringFrequency, RecurringBill } from "@/types/recurring.types";
+import { recurringBillService } from "@/services/recurringBillService";
+import { Stepper, StepContent } from "@/components/ui/stepper";
+import { PillProgress } from "@/components/ui/pill-progress";
+import { SwipeableStepContainer } from "@/components/ui/swipeable-container";
+import { WizardNavigation } from "@/components/bill-wizard/WizardNavigation";
 
-import { BillEntryStep } from '@/components/bill-wizard/steps/BillEntryStep';
-import { PeopleStep } from '@/components/bill-wizard/steps/PeopleStep';
-import { AssignmentStep } from '@/components/bill-wizard/steps/AssignmentStep';
-import { ProcessingOverlay } from '@/components/shared/ProcessingOverlay';
-import { scheduleHasOccurrences } from '@/utils/scheduleFormat';
-import { ScheduleStep } from './steps/ScheduleStep';
-import { RecurringReviewStep } from './steps/RecurringReviewStep';
-import { ChangeTypeButton } from './ChangeTypeButton';
+import { BillEntryStep } from "@/components/bill-wizard/steps/BillEntryStep";
+import { PeopleStep } from "@/components/bill-wizard/steps/PeopleStep";
+import { AssignmentStep } from "@/components/bill-wizard/steps/AssignmentStep";
+import { ProcessingOverlay } from "@/components/shared/ProcessingOverlay";
+import {
+  scheduleHasOccurrences,
+  defaultRecurringTitle,
+  localTodayISO,
+} from "@/utils/scheduleFormat";
+import { ScheduleStep } from "./steps/ScheduleStep";
+import { RecurringReviewStep } from "./steps/RecurringReviewStep";
+import { ChangeTypeButton } from "./ChangeTypeButton";
 
 const STEPS = [
-  { id: 1, label: 'Items', description: 'Fixed line items' },
-  { id: 2, label: 'People', description: 'Who is splitting' },
-  { id: 3, label: 'Assign', description: 'Who owes what' },
-  { id: 4, label: 'Schedule', description: 'Frequency & dates' },
-  { id: 5, label: 'Review', description: 'Confirm' },
+  { id: 1, label: "Items", description: "Fixed line items" },
+  { id: 2, label: "People", description: "Who is splitting" },
+  { id: 3, label: "Assign", description: "Who owes what" },
+  { id: 4, label: "Schedule", description: "Frequency & dates" },
+  { id: 5, label: "Review", description: "Confirm" },
 ];
 
 function todayISO(): string {
-  return new Date().toISOString().split('T')[0];
+  return new Date().toISOString().split("T")[0];
 }
 
 const noop = () => {};
+
+/** Label used for the auto-populated title of a new detailed template. */
+export const DEFAULT_TITLE_LABEL = "Detailed Recurring Expense";
 
 export interface RecurringDetailedWizardProps {
   externalTitle?: string;
@@ -57,10 +64,11 @@ export function RecurringDetailedWizard({
 
   const [currentStep, setCurrentStep] = useState(0);
   const prevStepRef = useRef(0);
-  const directionRef = useRef<'forward' | 'backward'>('forward');
+  const directionRef = useRef<"forward" | "backward">("forward");
 
-  const internalTitleState = useState('');
-  const title = externalTitle !== undefined ? externalTitle : internalTitleState[0];
+  const internalTitleState = useState("");
+  const title =
+    externalTitle !== undefined ? externalTitle : internalTitleState[0];
   const setTitle = (v: string) => {
     internalTitleState[1](v);
     setExternalTitle?.(v);
@@ -70,14 +78,14 @@ export function RecurringDetailedWizard({
   const [people, setPeople] = useState<Person[]>([]);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
   const [splitEvenly, setSplitEvenly] = useState(false);
-  const [paidById, setPaidById] = useState(user?.uid || '');
+  const [paidById, setPaidById] = useState(user?.uid || "");
 
   // Schedule state
-  const [frequency, setFrequency] = useState<RecurringFrequency>('monthly');
+  const [frequency, setFrequency] = useState<RecurringFrequency>("monthly");
   const [dayOfWeek, setDayOfWeek] = useState(1);
   const [dayOfMonth, setDayOfMonth] = useState(1);
   const [startDate, setStartDate] = useState(todayISO());
-  const [endDate, setEndDate] = useState('');
+  const [endDate, setEndDate] = useState("");
   const [hasEndDate, setHasEndDate] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
@@ -98,6 +106,15 @@ export function RecurringDetailedWizard({
     if (user?.uid && !paidById) setPaidById(user.uid);
   }, [user?.uid]);
 
+  // Seed a default title for new templates. Without it the hero title starts
+  // empty, and step 0 silently refused to advance because its gate depended on
+  // a field rendered outside the step. Stays fully editable.
+  useEffect(() => {
+    if (existing) return; // edit mode: hydration below supplies the real title
+    if (title.trim().length > 0) return; // never clobber what the user typed
+    setTitle(defaultRecurringTitle(DEFAULT_TITLE_LABEL, localTodayISO()));
+  }, [existing]);
+
   // Hydrate from existing (edit)
   useEffect(() => {
     if (!existing || hasLoadedExisting.current) return;
@@ -109,8 +126,10 @@ export function RecurringDetailedWizard({
     setPaidById(existing.paidById);
     setSplitEvenly(existing.splitEvenly);
     setFrequency(existing.schedule.frequency);
-    if (existing.schedule.dayOfWeek !== undefined) setDayOfWeek(existing.schedule.dayOfWeek);
-    if (existing.schedule.dayOfMonth !== undefined) setDayOfMonth(existing.schedule.dayOfMonth);
+    if (existing.schedule.dayOfWeek !== undefined)
+      setDayOfWeek(existing.schedule.dayOfWeek);
+    if (existing.schedule.dayOfMonth !== undefined)
+      setDayOfMonth(existing.schedule.dayOfMonth);
     setStartDate(existing.schedule.startDate);
     if (existing.schedule.endDate) {
       setHasEndDate(true);
@@ -120,31 +139,51 @@ export function RecurringDetailedWizard({
   }, [existing]);
 
   if (currentStep !== prevStepRef.current) {
-    directionRef.current = currentStep > prevStepRef.current ? 'forward' : 'backward';
+    directionRef.current =
+      currentStep > prevStepRef.current ? "forward" : "backward";
     prevStepRef.current = currentStep;
   }
   const stepDirection = directionRef.current;
 
-  const hasItems = !!(billData?.items && billData.items.length > 0 && billData.total > 0);
+  const hasItems = !!(
+    billData?.items &&
+    billData.items.length > 0 &&
+    billData.total > 0
+  );
 
   const canProceed = () => {
-    if (currentStep === 0) return hasItems && title.trim().length > 0;
+    // Gated on items only. The title is seeded above and falls back again at
+    // save, so it can never silently block this step.
+    if (currentStep === 0) return hasItems;
     if (currentStep === 1) return people.length > 1;
     if (currentStep === 2) return bill.allItemsAssigned;
-    if (currentStep === 3) return scheduleHasOccurrences({ frequency, dayOfWeek, dayOfMonth, startDate, endDate: hasEndDate ? endDate : undefined });
+    if (currentStep === 3)
+      return scheduleHasOccurrences({
+        frequency,
+        dayOfWeek,
+        dayOfMonth,
+        startDate,
+        endDate: hasEndDate ? endDate : undefined,
+      });
     return true;
   };
 
   const handleNext = () => {
-    if (currentStep < STEPS.length - 1 && canProceed()) setCurrentStep((s) => s + 1);
+    if (currentStep < STEPS.length - 1 && canProceed())
+      setCurrentStep((s) => s + 1);
   };
   const handlePrev = () => {
     if (currentStep > 0) setCurrentStep((s) => s - 1);
     else onBackToType?.();
   };
 
-  const handleUpdatePerson = async (personId: string, updates: Partial<Person>) => {
-    setPeople((prev) => prev.map((p) => (p.id === personId ? { ...p, ...updates } : p)));
+  const handleUpdatePerson = async (
+    personId: string,
+    updates: Partial<Person>,
+  ) => {
+    setPeople((prev) =>
+      prev.map((p) => (p.id === personId ? { ...p, ...updates } : p)),
+    );
   };
 
   const handleComplete = async () => {
@@ -153,30 +192,35 @@ export function RecurringDetailedWizard({
     try {
       const input = {
         ownerId: user.uid,
-        ownerName: user.displayName || 'Anonymous',
-        title,
+        ownerName: user.displayName || "Anonymous",
+        title:
+          title.trim() ||
+          defaultRecurringTitle(DEFAULT_TITLE_LABEL, localTodayISO()),
         amount: billData.total,
         paidById,
         people,
         splitEvenly,
-        generatedType: 'detailed' as const,
+        generatedType: "detailed" as const,
         billData,
         itemAssignments,
         schedule: {
           frequency,
-          ...(frequency === 'monthly' ? { dayOfMonth } : { dayOfWeek }),
+          ...(frequency === "monthly" ? { dayOfMonth } : { dayOfWeek }),
           startDate,
           ...(hasEndDate && endDate ? { endDate } : {}),
         },
       };
       if (existing?.id) {
-        await recurringBillService.updateRecurringBillFromInput(existing.id, input);
+        await recurringBillService.updateRecurringBillFromInput(
+          existing.id,
+          input,
+        );
       } else {
         await recurringBillService.createRecurringBill(input);
       }
-      navigate('/bills');
+      navigate("/bills");
     } catch (err) {
-      console.error('Failed to save recurring bill:', err);
+      console.error("Failed to save recurring bill:", err);
     } finally {
       setIsSaving(false);
     }
@@ -209,7 +253,11 @@ export function RecurringDetailedWizard({
         onSwipeRight={currentStep > 0 ? handlePrev : undefined}
         canSwipeLeft={canProceed()}
         canSwipeRight={currentStep > 0}
-        className={isMobile ? 'flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-[140px] relative' : 'flex-1 min-h-0 overflow-y-auto scrollbar-hide'}
+        className={
+          isMobile
+            ? "flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-[140px] relative"
+            : "flex-1 min-h-0 overflow-y-auto scrollbar-hide"
+        }
       >
         <StepContent stepKey={currentStep} direction={stepDirection}>
           {currentStep === 0 && (
@@ -346,7 +394,7 @@ export function RecurringDetailedWizard({
           onBack={currentStep > 0 ? handlePrev : onBackToType}
           onNext={handleNext}
           onComplete={handleComplete}
-          onExit={() => navigate('/dashboard')}
+          onExit={() => navigate("/dashboard")}
           exitLabel="Dashboard"
           nextDisabled={!canProceed()}
           hasBillData={true}
@@ -357,7 +405,7 @@ export function RecurringDetailedWizard({
 
       <ProcessingOverlay
         open={isSaving}
-        message={existing ? 'Saving changes...' : 'Creating recurring bill...'}
+        message={existing ? "Saving changes..." : "Creating recurring bill..."}
         hint="This can take a few seconds."
       />
     </div>

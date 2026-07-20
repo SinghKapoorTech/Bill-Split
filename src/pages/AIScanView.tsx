@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { HeroSection } from '@/components/layout/HeroSection';
-import { BillWizard } from '@/components/bill-wizard/BillWizard';
+import { BillWizard, BILL_WIZARD_REVIEW_STEP } from '@/components/bill-wizard/BillWizard';
 import { ShareLinkDialog } from '@/components/share/ShareLinkDialog';
 import { Loader2 } from 'lucide-react';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { ensureUserInPeople, generateUserId } from '@/utils/billCalculations';
+import { ensureUserInPeople, generateUserId, initialWizardStep } from '@/utils/billCalculations';
 import { billService } from '@/services/billService';
 import { userService } from '@/services/userService';
 import { Person, BillData, ItemAssignment, Bill } from '@/types';
@@ -120,7 +120,7 @@ export default function AIScanView() {
         setBillData(activeSession.billData || null);
         setSplitEvenly(activeSession.splitEvenly || false);
         setTitle(activeSession.title || '');
-        setCurrentStep(activeSession.currentStep || 0);
+        setCurrentStep(initialWizardStep(activeSession, BILL_WIZARD_REVIEW_STEP));
         setEventId(activeSession.eventId || null);
         loadedSessionId.current = activeSession.id;
         setIsSessionLoaded(true);
@@ -143,7 +143,7 @@ export default function AIScanView() {
           setPeople(ensureUserInPeople(fetchedBill.people || [], user, profile));
           setSplitEvenly(fetchedBill.splitEvenly || false);
           setTitle(fetchedBill.title || '');
-          setCurrentStep(fetchedBill.currentStep || 0);
+          setCurrentStep(initialWizardStep(fetchedBill, BILL_WIZARD_REVIEW_STEP));
           setEventId(fetchedBill.eventId || null);
           loadedSessionId.current = fetchedBill.id;
           setIsSessionLoaded(true);

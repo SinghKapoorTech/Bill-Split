@@ -90,11 +90,6 @@ export function useItemEditor(
     onAfterSave?.(newBillData);
 
     removeItemAssignments(itemId);
-
-    toast({
-      title: 'Item deleted',
-      description: 'Item removed from the bill.',
-    });
   };
 
   const startAdding = () => {
@@ -147,11 +142,6 @@ export function useItemEditor(
       setBillData(newBillData);
       onAfterSave?.(newBillData);
     }
-
-    toast({
-      title: 'Item added',
-      description: `${newItem.name} added to the bill.`,
-    });
 
     cancelAdding();
   };

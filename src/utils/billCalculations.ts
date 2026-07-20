@@ -1,5 +1,5 @@
-import { BillData, BillItem, Person, Bill } from '@/types';
-import { User } from 'firebase/auth';
+import { BillData, BillItem, Person, Bill } from "@/types";
+import { User } from "firebase/auth";
 
 /**
  * Calculates the total and subtotal for a bill based on items, tax, and tip
@@ -12,7 +12,7 @@ export function calculateBillTotals(
   items: BillItem[],
   tax: number,
   tip: number,
-  otherFees: number = 0
+  otherFees: number = 0,
 ): { subtotal: number; total: number } {
   const subtotal = items.reduce((sum, item) => sum + item.price, 0);
   const total = subtotal + tax + tip + otherFees;
@@ -27,10 +27,7 @@ export function calculateBillTotals(
  * @param newData - New bill data to merge
  * @returns Merged bill data
  */
-export function mergeBillData(
-  existing: BillData,
-  newData: BillData
-): BillData {
+export function mergeBillData(existing: BillData, newData: BillData): BillData {
   const mergedItems = [...existing.items, ...newData.items];
   const subtotal = existing.subtotal + newData.subtotal;
 
@@ -62,7 +59,9 @@ export function mergeBillData(
  */
 export function generateItemId(index?: number): string {
   const timestamp = Date.now();
-  return index !== undefined ? `item-${index}-${timestamp}` : `item-${timestamp}`;
+  return index !== undefined
+    ? `item-${index}-${timestamp}`
+    : `item-${timestamp}`;
 }
 
 /**
@@ -94,7 +93,7 @@ export function generateUserId(uid: string): string {
 export function ensureUserInPeople(
   people: Person[],
   user: User | null,
-  profile: { venmoId?: string } | null
+  profile: { venmoId?: string } | null,
 ): Person[] {
   if (!user || !user.displayName) {
     return people;
@@ -102,10 +101,12 @@ export function ensureUserInPeople(
 
   const prefixedId = generateUserId(user.uid);
   const rawId = user.uid;
-  
+
   // Find if user exists in either format
-  const existingIndex = people.findIndex(p => p.id === prefixedId || p.id === rawId);
-  
+  const existingIndex = people.findIndex(
+    (p) => p.id === prefixedId || p.id === rawId,
+  );
+
   if (existingIndex !== -1) {
     const existing = people[existingIndex];
     // If it exists but with the wrong ID format, or if venmoId needs updating
@@ -114,7 +115,7 @@ export function ensureUserInPeople(
       updatedPeople[existingIndex] = {
         ...existing,
         id: prefixedId, // normalize to prefixed version
-        venmoId: profile?.venmoId
+        venmoId: profile?.venmoId,
       };
       return updatedPeople;
     }
@@ -127,8 +128,32 @@ export function ensureUserInPeople(
     name: user.displayName,
     venmoId: profile?.venmoId,
   };
-  
+
   return [currentUser, ...people];
+}
+
+/**
+ * Which wizard step a bill should open on.
+ *
+ * Bills generated from a recurring template arrive fully populated — items,
+ * people and assignments are all copied from the template — so the entry steps
+ * have nothing left to do and the user should land on Review.
+ *
+ * A step the user actually reached always wins, including an explicit 0: the
+ * previous `bill.currentStep || 0` could not distinguish "never saved" from
+ * "saved as 0", so walking back to the first step would bounce them forward
+ * again on the next open.
+ *
+ * @param bill - Bill fields relevant to resuming (may be a partial)
+ * @param reviewStep - Index of the wizard's Review step
+ * @returns Step index to open on
+ */
+export function initialWizardStep(
+  bill: Pick<Bill, "currentStep" | "recurringBillId">,
+  reviewStep: number,
+): number {
+  if (typeof bill.currentStep === "number") return bill.currentStep;
+  return bill.recurringBillId ? reviewStep : 0;
 }
 
 /**
@@ -136,18 +161,20 @@ export function ensureUserInPeople(
  * @param bill - The bill to check
  * @returns 'settled' | 'partial' | 'unsettled'
  */
-export function getSettlementStatus(bill: Bill): 'settled' | 'partial' | 'unsettled' {
+export function getSettlementStatus(
+  bill: Bill,
+): "settled" | "partial" | "unsettled" {
   const totalPeople = bill.people?.length || 0;
   const debtorsCount = Math.max(0, totalPeople - 1);
   const settledCount = bill.settledPersonIds?.length || 0;
 
   if (totalPeople <= 1 || settledCount >= debtorsCount) {
-    return 'settled';
+    return "settled";
   }
   if (settledCount > 0) {
-    return 'partial';
+    return "partial";
   }
-  return 'unsettled';
+  return "unsettled";
 }
 
 /**
@@ -155,7 +182,10 @@ export function getSettlementStatus(bill: Bill): 'settled' | 'partial' | 'unsett
  * - Owner sees aggregate: settled / partial / unsettled based on how many debtors settled.
  * - Debtor sees their own status: settled if their UID is no longer in unsettledParticipantIds.
  */
-export function getSettlementStatusForUser(bill: Bill, userId: string): 'settled' | 'partial' | 'unsettled' {
+export function getSettlementStatusForUser(
+  bill: Bill,
+  userId: string,
+): "settled" | "partial" | "unsettled" {
   const isOwner = bill.ownerId === userId;
 
   if (isOwner) {
@@ -165,14 +195,14 @@ export function getSettlementStatusForUser(bill: Bill, userId: string): 'settled
   // Debtor: check their personal settlement state
   if (bill.unsettledParticipantIds !== undefined) {
     const isUnsettled = bill.unsettledParticipantIds.some(
-      id => id === userId || id === `user-${userId}`
+      (id) => id === userId || id === `user-${userId}`,
     );
-    return isUnsettled ? 'unsettled' : 'settled';
+    return isUnsettled ? "unsettled" : "settled";
   }
 
   // Legacy fallback: check settledPersonIds for this user
   const userSettled = bill.settledPersonIds?.some(
-    id => id === userId || id === `user-${userId}`
+    (id) => id === userId || id === `user-${userId}`,
   );
-  return userSettled ? 'settled' : 'unsettled';
+  return userSettled ? "settled" : "unsettled";
 }

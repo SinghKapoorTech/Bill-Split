@@ -1,77 +1,88 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { billService } from '@/services/billService';
-import { useAuth } from '@/contexts/AuthContext';
-import { arrayUnion, arrayRemove } from 'firebase/firestore';
-import { Stepper, StepContent } from '@/components/ui/stepper';
-import { PillProgress } from '@/components/ui/pill-progress';
-import { SwipeableStepContainer, useSwipeNavigation } from '@/components/ui/swipeable-container';
-import { BillEntryStep } from './steps/BillEntryStep';
-import { PeopleStep } from './steps/PeopleStep';
-import { AssignmentStep } from './steps/AssignmentStep';
-import { ReviewStep } from './steps/ReviewStep';
-import { WizardNavigation } from './WizardNavigation';
-import { useBillWizard } from './hooks/useBillWizard';
-import { useBillSession } from './hooks/useBillSession';
-import { usePeopleManager } from '@/hooks/usePeopleManager';
-import { useBillSplitter } from '@/hooks/useBillSplitter';
-import { useReceiptAnalyzer } from '@/hooks/useReceiptAnalyzer';
-import { useFileUpload } from '@/hooks/useFileUpload';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { Person, BillData, ItemAssignment } from '@/types';
-import { Bill } from '@/types/bill.types';
-import { Step } from './types';
-import { ScanSuccessAnimation } from '@/components/shared/ScanSuccessAnimation';
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { billService } from "@/services/billService";
+import { useAuth } from "@/contexts/AuthContext";
+import { arrayUnion, arrayRemove } from "firebase/firestore";
+import { Stepper, StepContent } from "@/components/ui/stepper";
+import { PillProgress } from "@/components/ui/pill-progress";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  SwipeableStepContainer,
+  useSwipeNavigation,
+} from "@/components/ui/swipeable-container";
+import { BillEntryStep } from "./steps/BillEntryStep";
+import { PeopleStep } from "./steps/PeopleStep";
+import { AssignmentStep } from "./steps/AssignmentStep";
+import { ReviewStep } from "./steps/ReviewStep";
+import { WizardNavigation } from "./WizardNavigation";
+import { useBillWizard } from "./hooks/useBillWizard";
+import { useBillSession } from "./hooks/useBillSession";
+import { usePeopleManager } from "@/hooks/usePeopleManager";
+import { useBillSplitter } from "@/hooks/useBillSplitter";
+import { useReceiptAnalyzer } from "@/hooks/useReceiptAnalyzer";
+import { useFileUpload } from "@/hooks/useFileUpload";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Person, BillData, ItemAssignment } from "@/types";
+import { Bill } from "@/types/bill.types";
+import { Step } from "./types";
+import { ScanSuccessAnimation } from "@/components/shared/ScanSuccessAnimation";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const STEPS: Step[] = [
-    { id: 1, label: 'Bill Entry', description: 'Add items' },
-    { id: 2, label: 'People', description: 'Add friends' },
-    { id: 3, label: 'Assign', description: 'Split items' },
-    { id: 4, label: 'Review', description: 'Finalize' },
+  { id: 1, label: "Bill Entry", description: "Add items" },
+  { id: 2, label: "People", description: "Add friends" },
+  { id: 3, label: "Assign", description: "Split items" },
+  { id: 4, label: "Review", description: "Finalize" },
 ];
 
+/** Index of the Review step, for callers choosing which step to open on. */
+export const BILL_WIZARD_REVIEW_STEP = STEPS.length - 1;
+
 interface BillWizardProps {
-    // Session context
-    activeSession: Bill | null;
-    billId?: string;
-    isUploading: boolean;
-    uploadReceiptImage: (file: File) => Promise<{ downloadURL?: string; fileName?: string } | null>;
-    saveSession: (data: Partial<Bill>, id?: string) => Promise<string | null | void>;
-    removeReceiptImage: () => Promise<void>;
-    deleteSession?: (id: string, receiptFileName?: string) => Promise<void>;
+  // Session context
+  activeSession: Bill | null;
+  billId?: string;
+  isUploading: boolean;
+  uploadReceiptImage: (
+    file: File,
+  ) => Promise<{ downloadURL?: string; fileName?: string } | null>;
+  saveSession: (
+    data: Partial<Bill>,
+    id?: string,
+  ) => Promise<string | null | void>;
+  removeReceiptImage: () => Promise<void>;
+  deleteSession?: (id: string, receiptFileName?: string) => Promise<void>;
 
-    // Initial data
-    initialBillData: BillData | null;
-    initialPeople: Person[];
-    initialItemAssignments: ItemAssignment;
-    initialSplitEvenly: boolean;
-    initialTitle: string;
-    initialStep?: number;
+  // Initial data
+  initialBillData: BillData | null;
+  initialPeople: Person[];
+  initialItemAssignments: ItemAssignment;
+  initialSplitEvenly: boolean;
+  initialTitle: string;
+  initialStep?: number;
 
-    // Controlled title (so parent can track updates)
-    title: string;
-    onTitleChange: (title: string) => void;
+  // Controlled title (so parent can track updates)
+  title: string;
+  onTitleChange: (title: string) => void;
 
-    // Payment info
-    initialPaidById?: string;
+  // Payment info
+  initialPaidById?: string;
 
-    // Share functionality (for mobile navigation)
-    hasBillData: boolean;
-    onShare?: () => void;
+  // Share functionality (for mobile navigation)
+  hasBillData: boolean;
+  onShare?: () => void;
 
-    // Event Info
-    eventId?: string | null;
-    onEventChange?: (eventId: string | null) => void;
+  // Event Info
+  eventId?: string | null;
+  onEventChange?: (eventId: string | null) => void;
 }
 
 /**
@@ -80,711 +91,802 @@ interface BillWizardProps {
  * Replaces the main content of AIScanView
  */
 export function BillWizard({
-    activeSession,
-    billId,
-    isUploading,
-    uploadReceiptImage,
-    saveSession,
-    removeReceiptImage,
-    deleteSession,
-    initialBillData,
-    initialPeople,
-    initialItemAssignments,
-    initialSplitEvenly,
-    initialTitle,
-    initialStep = 0,
-    title,
-    onTitleChange,
-    initialPaidById,
-    hasBillData,
-    onShare,
-    eventId,
-    onEventChange
+  activeSession,
+  billId,
+  isUploading,
+  uploadReceiptImage,
+  saveSession,
+  removeReceiptImage,
+  deleteSession,
+  initialBillData,
+  initialPeople,
+  initialItemAssignments,
+  initialSplitEvenly,
+  initialTitle,
+  initialStep = 0,
+  title,
+  onTitleChange,
+  initialPaidById,
+  hasBillData,
+  onShare,
+  eventId,
+  onEventChange,
 }: BillWizardProps) {
-    const navigate = useNavigate();
-    const { user } = useAuth();
-    const isMobile = useIsMobile();
-    const isOwner = !activeSession || !activeSession.ownerId || activeSession.ownerId === user?.uid;
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isMobile = useIsMobile();
+  const isOwner =
+    !activeSession ||
+    !activeSession.ownerId ||
+    activeSession.ownerId === user?.uid;
 
-    // State
-    const [people, setPeople] = useState<Person[]>(initialPeople);
-    const [billData, setBillData] = useState<BillData | null>(initialBillData);
-    const [itemAssignments, setItemAssignments] = useState<ItemAssignment>(initialItemAssignments);
-    const [splitEvenly, setSplitEvenly] = useState<boolean>(initialSplitEvenly);
-    const [paidById, setPaidById] = useState<string | undefined>(initialPaidById || activeSession?.paidById);
-    const [showClearItemsDialog, setShowClearItemsDialog] = useState(false);
-    const [isAIProcessing, setIsAIProcessing] = useState(false);
-    const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  // State
+  const [people, setPeople] = useState<Person[]>(initialPeople);
+  const [billData, setBillData] = useState<BillData | null>(initialBillData);
+  const [itemAssignments, setItemAssignments] = useState<ItemAssignment>(
+    initialItemAssignments,
+  );
+  const [splitEvenly, setSplitEvenly] = useState<boolean>(initialSplitEvenly);
+  const [paidById, setPaidById] = useState<string | undefined>(
+    initialPaidById || activeSession?.paidById,
+  );
+  const [showClearItemsDialog, setShowClearItemsDialog] = useState(false);
+  const [isAIProcessing, setIsAIProcessing] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
-    // Hooks
-    const upload = useFileUpload();
-    const analyzer = useReceiptAnalyzer(setBillData, setPeople, billData);
-    const peopleManager = usePeopleManager(people, setPeople);
-    const bill = useBillSplitter({
-        people,
-        billData,
-        setBillData,
-        itemAssignments,
-        setItemAssignments,
-        splitEvenly,
-        setSplitEvenly,
-    });
+  // Hooks
+  const upload = useFileUpload();
+  const analyzer = useReceiptAnalyzer(setBillData, setPeople, billData);
+  const peopleManager = usePeopleManager(people, setPeople);
+  const bill = useBillSplitter({
+    people,
+    billData,
+    setBillData,
+    itemAssignments,
+    setItemAssignments,
+    splitEvenly,
+    setSplitEvenly,
+  });
 
-    // Validating and syncing props to state for real-time updates
-    useEffect(() => {
-        // We only sync assignments and people to avoid interrupting bill editing
-        if (initialItemAssignments) {
-            setItemAssignments(initialItemAssignments);
-        }
-    }, [initialItemAssignments]);
-
-    useEffect(() => {
-        if (initialPeople) {
-            setPeople(initialPeople);
-        }
-    }, [initialPeople]);
-
-    // Initialize receipt image preview from session if exists
-    useEffect(() => {
-        if (activeSession?.receiptImageUrl && !upload.imagePreview) {
-            upload.setImagePreview(activeSession.receiptImageUrl);
-        }
-    }, [activeSession?.receiptImageUrl]);
-
-    useEffect(() => {
-        if (activeSession?.paidById && paidById !== activeSession.paidById) {
-            setPaidById(activeSession.paidById);
-        }
-    }, [activeSession?.paidById]);
-
-    const wizard = useBillWizard({
-        billData,
-        people,
-        itemAssignments,
-        totalSteps: STEPS.length,
-        initialStep,
-        minStep: isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2)
-    });
-
-    // Track step direction for directional animations (computed synchronously during render)
-    const prevStepRef = useRef(wizard.currentStep);
-    const directionRef = useRef<'forward' | 'backward'>('forward');
-    if (wizard.currentStep !== prevStepRef.current) {
-        directionRef.current = wizard.currentStep > prevStepRef.current ? 'forward' : 'backward';
-        prevStepRef.current = wizard.currentStep;
+  // Validating and syncing props to state for real-time updates
+  useEffect(() => {
+    // We only sync assignments and people to avoid interrupting bill editing
+    if (initialItemAssignments) {
+      setItemAssignments(initialItemAssignments);
     }
-    const stepDirection = directionRef.current;
+  }, [initialItemAssignments]);
 
-    // Ensure itemAssignments are kept flawlessly in sync if splitEvenly is true
-    // This covers default values, adding/removing guests, or editing items
-    useEffect(() => {
-        if (splitEvenly && billData && billData.items && people.length > 0) {
-            const allPeopleIds = people.map(p => p.id);
-            let needsUpdate = false;
+  useEffect(() => {
+    if (initialPeople) {
+      setPeople(initialPeople);
+    }
+  }, [initialPeople]);
 
-            // Check if any item is missing an assignment or has wrong number of people
-            for (const item of billData.items) {
-                const assigned = itemAssignments[item.id];
-                if (!assigned || assigned.length !== allPeopleIds.length) {
-                    needsUpdate = true;
-                    break;
-                }
-            }
+  // Initialize receipt image preview from session if exists
+  useEffect(() => {
+    if (activeSession?.receiptImageUrl && !upload.imagePreview) {
+      upload.setImagePreview(activeSession.receiptImageUrl);
+    }
+  }, [activeSession?.receiptImageUrl]);
 
-            if (needsUpdate) {
-                const newAssignments: ItemAssignment = {};
-                billData.items.forEach(item => {
-                    newAssignments[item.id] = [...allPeopleIds];
-                });
-                setItemAssignments(newAssignments);
+  useEffect(() => {
+    if (activeSession?.paidById && paidById !== activeSession.paidById) {
+      setPaidById(activeSession.paidById);
+    }
+  }, [activeSession?.paidById]);
 
-                // Fire off a background save if it's not a brand new draft
-                const id = billId || activeSession?.id;
-                if (id) {
-                    billService.updateBill(id, { itemAssignments: newAssignments }).catch(console.error);
-                }
-            }
+  const wizard = useBillWizard({
+    billData,
+    people,
+    itemAssignments,
+    totalSteps: STEPS.length,
+    initialStep,
+    minStep: isOwner ? 0 : splitEvenly ? STEPS.length - 1 : STEPS.length - 2,
+  });
+
+  // Track step direction for directional animations (computed synchronously during render)
+  const prevStepRef = useRef(wizard.currentStep);
+  const directionRef = useRef<"forward" | "backward">("forward");
+  if (wizard.currentStep !== prevStepRef.current) {
+    directionRef.current =
+      wizard.currentStep > prevStepRef.current ? "forward" : "backward";
+    prevStepRef.current = wizard.currentStep;
+  }
+  const stepDirection = directionRef.current;
+
+  // Ensure itemAssignments are kept flawlessly in sync if splitEvenly is true
+  // This covers default values, adding/removing guests, or editing items
+  useEffect(() => {
+    if (splitEvenly && billData && billData.items && people.length > 0) {
+      const allPeopleIds = people.map((p) => p.id);
+      let needsUpdate = false;
+
+      // Check if any item is missing an assignment or has wrong number of people
+      for (const item of billData.items) {
+        const assigned = itemAssignments[item.id];
+        if (!assigned || assigned.length !== allPeopleIds.length) {
+          needsUpdate = true;
+          break;
         }
-    }, [splitEvenly, billData, people, itemAssignments, billId, activeSession?.id]);
+      }
 
-    const { executeSave, skipNextStepSave, registerExternalCreation } = useBillSession({
-        billData,
+      if (needsUpdate) {
+        const newAssignments: ItemAssignment = {};
+        billData.items.forEach((item) => {
+          newAssignments[item.id] = [...allPeopleIds];
+        });
+        setItemAssignments(newAssignments);
+
+        // Fire off a background save if it's not a brand new draft
+        const id = billId || activeSession?.id;
+        if (id) {
+          billService
+            .updateBill(id, { itemAssignments: newAssignments })
+            .catch(console.error);
+        }
+      }
+    }
+  }, [
+    splitEvenly,
+    billData,
+    people,
+    itemAssignments,
+    billId,
+    activeSession?.id,
+  ]);
+
+  const { executeSave, skipNextStepSave, registerExternalCreation } =
+    useBillSession({
+      billData,
+      people,
+      itemAssignments,
+      splitEvenly,
+      currentStep: wizard.currentStep,
+      title,
+      activeSession,
+      billId,
+      receiptImageUrl: activeSession?.receiptImageUrl,
+      receiptFileName: activeSession?.receiptFileName,
+      saveSession,
+      paidById,
+    });
+
+  const handleAtomicAssignment = (
+    itemId: string,
+    personId: string,
+    checked: boolean,
+  ) => {
+    // Optimistic UI update
+    bill.handleItemAssignment(itemId, personId, checked);
+
+    const id = billId || activeSession?.id;
+
+    if (splitEvenly) {
+      setSplitEvenly(false);
+      if (id) {
+        billService.updateBill(id, { splitEvenly: false }).catch(console.error);
+      }
+    }
+
+    // Atomic Firestore update
+    if (id) {
+      billService
+        .toggleItemAssignment(id, itemId, personId, checked)
+        .catch(console.error);
+    }
+  };
+
+  const handleAtomicAssignAll = (itemId: string) => {
+    // Optimistic UI update
+    const allAssigned =
+      (itemAssignments[itemId] || []).length === people.length;
+    bill.assignAllPeopleToItem(itemId);
+
+    const id = billId || activeSession?.id;
+
+    if (splitEvenly) {
+      setSplitEvenly(false);
+      if (id) {
+        billService.updateBill(id, { splitEvenly: false }).catch(console.error);
+      }
+    }
+
+    // Atomic Firestore update
+    if (id) {
+      const newPersonIds = allAssigned ? [] : people.map((p) => p.id);
+      billService
+        .setItemAssignment(id, itemId, newPersonIds)
+        .catch(console.error);
+    }
+  };
+
+  const handleToggleSplitEvenly = () => {
+    // Optimistic UI update
+    bill.toggleSplitEvenly();
+
+    // Atomic Firestore update
+    const newSplitEvenly = !splitEvenly;
+    const newAssignments: ItemAssignment = {};
+
+    if (newSplitEvenly && billData && people.length > 0) {
+      billData.items.forEach((item) => {
+        newAssignments[item.id] = people.map((p) => p.id);
+      });
+    }
+
+    const id = billId || activeSession?.id;
+    if (id) {
+      billService
+        .updateBill(id, {
+          splitEvenly: newSplitEvenly,
+          itemAssignments: newAssignments,
+        })
+        .catch(console.error);
+    }
+  };
+
+  const handleAtomicAddPerson = async (name?: string, venmoId?: string) => {
+    const newPerson = await peopleManager.addPerson(name, venmoId);
+    if (newPerson) {
+      const id = billId || activeSession?.id;
+      if (id) {
+        // Pass the full people array so billService.updateBill can correctly
+        // derive and update the participantIds field for ledger/search.
+        billService
+          .updateBill(id, {
+            people: [...people, newPerson],
+          })
+          .catch(console.error);
+      }
+    }
+  };
+
+  const handleAtomicPaidByChange = async (newPaidById: string) => {
+    setPaidById(newPaidById);
+    const id = billId || activeSession?.id;
+    if (id) {
+      billService
+        .updateBill(id, { paidById: newPaidById })
+        .catch(console.error);
+    }
+  };
+
+  const handleAtomicAddFromFriend = (friend: {
+    id?: string;
+    name: string;
+    venmoId?: string;
+  }) => {
+    const newPerson = peopleManager.addFromFriend(friend);
+    if (newPerson) {
+      const id = billId || activeSession?.id;
+      if (id) {
+        billService
+          .updateBill(id, {
+            people: [...people, newPerson],
+          })
+          .catch(console.error);
+      }
+    }
+  };
+
+  const handleAtomicAddSquad = (newMembers: Person[]) => {
+    // Deduplicate by ID and by name (case-insensitive) to handle both real
+    // users (matched by Firebase UID) and shadow users (matched by name)
+    const existingIds = new Set(people.map((p) => p.id));
+    const existingNames = new Set(people.map((p) => p.name.toLowerCase()));
+    const uniqueNewPeople = newMembers.filter(
+      (p) => !existingIds.has(p.id) && !existingNames.has(p.name.toLowerCase()),
+    );
+    if (uniqueNewPeople.length === 0) return;
+
+    // Optimistic local update
+    const updatedPeople = [...people, ...uniqueNewPeople];
+    setPeople(updatedPeople);
+
+    // Persist the full people array so participantIds syncs correctly
+    const id = billId || activeSession?.id;
+    if (id) {
+      billService
+        .updateBill(id, {
+          people: updatedPeople,
+        })
+        .catch(console.error);
+    }
+  };
+
+  // Event handlers
+  const handleRemovePerson = async (personId: string) => {
+    // 1. Optimistic update
+    peopleManager.removePerson(personId);
+    bill.removePersonFromAssignments(personId);
+
+    // 2. Atomic Firestore update
+    const id = billId || activeSession?.id;
+    if (id) {
+      // We need to find the person object to remove it from the array
+      // Since firestore arrayRemove requires the exact object, this is tricky if we don't have it.
+      // However, we can read the current state or just filter and update the whole array.
+      // Given we want to be safe, let's filter and update the people array.
+      // But wait, arrayRemove is better for concurrency.
+      // THE PROBLEM: Person objects might have changed properties? No, usually not in this flow.
+      // actually, peopleManager.removePerson updates local state.
+      // To be safe and simple: Filter the local 'people' (before removal) and update the whole array.
+      // Although arrayRemove is atomic, we'd need the exact object instance.
+      // Let's use the 'update whole array' approach for people list as it's small and safer for now,
+      // creating a read-modify-write pattern (or just write if we trust local state, but local state is now updated).
+      // Actually, we should use the `people` state *before* it was updated? Or just filter it here.
+
+      const personToRemove = people.find((p) => p.id === personId);
+      if (personToRemove) {
+        try {
+          const updatedPeople = people.filter((p) => p.id !== personId);
+          await billService.updateBill(id, { people: updatedPeople });
+        } catch (e) {
+          console.error("Failed to remove person", e);
+        }
+      }
+    }
+  };
+
+  const handleUpdatePerson = async (
+    personId: string,
+    updates: Partial<Person>,
+  ) => {
+    // Optimistic update
+    const updatedPeople = people.map((p) =>
+      p.id === personId ? { ...p, ...updates } : p,
+    );
+    setPeople(updatedPeople);
+
+    // Atomic update via service
+    const id = billId || activeSession?.id;
+    if (id) {
+      await billService
+        .updatePersonDetails(id, personId, updates)
+        .catch(console.error);
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    if (billData?.items && billData.items.length > 0) {
+      setShowClearItemsDialog(true);
+      return;
+    }
+    await performImageRemoval(true);
+  };
+
+  const performImageRemoval = async (clearItems: boolean) => {
+    upload.handleRemoveImage();
+    await removeReceiptImage();
+
+    if (clearItems) {
+      setBillData(null);
+      await saveSession(
+        {
+          billData: null,
+          people,
+          itemAssignments: {},
+          splitEvenly,
+          currentStep: 0,
+          title: title || undefined,
+          paidById,
+        },
+        billId || activeSession?.id,
+      );
+    } else {
+      await saveSession(
+        {
+          billData,
+          people,
+          itemAssignments,
+          splitEvenly,
+          currentStep: 0,
+          title: title || undefined,
+          paidById,
+        },
+        billId || activeSession?.id,
+      );
+    }
+
+    wizard.setCurrentStep(0);
+  };
+
+  const handleAnalyzeReceipt = async () => {
+    if (!upload.imagePreview || !upload.selectedFile) {
+      console.error("Cannot analyze: image preview or file is missing.");
+      return;
+    }
+
+    setIsAIProcessing(true);
+
+    // Start both operations in parallel (skip upload if auto-upload already finished)
+    const analysisPromise = analyzer.analyzeReceipt(
+      upload.selectedFile,
+      upload.imagePreview,
+    );
+    const uploadPromise = !activeSession?.receiptImageUrl
+      ? uploadReceiptImage(upload.selectedFile)
+      : Promise.resolve({
+          downloadURL: activeSession.receiptImageUrl,
+          fileName: activeSession.receiptFileName,
+        });
+
+    // Wait for both to complete (no early navigation)
+    try {
+      const [analyzedBillData, uploadResult] = await Promise.all([
+        analysisPromise,
+        uploadPromise,
+      ]);
+
+      if (!analyzedBillData) {
+        throw new Error("Receipt analysis failed");
+      }
+
+      // Show success animation (navigation happens in onComplete callback)
+      setShowSuccessAnimation(true);
+
+      // Update title from restaurant name if no title exists
+      let newTitle: string = title || "";
+      if (!title && analyzedBillData?.restaurantName) {
+        newTitle = analyzedBillData.restaurantName;
+        onTitleChange(newTitle);
+      }
+
+      const savePayload: Partial<Bill> & {
+        receiptImageUrl?: string;
+        receiptFileName?: string;
+      } = {
+        billData: analyzedBillData,
         people,
         itemAssignments,
         splitEvenly,
-        currentStep: wizard.currentStep,
-        title,
-        activeSession,
-        billId,
-        receiptImageUrl: activeSession?.receiptImageUrl,
-        receiptFileName: activeSession?.receiptFileName,
-        saveSession,
-        paidById
-    });
+        paidById,
+        currentStep: 0, // Save with target step so refetch loads correct step
+      };
 
-    const handleAtomicAssignment = (itemId: string, personId: string, checked: boolean) => {
-        // Optimistic UI update
-        bill.handleItemAssignment(itemId, personId, checked);
+      if (uploadResult?.downloadURL) {
+        savePayload.receiptImageUrl = uploadResult.downloadURL;
+      }
+      if (uploadResult?.fileName) {
+        savePayload.receiptFileName = uploadResult.fileName;
+      }
 
-        const id = billId || activeSession?.id;
+      const titleToSave =
+        analyzedBillData?.restaurantName && !title
+          ? analyzedBillData.restaurantName
+          : title;
+      if (titleToSave) {
+        savePayload.title = titleToSave;
+      }
 
-        if (splitEvenly) {
-            setSplitEvenly(false);
-            if (id) {
-                billService.updateBill(id, { splitEvenly: false }).catch(console.error);
-            }
-        }
+      // Register the save promise so useBillSession knows a creation is
+      // in progress and won't try to create a second bill.
+      const savePromise = saveSession(savePayload, billId || activeSession?.id);
+      registerExternalCreation(savePromise);
+      const newId = await savePromise;
 
-        // Atomic Firestore update
-        if (id) {
-            billService.toggleItemAssignment(id, itemId, personId, checked).catch(console.error);
-        }
-    };
+      // Swap URL so billId is set for all future saves
+      if (!billId && newId) {
+        navigate(`/bill/${newId}`, { replace: true });
+      }
 
-    const handleAtomicAssignAll = (itemId: string) => {
-        // Optimistic UI update
-        const allAssigned = (itemAssignments[itemId] || []).length === people.length;
-        bill.assignAllPeopleToItem(itemId);
+      // Skip the auto-save that would fire from the step change,
+      // since we just saved above. Prevents duplicate bill creation.
+      skipNextStepSave();
 
-        const id = billId || activeSession?.id;
+      // Navigate to Bill Entry step after scan so user can review extracted items
+      wizard.setCurrentStep(0);
+    } catch (error) {
+      console.error("Receipt analysis failed:", error);
+      // Stay on upload step (don't navigate away)
+    } finally {
+      setIsAIProcessing(false);
+    }
+  };
 
-        if (splitEvenly) {
-            setSplitEvenly(false);
-            if (id) {
-                billService.updateBill(id, { splitEvenly: false }).catch(console.error);
-            }
-        }
+  const handleImageSelected = async (fileOrBase64: File | string) => {
+    let fileToUpload: File;
+    if (typeof fileOrBase64 === "string") {
+      upload.setImagePreview(fileOrBase64);
+      const response = await fetch(fileOrBase64);
+      const blob = await response.blob();
+      fileToUpload = new File([blob], "receipt.jpg", { type: blob.type });
+      upload.setSelectedFile(fileToUpload);
+    } else {
+      upload.handleFileSelect(fileOrBase64);
+      fileToUpload = fileOrBase64;
+    }
 
-        // Atomic Firestore update
-        if (id) {
-            const newPersonIds = allAssigned ? [] : people.map(p => p.id);
-            billService.setItemAssignment(id, itemId, newPersonIds).catch(console.error);
-        }
-    };
+    // Auto-upload in background so it's not lost on exit
+    const id = billId || activeSession?.id;
+    if (id) {
+      uploadReceiptImage(fileToUpload)
+        .then((uploadResult) => {
+          if (uploadResult?.downloadURL) {
+            saveSession(
+              {
+                receiptImageUrl: uploadResult.downloadURL,
+                receiptFileName: uploadResult.fileName,
+              },
+              id,
+            );
+          }
+        })
+        .catch((e) => console.error("Auto-upload failed:", e));
+    }
+  };
 
-    const handleToggleSplitEvenly = () => {
-        // Optimistic UI update
-        bill.toggleSplitEvenly();
+  const { state: routerState } = useLocation();
+  // `eventId` prop is hydrated from the loaded bill (or nav state for fresh drafts)
+  // and is specific to THIS bill; `routerState` covers the brief pre-hydration window
+  // on a draft coming from an event. We deliberately do NOT fall back to
+  // `activeSession?.eventId` — activeSession is the globally-newest bill, not
+  // necessarily the one being edited, so it can both miss the event and wrongly
+  // pull a private bill into one.
+  const targetEventId = eventId ?? routerState?.targetEventId;
 
-        // Atomic Firestore update
-        const newSplitEvenly = !splitEvenly;
-        const newAssignments: ItemAssignment = {};
+  // ── Auto-apply balances when the user reaches the Review step ───────────
+  // Ledger balances are now applied automatically by the server-side pipeline
+  // when bill data changes in Firestore. No client-side ledger writes needed.
 
-        if (newSplitEvenly && billData && people.length > 0) {
-            billData.items.forEach(item => {
-                newAssignments[item.id] = people.map(p => p.id);
-            });
-        }
-
-        const id = billId || activeSession?.id;
-        if (id) {
-            billService.updateBill(id, {
-                splitEvenly: newSplitEvenly,
-                itemAssignments: newAssignments
-            }).catch(console.error);
-        }
-    };
-
-    const handleAtomicAddPerson = async (name?: string, venmoId?: string) => {
-        const newPerson = await peopleManager.addPerson(name, venmoId);
-        if (newPerson) {
-            const id = billId || activeSession?.id;
-            if (id) {
-                // Pass the full people array so billService.updateBill can correctly
-                // derive and update the participantIds field for ledger/search.
-                billService.updateBill(id, {
-                    people: [...people, newPerson]
-                }).catch(console.error);
-            }
-        }
-    };
-
-    const handleAtomicPaidByChange = async (newPaidById: string) => {
-        setPaidById(newPaidById);
-        const id = billId || activeSession?.id;
-        if (id) {
-            billService.updateBill(id, { paidById: newPaidById }).catch(console.error);
-        }
-    };
-
-    const handleAtomicAddFromFriend = (friend: { id?: string; name: string; venmoId?: string }) => {
-        const newPerson = peopleManager.addFromFriend(friend);
-        if (newPerson) {
-            const id = billId || activeSession?.id;
-            if (id) {
-                billService.updateBill(id, {
-                    people: [...people, newPerson]
-                }).catch(console.error);
-            }
-        }
-    };
-
-    const handleAtomicAddSquad = (newMembers: Person[]) => {
-        // Deduplicate by ID and by name (case-insensitive) to handle both real
-        // users (matched by Firebase UID) and shadow users (matched by name)
-        const existingIds = new Set(people.map(p => p.id));
-        const existingNames = new Set(people.map(p => p.name.toLowerCase()));
-        const uniqueNewPeople = newMembers.filter(
-            p => !existingIds.has(p.id) && !existingNames.has(p.name.toLowerCase())
-        );
-        if (uniqueNewPeople.length === 0) return;
-
-        // Optimistic local update
-        const updatedPeople = [...people, ...uniqueNewPeople];
-        setPeople(updatedPeople);
-
-        // Persist the full people array so participantIds syncs correctly
-        const id = billId || activeSession?.id;
-        if (id) {
-            billService.updateBill(id, {
-                people: updatedPeople
-            }).catch(console.error);
-        }
-    };
-
-    // Event handlers
-    const handleRemovePerson = async (personId: string) => {
-        // 1. Optimistic update
-        peopleManager.removePerson(personId);
-        bill.removePersonFromAssignments(personId);
-
-        // 2. Atomic Firestore update
-        const id = billId || activeSession?.id;
-        if (id) {
-            // We need to find the person object to remove it from the array
-            // Since firestore arrayRemove requires the exact object, this is tricky if we don't have it.
-            // However, we can read the current state or just filter and update the whole array.
-            // Given we want to be safe, let's filter and update the people array.
-            // But wait, arrayRemove is better for concurrency. 
-            // THE PROBLEM: Person objects might have changed properties? No, usually not in this flow.
-            // actually, peopleManager.removePerson updates local state.
-            // To be safe and simple: Filter the local 'people' (before removal) and update the whole array.
-            // Although arrayRemove is atomic, we'd need the exact object instance.
-            // Let's use the 'update whole array' approach for people list as it's small and safer for now,
-            // creating a read-modify-write pattern (or just write if we trust local state, but local state is now updated).
-            // Actually, we should use the `people` state *before* it was updated? Or just filter it here.
-
-            const personToRemove = people.find(p => p.id === personId);
-            if (personToRemove) {
-                try {
-                    const updatedPeople = people.filter(p => p.id !== personId);
-                    await billService.updateBill(id, { people: updatedPeople });
-                } catch (e) {
-                    console.error("Failed to remove person", e);
-                }
-            }
-        }
-    };
-
-    const handleUpdatePerson = async (personId: string, updates: Partial<Person>) => {
-        // Optimistic update
-        const updatedPeople = people.map(p =>
-            p.id === personId ? { ...p, ...updates } : p
-        );
-        setPeople(updatedPeople);
-
-        // Atomic update via service
-        const id = billId || activeSession?.id;
-        if (id) {
-            await billService.updatePersonDetails(id, personId, updates).catch(console.error);
-        }
-    };
-
-    const handleRemoveImage = async () => {
-        if (billData?.items && billData.items.length > 0) {
-            setShowClearItemsDialog(true);
-            return;
-        }
-        await performImageRemoval(true);
-    };
-
-    const performImageRemoval = async (clearItems: boolean) => {
-        upload.handleRemoveImage();
-        await removeReceiptImage();
-
-        if (clearItems) {
-            setBillData(null);
-            await saveSession({
-                billData: null,
-                people,
-                itemAssignments: {},
-                splitEvenly,
-                currentStep: 0,
-                title: title || undefined,
-                paidById,
-            }, billId || activeSession?.id);
-        } else {
-            await saveSession({
-                billData,
-                people,
-                itemAssignments,
-                splitEvenly,
-                currentStep: 0,
-                title: title || undefined,
-                paidById,
-            }, billId || activeSession?.id);
-        }
-
-        wizard.setCurrentStep(0);
-    };
-
-    const handleAnalyzeReceipt = async () => {
-        if (!upload.imagePreview || !upload.selectedFile) {
-            console.error("Cannot analyze: image preview or file is missing.");
-            return;
-        }
-
-        setIsAIProcessing(true);
-
-        // Start both operations in parallel (skip upload if auto-upload already finished)
-        const analysisPromise = analyzer.analyzeReceipt(upload.selectedFile, upload.imagePreview);
-        const uploadPromise = !activeSession?.receiptImageUrl
-            ? uploadReceiptImage(upload.selectedFile)
-            : Promise.resolve({
-                downloadURL: activeSession.receiptImageUrl,
-                fileName: activeSession.receiptFileName
-            });
-
-        // Wait for both to complete (no early navigation)
+  const handleDone = async () => {
+    // Only promote to 'active' when the user finishes the wizard (last step).
+    // Early exits (Dashboard/Event button on step 0) should keep the bill as draft.
+    if (wizard.currentStep === STEPS.length - 1) {
+      const id = billId || activeSession?.id;
+      if (id) {
         try {
-            const [analyzedBillData, uploadResult] = await Promise.all([analysisPromise, uploadPromise]);
-
-            if (!analyzedBillData) {
-                throw new Error('Receipt analysis failed');
-            }
-
-            // Show success animation (navigation happens in onComplete callback)
-            setShowSuccessAnimation(true);
-
-            // Update title from restaurant name if no title exists
-            let newTitle: string = title || '';
-            if (!title && analyzedBillData?.restaurantName) {
-                newTitle = analyzedBillData.restaurantName;
-                onTitleChange(newTitle);
-            }
-
-            const savePayload: Partial<Bill> & { receiptImageUrl?: string; receiptFileName?: string } = {
-                billData: analyzedBillData,
-                people,
-                itemAssignments,
-                splitEvenly,
-                paidById,
-                currentStep: 0, // Save with target step so refetch loads correct step
-            };
-
-            if (uploadResult?.downloadURL) {
-                savePayload.receiptImageUrl = uploadResult.downloadURL;
-            }
-            if (uploadResult?.fileName) {
-                savePayload.receiptFileName = uploadResult.fileName;
-            }
-
-            const titleToSave = analyzedBillData?.restaurantName && !title
-                ? analyzedBillData.restaurantName
-                : title;
-            if (titleToSave) {
-                savePayload.title = titleToSave;
-            }
-
-            // Register the save promise so useBillSession knows a creation is
-            // in progress and won't try to create a second bill.
-            const savePromise = saveSession(savePayload, billId || activeSession?.id);
-            registerExternalCreation(savePromise);
-            const newId = await savePromise;
-
-            // Swap URL so billId is set for all future saves
-            if (!billId && newId) {
-                navigate(`/bill/${newId}`, { replace: true });
-            }
-
-            // Skip the auto-save that would fire from the step change,
-            // since we just saved above. Prevents duplicate bill creation.
-            skipNextStepSave();
-
-            // Navigate to Bill Entry step after scan so user can review extracted items
-            wizard.setCurrentStep(0);
-
-        } catch (error) {
-            console.error('Receipt analysis failed:', error);
-            // Stay on upload step (don't navigate away)
-        } finally {
-            setIsAIProcessing(false);
+          await billService.updateBill(id, { status: "active" });
+        } catch (e) {
+          console.error("Failed to mark bill as active", e);
         }
-    };
+      }
+    }
 
+    if (targetEventId) {
+      navigate(`/events/${targetEventId}`);
+    } else {
+      navigate("/bills");
+    }
+  };
 
-    const handleImageSelected = async (fileOrBase64: File | string) => {
-        let fileToUpload: File;
-        if (typeof fileOrBase64 === 'string') {
-            upload.setImagePreview(fileOrBase64);
-            const response = await fetch(fileOrBase64);
-            const blob = await response.blob();
-            fileToUpload = new File([blob], 'receipt.jpg', { type: blob.type });
-            upload.setSelectedFile(fileToUpload);
-        } else {
-            upload.handleFileSelect(fileOrBase64);
-            fileToUpload = fileOrBase64;
+  return (
+    <div className="h-full flex flex-col">
+      {/* Success Animation Overlay */}
+      <ScanSuccessAnimation
+        show={showSuccessAnimation}
+        onComplete={() => setShowSuccessAnimation(false)}
+      />
+
+      {/* Stepper - Use PillProgress on mobile for modern look */}
+      <div className="wizard-stepper shrink-0">
+        {isMobile ? (
+          <PillProgress
+            steps={STEPS}
+            currentStep={wizard.currentStep}
+            onStepClick={wizard.setCurrentStep}
+            canNavigateToStep={wizard.canNavigateToStep}
+          />
+        ) : (
+          <Stepper
+            steps={STEPS}
+            currentStep={wizard.currentStep}
+            orientation="horizontal"
+            onStepClick={wizard.setCurrentStep}
+            canNavigateToStep={wizard.canNavigateToStep}
+          />
+        )}
+      </div>
+
+      {/* Step Content - with bottom padding for fixed navigation on mobile */}
+      {/* Wrap in SwipeableStepContainer on mobile for gesture navigation */}
+      <SwipeableStepContainer
+        onSwipeLeft={
+          wizard.canProceedFromStep(wizard.currentStep)
+            ? wizard.handleNextStep
+            : undefined
         }
-
-        // Auto-upload in background so it's not lost on exit
-        const id = billId || activeSession?.id;
-        if (id) {
-            uploadReceiptImage(fileToUpload)
-                .then(uploadResult => {
-                    if (uploadResult?.downloadURL) {
-                        saveSession({
-                            receiptImageUrl: uploadResult.downloadURL,
-                            receiptFileName: uploadResult.fileName
-                        }, id);
-                    }
-                })
-                .catch(e => console.error("Auto-upload failed:", e));
+        onSwipeRight={
+          wizard.currentStep >
+          (isOwner ? 0 : splitEvenly ? STEPS.length - 1 : STEPS.length - 2)
+            ? wizard.handlePrevStep
+            : undefined
         }
-    };
-
-    const { state: routerState } = useLocation();
-    // `eventId` prop is hydrated from the loaded bill (or nav state for fresh drafts)
-    // and is specific to THIS bill; `routerState` covers the brief pre-hydration window
-    // on a draft coming from an event. We deliberately do NOT fall back to
-    // `activeSession?.eventId` — activeSession is the globally-newest bill, not
-    // necessarily the one being edited, so it can both miss the event and wrongly
-    // pull a private bill into one.
-    const targetEventId = eventId ?? routerState?.targetEventId;
-
-    // ── Auto-apply balances when the user reaches the Review step ───────────
-    // Ledger balances are now applied automatically by the server-side pipeline
-    // when bill data changes in Firestore. No client-side ledger writes needed.
-
-    const handleDone = async () => {
-        // Only promote to 'active' when the user finishes the wizard (last step).
-        // Early exits (Dashboard/Event button on step 0) should keep the bill as draft.
-        if (wizard.currentStep === STEPS.length - 1) {
-            const id = billId || activeSession?.id;
-            if (id) {
-                try {
-                    await billService.updateBill(id, { status: 'active' });
-                } catch (e) {
-                    console.error("Failed to mark bill as active", e);
-                }
-            }
+        canSwipeLeft={wizard.canProceedFromStep(wizard.currentStep)}
+        canSwipeRight={
+          wizard.currentStep >
+          (isOwner ? 0 : splitEvenly ? STEPS.length - 1 : STEPS.length - 2)
         }
-
-        if (targetEventId) {
-            navigate(`/events/${targetEventId}`);
-        } else {
-            navigate('/bills');
+        className={
+          isMobile
+            ? "flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-[140px] relative"
+            : "flex-1 min-h-0 overflow-y-auto scrollbar-hide"
         }
-    };
-
-    return (
-        <div className="h-full flex flex-col">
-            {/* Success Animation Overlay */}
-            <ScanSuccessAnimation
-                show={showSuccessAnimation}
-                onComplete={() => setShowSuccessAnimation(false)}
+      >
+        <StepContent stepKey={wizard.currentStep} direction={stepDirection}>
+          {wizard.currentStep === 0 && (
+            <BillEntryStep
+              billData={billData}
+              setBillData={setBillData}
+              imagePreview={upload.imagePreview}
+              selectedFile={upload.selectedFile}
+              isUploading={isUploading}
+              isAnalyzing={analyzer.isAnalyzing}
+              receiptImageUrl={activeSession?.receiptImageUrl}
+              onAnalyze={handleAnalyzeReceipt}
+              onRemoveImage={handleRemoveImage}
+              onImageSelected={handleImageSelected}
+              onNext={wizard.handleNextStep}
+              canProceed={wizard.canProceedFromStep(0)}
+              currentStep={wizard.currentStep}
+              totalSteps={STEPS.length}
+              isMobile={isMobile}
+              removeItemAssignments={bill.removeItemAssignments}
+              onTriggerSave={executeSave}
             />
+          )}
 
-            {/* Stepper - Use PillProgress on mobile for modern look */}
-            <div className="wizard-stepper shrink-0">
-                {isMobile ? (
-                    <PillProgress
-                        steps={STEPS}
-                        currentStep={wizard.currentStep}
-                        onStepClick={wizard.setCurrentStep}
-                        canNavigateToStep={wizard.canNavigateToStep}
-                    />
-                ) : (
-                    <Stepper
-                        steps={STEPS}
-                        currentStep={wizard.currentStep}
-                        orientation="horizontal"
-                        onStepClick={wizard.setCurrentStep}
-                        canNavigateToStep={wizard.canNavigateToStep}
-                    />
-                )}
-            </div>
+          {wizard.currentStep === 1 && (
+            <PeopleStep
+              people={people}
+              setPeople={setPeople}
+              billData={billData}
+              newPersonName={peopleManager.newPersonName}
+              newPersonVenmoId={peopleManager.newPersonVenmoId}
+              onNameChange={peopleManager.setNewPersonName}
+              onVenmoIdChange={peopleManager.setNewPersonVenmoId}
+              isMobile={isMobile}
+              upload={upload}
+              // Atomic handlers
+              onAdd={handleAtomicAddPerson}
+              paidById={paidById}
+              onPaidByChange={handleAtomicPaidByChange}
+              onAddFromFriend={handleAtomicAddFromFriend}
+              onAddSquad={handleAtomicAddSquad}
+              onRemove={handleRemovePerson}
+              onUpdate={handleUpdatePerson}
+              onSaveAsFriend={peopleManager.savePersonAsFriend}
+              onRemoveFriend={peopleManager.removePersonFromFriends}
+              imagePreview={upload.imagePreview}
+              selectedFile={upload.selectedFile}
+              isUploading={isUploading}
+              isAnalyzing={analyzer.isAnalyzing}
+              receiptImageUrl={activeSession?.receiptImageUrl}
+              onImageSelected={handleImageSelected}
+              onAnalyze={handleAnalyzeReceipt}
+              onRemoveImage={handleRemoveImage}
+              onNext={wizard.handleNextStep}
+              onPrev={wizard.handlePrevStep}
+              canProceed={wizard.canProceedFromStep(1)}
+              currentStep={wizard.currentStep}
+              totalSteps={STEPS.length}
+              eventId={eventId}
+              onEventChange={onEventChange}
+            />
+          )}
 
-            {/* Step Content - with bottom padding for fixed navigation on mobile */}
-            {/* Wrap in SwipeableStepContainer on mobile for gesture navigation */}
-            <SwipeableStepContainer
-                onSwipeLeft={wizard.canProceedFromStep(wizard.currentStep) ? wizard.handleNextStep : undefined}
-                onSwipeRight={wizard.currentStep > (isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2)) ? wizard.handlePrevStep : undefined}
-                canSwipeLeft={wizard.canProceedFromStep(wizard.currentStep)}
-                canSwipeRight={wizard.currentStep > (isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2))}
-                className={isMobile ? 'flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-[140px] relative' : 'flex-1 min-h-0 overflow-y-auto scrollbar-hide'}
+          {wizard.currentStep === 2 && (
+            <AssignmentStep
+              billData={billData}
+              setBillData={setBillData}
+              people={people}
+              itemAssignments={itemAssignments}
+              splitEvenly={splitEvenly}
+              onAssign={handleAtomicAssignment}
+              onAssignAll={handleAtomicAssignAll}
+              onToggleSplitEvenly={handleToggleSplitEvenly}
+              removePersonFromAssignments={bill.removePersonFromAssignments}
+              removeItemAssignments={bill.removeItemAssignments}
+              imagePreview={upload.imagePreview}
+              selectedFile={upload.selectedFile}
+              isUploading={isUploading}
+              isAnalyzing={analyzer.isAnalyzing}
+              isAIProcessing={isAIProcessing}
+              receiptImageUrl={activeSession?.receiptImageUrl}
+              onImageSelected={handleImageSelected}
+              onAnalyze={handleAnalyzeReceipt}
+              onRemoveImage={handleRemoveImage}
+              onNext={wizard.handleNextStep}
+              onPrev={wizard.handlePrevStep}
+              canProceed={wizard.canProceedFromStep(2)}
+              currentStep={wizard.currentStep}
+              totalSteps={STEPS.length}
+              isMobile={isMobile}
+              upload={upload}
+              onTriggerSave={executeSave}
+            />
+          )}
+
+          {wizard.currentStep === 3 && (
+            <ReviewStep
+              billId={billId || activeSession?.id}
+              billData={billData}
+              people={people}
+              itemAssignments={itemAssignments}
+              personTotals={bill.personTotals}
+              allItemsAssigned={bill.allItemsAssigned}
+              settledPersonIds={activeSession?.settledPersonIds || []}
+              paidById={paidById}
+              ownerId={activeSession?.ownerId || user?.uid}
+              receipt={{
+                imagePreview: upload.imagePreview,
+                selectedFile: upload.selectedFile,
+                isUploading,
+                isAnalyzing: analyzer.isAnalyzing,
+                receiptImageUrl: activeSession?.receiptImageUrl,
+                onImageSelected: handleImageSelected,
+                onAnalyze: handleAnalyzeReceipt,
+                onRemoveImage: handleRemoveImage,
+                isMobile,
+                upload,
+              }}
+              onComplete={handleDone}
+              onPrev={wizard.handlePrevStep}
+              currentStep={wizard.currentStep}
+              totalSteps={STEPS.length}
+            />
+          )}
+        </StepContent>
+      </SwipeableStepContainer>
+
+      {/* Mobile Navigation (fixed at bottom) */}
+      {isMobile && (
+        <WizardNavigation
+          currentStep={wizard.currentStep}
+          totalSteps={STEPS.length}
+          onBack={
+            wizard.currentStep >
+            (isOwner ? 0 : splitEvenly ? STEPS.length - 1 : STEPS.length - 2)
+              ? wizard.handlePrevStep
+              : undefined
+          }
+          onNext={wizard.handleNextStep}
+          onComplete={handleDone}
+          onExit={handleDone}
+          exitLabel={targetEventId ? "Event" : "Dashboard"}
+          nextDisabled={!wizard.canProceedFromStep(wizard.currentStep)}
+          hasBillData={hasBillData}
+          onShare={onShare}
+          isMobile={isMobile}
+        />
+      )}
+
+      {/* Clear Items Dialog */}
+      <AlertDialog
+        open={showClearItemsDialog}
+        onOpenChange={setShowClearItemsDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Receipt?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have bill items. Do you want to keep them or clear them when
+              removing the receipt?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowClearItemsDialog(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                performImageRemoval(false);
+                setShowClearItemsDialog(false);
+              }}
             >
-                <StepContent stepKey={wizard.currentStep} direction={stepDirection}>
-                    {wizard.currentStep === 0 && (
-                        <BillEntryStep
-                            billData={billData}
-                            setBillData={setBillData}
-                            imagePreview={upload.imagePreview}
-                            selectedFile={upload.selectedFile}
-                            isUploading={isUploading}
-                            isAnalyzing={analyzer.isAnalyzing}
-                            receiptImageUrl={activeSession?.receiptImageUrl}
-                            onAnalyze={handleAnalyzeReceipt}
-                            onRemoveImage={handleRemoveImage}
-                            onImageSelected={handleImageSelected}
-                            onNext={wizard.handleNextStep}
-                            canProceed={wizard.canProceedFromStep(0)}
-                            currentStep={wizard.currentStep}
-                            totalSteps={STEPS.length}
-                            isMobile={isMobile}
-                            removeItemAssignments={bill.removeItemAssignments}
-                            onTriggerSave={executeSave}
-                        />
-                    )}
-
-                    {wizard.currentStep === 1 && (
-                        <PeopleStep
-                            people={people}
-                            setPeople={setPeople}
-                            billData={billData}
-                            newPersonName={peopleManager.newPersonName}
-                            newPersonVenmoId={peopleManager.newPersonVenmoId}
-                            onNameChange={peopleManager.setNewPersonName}
-                            onVenmoIdChange={peopleManager.setNewPersonVenmoId}
-                            isMobile={isMobile}
-                            upload={upload}
-                            // Atomic handlers
-                            onAdd={handleAtomicAddPerson}
-                            paidById={paidById}
-                            onPaidByChange={handleAtomicPaidByChange}
-                            onAddFromFriend={handleAtomicAddFromFriend}
-                            onAddSquad={handleAtomicAddSquad}
-                            onRemove={handleRemovePerson}
-                            onUpdate={handleUpdatePerson}
-                            onSaveAsFriend={peopleManager.savePersonAsFriend}
-                            onRemoveFriend={peopleManager.removePersonFromFriends}
-                            imagePreview={upload.imagePreview}
-                            selectedFile={upload.selectedFile}
-                            isUploading={isUploading}
-                            isAnalyzing={analyzer.isAnalyzing}
-                            receiptImageUrl={activeSession?.receiptImageUrl}
-                            onImageSelected={handleImageSelected}
-                            onAnalyze={handleAnalyzeReceipt}
-                            onRemoveImage={handleRemoveImage}
-                            onNext={wizard.handleNextStep}
-                            onPrev={wizard.handlePrevStep}
-                            canProceed={wizard.canProceedFromStep(1)}
-                            currentStep={wizard.currentStep}
-                            totalSteps={STEPS.length}
-                            eventId={eventId}
-                            onEventChange={onEventChange}
-                        />
-                    )}
-
-                    {wizard.currentStep === 2 && (
-                        <AssignmentStep
-                            billData={billData}
-                            setBillData={setBillData}
-                            people={people}
-                            itemAssignments={itemAssignments}
-                            splitEvenly={splitEvenly}
-                            onAssign={handleAtomicAssignment}
-                            onAssignAll={handleAtomicAssignAll}
-                            onToggleSplitEvenly={handleToggleSplitEvenly}
-                            removePersonFromAssignments={bill.removePersonFromAssignments}
-                            removeItemAssignments={bill.removeItemAssignments}
-                            imagePreview={upload.imagePreview}
-                            selectedFile={upload.selectedFile}
-                            isUploading={isUploading}
-                            isAnalyzing={analyzer.isAnalyzing}
-                            isAIProcessing={isAIProcessing}
-                            receiptImageUrl={activeSession?.receiptImageUrl}
-                            onImageSelected={handleImageSelected}
-                            onAnalyze={handleAnalyzeReceipt}
-                            onRemoveImage={handleRemoveImage}
-                            onNext={wizard.handleNextStep}
-                            onPrev={wizard.handlePrevStep}
-                            canProceed={wizard.canProceedFromStep(2)}
-                            currentStep={wizard.currentStep}
-                            totalSteps={STEPS.length}
-                            isMobile={isMobile}
-                            upload={upload}
-                            onTriggerSave={executeSave}
-                        />
-                    )}
-
-                    {wizard.currentStep === 3 && (
-                        <ReviewStep
-                            billId={billId || activeSession?.id}
-                            billData={billData}
-                            people={people}
-                            itemAssignments={itemAssignments}
-                            personTotals={bill.personTotals}
-                            allItemsAssigned={bill.allItemsAssigned}
-                            settledPersonIds={activeSession?.settledPersonIds || []}
-                            paidById={paidById}
-                            ownerId={activeSession?.ownerId || user?.uid}
-                            receipt={{
-                                imagePreview: upload.imagePreview,
-                                selectedFile: upload.selectedFile,
-                                isUploading,
-                                isAnalyzing: analyzer.isAnalyzing,
-                                receiptImageUrl: activeSession?.receiptImageUrl,
-                                onImageSelected: handleImageSelected,
-                                onAnalyze: handleAnalyzeReceipt,
-                                onRemoveImage: handleRemoveImage,
-                                isMobile,
-                                upload,
-                            }}
-                            onComplete={handleDone}
-                            onPrev={wizard.handlePrevStep}
-                            currentStep={wizard.currentStep}
-                            totalSteps={STEPS.length}
-                        />
-                    )}
-                </StepContent>
-            </SwipeableStepContainer>
-
-            {/* Mobile Navigation (fixed at bottom) */}
-            {isMobile && (
-                <WizardNavigation
-                    currentStep={wizard.currentStep}
-                    totalSteps={STEPS.length}
-                    onBack={wizard.currentStep > (isOwner ? 0 : (splitEvenly ? STEPS.length - 1 : STEPS.length - 2)) ? wizard.handlePrevStep : undefined}
-                    onNext={wizard.handleNextStep}
-                    onComplete={handleDone}
-                    onExit={handleDone}
-                    exitLabel={targetEventId ? 'Event' : 'Dashboard'}
-                    nextDisabled={!wizard.canProceedFromStep(wizard.currentStep)}
-                    hasBillData={hasBillData}
-                    onShare={onShare}
-                    isMobile={isMobile}
-                />
-            )}
-
-            {/* Clear Items Dialog */}
-            <AlertDialog open={showClearItemsDialog} onOpenChange={setShowClearItemsDialog}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Remove Receipt?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            You have bill items. Do you want to keep them or clear them when removing the receipt?
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setShowClearItemsDialog(false)}>
-                            Cancel
-                        </AlertDialogCancel>
-                        <AlertDialogAction onClick={() => {
-                            performImageRemoval(false);
-                            setShowClearItemsDialog(false);
-                        }}>
-                            Keep Items
-                        </AlertDialogAction>
-                        <AlertDialogAction onClick={() => {
-                            performImageRemoval(true);
-                            setShowClearItemsDialog(false);
-                        }}>
-                            Clear All
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </div>
-    );
+              Keep Items
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                performImageRemoval(true);
+                setShowClearItemsDialog(false);
+              }}
+            >
+              Clear All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
 }
-

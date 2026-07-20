@@ -7,6 +7,8 @@ import { TypeStep } from './steps/TypeStep';
 import { RecurringQuickWizard } from './RecurringQuickWizard';
 import { RecurringDetailedWizard } from './RecurringDetailedWizard';
 import { RecurringAirbnbWizard } from './RecurringAirbnbWizard';
+import { defaultRecurringTitle, localTodayISO } from '@/utils/scheduleFormat';
+import { DEFAULT_TITLE_LABEL } from './RecurringDetailedWizard';
 
 export interface RecurringWizardProps {
   externalTitle?: string;
@@ -51,7 +53,19 @@ export function RecurringWizard({ externalTitle, setExternalTitle }: RecurringWi
     return <TypeStep onSelect={setType} />;
   }
 
-  const onBackToType = isEdit ? undefined : () => setType(undefined);
+  const onBackToType = isEdit
+    ? undefined
+    : () => {
+        // Drop the auto-seeded title so a Detailed default can't follow the
+        // user into another type's wizard. A title they typed is preserved.
+        if (
+          externalTitle ===
+          defaultRecurringTitle(DEFAULT_TITLE_LABEL, localTodayISO())
+        ) {
+          setExternalTitle?.('');
+        }
+        setType(undefined);
+      };
 
   if (type === 'detailed') {
     return (
