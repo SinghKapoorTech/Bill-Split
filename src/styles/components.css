@@ -206,6 +206,73 @@
     }
   }
 
+  /*
+     Fill-mode tabs (e.g. the Bills filter bar): the row must show every tab at
+     once, so type and padding scale FLUIDLY with the device width instead of
+     snapping at fixed breakpoints. Each tab gets (100vw - 84px) / 4 of space;
+     the longest label ("Unsettled") needs roughly 4.5x the font size, so the
+     clamps below keep it legible on a 320px iPhone SE and comfortable on a
+     430px Pro Max without ever ellipsising in between.
+     Declared after .tab-base so it wins the mobile padding/type override.
+  */
+  .tab-fill {
+    @apply min-w-0;
+  }
+
+  @media (max-width: 767.98px) {
+    .tab-fill {
+      font-size: clamp(10px, 2.9vw, 13px);
+      padding-left: clamp(4px, 1.2vw, 10px);
+      padding-right: clamp(4px, 1.2vw, 10px);
+      gap: clamp(2px, 0.8vw, 6px);
+    }
+  }
+
+  /* ==============================================
+     NATIVE DATE INPUTS
+     ============================================== */
+
+  /*
+     Two separate problems with `input[type="date"]`:
+
+     1. Colour. The native control follows `color-scheme`; without setting it
+        the text and picker panel render light-on-light in the dark theme.
+        Driving `color-scheme` per theme fixes the control AND the picker panel,
+        which a filter on the icon could never do.
+
+     2. The icon. `::-webkit-calendar-picker-indicator` is NOT rendered by iOS
+        WKWebView/Safari (the whole field is tappable there instead) and does
+        not exist in Firefox. Relying on it for a leading icon would leave an
+        empty 44px gutter on iOS — this app's primary mobile target. So we draw
+        our OWN leading icon in JSX and park the native indicator invisibly on
+        top of it, which keeps the desktop click target working.
+
+     `input.date-input` (0,1,1) is deliberately more specific than the `.px-3`
+     utility (0,1,0) on the Input component, so the leading padding wins
+     regardless of layer order.
+  */
+  input.date-input {
+    color-scheme: light;
+    position: relative;
+    padding-left: 2.75rem;
+  }
+
+  .dark input.date-input {
+    color-scheme: dark;
+  }
+
+  input.date-input::-webkit-calendar-picker-indicator {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2.75rem;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
   /* ==============================================
      BUTTON MICRO-INTERACTIONS
      Global tap/hover animations for buttons
