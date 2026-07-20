@@ -319,7 +319,6 @@ export function useBills() {
         }
       }
 
-      toast({ title: 'Success', description: 'Session deleted.' });
     } catch (error) {
       console.error('Error deleting session:', error);
       toast({
@@ -348,7 +347,6 @@ export function useBills() {
         await billService.updateBill(sessionId, {
           updatedAt: Timestamp.now()
         });
-        toast({ title: 'Success', description: 'Session resumed.' });
       }
 
       return bill;

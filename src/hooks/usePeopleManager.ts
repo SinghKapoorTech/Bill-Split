@@ -163,12 +163,6 @@ export function usePeopleManager(
 
     setPeople([...people, newPerson]);
 
-    toast({
-      title: 'Added to bill',
-      description: `${friend.name} has been added to the bill.`,
-      duration: 1000,
-    });
-
     return newPerson;
   };
 
