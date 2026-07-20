@@ -26,8 +26,11 @@ export function billMatchesFilter(filter: BillFilter, bill: Bill, userId: string
 
 /**
  * Whether a recurring-bill template matches the active filter.
- * Recurring templates only appear in the "all" and "recurring" views.
+ *
+ * Templates are a distinct category from bills — they describe a schedule
+ * rather than money currently owed — so they appear ONLY in the "recurring"
+ * view. In particular they are excluded from "all", which lists real bills.
  */
 export function recurringMatchesFilter(filter: BillFilter): boolean {
-  return filter === 'all' || filter === 'recurring';
+  return filter === 'recurring';
 }

@@ -206,11 +206,13 @@ export default function BillsView() {
       <CreateOptionsDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
 
       {feed.length > 0 && (
-        <div className="shrink-0 mb-3 px-1 overflow-x-auto scrollbar-hide">
+        <div className="shrink-0 mb-3 px-1">
           <TabSelector
             tabs={filterTabs}
             activeTab={filter}
             onTabChange={(id) => setFilter(id as BillFilter)}
+            fill
+            hideIconsOnMobile
           />
         </div>
       )}
@@ -228,15 +230,15 @@ export default function BillsView() {
         )
       ) : filteredFeed.length === 0 ? (
         (() => {
-          const emptyCopy: Record<Exclude<BillFilter, 'all'>, { heading: string; text: string; icon: typeof Receipt }> = {
+          const emptyCopy: Record<BillFilter, { heading: string; text: string; icon: typeof Receipt }> = {
+            // Reachable since recurring templates no longer appear under "all":
+            // a user whose only entries are templates sees an empty "all" view.
+            all: { heading: 'No bills yet', text: 'Your recurring bills live in the Recurring tab.', icon: Receipt },
             unsettled: { heading: 'All settled up 🎉', text: 'Nobody owes you right now.', icon: CheckCircle2 },
             settled: { heading: 'Nothing settled yet', text: 'Settled bills will show up here.', icon: CheckCircle2 },
             recurring: { heading: 'No recurring bills', text: 'Recurring bill templates will show up here.', icon: Repeat },
           };
-          // `filter` is never 'all' here (an 'all'-empty feed is caught by the feed.length === 0 branch
-          // above), but fall back to the unfiltered copy for the unreachable case without re-duplicating.
-          const copy = filter === 'all' ? UNFILTERED_EMPTY : emptyCopy[filter];
-          return <EmptyStateCard {...copy} />;
+          return <EmptyStateCard {...emptyCopy[filter]} />;
         })()
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-1">

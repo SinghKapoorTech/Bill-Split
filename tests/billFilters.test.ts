@@ -115,8 +115,10 @@ describe('billMatchesFilter', () => {
 });
 
 describe('recurringMatchesFilter', () => {
-  it('matches "all"', () => {
-    expect(recurringMatchesFilter('all')).toBe(true);
+  // Recurring templates are their own category — they must NOT dilute the
+  // regular bill views, including "all".
+  it('does NOT match "all"', () => {
+    expect(recurringMatchesFilter('all')).toBe(false);
   });
   it('does NOT match "unsettled"', () => {
     expect(recurringMatchesFilter('unsettled')).toBe(false);
@@ -128,9 +130,9 @@ describe('recurringMatchesFilter', () => {
     expect(recurringMatchesFilter('recurring')).toBe(true);
   });
 
-  it('covers all BillFilter values exhaustively', () => {
+  it('covers all BillFilter values exhaustively — only "recurring" matches', () => {
     const filters: BillFilter[] = ['all', 'unsettled', 'settled', 'recurring'];
     const results = filters.map(recurringMatchesFilter);
-    expect(results).toEqual([true, false, false, true]);
+    expect(results).toEqual([false, false, false, true]);
   });
 });
