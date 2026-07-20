@@ -81,10 +81,10 @@ export function ScheduleStep({
     !scheduleHasOccurrences({ frequency, dayOfWeek, dayOfMonth, startDate, endDate });
 
   return (
-    <div className="flex flex-col gap-6 p-4 max-w-md mx-auto mt-4 w-full">
-      <div className="text-center space-y-1">
-        <h2 className="text-xl font-bold">When should it repeat?</h2>
-        <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col gap-4 md:gap-6 px-4 pt-1 pb-4 max-w-md mx-auto w-full">
+      <div className="text-center space-y-0.5">
+        <h2 className="text-lg md:text-xl font-bold">When should it repeat?</h2>
+        <p className="text-xs md:text-sm text-muted-foreground">
           We&rsquo;ll create the bill for you on each date.
         </p>
       </div>
@@ -168,7 +168,7 @@ export function ScheduleStep({
         <div className="relative">
           <CalendarDays
             aria-hidden="true"
-            className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
+            className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             id="startDate"
@@ -195,7 +195,7 @@ export function ScheduleStep({
             <div className="relative">
               <CalendarDays
                 aria-hidden="true"
-                className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
+                className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-muted-foreground"
               />
               <Input
                 id="endDate"
