@@ -120,7 +120,7 @@ export function CreateOptionsDialog({ open, onOpenChange, eventContext }: Create
               <Home className="w-6 h-6" />
             </div>
             <div className="flex flex-col relative z-10">
-              <span className="font-semibold text-foreground text-base group-hover:text-destructive transition-colors">Airbnb / House</span>
+              <span className="font-semibold text-foreground text-base group-hover:text-destructive transition-colors">Airbnb / Hotels</span>
               <span className="text-sm text-muted-foreground mt-0.5">Split a stay with guests & fees</span>
             </div>
           </button>

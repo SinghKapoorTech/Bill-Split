@@ -50,11 +50,11 @@ function resolveDebtNames(
   if (!fromName || !toName) {
     for (const bill of eventBills) {
       if (!fromName) {
-        const p = bill.people.find(person => person.id === debt.fromUserId || person.id === `user-${debt.fromUserId}`);
+        const p = bill.people?.find(person => person.id === debt.fromUserId || person.id === `user-${debt.fromUserId}`);
         if (p) fromName = p.name;
       }
       if (!toName) {
-        const p = bill.people.find(person => person.id === debt.toUserId || person.id === `user-${debt.toUserId}`);
+        const p = bill.people?.find(person => person.id === debt.toUserId || person.id === `user-${debt.toUserId}`);
         if (p) toName = p.name;
       }
       if (fromName && toName) break;

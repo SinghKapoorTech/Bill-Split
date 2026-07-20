@@ -5,18 +5,18 @@
  * and manages trip invitations
  */
 
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { defineSecret } from 'firebase-functions/params';
-import { initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
+import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { defineSecret } from "firebase-functions/params";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 
 // Initialize Firebase Admin
 initializeApp();
 
 // Define secret for Gemini API key
-const geminiApiKey = defineSecret('GEMINI_API_KEY');
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
 /**
  * Represents a single line item on the bill
@@ -59,28 +59,36 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
   {
     secrets: [geminiApiKey],
     timeoutSeconds: 120,
-    memory: '512MiB',
+    memory: "512MiB",
   },
   async (request) => {
     // Validate request
     if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'User must be authenticated');
+      throw new HttpsError("unauthenticated", "User must be authenticated");
     }
 
     const { base64Image } = request.data;
 
-    if (!base64Image || typeof base64Image !== 'string') {
-      throw new HttpsError('invalid-argument', 'base64Image must be a non-empty string');
+    if (!base64Image || typeof base64Image !== "string") {
+      throw new HttpsError(
+        "invalid-argument",
+        "base64Image must be a non-empty string",
+      );
     }
 
-    if (!base64Image.startsWith('data:image/')) {
-      throw new HttpsError('invalid-argument', 'base64Image must be a data URI with image MIME type');
+    if (!base64Image.startsWith("data:image/")) {
+      throw new HttpsError(
+        "invalid-argument",
+        "base64Image must be a data URI with image MIME type",
+      );
     }
 
     try {
       // Initialize Gemini AI with secret API key
       const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash-lite",
+      });
 
       const prompt = `Extract restaurant bill data from this image. Return ONLY valid JSON (no markdown):
 
@@ -104,8 +112,8 @@ Rules:
 
       // Detect MIME type from base64 string
       const mimeMatch = base64Image.match(/^data:([^;]+);base64,/);
-      const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-      const base64Data = base64Image.split(',')[1];
+      const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+      const base64Data = base64Image.split(",")[1];
 
       const imagePart = {
         inlineData: {
@@ -121,20 +129,27 @@ Rules:
 
       // Clean up the response - remove markdown code blocks if present
       let cleanedText = text.trim();
-      cleanedText = cleanedText.replace(/^```json\s*/g, '').replace(/^```\s*/g, '');
-      cleanedText = cleanedText.replace(/```\s*$/g, '');
+      cleanedText = cleanedText
+        .replace(/^```json\s*/g, "")
+        .replace(/^```\s*/g, "");
+      cleanedText = cleanedText.replace(/```\s*$/g, "");
       cleanedText = cleanedText.trim();
 
-      console.log('Gemini raw response:', text);
-      console.log('Gemini cleaned response:', cleanedText);
+      console.log("Gemini raw response:", text);
+      console.log("Gemini cleaned response:", cleanedText);
 
       let billData: BillData;
       try {
         billData = JSON.parse(cleanedText);
-        console.log('Gemini parsed billData:', JSON.stringify(billData, null, 2));
+        console.log(
+          "Gemini parsed billData:",
+          JSON.stringify(billData, null, 2),
+        );
       } catch (parseError) {
-        console.error('JSON parsing failed. Raw response:', cleanedText);
-        throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+        console.error("JSON parsing failed. Raw response:", cleanedText);
+        throw new Error(
+          `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : "Unknown error"}`,
+        );
       }
 
       // Add unique IDs to each item
@@ -145,58 +160,73 @@ Rules:
 
       // Validate the data structure
       if (!billData.items || !Array.isArray(billData.items)) {
-        console.error('Invalid items array. Full response:', billData);
-        throw new Error('Invalid response: items array is missing');
+        console.error("Invalid items array. Full response:", billData);
+        throw new Error("Invalid response: items array is missing");
       }
 
       if (billData.items.length === 0) {
-        throw new Error('No items found on the receipt');
+        throw new Error("No items found on the receipt");
       }
 
       // Validate each item has required fields
       for (const item of billData.items) {
-        if (!item.name || typeof item.price !== 'number') {
-          console.error('Invalid item:', item);
-          throw new Error('Invalid item structure: missing name or price');
+        if (!item.name || typeof item.price !== "number") {
+          console.error("Invalid item:", item);
+          throw new Error("Invalid item structure: missing name or price");
         }
       }
 
       // Normalize tip field - handle null, undefined, or non-numeric values
-      if (billData.tip === null || billData.tip === undefined || typeof billData.tip !== 'number') {
+      if (
+        billData.tip === null ||
+        billData.tip === undefined ||
+        typeof billData.tip !== "number"
+      ) {
         billData.tip = 0;
       }
 
       // Derive otherFees from the printed total rather than relying on AI extraction
-      billData.otherFees = parseFloat(Math.max(0, billData.total - billData.subtotal - billData.tax - billData.tip).toFixed(2));
+      billData.otherFees = parseFloat(
+        Math.max(
+          0,
+          billData.total - billData.subtotal - billData.tax - billData.tip,
+        ).toFixed(2),
+      );
 
       // Validate numeric fields with detailed error
       if (
-        typeof billData.subtotal !== 'number' ||
-        typeof billData.tax !== 'number' ||
-        typeof billData.tip !== 'number' ||
-        typeof billData.total !== 'number'
+        typeof billData.subtotal !== "number" ||
+        typeof billData.tax !== "number" ||
+        typeof billData.tip !== "number" ||
+        typeof billData.total !== "number"
       ) {
-        console.error('Missing numeric fields. Received:', {
+        console.error("Missing numeric fields. Received:", {
           subtotal: billData.subtotal,
           tax: billData.tax,
           tip: billData.tip,
           total: billData.total,
         });
-        throw new Error(`Invalid response: missing required numeric fields. Received types: subtotal=${typeof billData.subtotal}, tax=${typeof billData.tax}, tip=${typeof billData.tip}, total=${typeof billData.total}`);
+        throw new Error(
+          `Invalid response: missing required numeric fields. Received types: subtotal=${typeof billData.subtotal}, tax=${typeof billData.tax}, tip=${typeof billData.tip}, total=${typeof billData.total}`,
+        );
       }
 
       return billData;
     } catch (error) {
-      console.error('Error analyzing bill:', error);
+      console.error("Error analyzing bill:", error);
 
       if (error instanceof HttpsError) {
         throw error;
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new HttpsError('internal', `Failed to analyze receipt: ${errorMessage}`);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      throw new HttpsError(
+        "internal",
+        `Failed to analyze receipt: ${errorMessage}`,
+      );
     }
-  }
+  },
 );
 
 /**
@@ -218,7 +248,7 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
   async (request) => {
     // Validate authentication
     if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'User must be authenticated');
+      throw new HttpsError("unauthenticated", "User must be authenticated");
     }
 
     const { eventId, email } = request.data;
@@ -226,33 +256,39 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
 
     // Validate input
     if (!eventId || !email) {
-      throw new HttpsError('invalid-argument', 'eventId and email are required');
+      throw new HttpsError(
+        "invalid-argument",
+        "eventId and email are required",
+      );
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      throw new HttpsError('invalid-argument', 'Invalid email format');
+      throw new HttpsError("invalid-argument", "Invalid email format");
     }
 
     try {
       const db = getFirestore();
-      const eventRef = db.collection('events').doc(eventId);
+      const eventRef = db.collection("events").doc(eventId);
       const eventDoc = await eventRef.get();
 
       if (!eventDoc.exists) {
-        throw new HttpsError('not-found', 'Event not found');
+        throw new HttpsError("not-found", "Event not found");
       }
 
       const eventData = eventDoc.data();
 
       if (!eventData) {
-        throw new HttpsError('not-found', 'Event data not found');
+        throw new HttpsError("not-found", "Event data not found");
       }
 
       // Check if inviter is a member of the event
       if (!eventData.memberIds || !eventData.memberIds.includes(inviterId)) {
-        throw new HttpsError('permission-denied', 'Only event members can invite others');
+        throw new HttpsError(
+          "permission-denied",
+          "Only event members can invite others",
+        );
       }
 
       // Check if user with this email already exists
@@ -262,7 +298,7 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
         userRecord = await auth.getUserByEmail(email);
       } catch (error: unknown) {
         // User doesn't exist yet
-        if ((error as { code?: string }).code !== 'auth/user-not-found') {
+        if ((error as { code?: string }).code !== "auth/user-not-found") {
           throw error;
         }
       }
@@ -273,11 +309,14 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
 
         // Check if already a member
         if (eventData.memberIds.includes(userId)) {
-          throw new HttpsError('already-exists', 'User is already a member of this event');
+          throw new HttpsError(
+            "already-exists",
+            "User is already a member of this event",
+          );
         }
 
         // Add user to event
-        const { FieldValue } = await import('firebase-admin/firestore');
+        const { FieldValue } = await import("firebase-admin/firestore");
         await eventRef.update({
           memberIds: FieldValue.arrayUnion(userId),
           pendingInvites: FieldValue.arrayRemove(email),
@@ -295,30 +334,34 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
 
         // Check if already invited
         if (pendingInvites.includes(email)) {
-          throw new HttpsError('already-exists', 'This email has already been invited');
+          throw new HttpsError(
+            "already-exists",
+            "This email has already been invited",
+          );
         }
 
         // Get inviter info
         const auth = getAuth();
         const inviterRecord = await auth.getUser(inviterId);
-        const inviterName = inviterRecord.displayName || inviterRecord.email || 'Someone';
+        const inviterName =
+          inviterRecord.displayName || inviterRecord.email || "Someone";
 
         // Add to pending invites
-        const { FieldValue } = await import('firebase-admin/firestore');
+        const { FieldValue } = await import("firebase-admin/firestore");
         await eventRef.update({
           pendingInvites: FieldValue.arrayUnion(email),
           updatedAt: FieldValue.serverTimestamp(),
         });
 
         // Create invitation record
-        await db.collection('eventInvitations').add({
+        await db.collection("eventInvitations").add({
           eventId,
           eventName: eventData.name,
           email,
           invitedBy: inviterId,
           invitedByName: inviterName,
           invitedAt: FieldValue.serverTimestamp(),
-          status: 'pending',
+          status: "pending",
         });
 
         // TODO: Send invitation email here using nodemailer or Firebase Extensions
@@ -331,16 +374,20 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
         };
       }
     } catch (error) {
-      console.error('Error inviting member:', error);
+      console.error("Error inviting member:", error);
 
       if (error instanceof HttpsError) {
         throw error;
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new HttpsError('internal', `Failed to invite member: ${errorMessage}`);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      throw new HttpsError(
+        "internal",
+        `Failed to invite member: ${errorMessage}`,
+      );
     }
-  }
+  },
 );
 
 /**
@@ -350,7 +397,7 @@ export const inviteMemberToEvent = onCall<InviteMemberRequest>(
  * Handles all ledger mutations server-side: balances (authoritative)
  * and event_balances per-pair docs (delta-based).
  */
-export { ledgerProcessor } from './ledgerProcessor.js';
+export { ledgerProcessor } from "./ledgerProcessor.js";
 
 /**
  * Cloud Function: Friend Add Processor
@@ -359,7 +406,7 @@ export { ledgerProcessor } from './ledgerProcessor.js';
  * When a user adds a new friend, retroactively triggers the ledger pipeline
  * for all shared bills between the two users, backfilling balances.
  */
-export { friendAddProcessor } from './friendAddProcessor.js';
+export { friendAddProcessor } from "./friendAddProcessor.js";
 
 /**
  * Cloud Function: Event Delete Processor
@@ -368,7 +415,7 @@ export { friendAddProcessor } from './friendAddProcessor.js';
  * Cascade-deletes orphaned bills, event_balances pair docs, and invitations.
  * Bill deletions auto-trigger the ledger pipeline to reverse balances.
  */
-export { eventDeleteProcessor } from './eventDeleteProcessor.js';
+export { eventDeleteProcessor } from "./eventDeleteProcessor.js";
 
 /**
  * Cloud Function: Settle all outstanding bills with a friend.
@@ -376,17 +423,16 @@ export { eventDeleteProcessor } from './eventDeleteProcessor.js';
  * Reads unsettledBillIds from balances, marks each bill settled,
  * zeros the balance, and writes a settlement record — all in one transaction.
  */
-export const processSettlement = onCall<import('./settlementProcessor.js').SettleRequest>(
-  { timeoutSeconds: 60, memory: '256MiB' },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'User must be authenticated');
-    }
-
-    const { processSettlementCore } = await import('./settlementProcessor.js');
-    return processSettlementCore(request.auth.uid, request.data);
+export const processSettlement = onCall<
+  import("./settlementProcessor.js").SettleRequest
+>({ timeoutSeconds: 60, memory: "256MiB" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "User must be authenticated");
   }
-);
+
+  const { processSettlementCore } = await import("./settlementProcessor.js");
+  return processSettlementCore(request.auth.uid, request.data);
+});
 
 /**
  * Cloud Function: Settle all outstanding bills with a friend within a specific event.
@@ -395,17 +441,17 @@ export const processSettlement = onCall<import('./settlementProcessor.js').Settl
  * zeros the event balance, and writes a settlement record — all in one transaction.
  * The balances are updated automatically via the ledgerProcessor flow-through.
  */
-export const processEventSettlement = onCall<import('./eventSettlementProcessor.js').EventSettleRequest>(
-  { timeoutSeconds: 60, memory: '256MiB' },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'User must be authenticated');
-    }
-
-    const { processEventSettlementCore } = await import('./eventSettlementProcessor.js');
-    return processEventSettlementCore(request.auth.uid, request.data);
+export const processEventSettlement = onCall<
+  import("./eventSettlementProcessor.js").EventSettleRequest
+>({ timeoutSeconds: 60, memory: "256MiB" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "User must be authenticated");
   }
-);
+
+  const { processEventSettlementCore } =
+    await import("./eventSettlementProcessor.js");
+  return processEventSettlementCore(request.auth.uid, request.data);
+});
 
 /**
  * Cloud Function: Reverse a settlement.
@@ -413,17 +459,17 @@ export const processEventSettlement = onCall<import('./eventSettlementProcessor.
  * Un-settles bills and deletes the settlement record. The ledgerProcessor
  * pipeline auto-fires for each modified bill to recalculate balances.
  */
-export const reverseSettlement = onCall<import('./settlementReversal.js').ReversalRequest>(
-  { timeoutSeconds: 60, memory: '256MiB' },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'User must be authenticated');
-    }
-
-    const { processSettlementReversalCore } = await import('./settlementReversal.js');
-    return processSettlementReversalCore(request.auth.uid, request.data);
+export const reverseSettlement = onCall<
+  import("./settlementReversal.js").ReversalRequest
+>({ timeoutSeconds: 60, memory: "256MiB" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "User must be authenticated");
   }
-);
+
+  const { processSettlementReversalCore } =
+    await import("./settlementReversal.js");
+  return processSettlementReversalCore(request.auth.uid, request.data);
+});
 
 /**
  * Cloud Function: Create Bill (Atomic)
@@ -431,7 +477,13 @@ export const reverseSettlement = onCall<import('./settlementReversal.js').Revers
  * Atomically creates a bill document and updates friend balances
  * in a single transaction.
  */
-export { createBill, joinBillAsGuest, leaveBillAsGuest, updateGuestName, claimShadowUser } from './billFunctions.js';
+export {
+  createBill,
+  joinBillAsGuest,
+  leaveBillAsGuest,
+  updateGuestName,
+  claimShadowUser,
+} from "./billFunctions.js";
 
 /**
  * Cloud Function: Recurring Bill Processor
@@ -440,7 +492,55 @@ export { createBill, joinBillAsGuest, leaveBillAsGuest, updateGuestName, claimSh
  * templates whose nextRunDate <= today, creates bills for all due/missed
  * cycles, and advances the schedule.
  */
-export { processRecurringBills } from './recurringBillProcessor.js';
+export { processRecurringBills } from "./recurringBillProcessor.js";
+
+/**
+ * Cloud Function: Generate a recurring bill's due occurrences immediately.
+ *
+ * Called by the client right after a template is created or edited so any
+ * already-due / overdue cycles are generated at once (with balances updated via
+ * the ledger pipeline) instead of waiting up to an hour for the scheduler.
+ * Idempotent with the hourly pass.
+ */
+export const generateRecurringBillNow = onCall<{ recurringBillId: string }>(
+  { timeoutSeconds: 120, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "User must be authenticated");
+    }
+
+    const { recurringBillId } = request.data;
+    if (!recurringBillId) {
+      throw new HttpsError("invalid-argument", "recurringBillId is required");
+    }
+
+    try {
+      const { generateRecurringBillNowCore } =
+        await import("./recurringBillProcessor.js");
+      const db = getFirestore();
+      const todayStr = new Date().toISOString().split("T")[0];
+      return await generateRecurringBillNowCore(
+        db,
+        recurringBillId,
+        request.auth.uid,
+        todayStr,
+      );
+    } catch (error) {
+      console.error("Failed to generate recurring bill now:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      if (message === "Recurring bill not found") {
+        throw new HttpsError("not-found", message);
+      }
+      if (message === "Not authorized to generate this recurring bill") {
+        throw new HttpsError("permission-denied", message);
+      }
+      throw new HttpsError(
+        "internal",
+        `Failed to generate recurring bill: ${message}`,
+      );
+    }
+  },
+);
 
 /**
  * Cloud Function: one-time migration to reconcile event footprints orphaned
@@ -450,18 +550,22 @@ export { processRecurringBills } from './recurringBillProcessor.js';
  * unless an operator explicitly sets that variable before running it once.
  */
 export const reconcileEventFootprints = onCall(
-  { timeoutSeconds: 300, memory: '512MiB' },
+  { timeoutSeconds: 300, memory: "512MiB" },
   async (request) => {
     if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'User must be authenticated');
+      throw new HttpsError("unauthenticated", "User must be authenticated");
     }
     const adminUid = process.env.MIGRATION_ADMIN_UID;
     if (!adminUid || request.auth.uid !== adminUid) {
-      throw new HttpsError('permission-denied', 'Not authorized to run migrations');
+      throw new HttpsError(
+        "permission-denied",
+        "Not authorized to run migrations",
+      );
     }
-    const { reconcileOrphanedEventFootprints } = await import('./migrations/reconcileOrphanedEventFootprints.js');
+    const { reconcileOrphanedEventFootprints } =
+      await import("./migrations/reconcileOrphanedEventFootprints.js");
     return reconcileOrphanedEventFootprints(getFirestore());
-  }
+  },
 );
 
 /**
@@ -470,6 +574,8 @@ export const reconcileEventFootprints = onCall(
  * Lets you run a generation pass on demand (the scheduler doesn't fire locally),
  * e.g. curl ".../devTriggerRecurringBills?today=2026-05-30".
  */
-import { devTriggerRecurringBills as _devTriggerRecurringBills } from './recurringBillProcessor.js';
+import { devTriggerRecurringBills as _devTriggerRecurringBills } from "./recurringBillProcessor.js";
 export const devTriggerRecurringBills =
-  process.env.FUNCTIONS_EMULATOR === 'true' ? _devTriggerRecurringBills : undefined;
+  process.env.FUNCTIONS_EMULATOR === "true"
+    ? _devTriggerRecurringBills
+    : undefined;

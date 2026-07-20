@@ -22,6 +22,14 @@ export function useBillSession(billId: string | null) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Updates the bill with debouncing to reduce Firestore writes.
+   * Rapid sequential calls merge their updates and flush after 400ms of inactivity.
+   * toggleAssignment is NOT debounced (uses atomic arrayUnion/arrayRemove).
+   */
+  const pendingUpdatesRef = useRef<Partial<Bill>>({});
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
   // Real-time listener for the bill
   useEffect(() => {
     if (!billId) {
@@ -36,7 +44,12 @@ export function useBillSession(billId: string | null) {
       billRef,
       (snapshot) => {
         if (snapshot.exists()) {
-          setSession({ id: snapshot.id, ...snapshot.data() } as Bill);
+          // Merge any unflushed local edits on top of the incoming snapshot so a
+          // snapshot (the bill's own ledger-pipeline echo or a collaborator's write)
+          // doesn't clobber a field the user is actively editing within the 400ms
+          // debounce window. The merged edits flush shortly after and reconcile.
+          const incoming = { id: snapshot.id, ...snapshot.data() } as Bill;
+          setSession({ ...incoming, ...pendingUpdatesRef.current });
           setError(null);
         } else {
           setSession(null);
@@ -89,14 +102,6 @@ export function useBillSession(billId: string | null) {
     return () => unsubscribe();
   }, [session?.eventId, user]);
 
-  /**
-   * Updates the bill with debouncing to reduce Firestore writes.
-   * Rapid sequential calls merge their updates and flush after 400ms of inactivity.
-   * toggleAssignment is NOT debounced (uses atomic arrayUnion/arrayRemove).
-   */
-  const pendingUpdatesRef = useRef<Partial<Bill>>({});
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>();
-
   const flushPendingUpdates = useCallback(
     async () => {
       const toSend = pendingUpdatesRef.current;
@@ -131,6 +136,9 @@ export function useBillSession(billId: string | null) {
     (updates: Partial<Bill>) => {
       if (!billId) return;
       pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...updates };
+      // Optimistically echo the edit into local state so the UI reflects it
+      // immediately, before any snapshot or the debounced write fires.
+      setSession(prev => (prev ? { ...prev, ...updates } : prev));
 
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = setTimeout(() => {

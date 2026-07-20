@@ -41,10 +41,11 @@ function DeepLinkHandler() {
   useEffect(() => {
     // Listen for deep links
     let listenerHandle: { remove: () => void } | null = null;
+    let cancelled = false;
 
     CapApp.addListener('appUrlOpen', (event) => {
       const url = event.url;
-      
+
       try {
         const urlObj = new URL(url);
         const path = urlObj.pathname + urlObj.search;
@@ -53,10 +54,15 @@ function DeepLinkHandler() {
         console.error('Error parsing deep link URL:', error);
       }
     }).then(handle => {
-      listenerHandle = handle;
+      if (cancelled) {
+        handle.remove();
+      } else {
+        listenerHandle = handle;
+      }
     });
 
     return () => {
+      cancelled = true;
       if (listenerHandle) {
         listenerHandle.remove();
       }
@@ -76,8 +82,10 @@ function RootRoute() {
   const { user, loading } = useAuth();
   const { isNative } = usePlatform();
 
-  // Show loading screen during auth state check
-  if (loading) {
+  // Show loading screen while auth is still resolving. `user === undefined`
+  // means Firebase has not answered yet — on native this prevents flashing the
+  // sign-in screen before a persisted session is restored.
+  if (loading || user === undefined) {
     return <LoadingScreen />;
   }
 

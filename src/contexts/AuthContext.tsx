@@ -29,7 +29,11 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  // `undefined` = auth has not resolved yet (Firebase still restoring the
+  // persisted session); `null` = resolved, no user; `User` = signed in.
+  // Route guards rely on this distinction so they never treat the
+  // still-resolving window as "logged out" (see getAuthGate / ProtectedRoute).
+  const [user, setUser] = useState<User | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -94,35 +98,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
 
-    // Force loading to false after 3 seconds if Firebase doesn't respond
+    // Last-resort safety net: if Firebase never resolves the auth state (e.g. a
+    // stalled network on a cold start), give up after 10s and treat the user as
+    // logged out so the app doesn't spin forever. This is intentionally long and
+    // uses a functional update so it ONLY takes effect while auth is still
+    // unresolved (user === undefined). It must never fire fast enough to race a
+    // normal token refresh — that race was the old "bounce to home" bug.
     const timeout = setTimeout(() => {
-      if (loading) {
-        setLoading(false);
-      }
-    }, 3000);
+      setUser((prev) => (prev === undefined ? null : prev));
+      setLoading(false);
+    }, 10000);
 
     // Listen to Firebase auth state changes
     const unsubscribe = onAuthStateChanged(
       auth,
-      async (currentUser) => {
+      (currentUser) => {
         clearTimeout(timeout);
-        setUser(currentUser);
-
-        // Check for pending event invitations when user logs in
-        if (currentUser) {
-          try {
-            await userService.syncUserProfile(currentUser);
-          } catch (error) {
-            console.error('Error syncing user profile:', error);
-          }
-          await checkAndAcceptInvitations(currentUser);
-        }
-
+        // Resolve auth immediately so route guards can act; never leave `user`
+        // as `undefined` once Firebase has answered.
+        setUser(currentUser ?? null);
         setLoading(false);
+
+        // Sync profile / accept pending invitations in the background — these
+        // network calls must not gate rendering of the authenticated app.
+        if (currentUser) {
+          userService
+            .syncUserProfile(currentUser)
+            .catch((error) => console.error('Error syncing user profile:', error));
+          checkAndAcceptInvitations(currentUser);
+        }
       },
       (error) => {
         console.error('[AuthContext] Auth state error:', error);
         clearTimeout(timeout);
+        setUser(null);
         setLoading(false);
       }
     );

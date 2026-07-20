@@ -92,7 +92,6 @@ export function ManageFriendsCard() {
               <div className="space-y-2">
                 {displayedFriends.map((friend, index) => {
                   const isExpanded = !!expandedFriends[index];
-                  const isEditing = editingIndex === index;
                   return (
                     <FriendRow
                       key={index}
