@@ -18,7 +18,10 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { db, clearFirestore } from "./helpers/env";
 import { makeEvent } from "./helpers/builders";
 import { withBillTriggers, deleteBill } from "./helpers/triggerLoop";
-import { generateDueRecurringBills } from "../../functions/src/recurringBillProcessor";
+import {
+  generateDueRecurringBills,
+  generateRecurringBillNowCore,
+} from "../../functions/src/recurringBillProcessor";
 import { firstRunDate } from "../../shared/recurringSchedule";
 
 const ALICE = "alice";
@@ -477,5 +480,79 @@ describe("recurring generation — fault isolation", () => {
     expect(await generatedBills("rec-good")).toHaveLength(1);
     expect(await generatedBills("rec-broken")).toHaveLength(0);
     expect(errorSpy).toHaveBeenCalled(); // failure was surfaced, not swallowed silently
+  });
+});
+
+// ── The fix: immediate generation on create/edit ────────────────────────────
+
+describe("recurring generation — generateRecurringBillNowCore (create/edit path)", () => {
+  beforeEach(clearFirestore);
+
+  /** Seeds a template exactly as recurringBillService.createRecurringBill() does. */
+  async function seedAsClientWould(startDate: string, overrides = {}) {
+    const schedule = { frequency: "monthly" as const, dayOfMonth: 1, startDate };
+    await db.collection("recurring_bills").doc("rec1").set(
+      makeTemplate({
+        schedule,
+        nextRunDate: firstRunDate(schedule),
+        lastRunDate: null,
+        amount: 100,
+        splitEvenly: true,
+        ...overrides,
+      })
+    );
+  }
+
+  it("generates every overdue occurrence immediately for a past start date", async () => {
+    // The reported scenario: user picks a start date months in the past and
+    // presses Done. This is what the client now fires straight after saving.
+    await seedAsClientWould("2026-04-01");
+
+    const result = await withBillTriggers(() =>
+      generateRecurringBillNowCore(db, "rec1", ALICE, "2026-07-19")
+    );
+
+    expect(result).toEqual({ created: 4 });
+    expect((await generatedBills()).map((b) => b.recurringCycleDate)).toEqual([
+      "2026-04-01", "2026-05-01", "2026-06-01", "2026-07-01",
+    ]);
+    expect((await getBalance())!.balance).toBeCloseTo(200, 2); // 4 × ($100 / 2)
+  });
+
+  it("is idempotent with the hourly pass — no duplicate bills or double-counting", async () => {
+    await seedAsClientWould("2026-06-01");
+
+    await withBillTriggers(() => generateRecurringBillNowCore(db, "rec1", ALICE, "2026-07-19"));
+    const balanceAfterImmediate = (await getBalance())!.balance;
+
+    // The hourly scheduler fires right after the immediate run.
+    const hourly = await withBillTriggers(() => generateDueRecurringBills(db, "2026-07-19"));
+
+    expect(hourly.created).toBe(0);
+    expect(await generatedBills()).toHaveLength(2); // June + July only
+    expect((await getBalance())!.balance).toBeCloseTo(balanceAfterImmediate, 2);
+  });
+
+  it("refuses to generate a template the caller does not own", async () => {
+    await seedAsClientWould("2026-04-01");
+
+    await expect(
+      generateRecurringBillNowCore(db, "rec1", BOB, "2026-07-19")
+    ).rejects.toThrow("Not authorized");
+
+    expect(await generatedBills()).toHaveLength(0); // nothing leaked
+  });
+
+  it("throws for a template that does not exist", async () => {
+    await expect(
+      generateRecurringBillNowCore(db, "nope", ALICE, "2026-07-19")
+    ).rejects.toThrow("Recurring bill not found");
+  });
+
+  it("is a no-op for a paused template", async () => {
+    await seedAsClientWould("2026-04-01", { status: "paused" });
+
+    expect(await generateRecurringBillNowCore(db, "rec1", ALICE, "2026-07-19")).toEqual({ created: 0 });
+    expect(await generatedBills()).toHaveLength(0);
   });
 });
