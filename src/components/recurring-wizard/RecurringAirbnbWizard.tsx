@@ -17,6 +17,8 @@ import { AirbnbEntryStep } from '@/components/airbnb-wizard/steps/AirbnbEntrySte
 import { AirbnbGuestsStep } from '@/components/airbnb-wizard/steps/AirbnbGuestsStep';
 import { AirbnbSplitMethodStep } from '@/components/airbnb-wizard/steps/AirbnbSplitMethodStep';
 import { AirbnbAssignStep } from '@/components/airbnb-wizard/steps/AirbnbAssignStep';
+import { ProcessingOverlay } from '@/components/shared/ProcessingOverlay';
+import { scheduleHasOccurrences } from '@/utils/scheduleFormat';
 import { ScheduleStep } from './steps/ScheduleStep';
 import { RecurringReviewStep } from './steps/RecurringReviewStep';
 import { ChangeTypeButton } from './ChangeTypeButton';
@@ -146,7 +148,7 @@ export function RecurringAirbnbWizard({
     if (currentStep === 1) return people.length > 1;
     if (currentStep === 2) return true;
     if (!splitEvenly && currentStep === assignStepIndex) return bill.allItemsAssigned;
-    if (currentStep === scheduleStepIndex) return !!startDate;
+    if (currentStep === scheduleStepIndex) return scheduleHasOccurrences({ frequency, dayOfWeek, dayOfMonth, startDate, endDate: hasEndDate ? endDate : undefined });
     return true;
   };
 
@@ -204,7 +206,7 @@ export function RecurringAirbnbWizard({
       } else {
         await recurringBillService.createRecurringBill(input);
       }
-      navigate('/dashboard');
+      navigate('/bills');
     } catch (err) {
       console.error('Failed to save recurring bill:', err);
     } finally {
@@ -371,6 +373,12 @@ export function RecurringAirbnbWizard({
           isMobile={isMobile}
         />
       )}
+
+      <ProcessingOverlay
+        open={isSaving}
+        message={existing ? 'Saving changes...' : 'Creating recurring bill...'}
+        hint="This can take a few seconds."
+      />
     </div>
   );
 }

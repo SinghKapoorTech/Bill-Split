@@ -1,15 +1,13 @@
 import { Person, PersonTotal, BillData, ItemAssignment } from '@/types';
 import { RecurringFrequency } from '@/types/recurring.types';
-import { firstRunDate, nextRunDates } from '@shared/recurringSchedule';
+import { formatScheduleSummary, getNextBillDates } from '@/utils/scheduleFormat';
 import { resolveSplitAmounts, buildPerPersonShareItems } from '@shared/splitAmounts';
-import { Loader2, Calendar, Repeat } from 'lucide-react';
+import { Calendar, Repeat } from 'lucide-react';
 import { SplitSummary } from '@/components/people/SplitSummary';
 import { StepFooter } from '@/components/shared/StepFooter';
 import { SplitDonutChart } from '@/components/shared/SplitDonutChart';
 import { SplitMethod } from '@/components/simple-transaction-wizard/SplitMethodSelector';
 import { useAuth } from '@/contexts/AuthContext';
-
-const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 interface RecurringReviewStepProps {
   amount: string;
@@ -36,68 +34,6 @@ interface RecurringReviewStepProps {
   billDataOverride?: BillData;
   itemAssignmentsOverride?: ItemAssignment;
   personTotalsOverride?: PersonTotal[];
-}
-
-function formatScheduleSummary(
-  frequency: RecurringFrequency,
-  dayOfWeek: number,
-  dayOfMonth: number,
-  startDate: string,
-  endDate?: string
-): string {
-  let freq = '';
-  if (frequency === 'weekly') {
-    freq = `Every week on ${DAYS_OF_WEEK[dayOfWeek]}`;
-  } else if (frequency === 'biweekly') {
-    freq = `Every 2 weeks on ${DAYS_OF_WEEK[dayOfWeek]}`;
-  } else {
-    const suffix =
-      dayOfMonth === 1 || dayOfMonth === 21 || dayOfMonth === 31
-        ? 'st'
-        : dayOfMonth === 2 || dayOfMonth === 22
-        ? 'nd'
-        : dayOfMonth === 3 || dayOfMonth === 23
-        ? 'rd'
-        : 'th';
-    freq = `Every month on the ${dayOfMonth}${suffix}`;
-  }
-
-  // "starting" reflects the first aligned occurrence, not the raw start date.
-  const firstDate = firstRunDate({ frequency, dayOfWeek, dayOfMonth, startDate, endDate });
-  const start = new Date(firstDate + 'T00:00:00').toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-
-  let result = `${freq}, starting ${start}`;
-  if (endDate) {
-    const end = new Date(endDate + 'T00:00:00').toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-    result += ` until ${end}`;
-  }
-  return result;
-}
-
-function getNextBillDates(
-  frequency: RecurringFrequency,
-  dayOfWeek: number,
-  dayOfMonth: number,
-  startDate: string,
-  count: number
-): string[] {
-  // Aligned occurrences from the shared helper (the same logic the generator
-  // uses), formatted for display.
-  return nextRunDates({ frequency, dayOfWeek, dayOfMonth, startDate }, count).map((d) =>
-    new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
-  );
 }
 
 export function RecurringReviewStep({
@@ -172,8 +108,9 @@ export function RecurringReviewStep({
   const finalItemAssignments = itemAssignmentsOverride ?? dummyItemAssignments;
   const finalPersonTotals = personTotalsOverride ?? personTotals;
 
-  const scheduleSummary = formatScheduleSummary(frequency, dayOfWeek, dayOfMonth, startDate, endDate);
-  const nextDates = getNextBillDates(frequency, dayOfWeek, dayOfMonth, startDate, 3);
+  const scheduleParts = { frequency, dayOfWeek, dayOfMonth, startDate, endDate };
+  const scheduleSummary = formatScheduleSummary(scheduleParts);
+  const nextDates = getNextBillDates(scheduleParts, 3);
 
   return (
     <div className="flex flex-col gap-6 p-4 max-w-md mx-auto w-full">
@@ -188,12 +125,20 @@ export function RecurringReviewStep({
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Next bills
           </p>
-          {nextDates.map((date, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm text-foreground">
-              <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-              {date}
-            </div>
-          ))}
+          {nextDates.length > 0 ? (
+            nextDates.map((date, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm text-foreground">
+                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                {date}
+              </div>
+            ))
+          ) : (
+            /* Defence in depth: the schedule step blocks this, but never render
+               a bare "Next bills" heading with nothing under it. */
+            <p className="text-sm text-destructive">
+              None — the end date is before the first bill.
+            </p>
+          )}
         </div>
       </div>
 
@@ -203,6 +148,7 @@ export function RecurringReviewStep({
 
       <div className="w-full">
         <SplitSummary
+          preview
           personTotals={finalPersonTotals}
           allItemsAssigned={true}
           people={people}
@@ -213,15 +159,6 @@ export function RecurringReviewStep({
         />
       </div>
 
-      {isSaving && (
-        <div className="flex flex-col items-center justify-center gap-2 p-4 text-muted-foreground mt-4 py-8">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-          <p className="text-sm font-medium animate-pulse">
-            {isEditing ? 'Saving changes...' : 'Creating recurring bill...'}
-          </p>
-        </div>
-      )}
-
       {/* Desktop only: StepFooter */}
       <div className="hidden md:block">
         <StepFooter
@@ -230,6 +167,7 @@ export function RecurringReviewStep({
           onBack={onPrev}
           onComplete={onComplete}
           completeLabel={isEditing ? 'Save' : 'Create'}
+          nextDisabled={isSaving}
         />
       </div>
     </div>

@@ -16,6 +16,8 @@ import { WizardNavigation } from '@/components/bill-wizard/WizardNavigation';
 import { BillEntryStep } from '@/components/bill-wizard/steps/BillEntryStep';
 import { PeopleStep } from '@/components/bill-wizard/steps/PeopleStep';
 import { AssignmentStep } from '@/components/bill-wizard/steps/AssignmentStep';
+import { ProcessingOverlay } from '@/components/shared/ProcessingOverlay';
+import { scheduleHasOccurrences } from '@/utils/scheduleFormat';
 import { ScheduleStep } from './steps/ScheduleStep';
 import { RecurringReviewStep } from './steps/RecurringReviewStep';
 import { ChangeTypeButton } from './ChangeTypeButton';
@@ -129,7 +131,7 @@ export function RecurringDetailedWizard({
     if (currentStep === 0) return hasItems && title.trim().length > 0;
     if (currentStep === 1) return people.length > 1;
     if (currentStep === 2) return bill.allItemsAssigned;
-    if (currentStep === 3) return !!startDate;
+    if (currentStep === 3) return scheduleHasOccurrences({ frequency, dayOfWeek, dayOfMonth, startDate, endDate: hasEndDate ? endDate : undefined });
     return true;
   };
 
@@ -172,7 +174,7 @@ export function RecurringDetailedWizard({
       } else {
         await recurringBillService.createRecurringBill(input);
       }
-      navigate('/dashboard');
+      navigate('/bills');
     } catch (err) {
       console.error('Failed to save recurring bill:', err);
     } finally {
@@ -352,6 +354,12 @@ export function RecurringDetailedWizard({
           isMobile={isMobile}
         />
       )}
+
+      <ProcessingOverlay
+        open={isSaving}
+        message={existing ? 'Saving changes...' : 'Creating recurring bill...'}
+        hint="This can take a few seconds."
+      />
     </div>
   );
 }

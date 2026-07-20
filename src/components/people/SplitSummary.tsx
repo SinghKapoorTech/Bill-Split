@@ -25,9 +25,16 @@ interface Props {
   onMarkAsSettled?: (personId: string, isSettled: boolean) => void;
   /** Optional role tags (e.g. 'Created', 'Paid') keyed by personId. */
   roleLabels?: Record<string, string>;
+  /**
+   * Render as a non-actionable preview: no Venmo charge/pay and no settle
+   * actions. Used where the split is illustrative and no bill exists yet — the
+   * recurring template review, for example, where nobody owes anything until a
+   * cycle actually generates a bill.
+   */
+  preview?: boolean;
 }
 
-export function SplitSummary({ personTotals, allItemsAssigned, people, billData, itemAssignments, billName = 'Divit', settledPersonIds = [], paidById, ownerId, onMarkAsSettled, roleLabels }: Props) {
+export function SplitSummary({ personTotals, allItemsAssigned, people, billData, itemAssignments, billName = 'Divit', settledPersonIds = [], paidById, ownerId, onMarkAsSettled, roleLabels, preview = false }: Props) {
   const { user } = useAuth();
   const { profile } = useUserProfile();
   const { toast } = useToast();
@@ -158,14 +165,17 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
             let showSettleButton = false;
             let venmoType: 'charge' | 'pay' = 'charge';
 
-            if (didIPay && !isMe) {
-              showVenmoButton = true;
-              showSettleButton = true; // Only creditors can mark debts as settled
-              venmoType = 'charge';
-            } else if (!didIPay && isThisPersonTheCreditor && !isMe) {
-              showVenmoButton = true;
-              showSettleButton = false; // Debtors CANNOT mark debts as settled
-              venmoType = 'pay';
+            // In preview mode there is no bill to act on, so both stay false.
+            if (!preview) {
+              if (didIPay && !isMe) {
+                showVenmoButton = true;
+                showSettleButton = true; // Only creditors can mark debts as settled
+                venmoType = 'charge';
+              } else if (!didIPay && isThisPersonTheCreditor && !isMe) {
+                showVenmoButton = true;
+                showSettleButton = false; // Debtors CANNOT mark debts as settled
+                venmoType = 'pay';
+              }
             }
 
             const isLast = index === personTotals.length - 1;
@@ -195,16 +205,22 @@ export function SplitSummary({ personTotals, allItemsAssigned, people, billData,
         </div>
       </div>
 
-      <VenmoChargeDialog
-        charge={currentCharge}
-        open={chargeDialogOpen}
-        onOpenChange={setChargeDialogOpen}
-      />
+      {/* Both dialogs are only reachable from the charge flow, which preview
+          mode removes — so don't mount them at all. */}
+      {!preview && (
+        <>
+          <VenmoChargeDialog
+            charge={currentCharge}
+            open={chargeDialogOpen}
+            onOpenChange={setChargeDialogOpen}
+          />
 
-      <ProfileSettings
-        open={settingsDialogOpen}
-        onOpenChange={setSettingsDialogOpen}
-      />
+          <ProfileSettings
+            open={settingsDialogOpen}
+            onOpenChange={setSettingsDialogOpen}
+          />
+        </>
+      )}
     </>
   );
 }
