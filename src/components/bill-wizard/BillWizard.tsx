@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useReturnTo } from "@/hooks/useReturnTo";
 import { billService } from "@/services/billService";
 import { useAuth } from "@/contexts/AuthContext";
 import { arrayUnion, arrayRemove } from "firebase/firestore";
@@ -625,13 +626,24 @@ export function BillWizard({
   // pull a private bill into one.
   const targetEventId = eventId ?? routerState?.targetEventId;
 
+  // Resolves where the user came from (event, balances, squad, bills list, …)
+  // and exposes the matching label, so the exit button can no longer disagree
+  // with where it actually goes.
+  const { label: exitLabel, goBack } = useReturnTo({
+    eventId: targetEventId,
+    // Read the loaded bill first, mirroring AirbnbWizard: on a reload or deep
+    // link there is no router state, and without this a squad bill would fall
+    // through to /dashboard while the airbnb wizard returned to /squads/:id.
+    squadId: activeSession?.squadId ?? routerState?.targetSquadId,
+  });
+
   // ── Auto-apply balances when the user reaches the Review step ───────────
   // Ledger balances are now applied automatically by the server-side pipeline
   // when bill data changes in Firestore. No client-side ledger writes needed.
 
   const handleDone = async () => {
     // Only promote to 'active' when the user finishes the wizard (last step).
-    // Early exits (Dashboard/Event button on step 0) should keep the bill as draft.
+    // Early exits (the step 0 exit button) should keep the bill as draft.
     if (wizard.currentStep === STEPS.length - 1) {
       const id = billId || activeSession?.id;
       if (id) {
@@ -643,11 +655,7 @@ export function BillWizard({
       }
     }
 
-    if (targetEventId) {
-      navigate(`/events/${targetEventId}`);
-    } else {
-      navigate("/bills");
-    }
+    goBack();
   };
 
   return (
@@ -717,6 +725,8 @@ export function BillWizard({
               onRemoveImage={handleRemoveImage}
               onImageSelected={handleImageSelected}
               onNext={wizard.handleNextStep}
+              onExit={handleDone}
+              exitLabel={exitLabel}
               canProceed={wizard.canProceedFromStep(0)}
               currentStep={wizard.currentStep}
               totalSteps={STEPS.length}
@@ -843,7 +853,7 @@ export function BillWizard({
           onNext={wizard.handleNextStep}
           onComplete={handleDone}
           onExit={handleDone}
-          exitLabel={targetEventId ? "Event" : "Dashboard"}
+          exitLabel={exitLabel}
           nextDisabled={!wizard.canProceedFromStep(wizard.currentStep)}
           hasBillData={hasBillData}
           onShare={onShare}

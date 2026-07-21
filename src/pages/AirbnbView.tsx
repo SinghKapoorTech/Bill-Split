@@ -6,6 +6,7 @@ import { ShareLinkDialog } from '@/components/share/ShareLinkDialog';
 import { Loader2 } from 'lucide-react';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
+import { useReturnTo } from '@/hooks/useReturnTo';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { ensureUserInPeople, generateUserId } from '@/utils/billCalculations';
@@ -140,8 +141,11 @@ export default function AirbnbView() {
         }
     }, []);
 
+    // On timeout, return the user where they came from.
+    const { goBack } = useReturnTo({ eventId });
+
     useSessionTimeout({
-        onTimeout: () => navigate('/dashboard'),
+        onTimeout: () => goBack(),
         timeoutMinutes: 20,
     });
 

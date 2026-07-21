@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface StepFooterProps {
   currentStep: number;
@@ -7,6 +7,9 @@ interface StepFooterProps {
   onBack?: () => void;
   onNext?: () => void;
   onComplete?: () => void;
+  /** Leave the flow entirely from step 0, where there is no previous step. */
+  onExit?: () => void;
+  exitLabel?: string;
   completeLabel?: string;
   nextDisabled?: boolean;
 }
@@ -17,7 +20,9 @@ export function StepFooter({
   onBack,
   onNext,
   onComplete,
-  completeLabel = 'Complete',
+  onExit,
+  exitLabel,
+  completeLabel = "Complete",
   nextDisabled = false,
 }: StepFooterProps) {
   const isFirstStep = currentStep === 0;
@@ -33,8 +38,14 @@ export function StepFooter({
 
   return (
     <div className="flex items-center justify-between gap-4 mt-6 pt-6 border-t">
-      {/* Back Button */}
+      {/* Exit (step 0) or Back (later steps) — mirrors the mobile nav bar. */}
       <div className="flex-1">
+        {isFirstStep && onExit && (
+          <Button variant="outline" onClick={onExit} className="gap-2">
+            <ChevronLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">{exitLabel ?? "Back"}</span>
+          </Button>
+        )}
         {!isFirstStep && onBack && (
           <Button
             variant="outline"
@@ -56,7 +67,7 @@ export function StepFooter({
             disabled={nextDisabled}
             className="gap-2"
           >
-            <span>{isLastStep ? completeLabel : 'Next'}</span>
+            <span>{isLastStep ? completeLabel : "Next"}</span>
             {!isLastStep && <ChevronRight className="w-4 h-4" />}
           </Button>
         )}

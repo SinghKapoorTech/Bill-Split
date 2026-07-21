@@ -1,7 +1,28 @@
-import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Share2, Check, Home, Calendar } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { Button } from "@/components/ui/button";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Share2,
+  Check,
+  Home,
+  Calendar,
+  Users,
+  Receipt,
+} from "lucide-react";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
+
+/**
+ * Icon for the step-0 exit button, keyed by the label useReturnTo derives from
+ * the resolved destination. Keep in sync with labelForPath in useReturnTo.
+ */
+const EXIT_ICONS = {
+  Event: Calendar,
+  Squad: Users,
+  Balances: Users,
+  Bills: Receipt,
+  Home: Home,
+} as const;
 
 interface WizardNavigationProps {
   currentStep: number;
@@ -34,13 +55,13 @@ export function WizardNavigation({
   onNext,
   onComplete,
   onExit,
-  exitLabel = 'Dashboard',
+  exitLabel = "Home",
   nextDisabled = false,
   hasBillData,
   onShare,
-  nextLabel = 'Next',
-  backLabel = 'Back',
-  completeLabel = 'Done',
+  nextLabel = "Next",
+  backLabel = "Back",
+  completeLabel = "Done",
   isLoading = false,
   isMobile,
 }: WizardNavigationProps) {
@@ -70,16 +91,16 @@ export function WizardNavigation({
     <motion.div
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ type: 'tween', duration: 0.2, ease: 'easeOut' }}
+      transition={{ type: "tween", duration: 0.2, ease: "easeOut" }}
       className={cn(
         // Fixed to bottom with safe area padding
-        'fixed bottom-0 left-0 right-0 z-50',
-        'pb-[max(12px,env(safe-area-inset-bottom))] pt-3 px-4',
+        "fixed bottom-0 left-0 right-0 z-50",
+        "pb-[max(12px,env(safe-area-inset-bottom))] pt-3 px-4",
         // Floating island effect
-        'bg-background/95 backdrop-blur-xl',
-        'border-t border-border/50',
+        "bg-background/95 backdrop-blur-xl",
+        "border-t border-border/50",
         // Subtle shadow for depth
-        'shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.1)]'
+        "shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.1)]",
       )}
     >
       <div className="flex items-center justify-between gap-3 max-w-lg mx-auto">
@@ -97,13 +118,17 @@ export function WizardNavigation({
                 onClick={onExit}
                 disabled={isLoading}
                 className={cn(
-                  'h-12 px-4 gap-2 rounded-xl',
-                  'border-2 border-muted-foreground/20',
-                  'hover:border-muted-foreground/40',
-                  'transition-all duration-200'
+                  "h-12 px-4 gap-2 rounded-xl",
+                  "border-2 border-muted-foreground/20",
+                  "hover:border-muted-foreground/40",
+                  "transition-all duration-200",
                 )}
               >
-                {exitLabel === 'Event' ? <Calendar className="w-5 h-5" /> : <Home className="w-5 h-5" />}
+                {(() => {
+                  const ExitIcon =
+                    EXIT_ICONS[exitLabel as keyof typeof EXIT_ICONS] ?? Home;
+                  return <ExitIcon className="w-5 h-5" />;
+                })()}
                 <span className="font-medium">{exitLabel}</span>
               </Button>
             </motion.div>
@@ -121,10 +146,10 @@ export function WizardNavigation({
                 onClick={onBack}
                 disabled={isLoading}
                 className={cn(
-                  'h-12 px-4 gap-2 rounded-xl',
-                  'border-2 border-muted-foreground/20',
-                  'hover:border-muted-foreground/40',
-                  'transition-all duration-200'
+                  "h-12 px-4 gap-2 rounded-xl",
+                  "border-2 border-muted-foreground/20",
+                  "hover:border-muted-foreground/40",
+                  "transition-all duration-200",
                 )}
               >
                 <ChevronLeft className="w-5 h-5" />
@@ -146,11 +171,11 @@ export function WizardNavigation({
               onClick={onShare}
               disabled={isLoading}
               className={cn(
-                'h-12 w-12 p-0 rounded-xl',
-                'border-2 border-info/30',
-                'bg-info/10 hover:bg-info/20',
-                'text-info hover:text-info',
-                'transition-all duration-200'
+                "h-12 w-12 p-0 rounded-xl",
+                "border-2 border-info/30",
+                "bg-info/10 hover:bg-info/20",
+                "text-info hover:text-info",
+                "transition-all duration-200",
               )}
             >
               <Share2 className="w-5 h-5" />
@@ -170,15 +195,15 @@ export function WizardNavigation({
                 onClick={handleNext}
                 disabled={nextDisabled || isLoading}
                 className={cn(
-                  'h-12 px-6 gap-2 rounded-xl',
-                  'font-semibold',
+                  "h-12 px-6 gap-2 rounded-xl",
+                  "font-semibold",
                   // Gradient background for primary action
-                  'bg-gradient-to-r from-primary to-primary-glow',
-                  'hover:opacity-90',
-                  'shadow-lg shadow-primary/25',
-                  'transition-all duration-200',
+                  "bg-gradient-to-r from-primary to-primary-glow",
+                  "hover:opacity-90",
+                  "shadow-lg shadow-primary/25",
+                  "transition-all duration-200",
                   // Disabled state
-                  'disabled:opacity-50 disabled:shadow-none'
+                  "disabled:opacity-50 disabled:shadow-none",
                 )}
               >
                 <span>{isLastStep ? completeLabel : nextLabel}</span>
@@ -202,11 +227,11 @@ export function WizardNavigation({
             animate={{
               scale: index === currentStep ? 1.2 : 1,
             }}
-            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
             className={cn(
-              'w-2 h-2 rounded-full',
-              index <= currentStep ? 'bg-primary' : 'bg-muted-foreground/30',
-              'transition-colors duration-300'
+              "w-2 h-2 rounded-full",
+              index <= currentStep ? "bg-primary" : "bg-muted-foreground/30",
+              "transition-colors duration-300",
             )}
           />
         ))}

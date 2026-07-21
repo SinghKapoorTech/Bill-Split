@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from "react-router-dom";
+import { navigateWithOrigin } from "@/hooks/useReturnTo";
 import { CalendarDays, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -22,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function EventsView() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -59,7 +61,7 @@ export default function EventsView() {
         description: `${name} has been created successfully.`,
       });
       setDialogOpen(false);
-      navigate(`/events/${newEventId}`);
+      navigateWithOrigin(navigate, location, `/events/${newEventId}`);
     } catch (error) {
       toast({
         title: 'Error',
@@ -70,7 +72,7 @@ export default function EventsView() {
   };
 
   const handleEventClick = (eventId: string) => {
-    navigate(`/events/${eventId}`);
+    navigateWithOrigin(navigate, location, `/events/${eventId}`);
   };
 
   const handleDeleteEvent = (eventId: string) => {

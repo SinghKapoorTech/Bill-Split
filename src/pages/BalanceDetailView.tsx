@@ -1,24 +1,33 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Loader2, Receipt, Banknote, CheckCircle2, Check, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
-import { useBills } from '@/hooks/useBills';
-import { userService } from '@/services/userService';
-import { Bill } from '@/types/bill.types';
-import MobileBillCard from '@/components/dashboard/MobileBillCard';
-import DesktopBillCard from '@/components/dashboard/DesktopBillCard';
-import { useBillContext } from '@/contexts/BillSessionContext';
-import { UserAvatar } from '@/components/shared/UserAvatar';
-import { SettleUpModal } from '@/components/settlements/SettleUpModal';
-import { useActiveBalances } from '@/hooks/useActiveBalances';
-import { usePairBills } from '@/hooks/usePairBills';
-import { useSettlementRequests } from '@/hooks/useSettlementRequests';
-import { settlementRequestService } from '@/services/settlementRequestService';
-import { settlementService } from '@/services/settlementService';
-import { useToast } from '@/hooks/use-toast';
-import { motion, AnimatePresence } from 'framer-motion';
-import type { SettleTarget } from '@/components/settlements/SettleUpModal';
+import { useState, useEffect } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { navigateWithOrigin } from "@/hooks/useReturnTo";
+import {
+  ArrowLeft,
+  Loader2,
+  Receipt,
+  Banknote,
+  CheckCircle2,
+  Check,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useBills } from "@/hooks/useBills";
+import { userService } from "@/services/userService";
+import { Bill } from "@/types/bill.types";
+import MobileBillCard from "@/components/dashboard/MobileBillCard";
+import DesktopBillCard from "@/components/dashboard/DesktopBillCard";
+import { useBillContext } from "@/contexts/BillSessionContext";
+import { UserAvatar } from "@/components/shared/UserAvatar";
+import { SettleUpModal } from "@/components/settlements/SettleUpModal";
+import { useActiveBalances } from "@/hooks/useActiveBalances";
+import { usePairBills } from "@/hooks/usePairBills";
+import { useSettlementRequests } from "@/hooks/useSettlementRequests";
+import { settlementRequestService } from "@/services/settlementRequestService";
+import { settlementService } from "@/services/settlementService";
+import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from "framer-motion";
+import type { SettleTarget } from "@/components/settlements/SettleUpModal";
 
 interface FriendNavState {
   name?: string;
@@ -28,7 +37,10 @@ interface FriendNavState {
 }
 
 export default function BalanceDetailView() {
-  const { targetUserId, eventId } = useParams<{ targetUserId: string; eventId?: string }>();
+  const { targetUserId, eventId } = useParams<{
+    targetUserId: string;
+    eventId?: string;
+  }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -36,21 +48,27 @@ export default function BalanceDetailView() {
 
   const navState = location.state as FriendNavState | null;
 
-  const [targetUserName, setTargetUserName] = useState<string>(navState?.name || 'Friend');
-  const [targetUserPhoto, setTargetUserPhoto] = useState<string | undefined>(navState?.photoURL);
-  const [friendBalance, setFriendBalance] = useState<number | null>(navState?.balance ?? null);
+  const [targetUserName, setTargetUserName] = useState<string>(
+    navState?.name || "Friend",
+  );
+  const [targetUserPhoto, setTargetUserPhoto] = useState<string | undefined>(
+    navState?.photoURL,
+  );
+  const [friendBalance, setFriendBalance] = useState<number | null>(
+    navState?.balance ?? null,
+  );
   const [showAll, setShowAll] = useState(false);
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
 
-  const {
-    isDeleting,
-    isResuming,
-    deleteSession,
-    resumeSession
-  } = useBillContext();
+  const { isDeleting, isResuming, deleteSession, resumeSession } =
+    useBillContext();
 
   // Real-time balance updates (global context only)
-  const { balances, refreshBalances, isLoading: isBalancesLoading } = useActiveBalances();
+  const {
+    balances,
+    refreshBalances,
+    isLoading: isBalancesLoading,
+  } = useActiveBalances();
   const { toast } = useToast();
   const { getIncomingRequestFromUser } = useSettlementRequests();
 
@@ -59,28 +77,36 @@ export default function BalanceDetailView() {
   // Fallback: fetch profile if no nav state (direct URL access)
   useEffect(() => {
     if (!targetUserId) return;
-    userService.getUserProfile(targetUserId).then(profile => {
-      if (profile?.displayName) {
-        setTargetUserName(prev => prev === 'Friend' ? profile.displayName! : prev);
-      } else if (profile?.username) {
-        setTargetUserName(prev => prev === 'Friend' ? profile.username! : prev);
-      }
-      if (profile?.photoURL && !targetUserPhoto) {
-        setTargetUserPhoto(profile.photoURL);
-      }
-    }).catch(e => {
-      console.warn('Could not fetch target user profile', e);
-    });
+    userService
+      .getUserProfile(targetUserId)
+      .then((profile) => {
+        if (profile?.displayName) {
+          setTargetUserName((prev) =>
+            prev === "Friend" ? profile.displayName! : prev,
+          );
+        } else if (profile?.username) {
+          setTargetUserName((prev) =>
+            prev === "Friend" ? profile.username! : prev,
+          );
+        }
+        if (profile?.photoURL && !targetUserPhoto) {
+          setTargetUserPhoto(profile.photoURL);
+        }
+      })
+      .catch((e) => {
+        console.warn("Could not fetch target user profile", e);
+      });
   }, [targetUserId]);
 
   // Sync balance from real-time subscription (non-event views)
   useEffect(() => {
     if (eventId || !targetUserId || isBalancesLoading) return;
-    const match = balances.find(b => b.id === targetUserId);
+    const match = balances.find((b) => b.id === targetUserId);
     if (match) {
       setFriendBalance(match.balance ?? 0);
       if (!navState?.name && match.name) setTargetUserName(match.name);
-      if (!navState?.photoURL && match.photoURL) setTargetUserPhoto(match.photoURL);
+      if (!navState?.photoURL && match.photoURL)
+        setTargetUserPhoto(match.photoURL);
     } else if (balances.length > 0) {
       // Only conclude "fully settled" once we have real data — empty array is a transient state
       setFriendBalance(0);
@@ -92,10 +118,11 @@ export default function BalanceDetailView() {
   // settledIds is derived from settlements between the pair (filtered by
   // eventId when scoped). This matches what the server-side pipeline records,
   // so bills where neither user is the creditor are never included.
-  const { unsettledIds, settledIds, isLoading: isPairLoading } = usePairBills(
-    targetUserId,
-    eventId
-  );
+  const {
+    unsettledIds,
+    settledIds,
+    isLoading: isPairLoading,
+  } = usePairBills(targetUserId, eventId);
 
   const allLoadedBills: Bill[] = [
     ...(activeSession ? [activeSession] : []),
@@ -104,35 +131,51 @@ export default function BalanceDetailView() {
 
   const unsettledBills = allLoadedBills.filter((b) => unsettledIds.has(b.id));
   const allBillsForPair = allLoadedBills.filter(
-    (b) => unsettledIds.has(b.id) || settledIds.has(b.id)
+    (b) => unsettledIds.has(b.id) || settledIds.has(b.id),
   );
 
   const displayedBills = showAll ? allBillsForPair : unsettledBills;
   const settledCount = allBillsForPair.length - unsettledBills.length;
 
-  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
+  const billPath = (
+    billId: string,
+    isSimpleTransaction?: boolean,
+    isAirbnb?: boolean,
+    isOwner: boolean = true,
+  ) =>
+    !isOwner
+      ? `/shared/${billId}`
+      : isSimpleTransaction
+        ? `/transaction/${billId}`
+        : isAirbnb
+          ? `/airbnb/${billId}`
+          : `/bill/${billId}`;
+
+  const handleResumeBill = async (
+    billId: string,
+    isSimpleTransaction?: boolean,
+    isAirbnb?: boolean,
+    isOwner: boolean = true,
+  ) => {
     await resumeSession(billId);
-    if (!isOwner) {
-      navigate(`/shared/${billId}`);
-    } else if (isSimpleTransaction) {
-      navigate(`/transaction/${billId}`);
-    } else if (isAirbnb) {
-      navigate(`/airbnb/${billId}`);
-    } else {
-      navigate(`/bill/${billId}`);
-    }
+    navigateWithOrigin(
+      navigate,
+      location,
+      billPath(billId, isSimpleTransaction, isAirbnb, isOwner),
+    );
   };
 
-  const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
-    if (!isOwner) {
-      navigate(`/shared/${billId}`);
-    } else if (isSimpleTransaction) {
-      navigate(`/transaction/${billId}`);
-    } else if (isAirbnb) {
-      navigate(`/airbnb/${billId}`);
-    } else {
-      navigate(`/bill/${billId}`);
-    }
+  const handleViewBill = (
+    billId: string,
+    isSimpleTransaction?: boolean,
+    isAirbnb?: boolean,
+    isOwner: boolean = true,
+  ) => {
+    navigateWithOrigin(
+      navigate,
+      location,
+      billPath(billId, isSimpleTransaction, isAirbnb, isOwner),
+    );
   };
 
   const handleDeleteBill = async (bill: Bill) => {
@@ -140,9 +183,10 @@ export default function BalanceDetailView() {
   };
 
   // Settlement request state — treat as resolved if balance is zero (defensive)
-  const incomingRequest = targetUserId && friendBalance !== 0
-    ? getIncomingRequestFromUser(targetUserId, eventId)
-    : undefined;
+  const incomingRequest =
+    targetUserId && friendBalance !== 0
+      ? getIncomingRequestFromUser(targetUserId, eventId)
+      : undefined;
 
   const handleSettleUp = () => {
     if (!targetUserId || friendBalance === null || friendBalance === 0) return;
@@ -161,27 +205,30 @@ export default function BalanceDetailView() {
     try {
       await settlementRequestService.approveRequest(incomingRequest.id);
       const result = eventId
-        ? await settlementService.requestEventSettlement(eventId, incomingRequest.fromUserId)
+        ? await settlementService.requestEventSettlement(
+            eventId,
+            incomingRequest.fromUserId,
+          )
         : await settlementService.requestSettlement(incomingRequest.fromUserId);
 
       if (result.billsSettled === 0) {
         toast({
-          title: 'Nothing to settle',
-          description: 'Balance was already resolved.',
+          title: "Nothing to settle",
+          description: "Balance was already resolved.",
         });
       } else {
         toast({
-          title: 'Settlement approved',
+          title: "Settlement approved",
           description: `$${result.amountSettled.toFixed(2)} settled with ${targetUserName}.`,
         });
       }
       refreshBalances();
     } catch (error: unknown) {
-      console.error('Error approving settlement:', error);
+      console.error("Error approving settlement:", error);
       toast({
-        title: 'Approval failed',
-        description: (error as Error)?.message ?? 'Please try again.',
-        variant: 'destructive',
+        title: "Approval failed",
+        description: (error as Error)?.message ?? "Please try again.",
+        variant: "destructive",
       });
     } finally {
       setIsProcessingRequest(false);
@@ -195,11 +242,11 @@ export default function BalanceDetailView() {
       await settlementRequestService.declineRequest(incomingRequest.id);
       refreshBalances();
     } catch (error: unknown) {
-      console.error('Error declining settlement:', error);
+      console.error("Error declining settlement:", error);
       toast({
-        title: 'Decline failed',
-        description: (error as Error)?.message ?? 'Please try again.',
-        variant: 'destructive',
+        title: "Decline failed",
+        description: (error as Error)?.message ?? "Please try again.",
+        variant: "destructive",
       });
     } finally {
       setIsProcessingRequest(false);
@@ -207,19 +254,25 @@ export default function BalanceDetailView() {
   };
 
   const formatDate = (timestamp: { toDate: () => Date } | null | undefined) => {
-    if (!timestamp) return 'Unknown date';
+    if (!timestamp) return "Unknown date";
     const date = timestamp.toDate();
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   const getBillTitle = (bill: Bill) => {
-    return bill.title || bill.billData?.restaurantName || formatDate(bill.createdAt);
+    return (
+      bill.title || bill.billData?.restaurantName || formatDate(bill.createdAt)
+    );
   };
 
   const hasBalance = friendBalance !== null && friendBalance !== 0;
   const isSettledUp = friendBalance === 0;
-  const firstName = targetUserName.split(' ')[0];
-  const isNameLoaded = targetUserName !== 'Friend' || navState?.name;
+  const firstName = targetUserName.split(" ")[0];
+  const isNameLoaded = targetUserName !== "Friend" || navState?.name;
 
   return (
     <div className="h-full flex flex-col max-w-4xl mx-auto">
@@ -231,11 +284,15 @@ export default function BalanceDetailView() {
         className="glass-card rounded-2xl p-4 mb-3 relative overflow-hidden shrink-0 mt-3"
       >
         {/* Subtle gradient accent behind the card */}
-        <div className={`absolute inset-0 opacity-[0.04] ${
-          hasBalance
-            ? friendBalance! > 0 ? 'bg-success' : 'bg-destructive'
-            : 'bg-gradient-to-br from-primary to-accent'
-        }`} />
+        <div
+          className={`absolute inset-0 opacity-[0.04] ${
+            hasBalance
+              ? friendBalance! > 0
+                ? "bg-success"
+                : "bg-destructive"
+              : "bg-gradient-to-br from-primary to-accent"
+          }`}
+        />
 
         {/* Back button */}
         <div className="relative flex items-center mb-2">
@@ -254,7 +311,12 @@ export default function BalanceDetailView() {
           <motion.div
             initial={{ scale: 0.85, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.08, type: 'spring', stiffness: 220, damping: 22 }}
+            transition={{
+              delay: 0.08,
+              type: "spring",
+              stiffness: 220,
+              damping: 22,
+            }}
           >
             <UserAvatar
               name={targetUserName}
@@ -263,10 +325,10 @@ export default function BalanceDetailView() {
               className="shadow-md"
               fallbackClassName={
                 friendBalance === null || friendBalance === 0
-                  ? 'bg-muted text-muted-foreground'
+                  ? "bg-muted text-muted-foreground"
                   : friendBalance > 0
-                    ? 'bg-success/10 text-success'
-                    : 'bg-destructive/10 text-destructive'
+                    ? "bg-success/10 text-success"
+                    : "bg-destructive/10 text-destructive"
               }
             />
           </motion.div>
@@ -294,13 +356,17 @@ export default function BalanceDetailView() {
           >
             {hasBalance ? (
               <>
-                <p className={`text-xl font-bold tracking-tight ${
-                  friendBalance! > 0 ? 'text-success' : 'text-destructive'
-                }`}>
+                <p
+                  className={`text-xl font-bold tracking-tight ${
+                    friendBalance! > 0 ? "text-success" : "text-destructive"
+                  }`}
+                >
                   ${Math.abs(friendBalance!).toFixed(2)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {friendBalance! > 0 ? `${firstName} owes you` : `You owe ${firstName}`}
+                  {friendBalance! > 0
+                    ? `${firstName} owes you`
+                    : `You owe ${firstName}`}
                 </p>
               </>
             ) : isSettledUp ? (
@@ -315,8 +381,8 @@ export default function BalanceDetailView() {
 
           {/* Button row — always reserves space to prevent layout shift */}
           <div className="mt-2 min-h-[2rem] flex items-center justify-center">
-            {hasBalance && (
-              isProcessingRequest ? (
+            {hasBalance &&
+              (isProcessingRequest ? (
                 <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
               ) : incomingRequest ? (
                 <div className="flex flex-col items-center gap-2">
@@ -348,15 +414,14 @@ export default function BalanceDetailView() {
                   onClick={handleSettleUp}
                   className={`rounded-full px-5 h-8 text-xs font-semibold shadow-sm border-none ${
                     friendBalance! < 0
-                      ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
-                      : 'bg-success hover:bg-success/90 text-success-foreground'
+                      ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                      : "bg-success hover:bg-success/90 text-success-foreground"
                   }`}
                 >
                   <Banknote className="w-3.5 h-3.5 mr-1.5" />
-                  {friendBalance! < 0 ? 'Pay' : 'Settle Up'}
+                  {friendBalance! < 0 ? "Pay" : "Settle Up"}
                 </Button>
-              )
-            )}
+              ))}
           </div>
         </div>
       </motion.div>
@@ -369,22 +434,24 @@ export default function BalanceDetailView() {
         className="flex justify-center mb-5 shrink-0"
       >
         <div className="flex items-center bg-muted rounded-full p-0.5 relative">
-          {(['Unsettled', 'All'] as const).map((label) => {
-            const isActive = label === 'All' ? showAll : !showAll;
+          {(["Unsettled", "All"] as const).map((label) => {
+            const isActive = label === "All" ? showAll : !showAll;
             return (
               <button
                 key={label}
-                onClick={() => setShowAll(label === 'All')}
+                onClick={() => setShowAll(label === "All")}
                 className="relative px-4 py-1.5 rounded-full text-xs font-bold z-10 transition-colors"
               >
                 {isActive && (
                   <motion.div
                     layoutId="balance-tab-indicator"
                     className="absolute inset-0 bg-background rounded-full shadow-sm"
-                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
                   />
                 )}
-                <span className={`relative z-10 ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
+                <span
+                  className={`relative z-10 ${isActive ? "text-foreground" : "text-muted-foreground"}`}
+                >
                   {label}
                 </span>
               </button>
@@ -402,7 +469,7 @@ export default function BalanceDetailView() {
         ) : (
           <AnimatePresence mode="wait">
             <motion.div
-              key={showAll ? 'all' : 'unsettled'}
+              key={showAll ? "all" : "unsettled"}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
@@ -414,13 +481,14 @@ export default function BalanceDetailView() {
                     <Receipt className="w-6 h-6 text-primary" />
                   </div>
                   <h3 className="font-medium text-lg mb-1">
-                    {!showAll && settledCount > 0 ? 'All settled up!' : 'No bills found'}
+                    {!showAll && settledCount > 0
+                      ? "All settled up!"
+                      : "No bills found"}
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     {!showAll && settledCount > 0
-                      ? `You have ${settledCount} settled bill${settledCount !== 1 ? 's' : ''} with ${targetUserName}.`
-                      : `You don't have any bills with ${targetUserName}${eventId ? ' in this event' : ''}.`
-                    }
+                      ? `You have ${settledCount} settled bill${settledCount !== 1 ? "s" : ""} with ${targetUserName}.`
+                      : `You don't have any bills with ${targetUserName}${eventId ? " in this event" : ""}.`}
                   </p>
                   {!showAll && settledCount > 0 && (
                     <button
@@ -440,13 +508,31 @@ export default function BalanceDetailView() {
                         key={b.id}
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25, delay: index * 0.04, ease: [0.4, 0, 0.2, 1] }}
+                        transition={{
+                          duration: 0.25,
+                          delay: index * 0.04,
+                          ease: [0.4, 0, 0.2, 1],
+                        }}
                       >
                         <MobileBillCard
                           bill={b}
                           isLatest={b.id === activeSession?.id}
-                          onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
-                          onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                          onView={(id) =>
+                            handleViewBill(
+                              id,
+                              b.isSimpleTransaction,
+                              b.isAirbnb,
+                              b.ownerId === user?.uid,
+                            )
+                          }
+                          onResume={(id) =>
+                            handleResumeBill(
+                              id,
+                              b.isSimpleTransaction,
+                              b.isAirbnb,
+                              b.ownerId === user?.uid,
+                            )
+                          }
                           onDelete={handleDeleteBill}
                           isResuming={isResuming}
                           isDeleting={isDeleting}
@@ -465,13 +551,31 @@ export default function BalanceDetailView() {
                         key={b.id}
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25, delay: index * 0.04, ease: [0.4, 0, 0.2, 1] }}
+                        transition={{
+                          duration: 0.25,
+                          delay: index * 0.04,
+                          ease: [0.4, 0, 0.2, 1],
+                        }}
                       >
                         <DesktopBillCard
                           bill={b}
                           isLatest={b.id === activeSession?.id}
-                          onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
-                          onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                          onView={(id) =>
+                            handleViewBill(
+                              id,
+                              b.isSimpleTransaction,
+                              b.isAirbnb,
+                              b.ownerId === user?.uid,
+                            )
+                          }
+                          onResume={(id) =>
+                            handleResumeBill(
+                              id,
+                              b.isSimpleTransaction,
+                              b.isAirbnb,
+                              b.ownerId === user?.uid,
+                            )
+                          }
                           onDelete={handleDeleteBill}
                           isResuming={isResuming}
                           isDeleting={isDeleting}

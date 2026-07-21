@@ -23,6 +23,9 @@ interface AirbnbEntryStepProps {
     billData: BillData | null;
     setBillData: (data: BillData | null) => void;
     onNext: () => void;
+    /** Leave the wizard from step 0, where there is no previous step. */
+    onExit?: () => void;
+    exitLabel?: string;
     canProceed: boolean;
     currentStep: number;
     totalSteps: number;
@@ -36,6 +39,8 @@ export function AirbnbEntryStep({
     billData,
     setBillData,
     onNext,
+    onExit,
+    exitLabel,
     canProceed,
     currentStep,
     totalSteps,
@@ -263,6 +268,8 @@ export function AirbnbEntryStep({
                     currentStep={currentStep}
                     totalSteps={totalSteps}
                     onNext={onNext}
+                    onExit={onExit}
+                    exitLabel={exitLabel}
                     nextDisabled={!isReady}
                 />
             </div>

@@ -1,4 +1,5 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from "react-router-dom";
+import { navigateWithOrigin } from "@/hooks/useReturnTo";
 import { Users, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -59,6 +60,7 @@ interface SquadCardProps {
 
 function SquadCard({ squad, currentUserId, onDelete, onCardClick }: SquadCardProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const others = squad.members.filter((m) => !currentUserId || m.id !== currentUserId);
   const visible = others.slice(0, 4);
   const hiddenCount = others.length - visible.length;
@@ -66,7 +68,7 @@ function SquadCard({ squad, currentUserId, onDelete, onCardClick }: SquadCardPro
   return (
     <Card
       className="p-6 hover:shadow-lg transition-all duration-300 cursor-pointer"
-      onClick={() => (onCardClick ? onCardClick() : navigate(`/squads/${squad.id}`))}
+      onClick={() => (onCardClick ? onCardClick() : navigateWithOrigin(navigate, location, `/squads/${squad.id}`))}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
@@ -127,6 +129,7 @@ interface SquadRowProps {
 
 function SquadRow({ squad, currentUserId, onDelete, onRowClick }: SquadRowProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const isCurrentUserMember = currentUserId && squad.members.some((m) => m.id === currentUserId);
   const others = squad.members.filter((m) => !currentUserId || m.id !== currentUserId);
   const visibleOthers = others.slice(0, 3);
@@ -140,7 +143,7 @@ function SquadRow({ squad, currentUserId, onDelete, onRowClick }: SquadRowProps)
   return (
     <div
       className="flex items-center justify-between bg-secondary/30 rounded-lg border border-border p-3 md:p-4 cursor-pointer hover:bg-secondary/50 transition-colors"
-      onClick={() => (onRowClick ? onRowClick() : navigate(`/squads/${squad.id}`))}
+      onClick={() => (onRowClick ? onRowClick() : navigateWithOrigin(navigate, location, `/squads/${squad.id}`))}
     >
       <div className="flex-1 min-w-0">
         <p className="font-medium truncate">{squad.name}</p>

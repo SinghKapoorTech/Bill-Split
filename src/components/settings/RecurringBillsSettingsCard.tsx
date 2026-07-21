@@ -5,7 +5,8 @@ import { useRecurringBills } from '@/hooks/useRecurringBills';
 import { RecurringBillList } from '@/components/recurring/RecurringBillList';
 import { recurringBillService } from '@/services/recurringBillService';
 import { RecurringBill } from '@/types/recurring.types';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from "react-router-dom";
+import { navigateWithOrigin } from "@/hooks/useReturnTo";
 
 import {
   AlertDialog,
@@ -21,6 +22,7 @@ import {
 export function RecurringBillsSettingsCard() {
   const { recurringBills, isLoading } = useRecurringBills();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [pauseTarget, setPauseTarget] = useState<RecurringBill | null>(null);
@@ -80,7 +82,7 @@ export function RecurringBillsSettingsCard() {
           bills={visibleBills}
           onDelete={(bill) => setDeleteTarget({ id: bill.id, title: bill.title })}
           onTogglePause={(bill) => setPauseTarget(bill)}
-          onEdit={(bill) => navigate(`/recurring/${bill.id}`)}
+          onEdit={(bill) => navigateWithOrigin(navigate, location, `/recurring/${bill.id}`)}
         />
       )}
 

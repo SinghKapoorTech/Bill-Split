@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { clearOrigin } from "@/hooks/useReturnTo";
 import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBillSession } from '@/hooks/useBillSession';
@@ -118,6 +119,9 @@ export default function JoinSession() {
           ) || bill.members?.find(m => m.userId === user.uid);
 
           if (alreadyInBill) {
+            // Arriving from a share link: any stored origin belongs to an earlier
+            // flow, so the shared view must not inherit it.
+            clearOrigin();
             navigate(`/shared/${sessionId}`, { replace: true });
             return;
           }
@@ -177,6 +181,9 @@ export default function JoinSession() {
       }
 
       // Logged-in users go to the protected /shared route; anonymous users go to /session
+      // Arriving from a share link: any stored origin belongs to an earlier
+      // flow, so the shared view must not inherit it.
+      clearOrigin();
       navigate(user ? `/shared/${sessionId}` : `/session/${sessionId}`);
       return;
     }
@@ -191,6 +198,12 @@ export default function JoinSession() {
       if (!user && userId && sessionId) {
         localStorage.setItem(`guest-id-${sessionId}`, userId);
       }
+
+      // Arriving from a share link: any stored origin belongs to an earlier
+
+      // flow, so the shared view must not inherit it.
+
+      clearOrigin();
 
       navigate(user ? `/shared/${sessionId}` : `/session/${sessionId}`);
     } catch (err) {

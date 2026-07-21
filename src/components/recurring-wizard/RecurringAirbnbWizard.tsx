@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { clearOrigin, useReturnTo } from '@/hooks/useReturnTo';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
@@ -42,6 +43,8 @@ export function RecurringAirbnbWizard({
   onBackToType,
 }: RecurringAirbnbWizardProps) {
   const navigate = useNavigate();
+  // Abandoning the wizard should return the user where they came from.
+  const { label: exitLabel, goBack } = useReturnTo();
   const { user } = useAuth();
   const isMobile = useIsMobile();
 
@@ -206,6 +209,9 @@ export function RecurringAirbnbWizard({
       } else {
         await recurringBillService.createRecurringBill(input);
       }
+      // Saving goes to the new schedule, not back — but the recorded
+      // origin must not outlive this flow or a later screen inherits it.
+      clearOrigin();
       navigate('/bills');
     } catch (err) {
       console.error('Failed to save recurring bill:', err);
@@ -365,8 +371,8 @@ export function RecurringAirbnbWizard({
           onBack={currentStep > 0 ? handlePrev : onBackToType}
           onNext={handleNext}
           onComplete={handleComplete}
-          onExit={() => navigate('/dashboard')}
-          exitLabel="Dashboard"
+          onExit={goBack}
+          exitLabel={exitLabel}
           nextDisabled={!canProceed()}
           hasBillData={true}
           isLoading={isSaving}

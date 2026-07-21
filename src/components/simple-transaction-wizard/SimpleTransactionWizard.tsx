@@ -1,33 +1,39 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { App } from '@capacitor/app';
-import { usePlatform } from '@/hooks/usePlatform';
-import { usePeopleManager } from '@/hooks/usePeopleManager';
-import { Person, BillData, ItemAssignment } from '@/types';
-import { billService } from '@/services/billService';
-import { useBillContext } from '@/contexts/BillSessionContext';
-import { SplitMethod } from './SplitMethodSelector';
-import { Stepper, StepContent } from '@/components/ui/stepper';
-import { PillProgress } from '@/components/ui/pill-progress';
-import { SwipeableStepContainer } from '@/components/ui/swipeable-container';
-import { WizardNavigation } from '@/components/bill-wizard/WizardNavigation';
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useParams } from "react-router-dom";
+import { useReturnTo } from "@/hooks/useReturnTo";
+import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { App } from "@capacitor/app";
+import { usePlatform } from "@/hooks/usePlatform";
+import { usePeopleManager } from "@/hooks/usePeopleManager";
+import { Person, BillData, ItemAssignment } from "@/types";
+import { billService } from "@/services/billService";
+import { useBillContext } from "@/contexts/BillSessionContext";
+import { SplitMethod } from "./SplitMethodSelector";
+import { Stepper, StepContent } from "@/components/ui/stepper";
+import { PillProgress } from "@/components/ui/pill-progress";
+import { SwipeableStepContainer } from "@/components/ui/swipeable-container";
+import { WizardNavigation } from "@/components/bill-wizard/WizardNavigation";
 
-import { DetailsStep } from './steps/DetailsStep';
-import { PeopleStep } from './steps/PeopleStep';
-import { ReviewStep } from './steps/ReviewStep';
-import { useUserProfile } from '@/hooks/useUserProfile';
-import { ensureUserInPeople, generateUserId } from '@/utils/billCalculations';
-import { distributeEvenly, resolveSplitAmounts, isSplitConfigValid, buildPerPersonShareItems } from '@shared/splitAmounts';
-import { userService } from '@/services/userService';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { DetailsStep } from "./steps/DetailsStep";
+import { PeopleStep } from "./steps/PeopleStep";
+import { ReviewStep } from "./steps/ReviewStep";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { ensureUserInPeople, generateUserId } from "@/utils/billCalculations";
+import {
+  distributeEvenly,
+  resolveSplitAmounts,
+  isSplitConfigValid,
+  buildPerPersonShareItems,
+} from "@shared/splitAmounts";
+import { userService } from "@/services/userService";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/config/firebase";
 
 const STEPS = [
-  { id: 1, label: 'Details', description: 'Amount & Info' },
-  { id: 2, label: 'People', description: 'Who is splitting' },
-  { id: 3, label: 'Review', description: 'Confirm' },
+  { id: 1, label: "Details", description: "Amount & Info" },
+  { id: 2, label: "People", description: "Who is splitting" },
+  { id: 3, label: "Review", description: "Confirm" },
 ];
 
 export interface SimpleTransactionWizardProps {
@@ -35,21 +41,23 @@ export interface SimpleTransactionWizardProps {
   setExternalTitle?: (title: string) => void;
 }
 
-export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: SimpleTransactionWizardProps = {}) {
-  const navigate = useNavigate();
+export function SimpleTransactionWizard({
+  externalTitle,
+  setExternalTitle,
+}: SimpleTransactionWizardProps = {}) {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const { state: routerState } = useLocation();
   const { billId } = useParams<{ billId: string }>();
   const { activeSession, resumeSession, saveSession } = useBillContext();
-  const activeBillId = useRef<string | null>(billId !== 'new' ? billId : null);
+  const activeBillId = useRef<string | null>(billId !== "new" ? billId : null);
 
   const [currentStep, setCurrentStep] = useState(0);
   const prevStepRef = useRef(0);
-  const directionRef = useRef<'forward' | 'backward'>('forward');
-  const [amount, setAmount] = useState<string>('');
-  const [internalTitle, setInternalTitle] = useState<string>('');
-  
+  const directionRef = useRef<"forward" | "backward">("forward");
+  const [amount, setAmount] = useState<string>("");
+  const [internalTitle, setInternalTitle] = useState<string>("");
+
   const title = externalTitle !== undefined ? externalTitle : internalTitle;
   const setTitle = (newTitle: string) => {
     setInternalTitle(newTitle);
@@ -57,9 +65,9 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
       setExternalTitle(newTitle);
     }
   };
-  const [paidById, setPaidById] = useState<string>(user?.uid || '');
+  const [paidById, setPaidById] = useState<string>(user?.uid || "");
   const [people, setPeople] = useState<Person[]>([]);
-  const [splitMethod, setSplitMethod] = useState<SplitMethod>('equal');
+  const [splitMethod, setSplitMethod] = useState<SplitMethod>("equal");
   const [percentages, setPercentages] = useState<Record<string, number>>({});
   const [exactAmounts, setExactAmounts] = useState<Record<string, number>>({});
 
@@ -68,7 +76,7 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
     splitMethod: SplitMethod;
     percentages: Record<string, number>;
     exactAmounts: Record<string, number>;
-  }>({ splitMethod: 'equal', percentages: {}, exactAmounts: {} });
+  }>({ splitMethod: "equal", percentages: {}, exactAmounts: {} });
 
   // paidById initializes before auth resolves — sync it once user loads
   useEffect(() => {
@@ -81,8 +89,12 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
   const [existingSquadId, setExistingSquadId] = useState<string | undefined>();
   const [existingItemId, setExistingItemId] = useState<string | undefined>();
 
-  const relevantSession = activeSession?.id === activeBillId.current ? activeSession : null;
-  const isOwner = !relevantSession || !relevantSession.ownerId || relevantSession.ownerId === user?.uid;
+  const relevantSession =
+    activeSession?.id === activeBillId.current ? activeSession : null;
+  const isOwner =
+    !relevantSession ||
+    !relevantSession.ownerId ||
+    relevantSession.ownerId === user?.uid;
   const { isNative } = usePlatform();
 
   // Hardware back button handling
@@ -93,7 +105,8 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
 
   // Track direction for step transition animations (synchronous)
   if (currentStep !== prevStepRef.current) {
-    directionRef.current = currentStep > prevStepRef.current ? 'forward' : 'backward';
+    directionRef.current =
+      currentStep > prevStepRef.current ? "forward" : "backward";
     prevStepRef.current = currentStep;
   }
   const stepDirection = directionRef.current;
@@ -103,13 +116,13 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
 
     let listenerHandle: any = null;
 
-    App.addListener('backButton', () => {
+    App.addListener("backButton", () => {
       if (stepRef.current > 0 && isOwner) {
-        setCurrentStep(prev => prev - 1);
+        setCurrentStep((prev) => prev - 1);
       } else {
         window.history.back();
       }
-    }).then(handle => {
+    }).then((handle) => {
       listenerHandle = handle;
     });
 
@@ -121,11 +134,21 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
   }, [isNative, isOwner]);
 
   const getTargetContext = () => {
-    if (billId && billId !== 'new') {
+    if (billId && billId !== "new") {
       return { eventId: existingEventId, squadId: existingSquadId };
     }
-    return { eventId: routerState?.targetEventId, squadId: routerState?.targetSquadId };
+    return {
+      eventId: routerState?.targetEventId,
+      squadId: routerState?.targetSquadId,
+    };
   };
+
+  // Resolves the screen the user entered from, falling back to the bill's own
+  // event/squad context when no origin was recorded.
+  const { label: exitLabel, goBack } = useReturnTo({
+    eventId: existingEventId ?? routerState?.targetEventId,
+    squadId: existingSquadId ?? routerState?.targetSquadId,
+  });
 
   const { profile } = useUserProfile();
   const peopleManager = usePeopleManager(people, setPeople);
@@ -135,39 +158,41 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
   // Helper: fetch all event members and return them as Person[]
   const fetchEventMembers = async (eventId: string): Promise<Person[]> => {
     try {
-      const eventSnap = await getDoc(doc(db, 'events', eventId));
+      const eventSnap = await getDoc(doc(db, "events", eventId));
       if (!eventSnap.exists()) return [];
       const data = eventSnap.data();
       const memberIds: string[] = data?.memberIds || [];
       const profiles = await Promise.all(
-        memberIds.map(uid => userService.getUserProfile(uid).catch(() => null))
+        memberIds.map((uid) =>
+          userService.getUserProfile(uid).catch(() => null),
+        ),
       );
       return profiles
         .filter((p): p is NonNullable<typeof p> => p !== null)
-        .map(p => ({
-          id: p.uid.startsWith('user-') ? p.uid : generateUserId(p.uid),
+        .map((p) => ({
+          id: p.uid.startsWith("user-") ? p.uid : generateUserId(p.uid),
           name: p.displayName,
           venmoId: p.venmoId,
         }));
     } catch (err) {
-      console.error('Failed to fetch event members:', err);
+      console.error("Failed to fetch event members:", err);
       return [];
     }
   };
 
   // Pre-populate for new transactions
   useEffect(() => {
-    if ((!billId || billId === 'new') && user && !hasInitializedNew.current) {
+    if ((!billId || billId === "new") && user && !hasInitializedNew.current) {
       hasInitializedNew.current = true;
       const { targetEventId, targetSquadId } = routerState || {};
 
       if (targetEventId) {
         setExistingEventId(targetEventId);
-        fetchEventMembers(targetEventId).then(eventPeople => {
+        fetchEventMembers(targetEventId).then((eventPeople) => {
           setPeople(ensureUserInPeople(eventPeople, user, profile));
         });
       } else if (targetSquadId) {
-        // For squads, we just start with the user for now, 
+        // For squads, we just start with the user for now,
         // as squads might not have a simple "fetch all members" profile helper readily available here
         // or we can just stick to user-only for squads until requested.
         setPeople(ensureUserInPeople([], user, profile));
@@ -188,27 +213,36 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
 
   useEffect(() => {
     // If we're creating a new transaction, exit early
-    if (!billId || billId === 'new') return;
+    if (!billId || billId === "new") return;
 
-    const applyBillData = (bill: import('@/types/bill.types').Bill) => {
+    const applyBillData = (bill: import("@/types/bill.types").Bill) => {
       if (bill.title) setTitle(bill.title);
       if (bill.billData?.total) setAmount(bill.billData.total.toString());
       if (bill.paidById) setPaidById(bill.paidById);
       if (bill.people && bill.people.length > 0) setPeople(bill.people);
       if (bill.eventId) setExistingEventId(bill.eventId);
       if (bill.squadId) setExistingSquadId(bill.squadId);
-      if (bill.billData?.items?.[0]?.id) setExistingItemId(bill.billData.items[0].id);
+      if (bill.billData?.items?.[0]?.id)
+        setExistingItemId(bill.billData.items[0].id);
 
       // Detect split method from existing bill
-      if (bill.splitEvenly || !bill.isSimpleTransaction || (bill.billData?.items?.length ?? 0) <= 1) {
-        setSplitMethod('equal');
-        lastSavedSplit.current = { splitMethod: 'equal', percentages: {}, exactAmounts: {} };
+      if (
+        bill.splitEvenly ||
+        !bill.isSimpleTransaction ||
+        (bill.billData?.items?.length ?? 0) <= 1
+      ) {
+        setSplitMethod("equal");
+        lastSavedSplit.current = {
+          splitMethod: "equal",
+          percentages: {},
+          exactAmounts: {},
+        };
       } else {
         // Per-person items: reconstruct amounts
         const total = bill.billData?.total || 0;
         const amounts: Record<string, number> = {};
         const pcts: Record<string, number> = {};
-        bill.billData?.items?.forEach(item => {
+        bill.billData?.items?.forEach((item) => {
           const assignedPersonId = bill.itemAssignments?.[item.id]?.[0];
           if (assignedPersonId) {
             amounts[assignedPersonId] = item.price;
@@ -217,8 +251,12 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
         });
         setExactAmounts(amounts);
         setPercentages(pcts);
-        setSplitMethod('exact');
-        lastSavedSplit.current = { splitMethod: 'exact', percentages: { ...pcts }, exactAmounts: { ...amounts } };
+        setSplitMethod("exact");
+        lastSavedSplit.current = {
+          splitMethod: "exact",
+          percentages: { ...pcts },
+          exactAmounts: { ...amounts },
+        };
       }
 
       // Force to the review step automatically for existing transactions
@@ -246,36 +284,44 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
 
     const peopleChanged = (prev: Record<string, number>) => {
       const existingIds = new Set(Object.keys(prev));
-      const currentIds = new Set(people.map(p => p.id));
-      return people.some(p => !existingIds.has(p.id)) ||
-        [...existingIds].some(id => !currentIds.has(id));
+      const currentIds = new Set(people.map((p) => p.id));
+      return (
+        people.some((p) => !existingIds.has(p.id)) ||
+        [...existingIds].some((id) => !currentIds.has(id))
+      );
     };
 
     // If people changed (added/removed), redistribute equally
-    setPercentages(prev => {
+    setPercentages((prev) => {
       if (!peopleChanged(prev) && Object.keys(prev).length > 0) return prev;
       const shares = distributeEvenly(100, people.length);
       const next: Record<string, number> = {};
-      people.forEach((p, i) => { next[p.id] = shares[i]; });
+      people.forEach((p, i) => {
+        next[p.id] = shares[i];
+      });
       return next;
     });
 
-    setExactAmounts(prev => {
+    setExactAmounts((prev) => {
       if (!peopleChanged(prev) && Object.keys(prev).length > 0) return prev;
       const shares = distributeEvenly(Number(amount), people.length);
       const next: Record<string, number> = {};
-      people.forEach((p, i) => { next[p.id] = shares[i]; });
+      people.forEach((p, i) => {
+        next[p.id] = shares[i];
+      });
       return next;
     });
-  }, [people.map(p => p.id).join(','), amount]);
+  }, [people.map((p) => p.id).join(","), amount]);
 
   // Build the billData + itemAssignments payload based on split method
-  const buildSplitPayload = (numAmount: number): {
+  const buildSplitPayload = (
+    numAmount: number,
+  ): {
     billData: BillData;
     itemAssignments: Record<string, string[]>;
     splitEvenly: boolean;
   } => {
-    if (splitMethod === 'equal') {
+    if (splitMethod === "equal") {
       const dummyItemId = existingItemId || `item-${Date.now()}`;
       return {
         billData: {
@@ -286,14 +332,23 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
           total: numAmount,
           restaurantName: title,
         },
-        itemAssignments: { [dummyItemId]: people.map(p => p.id) },
+        itemAssignments: { [dummyItemId]: people.map((p) => p.id) },
         splitEvenly: true,
       };
     }
 
     // Percentage or exact: create per-person items (last person absorbs rounding)
-    const amounts = resolveSplitAmounts(numAmount, people, splitMethod, percentages, exactAmounts);
-    const { items, itemAssignments } = buildPerPersonShareItems(people, amounts);
+    const amounts = resolveSplitAmounts(
+      numAmount,
+      people,
+      splitMethod,
+      percentages,
+      exactAmounts,
+    );
+    const { items, itemAssignments } = buildPerPersonShareItems(
+      people,
+      amounts,
+    );
 
     return {
       billData: {
@@ -325,7 +380,7 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
 
   const handleNextStep = () => {
     if (currentStep < STEPS.length - 1 && canProceed() && isOwner) {
-      setCurrentStep(s => s + 1);
+      setCurrentStep((s) => s + 1);
     }
   };
 
@@ -334,22 +389,24 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
   useEffect(() => {
     if (!user || !isOwner) return;
     // Don't auto-save if we are already viewing a loaded bill but haven't initialized it
-    if (billId !== 'new' && !hasLoadedBillId.current) return;
+    if (billId !== "new" && !hasLoadedBillId.current) return;
 
     const timeoutId = setTimeout(async () => {
       const numAmount = Number(amount);
-      if (numAmount === 0 || title.trim().length === 0 || people.length === 0) return;
+      if (numAmount === 0 || title.trim().length === 0 || people.length === 0)
+        return;
 
       // Don't auto-save invalid split configurations
       if (!isSplitValid()) return;
 
-      const { billData, itemAssignments, splitEvenly } = buildSplitPayload(numAmount);
+      const { billData, itemAssignments, splitEvenly } =
+        buildSplitPayload(numAmount);
 
       const payload: any = {
         title,
         paidById,
         people,
-        billType: existingEventId ? 'event' : 'private',
+        billType: existingEventId ? "event" : "private",
         splitEvenly,
         isSimpleTransaction: true,
         ...(existingEventId && { eventId: existingEventId }),
@@ -364,9 +421,9 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
         } else {
           // Create draft
           const newId = await saveSession(payload);
-          if (typeof newId === 'string') {
+          if (typeof newId === "string") {
             activeBillId.current = newId;
-            window.history.replaceState({}, '', `/transaction/${newId}`);
+            window.history.replaceState({}, "", `/transaction/${newId}`);
           }
         }
         // Snapshot the saved state so we can revert on back/leave
@@ -381,24 +438,44 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
     }, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [amount, title, paidById, people, billId, user, existingEventId, existingSquadId, existingItemId, splitMethod, percentages, exactAmounts]);
+  }, [
+    amount,
+    title,
+    paidById,
+    people,
+    billId,
+    user,
+    existingEventId,
+    existingSquadId,
+    existingItemId,
+    splitMethod,
+    percentages,
+    exactAmounts,
+  ]);
 
   // Ensure itemAssignments are kept in sync even for guests in simple transactions
   useEffect(() => {
-    if (!activeBillId.current || people.length === 0 || !title || !amount) return;
-    if (splitMethod !== 'equal') return; // Non-equal splits handle their own assignments
+    if (!activeBillId.current || people.length === 0 || !title || !amount)
+      return;
+    if (splitMethod !== "equal") return; // Non-equal splits handle their own assignments
 
-    const dummyItemId = existingItemId || (relevantSession?.billData?.items?.[0]?.id) || 'dummy-item';
-    const currentAssignments = relevantSession?.itemAssignments?.[dummyItemId] || [];
+    const dummyItemId =
+      existingItemId ||
+      relevantSession?.billData?.items?.[0]?.id ||
+      "dummy-item";
+    const currentAssignments =
+      relevantSession?.itemAssignments?.[dummyItemId] || [];
 
     if (currentAssignments.length !== people.length) {
       const newAssignments = {
-        [dummyItemId]: people.map(p => p.id)
+        [dummyItemId]: people.map((p) => p.id),
       };
 
-      billService.updateBill(activeBillId.current, {
-        itemAssignments: newAssignments
-      }).catch(console.error);
+      billService
+        .updateBill(activeBillId.current, {
+          itemAssignments: newAssignments,
+        })
+        .catch(console.error);
     }
   }, [people.length, activeBillId.current, title, amount, splitMethod]);
 
@@ -410,40 +487,35 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
         setPercentages({ ...lastSavedSplit.current.percentages });
         setExactAmounts({ ...lastSavedSplit.current.exactAmounts });
       }
-      setCurrentStep(s => s - 1);
+      setCurrentStep((s) => s - 1);
     }
   };
 
   const handleComplete = async () => {
     if (!user) return;
-    
+
     // If not owner, just exit without saving
     if (!isOwner) {
-      const { eventId: targetEventId, squadId: targetSquadId } = getTargetContext();
-      if (existingEventId || targetEventId) {
-        navigate(`/events/${existingEventId || targetEventId}`);
-      } else if (existingSquadId || targetSquadId) {
-        navigate(`/squads/${existingSquadId || targetSquadId}`);
-      } else {
-        navigate('/dashboard');
-      }
+      goBack();
       return;
     }
 
     setIsSaving(true);
     try {
       const numAmount = Number(amount);
-      const { eventId: targetEventId, squadId: targetSquadId } = getTargetContext();
+      const { eventId: targetEventId, squadId: targetSquadId } =
+        getTargetContext();
 
-      const { billData, itemAssignments, splitEvenly } = buildSplitPayload(numAmount);
+      const { billData, itemAssignments, splitEvenly } =
+        buildSplitPayload(numAmount);
 
       if (activeBillId.current) {
         await billService.updateBill(activeBillId.current, {
           title,
           paidById,
           people,
-          status: 'active',
-          billType: targetEventId ? 'event' : 'private',
+          status: "active",
+          billType: targetEventId ? "event" : "private",
           splitEvenly,
           ...(targetEventId && { eventId: targetEventId }),
           ...(targetSquadId && { squadId: targetSquadId }),
@@ -453,26 +525,20 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
       } else {
         await billService.createSimpleTransaction(
           user.uid,
-          user.displayName || 'Anonymous',
+          user.displayName || "Anonymous",
           numAmount,
           title,
           paidById,
           people,
           existingEventId || targetEventId,
           existingSquadId || targetSquadId,
-          'active'
+          "active",
         );
       }
 
-      if (existingEventId || targetEventId) {
-        navigate(`/events/${existingEventId || targetEventId}`);
-      } else if (existingSquadId || targetSquadId) {
-        navigate(`/squads/${existingSquadId || targetSquadId}`);
-      } else {
-        navigate('/dashboard');
-      }
+      goBack();
     } catch (err) {
-      console.error('Failed to save simple transaction', err);
+      console.error("Failed to save simple transaction", err);
     } finally {
       setIsSaving(false);
     }
@@ -505,10 +571,18 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
 
       <SwipeableStepContainer
         onSwipeLeft={canProceed() && isOwner ? handleNextStep : undefined}
-        onSwipeRight={currentStep > (isOwner ? 0 : 2) && isOwner ? handlePrevStep : undefined}
+        onSwipeRight={
+          currentStep > (isOwner ? 0 : 2) && isOwner
+            ? handlePrevStep
+            : undefined
+        }
         canSwipeLeft={canProceed() && isOwner}
         canSwipeRight={currentStep > (isOwner ? 0 : 2) && isOwner}
-        className={isMobile ? 'flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-[140px] relative' : 'flex-1 min-h-0 overflow-y-auto scrollbar-hide'}
+        className={
+          isMobile
+            ? "flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-[140px] relative"
+            : "flex-1 min-h-0 overflow-y-auto scrollbar-hide"
+        }
       >
         <StepContent stepKey={currentStep} direction={stepDirection}>
           {currentStep === 0 && (
@@ -518,6 +592,8 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
               title={title}
               setTitle={setTitle}
               onNext={handleNextStep}
+              onExit={goBack}
+              exitLabel={exitLabel}
               canProceed={canProceed()}
               currentStep={currentStep}
               totalSteps={STEPS.length}
@@ -560,7 +636,7 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
               onComplete={handleComplete}
               currentStep={currentStep}
               totalSteps={STEPS.length}
-              billId={billId !== 'new' ? billId : undefined}
+              billId={billId !== "new" ? billId : undefined}
               settledPersonIds={activeSession?.settledPersonIds || []}
               isOwner={isOwner}
               splitMethod={splitMethod}
@@ -578,17 +654,8 @@ export function SimpleTransactionWizard({ externalTitle, setExternalTitle }: Sim
           onBack={isOwner && currentStep > 0 ? handlePrevStep : undefined}
           onNext={handleNextStep}
           onComplete={handleComplete}
-          onExit={() => {
-            const { eventId: targetEventId, squadId: targetSquadId } = getTargetContext();
-            if (targetEventId) {
-              navigate(`/events/${targetEventId}`);
-            } else if (targetSquadId) {
-              navigate(`/squads/${targetSquadId}`);
-            } else {
-              navigate('/dashboard');
-            }
-          }}
-          exitLabel={getTargetContext().eventId ? 'Event' : getTargetContext().squadId ? 'Squad' : 'Dashboard'}
+          onExit={goBack}
+          exitLabel={exitLabel}
           nextDisabled={!canProceed()}
           hasBillData={true}
           isLoading={isSaving}

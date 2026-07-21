@@ -1,32 +1,39 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Receipt, UserPlus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { InviteMembersDialog } from '@/components/events/InviteMembersDialog';
-import { ManageEventMembersDialog } from '@/components/events/ManageEventMembersDialog';
-import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
-import { doc, onSnapshot, updateDoc, arrayRemove } from 'firebase/firestore';
-import { db } from '@/config/firebase';
-import { TripEvent } from '@/types/event.types';
-import { Bill } from '@/types';
-import { NAVIGATION } from '@/utils/uiConstants';
-import { Zap } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
-import { billService } from '@/services/billService';
-import { userService } from '@/services/userService';
-import MobileBillCard from '@/components/dashboard/MobileBillCard';
-import { useBillContext } from '@/contexts/BillSessionContext';
-import { useEventLedger } from '@/hooks/useEventLedger';
-import { OptimizedDebt } from '@/services/eventLedgerService';
-import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
-import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
-import { UserProfile } from '@/types/person.types';
-import { User } from 'firebase/auth';
+import { useState, useEffect } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { navigateWithOrigin, useReturnTo } from "@/hooks/useReturnTo";
+import { ArrowLeft, Receipt, UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { InviteMembersDialog } from "@/components/events/InviteMembersDialog";
+import { ManageEventMembersDialog } from "@/components/events/ManageEventMembersDialog";
+import { CreateOptionsDialog } from "@/components/layout/CreateOptionsDialog";
+import { doc, onSnapshot, updateDoc, arrayRemove } from "firebase/firestore";
+import { db } from "@/config/firebase";
+import { TripEvent } from "@/types/event.types";
+import { Bill } from "@/types";
+import { NAVIGATION } from "@/utils/uiConstants";
+import { Zap } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { billService } from "@/services/billService";
+import { userService } from "@/services/userService";
+import MobileBillCard from "@/components/dashboard/MobileBillCard";
+import { useBillContext } from "@/contexts/BillSessionContext";
+import { useEventLedger } from "@/hooks/useEventLedger";
+import { OptimizedDebt } from "@/services/eventLedgerService";
+import {
+  SettleUpModal,
+  SettleTarget,
+} from "@/components/settlements/SettleUpModal";
+import {
+  BalanceListRow,
+  BalanceDirection,
+} from "@/components/shared/BalanceListRow";
+import { UserProfile } from "@/types/person.types";
+import { User } from "firebase/auth";
 
 // Firestore collection name
-const EVENTS_COLLECTION = 'events';
+const EVENTS_COLLECTION = "events";
 
 function formatShortName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -39,7 +46,7 @@ function formatShortName(fullName: string): string {
 function resolveDebtNames(
   debt: OptimizedDebt,
   memberProfiles: Record<string, UserProfile>,
-  eventBills: Bill[]
+  eventBills: Bill[],
 ) {
   const fromProfile = memberProfiles[debt.fromUserId];
   const toProfile = memberProfiles[debt.toUserId];
@@ -50,18 +57,26 @@ function resolveDebtNames(
   if (!fromName || !toName) {
     for (const bill of eventBills) {
       if (!fromName) {
-        const p = bill.people?.find(person => person.id === debt.fromUserId || person.id === `user-${debt.fromUserId}`);
+        const p = bill.people?.find(
+          (person) =>
+            person.id === debt.fromUserId ||
+            person.id === `user-${debt.fromUserId}`,
+        );
         if (p) fromName = p.name;
       }
       if (!toName) {
-        const p = bill.people?.find(person => person.id === debt.toUserId || person.id === `user-${debt.toUserId}`);
+        const p = bill.people?.find(
+          (person) =>
+            person.id === debt.toUserId ||
+            person.id === `user-${debt.toUserId}`,
+        );
         if (p) toName = p.name;
       }
       if (fromName && toName) break;
     }
   }
 
-  return { fromName: fromName || 'Unknown', toName: toName || 'Unknown' };
+  return { fromName: fromName || "Unknown", toName: toName || "Unknown" };
 }
 
 function EventBalancesSection({
@@ -82,21 +97,31 @@ function EventBalancesSection({
   setSettleTarget: (target: SettleTarget) => void;
 }) {
   const renderDebtRow = (debt: OptimizedDebt, idx: number) => {
-    const { fromName, toName } = resolveDebtNames(debt, memberProfiles, eventBills);
+    const { fromName, toName } = resolveDebtNames(
+      debt,
+      memberProfiles,
+      eventBills,
+    );
 
     const isCurrentUserPaying = user?.uid === debt.fromUserId;
     const isCurrentUserReceiving = user?.uid === debt.toUserId;
     const isCurrentUserInvolved = isCurrentUserPaying || isCurrentUserReceiving;
 
     const direction: BalanceDirection = isCurrentUserPaying
-      ? 'you-owe'
+      ? "you-owe"
       : isCurrentUserReceiving
-        ? 'owes-you'
-        : 'neutral';
+        ? "owes-you"
+        : "neutral";
 
     // Resolve friend photo from member profiles
-    const friendUserId = isCurrentUserPaying ? debt.toUserId : isCurrentUserReceiving ? debt.fromUserId : undefined;
-    const friendPhoto = friendUserId ? memberProfiles[friendUserId]?.photoURL : undefined;
+    const friendUserId = isCurrentUserPaying
+      ? debt.toUserId
+      : isCurrentUserReceiving
+        ? debt.fromUserId
+        : undefined;
+    const friendPhoto = friendUserId
+      ? memberProfiles[friendUserId]?.photoURL
+      : undefined;
 
     return (
       <BalanceListRow
@@ -106,28 +131,36 @@ function EventBalancesSection({
         amount={debt.amount}
         direction={direction}
         friendPhotoURL={friendPhoto}
-        action={isCurrentUserInvolved ? {
-          label: isCurrentUserPaying ? 'Pay' : 'Settle',
-          variant: isCurrentUserPaying ? 'default' : 'secondary',
-          onClick: () => {
-            setSettleTarget({
-              userId: isCurrentUserPaying ? debt.toUserId : debt.fromUserId,
-              name: isCurrentUserPaying ? toName : fromName,
-              amount: debt.amount,
-              isPaying: isCurrentUserPaying,
-              photoURL: friendPhoto,
-            });
-          }
-        } : undefined}
+        action={
+          isCurrentUserInvolved
+            ? {
+                label: isCurrentUserPaying ? "Pay" : "Settle",
+                variant: isCurrentUserPaying ? "default" : "secondary",
+                onClick: () => {
+                  setSettleTarget({
+                    userId: isCurrentUserPaying
+                      ? debt.toUserId
+                      : debt.fromUserId,
+                    name: isCurrentUserPaying ? toName : fromName,
+                    amount: debt.amount,
+                    isPaying: isCurrentUserPaying,
+                    photoURL: friendPhoto,
+                  });
+                },
+              }
+            : undefined
+        }
         onClick={() => {
-          const targetUser = isCurrentUserPaying ? debt.toUserId : debt.fromUserId;
+          const targetUser = isCurrentUserPaying
+            ? debt.toUserId
+            : debt.fromUserId;
           if (user && targetUser) {
             navigate(`/events/${eventId}/balances/${targetUser}`, {
               state: {
                 name: isCurrentUserPaying ? toName : fromName,
                 photoURL: friendPhoto,
                 balance: isCurrentUserPaying ? -debt.amount : debt.amount,
-              }
+              },
             });
           }
         }}
@@ -160,6 +193,10 @@ function EventBalancesSection({
 export default function EventDetailView() {
   const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Back returns to wherever this event was opened from (events list,
+  // dashboard, a balances page) rather than always the events list.
+  const { goBack } = useReturnTo();
   const [event, setEvent] = useState<TripEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -169,29 +206,40 @@ export default function EventDetailView() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const { optimizedDebts, loading: ledgerLoading } = useEventLedger(eventId || '', eventBills);
-  const [memberProfiles, setMemberProfiles] = useState<Record<string, UserProfile>>({});
+  const { optimizedDebts, loading: ledgerLoading } = useEventLedger(
+    eventId || "",
+    eventBills,
+  );
+  const [memberProfiles, setMemberProfiles] = useState<
+    Record<string, UserProfile>
+  >({});
 
   // Settlement state
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
 
   // Need to bring in session methods to resume/delete from the list
-  const { deleteSession, resumeSession, activeSession, isDeleting, isResuming } = useBillContext();
+  const {
+    deleteSession,
+    resumeSession,
+    activeSession,
+    isDeleting,
+    isResuming,
+  } = useBillContext();
 
   const handleDeleteBill = async (bill: Bill) => {
     await deleteSession(bill.id, bill.receiptFileName);
-    setEventBills(prev => prev.filter(b => b.id !== bill.id));
+    setEventBills((prev) => prev.filter((b) => b.id !== bill.id));
   };
 
   useEffect(() => {
     const userIdsToFetch = new Set<string>();
 
     if (event?.memberIds) {
-      event.memberIds.forEach(id => userIdsToFetch.add(id));
+      event.memberIds.forEach((id) => userIdsToFetch.add(id));
     }
 
     // Also try fetching profiles for anyone involved in a debt
-    optimizedDebts.forEach(debt => {
+    optimizedDebts.forEach((debt) => {
       // Basic check to see if it looks like a Firebase UID (typically 28 chars long alphanumeric)
       if (debt.fromUserId.length >= 20) userIdsToFetch.add(debt.fromUserId);
       if (debt.toUserId.length >= 20) userIdsToFetch.add(debt.toUserId);
@@ -201,18 +249,20 @@ export default function EventDetailView() {
 
     const fetchProfiles = async () => {
       const profiles: Record<string, UserProfile> = {};
-      await Promise.all(Array.from(userIdsToFetch).map(async (id) => {
-        try {
-          const p = await userService.getUserProfile(id);
-          if (p) {
-            profiles[id] = p;
+      await Promise.all(
+        Array.from(userIdsToFetch).map(async (id) => {
+          try {
+            const p = await userService.getUserProfile(id);
+            if (p) {
+              profiles[id] = p;
+            }
+          } catch (e) {
+            // Skip guest IDs that fail to fetch
+            console.warn(`Could not fetch profile for ${id}`);
           }
-        } catch (e) {
-          // Skip guest IDs that fail to fetch
-          console.warn(`Could not fetch profile for ${id}`);
-        }
-      }));
-      setMemberProfiles(prev => ({ ...prev, ...profiles }));
+        }),
+      );
+      setMemberProfiles((prev) => ({ ...prev, ...profiles }));
     };
 
     fetchProfiles();
@@ -245,16 +295,21 @@ export default function EventDetailView() {
         setLoading(false);
       },
       (error) => {
-        console.error('Error fetching event:', error);
+        console.error("Error fetching event:", error);
         setLoading(false);
-      }
+      },
     );
 
     // Subscribe to bills
-    const unsubscribeBills = billService.subscribeBillsByEvent(eventId, (bills) => {
-      // user?.uid: if user is null (auth race), defaults to undefined which hides all drafts — safe fallback.
-      setEventBills(bills.filter(b => b.status !== 'draft' || b.ownerId === user?.uid));
-    });
+    const unsubscribeBills = billService.subscribeBillsByEvent(
+      eventId,
+      (bills) => {
+        // user?.uid: if user is null (auth race), defaults to undefined which hides all drafts — safe fallback.
+        setEventBills(
+          bills.filter((b) => b.status !== "draft" || b.ownerId === user?.uid),
+        );
+      },
+    );
 
     return () => {
       unsubscribe();
@@ -262,41 +317,69 @@ export default function EventDetailView() {
     };
   }, [eventId, user]);
 
-  const handleViewBill = (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
-    const path = !isOwner ? `/shared/${billId}` : isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : `/bill/${billId}`;
-    navigate(path, { state: { targetEventId: event.id, targetEventName: event.name } });
+  const handleViewBill = (
+    billId: string,
+    isSimpleTransaction?: boolean,
+    isAirbnb?: boolean,
+    isOwner: boolean = true,
+  ) => {
+    const path = !isOwner
+      ? `/shared/${billId}`
+      : isSimpleTransaction
+        ? `/transaction/${billId}`
+        : isAirbnb
+          ? `/airbnb/${billId}`
+          : `/bill/${billId}`;
+    navigateWithOrigin(navigate, location, path, {
+      targetEventId: event.id,
+      targetEventName: event.name,
+    });
   };
 
-  const handleResumeBill = async (billId: string, isSimpleTransaction?: boolean, isAirbnb?: boolean, isOwner: boolean = true) => {
+  const handleResumeBill = async (
+    billId: string,
+    isSimpleTransaction?: boolean,
+    isAirbnb?: boolean,
+    isOwner: boolean = true,
+  ) => {
     await resumeSession(billId);
-    const path = !isOwner ? `/shared/${billId}` : isSimpleTransaction ? `/transaction/${billId}` : isAirbnb ? `/airbnb/${billId}` : `/bill/${billId}`;
-    navigate(path, { state: { targetEventId: event.id, targetEventName: event.name } });
+    const path = !isOwner
+      ? `/shared/${billId}`
+      : isSimpleTransaction
+        ? `/transaction/${billId}`
+        : isAirbnb
+          ? `/airbnb/${billId}`
+          : `/bill/${billId}`;
+    navigateWithOrigin(navigate, location, path, {
+      targetEventId: event.id,
+      targetEventName: event.name,
+    });
   };
 
   const handleRemoveMember = async (memberIdToRemove: string) => {
     if (!eventId || !event) return;
-    
+
     try {
       const eventRef = doc(db, EVENTS_COLLECTION, eventId);
       await updateDoc(eventRef, {
-        memberIds: arrayRemove(memberIdToRemove)
+        memberIds: arrayRemove(memberIdToRemove),
       });
-      
+
       toast({
         title: "Success",
         description: "Member removed from event.",
       });
-      
+
       // If the current user removed themselves, redirect out
       if (memberIdToRemove === user?.uid) {
-        navigate('/events');
+        navigate("/events");
       }
     } catch (error) {
       console.error("Failed to remove member:", error);
       toast({
         title: "Error",
         description: "Failed to remove member. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -304,33 +387,39 @@ export default function EventDetailView() {
   const handleCreateEventBill = async () => {
     if (!user || !event) {
       toast({
-        title: 'Error',
-        description: 'You must be logged in to create a bill',
-        variant: 'destructive'
+        title: "Error",
+        description: "You must be logged in to create a bill",
+        variant: "destructive",
       });
       return;
     }
 
     // Instead of eager creation, we navigate to the draft view.
-    // We pass the eventId in navigation state so the bill session knows 
+    // We pass the eventId in navigation state so the bill session knows
     // to attach this event context when it finally JIT creates the document.
-    navigate('/bill/new', {
-      state: {
-        targetEventId: event.id,
-        targetEventName: event.name
-      }
+    navigateWithOrigin(navigate, location, "/bill/new", {
+      targetEventId: event.id,
+      targetEventName: event.name,
     });
   };
 
   if (loading) {
-    return <div className="text-center py-12 text-muted-foreground">Loading event...</div>;
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        Loading event...
+      </div>
+    );
   }
 
   if (!event) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground mb-4">Event not found.</p>
-        <Button onClick={() => navigate('/events')}>{NAVIGATION.BACK_TO_EVENTS}</Button>
+        {/* Label names an explicit destination, so it must not follow the
+            recorded origin — keep it honest by going where it says. */}
+        <Button onClick={() => navigate("/events")}>
+          {NAVIGATION.BACK_TO_EVENTS}
+        </Button>
       </div>
     );
   }
@@ -346,7 +435,7 @@ export default function EventDetailView() {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
-                onClick={() => navigate('/events')}
+                onClick={goBack}
               >
                 <ArrowLeft className="w-4 h-4" />
               </Button>
@@ -374,22 +463,36 @@ export default function EventDetailView() {
             >
               {(() => {
                 const rawNames = event.memberIds
-                  .map(id => memberProfiles[id]?.displayName || memberProfiles[id]?.username)
+                  .map(
+                    (id) =>
+                      memberProfiles[id]?.displayName ||
+                      memberProfiles[id]?.username,
+                  )
                   .filter((name): name is string => Boolean(name));
 
                 const shortVersions = rawNames.map(formatShortName);
                 const counts = new Map<string, number>();
-                shortVersions.forEach(s => counts.set(s, (counts.get(s) || 0) + 1));
+                shortVersions.forEach((s) =>
+                  counts.set(s, (counts.get(s) || 0) + 1),
+                );
 
-                return rawNames
-                  .map((full, i) => (counts.get(shortVersions[i])! > 1 ? full : shortVersions[i]))
-                  .join(', ') || '...';
+                return (
+                  rawNames
+                    .map((full, i) =>
+                      counts.get(shortVersions[i])! > 1
+                        ? full
+                        : shortVersions[i],
+                    )
+                    .join(", ") || "..."
+                );
               })()}
             </button>
           )}
         </div>
         {event.description && (
-          <p className="text-sm text-muted-foreground mb-4 mt-2">{event.description}</p>
+          <p className="text-sm text-muted-foreground mb-4 mt-2">
+            {event.description}
+          </p>
         )}
       </div>
 
@@ -428,22 +531,40 @@ export default function EventDetailView() {
                       <Receipt className="w-6 h-6" />
                     </div>
                     <div className="flex flex-col relative z-10 w-full">
-                      <span className="font-semibold text-foreground text-base group-hover:text-primary transition-colors">Start First Bill</span>
-                      <span className="text-sm text-muted-foreground mt-0.5">Split a detailed expense with the squad</span>
+                      <span className="font-semibold text-foreground text-base group-hover:text-primary transition-colors">
+                        Start First Bill
+                      </span>
+                      <span className="text-sm text-muted-foreground mt-0.5">
+                        Split a detailed expense with the squad
+                      </span>
                     </div>
                   </button>
 
                   <button
                     className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-amber-500/[0.03] hover:border-amber-500/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
-                    onClick={() => navigate('/transaction/new', { state: { targetEventId: event.id, targetEventName: event.name } })}
+                    onClick={() =>
+                      navigateWithOrigin(
+                        navigate,
+                        location,
+                        "/transaction/new",
+                        {
+                          targetEventId: event.id,
+                          targetEventName: event.name,
+                        },
+                      )
+                    }
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                     <div className="relative flex-shrink-0 h-12 w-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 shadow-sm">
                       <Zap className="w-6 h-6" />
                     </div>
                     <div className="flex flex-col relative z-10 w-full">
-                      <span className="font-semibold text-foreground text-base group-hover:text-amber-600 transition-colors">Quick Expense</span>
-                      <span className="text-sm text-muted-foreground mt-0.5">Record a fast, simple transaction</span>
+                      <span className="font-semibold text-foreground text-base group-hover:text-amber-600 transition-colors">
+                        Quick Expense
+                      </span>
+                      <span className="text-sm text-muted-foreground mt-0.5">
+                        Record a fast, simple transaction
+                      </span>
                     </div>
                   </button>
                 </div>
@@ -454,19 +575,43 @@ export default function EventDetailView() {
                       key={b.id}
                       bill={b}
                       isLatest={b.id === activeSession?.id}
-                      onView={(id) => handleViewBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
-                      onResume={(id) => handleResumeBill(id, b.isSimpleTransaction, b.isAirbnb, b.ownerId === user?.uid)}
+                      onView={(id) =>
+                        handleViewBill(
+                          id,
+                          b.isSimpleTransaction,
+                          b.isAirbnb,
+                          b.ownerId === user?.uid,
+                        )
+                      }
+                      onResume={(id) =>
+                        handleResumeBill(
+                          id,
+                          b.isSimpleTransaction,
+                          b.isAirbnb,
+                          b.ownerId === user?.uid,
+                        )
+                      }
                       onDelete={handleDeleteBill}
                       isResuming={isResuming}
                       isDeleting={isDeleting}
                       isOwner={b.ownerId === user?.uid}
                       currentUserId={user?.uid}
                       formatDate={(timestamp: any) => {
-                        if (!timestamp) return 'Unknown date';
-                        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp as any);
-                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        if (!timestamp) return "Unknown date";
+                        const date = timestamp.toDate
+                          ? timestamp.toDate()
+                          : new Date(timestamp as any);
+                        return date.toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        });
                       }}
-                      getBillTitle={(bill) => bill.title || bill.billData?.restaurantName || 'Untitled Bill'}
+                      getBillTitle={(bill) =>
+                        bill.title ||
+                        bill.billData?.restaurantName ||
+                        "Untitled Bill"
+                      }
                     />
                   ))}
                 </div>

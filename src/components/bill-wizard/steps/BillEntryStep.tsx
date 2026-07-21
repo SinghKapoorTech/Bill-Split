@@ -32,6 +32,9 @@ interface BillEntryStepProps {
 
     // Navigation
     onNext: () => void;
+    /** Leave the wizard from step 0, where there is no previous step. */
+    onExit?: () => void;
+    exitLabel?: string;
     canProceed: boolean;
     currentStep: number;
     totalSteps: number;
@@ -62,6 +65,8 @@ export function BillEntryStep({
     onRemoveImage,
     onImageSelected,
     onNext,
+    onExit,
+    exitLabel,
     canProceed,
     currentStep,
     totalSteps,
@@ -155,6 +160,8 @@ export function BillEntryStep({
                         currentStep={currentStep}
                         totalSteps={totalSteps}
                         onNext={onNext}
+                        onExit={onExit}
+                        exitLabel={exitLabel}
                         nextDisabled={!canProceed}
                     />
                 </div>
@@ -240,6 +247,8 @@ export function BillEntryStep({
                         currentStep={currentStep}
                         totalSteps={totalSteps}
                         onNext={onNext}
+                        onExit={onExit}
+                        exitLabel={exitLabel}
                         nextDisabled={!canProceed}
                     />
                 </div>
@@ -313,6 +322,8 @@ export function BillEntryStep({
                     currentStep={currentStep}
                     totalSteps={totalSteps}
                     onNext={onNext}
+                    onExit={onExit}
+                    exitLabel={exitLabel}
                     nextDisabled={!canProceed}
                 />
             </div>

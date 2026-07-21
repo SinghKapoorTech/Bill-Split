@@ -1,19 +1,27 @@
-import { useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { HeroSection } from '@/components/layout/HeroSection';
-import { BillWizard, BILL_WIZARD_REVIEW_STEP } from '@/components/bill-wizard/BillWizard';
-import { ShareLinkDialog } from '@/components/share/ShareLinkDialog';
-import { Loader2 } from 'lucide-react';
-import { useBillContext } from '@/contexts/BillSessionContext';
-import { useSessionTimeout } from '@/hooks/useSessionTimeout';
-import { useAuth } from '@/contexts/AuthContext';
-import { useUserProfile } from '@/hooks/useUserProfile';
-import { ensureUserInPeople, generateUserId, initialWizardStep } from '@/utils/billCalculations';
-import { billService } from '@/services/billService';
-import { userService } from '@/services/userService';
-import { Person, BillData, ItemAssignment, Bill } from '@/types';
-import { deleteField, doc, getDoc } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { HeroSection } from "@/components/layout/HeroSection";
+import {
+  BillWizard,
+  BILL_WIZARD_REVIEW_STEP,
+} from "@/components/bill-wizard/BillWizard";
+import { ShareLinkDialog } from "@/components/share/ShareLinkDialog";
+import { Loader2 } from "lucide-react";
+import { useBillContext } from "@/contexts/BillSessionContext";
+import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import { useReturnTo } from "@/hooks/useReturnTo";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import {
+  ensureUserInPeople,
+  generateUserId,
+  initialWizardStep,
+} from "@/utils/billCalculations";
+import { billService } from "@/services/billService";
+import { userService } from "@/services/userService";
+import { Person, BillData, ItemAssignment, Bill } from "@/types";
+import { deleteField, doc, getDoc } from "firebase/firestore";
+import { db } from "@/config/firebase";
 
 /**
  * AIScanView - Simplified Bill Creation Page
@@ -24,7 +32,7 @@ export default function AIScanView() {
   const location = useLocation();
   const navigate = useNavigate();
   const { billId: routeBillId } = useParams<{ billId: string }>();
-  const billId = routeBillId === 'new' ? undefined : routeBillId;
+  const billId = routeBillId === "new" ? undefined : routeBillId;
   const { user } = useAuth();
   const { profile } = useUserProfile();
 
@@ -45,10 +53,12 @@ export default function AIScanView() {
   const [people, setPeople] = useState<Person[]>([]);
   const [itemAssignments, setItemAssignments] = useState<ItemAssignment>({});
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
-  const [title, setTitle] = useState<string>('');
+  const [title, setTitle] = useState<string>("");
   const [currentStep, setCurrentStep] = useState(0);
   const [eventId, setEventId] = useState<string | null>(null);
-  const [isSessionLoaded, setIsSessionLoaded] = useState(!routeBillId || routeBillId === 'new');
+  const [isSessionLoaded, setIsSessionLoaded] = useState(
+    !routeBillId || routeBillId === "new",
+  );
 
   // Share link state
   const [showShareLinkDialog, setShowShareLinkDialog] = useState(false);
@@ -60,21 +70,23 @@ export default function AIScanView() {
   // Helper: fetch all event members and return them as Person[]
   const fetchEventMembers = async (eventId: string): Promise<Person[]> => {
     try {
-      const eventSnap = await getDoc(doc(db, 'events', eventId));
+      const eventSnap = await getDoc(doc(db, "events", eventId));
       if (!eventSnap.exists()) return [];
       const memberIds: string[] = eventSnap.data().memberIds || [];
       const profiles = await Promise.all(
-        memberIds.map(uid => userService.getUserProfile(uid).catch(() => null))
+        memberIds.map((uid) =>
+          userService.getUserProfile(uid).catch(() => null),
+        ),
       );
       return profiles
         .filter((p): p is NonNullable<typeof p> => p !== null)
-        .map(p => ({
+        .map((p) => ({
           id: generateUserId(p.uid),
           name: p.displayName,
           venmoId: p.venmoId,
         }));
     } catch (err) {
-      console.error('Failed to fetch event members:', err);
+      console.error("Failed to fetch event members:", err);
       return [];
     }
   };
@@ -84,21 +96,21 @@ export default function AIScanView() {
     // We completely ignore activeSession to prevent the listener from forcing an existing
     // bill into the UI. We stay in local memory until JIT creation swaps the URL.
     if (!billId) {
-      if (loadedSessionId.current !== 'draft') {
+      if (loadedSessionId.current !== "draft") {
         setBillData(null);
         setItemAssignments({});
         setSplitEvenly(false);
-        setTitle('');
+        setTitle("");
         setCurrentStep(0);
         // Note: no need to call removeReceiptImage() here — local state is already
         // cleared above, and there is no Firestore bill to update for a fresh draft.
-        loadedSessionId.current = 'draft';
+        loadedSessionId.current = "draft";
 
         // Pre-populate people with all event members if coming from an event
         const { targetEventId } = location.state || {};
         if (targetEventId) {
           setEventId(targetEventId);
-          fetchEventMembers(targetEventId).then(eventPeople => {
+          fetchEventMembers(targetEventId).then((eventPeople) => {
             setPeople(ensureUserInPeople(eventPeople, user, profile));
           });
         } else {
@@ -119,8 +131,10 @@ export default function AIScanView() {
       if (loadedSessionId.current !== activeSession.id) {
         setBillData(activeSession.billData || null);
         setSplitEvenly(activeSession.splitEvenly || false);
-        setTitle(activeSession.title || '');
-        setCurrentStep(initialWizardStep(activeSession, BILL_WIZARD_REVIEW_STEP));
+        setTitle(activeSession.title || "");
+        setCurrentStep(
+          initialWizardStep(activeSession, BILL_WIZARD_REVIEW_STEP),
+        );
         setEventId(activeSession.eventId || null);
         loadedSessionId.current = activeSession.id;
         setIsSessionLoaded(true);
@@ -140,10 +154,14 @@ export default function AIScanView() {
         if (fetchedBill) {
           setBillData(fetchedBill.billData || null);
           setItemAssignments(fetchedBill.itemAssignments || {});
-          setPeople(ensureUserInPeople(fetchedBill.people || [], user, profile));
+          setPeople(
+            ensureUserInPeople(fetchedBill.people || [], user, profile),
+          );
           setSplitEvenly(fetchedBill.splitEvenly || false);
-          setTitle(fetchedBill.title || '');
-          setCurrentStep(initialWizardStep(fetchedBill, BILL_WIZARD_REVIEW_STEP));
+          setTitle(fetchedBill.title || "");
+          setCurrentStep(
+            initialWizardStep(fetchedBill, BILL_WIZARD_REVIEW_STEP),
+          );
           setEventId(fetchedBill.eventId || null);
           loadedSessionId.current = fetchedBill.id;
           setIsSessionLoaded(true);
@@ -162,15 +180,19 @@ export default function AIScanView() {
     if (resumeSessionId) {
       hasProcessedNavState.current = true;
       resumeSession(resumeSessionId);
-      navigate('.', { replace: true, state: {} });
+      navigate(".", { replace: true, state: {} });
     }
     // Only run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Session timeout
+  // On session timeout, return the user where they came from rather than
+  // always dumping them on the dashboard.
+  const { goBack } = useReturnTo({ eventId });
+
   useSessionTimeout({
-    onTimeout: () => navigate('/dashboard'),
+    onTimeout: () => goBack(),
     timeoutMinutes: 20,
   });
 
@@ -183,7 +205,7 @@ export default function AIScanView() {
       await billService.generateShareCode(activeSession.id, user.uid);
       setShowShareLinkDialog(true);
     } catch (error) {
-      console.error('Error generating share code:', error);
+      console.error("Error generating share code:", error);
     } finally {
       setIsGeneratingShareCode(false);
     }
@@ -197,26 +219,33 @@ export default function AIScanView() {
       // Clear existing code
       await billService.updateBill(activeSession.id, {
         shareCode: deleteField() as unknown as string,
-        shareCodeCreatedAt: deleteField() as unknown as import('firebase/firestore').Timestamp,
-        shareCodeExpiresAt: deleteField() as unknown as import('firebase/firestore').Timestamp,
+        shareCodeCreatedAt:
+          deleteField() as unknown as import("firebase/firestore").Timestamp,
+        shareCodeExpiresAt:
+          deleteField() as unknown as import("firebase/firestore").Timestamp,
         shareCodeCreatedBy: deleteField() as unknown as string,
       });
       // Generate new code
       await billService.generateShareCode(activeSession.id, user.uid);
     } catch (error) {
-      console.error('Error regenerating share code:', error);
+      console.error("Error regenerating share code:", error);
     } finally {
       setIsGeneratingShareCode(false);
     }
   };
 
   const formatDate = (timestamp: { toDate: () => Date } | null | undefined) => {
-    if (!timestamp) return new Date().toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric'
-    });
+    if (!timestamp)
+      return new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
     const date = timestamp.toDate();
-    return date.toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric'
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
     });
   };
 
@@ -224,7 +253,7 @@ export default function AIScanView() {
   // Uses state (not ref) so it's batched with currentStep in the same render
   if (isLoadingSessions || !isSessionLoaded) {
     return (
-      <div className="loading-container" style={{ minHeight: '60vh' }}>
+      <div className="loading-container" style={{ minHeight: "60vh" }}>
         <Loader2 className="loading-spinner" />
       </div>
     );
@@ -248,22 +277,28 @@ export default function AIScanView() {
       setItemAssignments({});
 
       // Persist the change
-      const newBillId = await saveSession({
-        eventId: newEventId,
-        billType: 'event',
-        people: newPeople,
-        itemAssignments: {},
-      }, billId || activeSession?.id);
+      const newBillId = await saveSession(
+        {
+          eventId: newEventId,
+          billType: "event",
+          people: newPeople,
+          itemAssignments: {},
+        },
+        billId || activeSession?.id,
+      );
 
       if (!billId && newBillId) {
         navigate(`/bill/${newBillId}`, { replace: true });
       }
     } else {
       // If none is selected, convert back to private
-      const newBillId = await saveSession({
-        eventId: deleteField() as unknown as string,
-        billType: 'private',
-      }, billId || activeSession?.id);
+      const newBillId = await saveSession(
+        {
+          eventId: deleteField() as unknown as string,
+          billType: "private",
+        },
+        billId || activeSession?.id,
+      );
 
       if (!billId && newBillId) {
         navigate(`/bill/${newBillId}`, { replace: true });
@@ -276,7 +311,7 @@ export default function AIScanView() {
     // Inject the event metadata if it's set in state
     if (eventId && !sessionData.eventId) {
       sessionData.eventId = eventId;
-      sessionData.billType = 'event';
+      sessionData.billType = "event";
     }
 
     return saveSession(sessionData, id);
@@ -295,27 +330,27 @@ export default function AIScanView() {
       </div>
 
       <div className="flex-1 min-h-0 w-full">
-      <BillWizard
-        activeSession={effectiveSession}
-        billId={billId}
-        isUploading={isUploading}
-        uploadReceiptImage={uploadReceiptImage}
-        saveSession={handleSaveSession}
-        removeReceiptImage={removeReceiptImage}
-        deleteSession={deleteSession}
-        initialBillData={billData}
-        initialPeople={people}
-        initialItemAssignments={itemAssignments}
-        initialSplitEvenly={splitEvenly}
-        initialTitle={title}
-        initialStep={currentStep}
-        title={title}
-        onTitleChange={setTitle}
-        hasBillData={!!billData}
-        onShare={handleGenerateShareLink}
-        eventId={eventId}
-        onEventChange={handleEventChange}
-      />
+        <BillWizard
+          activeSession={effectiveSession}
+          billId={billId}
+          isUploading={isUploading}
+          uploadReceiptImage={uploadReceiptImage}
+          saveSession={handleSaveSession}
+          removeReceiptImage={removeReceiptImage}
+          deleteSession={deleteSession}
+          initialBillData={billData}
+          initialPeople={people}
+          initialItemAssignments={itemAssignments}
+          initialSplitEvenly={splitEvenly}
+          initialTitle={title}
+          initialStep={currentStep}
+          title={title}
+          onTitleChange={setTitle}
+          hasBillData={!!billData}
+          onShare={handleGenerateShareLink}
+          eventId={eventId}
+          onEventChange={handleEventChange}
+        />
       </div>
 
       {effectiveSession && (

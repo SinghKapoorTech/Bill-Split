@@ -1,18 +1,19 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { GuestClaimView } from '@/components/guest/GuestClaimView';
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useReturnTo } from "@/hooks/useReturnTo";
+import { GuestClaimView } from "@/components/guest/GuestClaimView";
 
-import { CollaborativeBadge } from '@/components/share/CollaborativeBadge';
-import { useBillSplitter } from '@/hooks/useBillSplitter';
-import { usePeopleManager } from '@/hooks/usePeopleManager';
-import { useBillSession } from '@/hooks/useBillSession';
-import { Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
-import { Person, BillData, ItemAssignment, Bill } from '@/types';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { ensureUserInPeople } from '@/utils/billCalculations';
-import { useAuth } from '@/contexts/AuthContext';
-import { useUserProfile } from '@/hooks/useUserProfile';
+import { CollaborativeBadge } from "@/components/share/CollaborativeBadge";
+import { useBillSplitter } from "@/hooks/useBillSplitter";
+import { usePeopleManager } from "@/hooks/usePeopleManager";
+import { useBillSession } from "@/hooks/useBillSession";
+import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { Person, BillData, ItemAssignment, Bill } from "@/types";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { ensureUserInPeople } from "@/utils/billCalculations";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 export default function CollaborativeSessionView() {
   const navigate = useNavigate();
@@ -20,8 +21,14 @@ export default function CollaborativeSessionView() {
   const { user } = useAuth();
   const { profile } = useUserProfile();
 
+  // Back returns to wherever this shared bill was opened from. Only recorded
+  // origins pop — a share link arrives via JoinSession, which redirects members
+  // straight back here, so popping without a recorded origin would bounce.
+  const { goBack } = useReturnTo();
+
   // Collaborative session hook with real-time updates
-  const { session, isLoading, error, updateSession, toggleAssignment } = useBillSession(sessionId || null);
+  const { session, isLoading, error, updateSession, toggleAssignment } =
+    useBillSession(sessionId || null);
 
   // Local state synced with collaborative session
   const [people, setPeople] = useState<Person[]>([]);
@@ -30,7 +37,9 @@ export default function CollaborativeSessionView() {
 
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
 
-  const updateSessionRef = useRef<((updates: Partial<Bill>) => Promise<void>) | null>(null);
+  const updateSessionRef = useRef<
+    ((updates: Partial<Bill>) => Promise<void>) | null
+  >(null);
 
   const peopleManager = usePeopleManager(people, setPeople);
   const bill = useBillSplitter({
@@ -50,13 +59,19 @@ export default function CollaborativeSessionView() {
       setBillData(session.billData || null);
       setItemAssignments(session.itemAssignments || {});
       const isOwner = user && session.ownerId === user.uid;
-      setPeople(isOwner ? ensureUserInPeople(session.people || [], user, profile) : (session.people || []));
+      setPeople(
+        isOwner
+          ? ensureUserInPeople(session.people || [], user, profile)
+          : session.people || [],
+      );
       setSplitEvenly(session.splitEvenly || false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  useEffect(() => { updateSessionRef.current = updateSession; }, [updateSession]);
+  useEffect(() => {
+    updateSessionRef.current = updateSession;
+  }, [updateSession]);
 
   // Handlers for GuestClaimView
   const handleAddSelfToPeople = (newPerson: Person) => {
@@ -65,7 +80,11 @@ export default function CollaborativeSessionView() {
     updateSessionRef.current?.({ people: updatedPeople });
   };
 
-  const handleClaimItem = (itemId: string, personId: string, claimed: boolean) => {
+  const handleClaimItem = (
+    itemId: string,
+    personId: string,
+    claimed: boolean,
+  ) => {
     if (splitEvenly) {
       setSplitEvenly(false);
       updateSessionRef.current?.({ splitEvenly: false });
@@ -80,22 +99,30 @@ export default function CollaborativeSessionView() {
   const handleRemovePerson = (personId: string) => {
     peopleManager.removePerson(personId);
     bill.removePersonFromAssignments(personId);
-    const updatedPeople = people.filter(p => p.id !== personId);
+    const updatedPeople = people.filter((p) => p.id !== personId);
     updateSessionRef.current?.({ people: updatedPeople });
   };
 
-  const handleUpdatePerson = async (personId: string, updates: Partial<Person>) => {
-    const updatedPeople = people.map(p =>
-      p.id === personId ? { ...p, ...updates } : p
+  const handleUpdatePerson = async (
+    personId: string,
+    updates: Partial<Person>,
+  ) => {
+    const updatedPeople = people.map((p) =>
+      p.id === personId ? { ...p, ...updates } : p,
     );
     setPeople(updatedPeople);
 
     if (session) {
-      const { billService } = await import('@/services/billService');
+      const { billService } = await import("@/services/billService");
 
       if (!user && updates.name && session.shareCode) {
         try {
-          await billService.updateGuestName(session.id, session.shareCode, personId, updates.name);
+          await billService.updateGuestName(
+            session.id,
+            session.shareCode,
+            personId,
+            updates.name,
+          );
           return;
         } catch (error) {
           console.error("Failed to update guest name", error);
@@ -124,7 +151,7 @@ export default function CollaborativeSessionView() {
           </AlertDescription>
         </Alert>
         <div className="mt-4 text-center">
-          <Button onClick={() => navigate('/')} variant="outline">
+          <Button onClick={() => navigate("/")} variant="outline">
             Return Home
           </Button>
         </div>
@@ -142,13 +169,16 @@ export default function CollaborativeSessionView() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-muted-foreground"
-                onClick={() => navigate('/dashboard')}
+                onClick={goBack}
               >
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             )}
             <h2 className="text-2xl font-bold">
-              {session.billData?.restaurantName || (session.isSimpleTransaction && session.billData?.items?.[0]?.name) || 'Divit'}
+              {session.billData?.restaurantName ||
+                (session.isSimpleTransaction &&
+                  session.billData?.items?.[0]?.name) ||
+                "Divit"}
             </h2>
           </div>
           <CollaborativeBadge memberCount={session.people?.length || 0} />
@@ -156,13 +186,13 @@ export default function CollaborativeSessionView() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide pb-6">
-      <GuestClaimView
-        session={session}
-        onAddSelfToPeople={handleAddSelfToPeople}
-        onClaimItem={handleClaimItem}
-        onUpdatePerson={handleUpdatePerson}
-        onRemovePerson={handleRemovePerson}
-      />
+        <GuestClaimView
+          session={session}
+          onAddSelfToPeople={handleAddSelfToPeople}
+          onClaimItem={handleClaimItem}
+          onUpdatePerson={handleUpdatePerson}
+          onRemovePerson={handleRemovePerson}
+        />
       </div>
     </div>
   );
