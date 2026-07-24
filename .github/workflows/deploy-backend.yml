@@ -1,22 +1,22 @@
 name: Deploy Backend (Firebase)
 
 # Backend deploy pipeline (Cloud Functions, Firestore rules/indexes, Storage rules).
-#   push to develop  ->  deploy to BETA  (divit-beta)
-#   push to main     ->  deploy to PROD  (divit-6d217), behind the "production" approval gate
+#   push to main  ->  deploy to PROD  (divit-6d217), behind the "production" approval gate
 # Only fires when a backend file changes, and the functions build must pass first.
+# Beta is deployed manually (`firebase deploy ... --project beta`) when needed.
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
     paths:
-      - 'functions/**'
-      - 'shared/**'
-      - 'firestore.rules'
-      - 'firestore.indexes.json'
-      - 'storage.rules'
-      - 'firebase.json'
-      - '.firebaserc'
-      - '.github/workflows/deploy-backend.yml'
-  workflow_dispatch: # manual run from the Actions tab (deploys the branch it's run on)
+      - "functions/**"
+      - "shared/**"
+      - "firestore.rules"
+      - "firestore.indexes.json"
+      - "storage.rules"
+      - "firebase.json"
+      - ".firebaserc"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch: # manual run from the Actions tab (deploys the selected branch's tree to prod)
 
 # Don't run two deploys for the same branch at once.
 concurrency:
@@ -26,24 +26,23 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # main -> production (add required reviewers to this Environment for an approval gate);
-    # everything else -> beta.
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'beta' }}
+    # main -> production (add required reviewers to this Environment for an approval gate).
+    environment: production
 
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v5
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: functions/package-lock.json
 
       - name: Install functions dependencies
         working-directory: functions
         run: npm ci
 
-      # Gate: a non-compiling change must never reach beta or prod.
+      # Gate: a non-compiling change must never reach prod.
       - name: Build functions (typecheck gate)
         working-directory: functions
         run: npm run build
@@ -51,22 +50,19 @@ jobs:
       - name: Write service account credentials
         env:
           SA_PROD: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          SA_BETA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BETA }}
         run: |
-          if [ "$GITHUB_REF" = "refs/heads/main" ]; then SA="$SA_PROD"; else SA="$SA_BETA"; fi
-          if [ -z "$SA" ]; then
-            echo "::error::Missing service account secret for this branch. Add FIREBASE_SERVICE_ACCOUNT (prod) and FIREBASE_SERVICE_ACCOUNT_BETA (beta) in repo Settings → Secrets and variables → Actions."
+          if [ -z "$SA_PROD" ]; then
+            echo "::error::Missing service account secret. Add FIREBASE_SERVICE_ACCOUNT (prod) in repo Settings → Secrets and variables → Actions."
             exit 1
           fi
-          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          printf '%s' "$SA_PROD" > "$RUNNER_TEMP/sa.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
 
       - name: Deploy to Firebase
         run: |
-          if [ "$GITHUB_REF" = "refs/heads/main" ]; then ALIAS=prod; else ALIAS=beta; fi
-          echo "Deploying backend to '$ALIAS'..."
+          echo "Deploying backend to 'prod'..."
           npx --yes firebase-tools@13 deploy \
             --only functions,firestore,storage \
-            --project "$ALIAS" \
+            --project prod \
             --non-interactive \
             --force

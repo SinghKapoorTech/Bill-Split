@@ -1,13 +1,13 @@
 name: CI
 
-# Backend-focused gate for every PR (and pushes to main/develop). Must pass
-# before a change can be merged and deployed. Frontend/app releases are gated
-# manually via the app stores, so this intentionally focuses on backend safety:
-# lint, unit tests for shared/backend logic, and a functions typecheck/build.
+# Backend-focused gate for every PR (and pushes to main). Must pass before a
+# change is deployed. Frontend/app releases are gated manually via the app
+# stores, so this intentionally focuses on backend safety: lint, unit tests for
+# shared/backend logic, and a functions typecheck/build.
 on:
   pull_request:
   push:
-    branches: [main, develop]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -21,8 +21,8 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
 
       - run: npm ci
 
