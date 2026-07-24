@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { navigateWithOrigin, useReturnTo } from "@/hooks/useReturnTo";
-import { ArrowLeft, Receipt, UserPlus } from "lucide-react";
+import { ArrowLeft, Receipt, UserPlus, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { InviteMembersDialog } from "@/components/events/InviteMembersDialog";
@@ -96,6 +96,8 @@ function EventBalancesSection({
   navigate: ReturnType<typeof useNavigate>;
   setSettleTarget: (target: SettleTarget) => void;
 }) {
+  const [showOtherBalances, setShowOtherBalances] = useState(false);
+
   const renderDebtRow = (debt: OptimizedDebt, idx: number) => {
     const { fromName, toName } = resolveDebtNames(
       debt,
@@ -125,7 +127,7 @@ function EventBalancesSection({
 
     return (
       <BalanceListRow
-        key={idx}
+        key={`${debt.fromUserId}_${debt.toUserId}_${idx}`}
         fromLabel={fromName}
         toLabel={toName}
         amount={debt.amount}
@@ -168,6 +170,16 @@ function EventBalancesSection({
     );
   };
 
+  // Split balances into those involving the current user and those strictly
+  // between other people. Only "my" balances show by default; the rest hide
+  // behind an expand/collapse arrow.
+  const myDebts = optimizedDebts.filter(
+    (debt) => user?.uid === debt.fromUserId || user?.uid === debt.toUserId,
+  );
+  const otherDebts = optimizedDebts.filter(
+    (debt) => user?.uid !== debt.fromUserId && user?.uid !== debt.toUserId,
+  );
+
   return (
     <div>
       <div className="flex items-center justify-between mb-1 ml-1">
@@ -182,7 +194,41 @@ function EventBalancesSection({
           </p>
         ) : (
           <div className="flex flex-col gap-2 p-1">
-            {optimizedDebts.map((debt, idx) => renderDebtRow(debt, idx))}
+            {myDebts.length > 0 ? (
+              myDebts.map((debt, idx) => renderDebtRow(debt, idx))
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                You're all settled up in this event.
+              </p>
+            )}
+
+            {otherDebts.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowOtherBalances((prev) => !prev)}
+                  aria-expanded={showOtherBalances}
+                  className="flex items-center justify-center gap-1 mt-1 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform ${
+                      showOtherBalances ? "rotate-180" : ""
+                    }`}
+                  />
+                  {showOtherBalances
+                    ? "Hide other balances"
+                    : `Show ${otherDebts.length} other balance${
+                        otherDebts.length === 1 ? "" : "s"
+                      }`}
+                </button>
+
+                {showOtherBalances && (
+                  <div className="flex flex-col gap-2">
+                    {otherDebts.map((debt, idx) => renderDebtRow(debt, idx))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </Card>

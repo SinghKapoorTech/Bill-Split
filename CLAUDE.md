@@ -25,6 +25,7 @@ Bill Split is a React + TypeScript application that uses AI to analyze receipts 
 ## Getting Started
 
 When starting work on this project, use the `/init` command to:
+
 1. Install all dependencies (`npm install`)
 2. Start the development server (`npm run dev`)
 
@@ -117,18 +118,19 @@ npx playwright test e2e/ --reporter=list
 ```
 
 Or run a single test file:
+
 ```bash
 npx playwright test e2e/bill-creation.spec.ts --reporter=list
 ```
 
 ### Test Files
 
-| File | What it tests |
-|------|---------------|
-| `e2e/login.spec.ts` | Landing page → Auth page → Google sign-in popup |
+| File                        | What it tests                                                           |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `e2e/login.spec.ts`         | Landing page → Auth page → Google sign-in popup                         |
 | `e2e/bill-creation.spec.ts` | Full 4-step bill wizard: add items → add people → split evenly → review |
-| `e2e/events.spec.ts` | Create events via empty state and header `+` button, navigate to detail |
-| `e2e/settle-flow.spec.ts` | Dashboard renders, bill creation with split verification on review |
+| `e2e/events.spec.ts`        | Create events via empty state and header `+` button, navigate to detail |
+| `e2e/settle-flow.spec.ts`   | Dashboard renders, bill creation with split verification on review      |
 
 ### How It Works
 
@@ -140,6 +142,7 @@ npx playwright test e2e/bill-creation.spec.ts --reporter=list
 ### Troubleshooting
 
 **`java -version` fails / "Unable to locate a Java Runtime"**
+
 ```bash
 brew install openjdk
 echo 'export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"' >> ~/.zshrc
@@ -148,9 +151,11 @@ source ~/.zshrc
 
 **"Port 9099/8081/4000 is not open" — emulators won't start**
 Previous emulator processes are still running. Kill them:
+
 ```bash
 lsof -ti:9099,8081,4000 | xargs kill -9
 ```
+
 Then retry `firebase emulators:start --only auth,firestore`.
 
 **Tests timeout waiting for emulators**
@@ -158,15 +163,18 @@ Start emulators manually in a separate terminal first, then run tests. The `glob
 
 **"strict mode violation: resolved to N elements"**
 A selector matched multiple elements. Use more specific locators:
+
 - `page.getByRole('cell', { name: 'Burger' })` instead of `page.getByText('Burger')`
 - `page.getByRole('heading', { name: 'Vegas Weekend' })` instead of `page.getByText('Vegas Weekend')`
 - Scope to a parent: `page.locator('tr').filter({ has: ... }).getByPlaceholder(...)`
 
 **Auth popup doesn't open or times out**
+
 - Ensure the dev server was started with `VITE_USE_EMULATORS=true`
 - Verify auth emulator is running: `curl -s http://localhost:9099` should respond
 
 **Firestore permission errors**
+
 - Ensure Firestore emulator is running: `curl -s http://localhost:8081` should respond
 - Verify `VITE_USE_EMULATORS=true` is set — without it the app connects to production Firestore
 
@@ -174,7 +182,7 @@ A selector matched multiple elements. Use more specific locators:
 
 1. Import the auth helper:
    ```typescript
-   import { loginAsTestUser } from './helpers/auth';
+   import { loginAsTestUser } from "./helpers/auth";
    ```
 2. Call `await loginAsTestUser(page)` at the start of any test that needs authentication
 3. Use `getByRole()` over `getByText()` to avoid strict mode violations from toast notifications
@@ -187,12 +195,14 @@ A selector matched multiple elements. Use more specific locators:
 The app uses a **custom hooks architecture** where each major feature domain has its own hook that manages related state and logic:
 
 **Bill Management:**
+
 - **`useBills`** - Manages user's bill sessions (CRUD, real-time updates, receipt images)
 - **`useBillSession`** - Manages individual bill session state and Firestore sync
 - **`useBillSplitter`** - Core bill state (billData, itemAssignments, calculations)
 - **`useItemEditor`** - Item editing/adding state (edit mode, add mode, validation)
 
 **People & Social:**
+
 - **`usePeopleManager`** - People state (adding, removing, friends list)
 - **`useUserProfile`** - User profile and Firestore operations
 - **`useFriendsEditor`** - Friend list management
@@ -200,6 +210,7 @@ The app uses a **custom hooks architecture** where each major feature domain has
 - **`useSquadEditor`** - Squad creation/editing UI state
 
 **Events & Collaboration:**
+
 - **`useEventManager`** - Multi-receipt event CRUD and membership
 - **`useEventBills`** - Bills within events (subscribe, create, update, delete)
 - **`useEventInvites`** - Event invitation system
@@ -207,14 +218,17 @@ The app uses a **custom hooks architecture** where each major feature domain has
 - **`useShareSession`** - Shareable link generation
 
 **Settlements & Balances:**
+
 - **`useFriendsEditor`** - Friend list management with hydrated balances from `balances`
 
 **AI & Media:**
+
 - **`useReceiptAnalyzer`** - Gemini AI integration for receipt analysis
 - **`useFileUpload`** - File upload and image preview state
 - **`useImagePicker`** - Platform-specific image selection
 
 **Contexts:**
+
 - **`BillSessionContext`** - Provides `useBills` functionality app-wide (wraps bill pages)
 - **`AuthContext`** - Firebase authentication (wraps entire app)
 
@@ -223,6 +237,7 @@ These hooks are composed together in pages and components.
 ### Data Flow
 
 **Individual Bills:**
+
 1. **Bill Creation**: Dashboard → Create New Bill → `billService.createBill()` → Navigate to `/bill/:id`
 2. **Receipt Analysis**: User uploads receipt → Gemini AI analyzes → `setBillData()` → Firestore auto-sync
 3. **Manual Entry**: User clicks "Add Item" → `addItem()` → Updates bill → Firestore auto-sync
@@ -232,6 +247,7 @@ These hooks are composed together in pages and components.
 7. **Session Management**: Bills auto-save → Dashboard lists all bills → Resume/delete functionality
 
 **Events (Multi-Receipt Groups):**
+
 1. **Event Creation**: User creates event → `useEventManager.createEvent()` → Firestore `events` collection
 2. **Multiple Bills**: Event members add receipts → Each bill has `eventId` → Per-pair balance tracking
 3. **Balance Pipeline**: Bill changes trigger `ledgerProcessor` → Updates `balances` (Stage 2) and `event_balances` per-pair docs (Stage 3) via idempotent deltas
@@ -239,6 +255,7 @@ These hooks are composed together in pages and components.
 5. **Sharing**: Event owner invites members by email → Members view/contribute
 
 **Squads:**
+
 1. **Squad Creation**: Settings → Squads tab → Add squad with members → Firestore
 2. **Quick Add**: Bill page → Add people → "Add from Squad" → Auto-populate names/venmoIds
 
@@ -267,6 +284,7 @@ The app uses Firebase for authentication, database, and storage.
 ```
 
 Environment variables required (see `.env`):
+
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_AUTH_DOMAIN`
 - `VITE_FIREBASE_PROJECT_ID`
@@ -394,9 +412,11 @@ receipts/collaborative/{fileName}        # Shared receipt images
 #### Firestore Security Rules (`firestore.rules`)
 
 **Users Collection:**
+
 - Users can only read/write their own document (`/users/{userId}`)
 
 **Bills Collection:**
+
 - **Read**: Owner, event members (for event bills), or authenticated members (via share link)
 - **Create**: Authenticated users only, must set themselves as owner
 - **Update**:
@@ -406,28 +426,33 @@ receipts/collaborative/{fileName}        # Shared receipt images
 - **Delete**: Owner only
 
 **Events Collection:**
+
 - **Read**: Owner, members, or invited users (via email)
 - **Create**: Authenticated users only, must set themselves as owner and member
 - **Update**: Owner has full access; members can update specific fields (memberIds, pendingInvites)
 - **Delete**: Owner only
 
 **Friend Balances & Event Balances Collections:**
+
 - **Read**: Only participants (via `participants` array-contains)
 - **Write**: Admin SDK only (server-side pipeline)
 
 **Settlements Collection:**
+
 - **Read**: From/to user, or event members (if event settlement)
 - **Create**: From/to user only
 - **Update**: Immutable (blocked)
 - **Delete**: From/to user only
 
 **Storage Rules (`storage.rules`):**
+
 - Users can read/write their own receipts: `/receipts/{userId}/**`
 - Public access for collaborative receipts: `/receipts/collaborative/**`
 
 #### Database Services & Operations
 
 **Bill Service (`src/services/billService.ts`):**
+
 - `createBill()` - Creates new bill document with default values
 - `getBill(billId)` - Fetches single bill by ID
 - `updateBill(billId, updates)` - Updates bill (auto-adds `updatedAt` and `lastActivity`)
@@ -436,6 +461,7 @@ receipts/collaborative/{fileName}        # Shared receipt images
 - `generateShareCode(billId, userId)` - Creates/returns 6-char code (expires in 7 days)
 
 **Squad Service (`src/services/squadService.ts`):**
+
 - `fetchUserSquads(userId)` - Gets all squads from user document
 - `saveSquad(userId, input)` - Appends new squad to user's squads array
 - `updateSquad(userId, squadId, updates)` - Updates specific squad
@@ -443,17 +469,21 @@ receipts/collaborative/{fileName}        # Shared receipt images
 - `getSquadById(userId, squadId)` - Fetches single squad
 
 **Settlement Service (`src/services/settlementService.ts`):**
+
 - `requestSettlement(friendUserId)` - Settles ALL unsettled bills with a friend (calls `processSettlement` Cloud Function)
 - `requestEventSettlement(eventId, friendUserId)` - Settles bills within a specific event only (calls `processEventSettlement` Cloud Function)
 
 **User Service (`src/services/userService.ts`):**
+
 - `getUserProfile(userId)` - Fetches user profile
 - `getHydratedFriends(userId)` - Queries `balances` to build friends list with balance data
 
 **Event Ledger Service (`src/services/eventLedgerService.ts`):**
+
 - Defines `EventPairBalance` type for per-pair event balance documents
 
 **Firestore Utils (`src/utils/firestore.ts`):**
+
 - `saveFriendToFirestore(userId, friend)` - Adds friend using `arrayUnion`
 - `updateUserProfile(userId, updates)` - Updates user document with merge
 - `createPersonObject(name, venmoId, useNameAsVenmoId)` - Helper for person objects
@@ -461,19 +491,21 @@ receipts/collaborative/{fileName}        # Shared receipt images
 #### Real-time Subscriptions
 
 **useBills Hook (`src/hooks/useBills.ts`):**
+
 ```typescript
 // Listens to user's private bills in real-time
 query(
-  collection(db, 'bills'),
-  where('ownerId', '==', userId),
-  where('billType', '==', 'private'),
-  orderBy('updatedAt', 'desc')
-)
+  collection(db, "bills"),
+  where("ownerId", "==", userId),
+  where("billType", "==", "private"),
+  orderBy("updatedAt", "desc"),
+);
 // Most recent bill = active session
 // Older bills = saved sessions
 ```
 
 **useBillSession Hook (`src/hooks/useBillSession.ts`):**
+
 ```typescript
 // Listens to single bill document in real-time
 // Auto-syncs all changes (billData, itemAssignments, people) to Firestore
@@ -481,22 +513,21 @@ query(
 ```
 
 **useEventManager Hook (`src/hooks/useEventManager.ts`):**
+
 ```typescript
 // Listens to events where user is owner
 query(
-  collection(db, 'events'),
-  where('ownerId', '==', userId),
-  orderBy('updatedAt', 'desc')
-)
+  collection(db, "events"),
+  where("ownerId", "==", userId),
+  orderBy("updatedAt", "desc"),
+);
 ```
 
 **useEventLedger Hook (`src/hooks/useEventLedger.ts`):**
+
 ```typescript
 // Subscribes to per-pair event balance docs in real-time
-query(
-  collection(db, 'event_balances'),
-  where('eventId', '==', eventId)
-)
+query(collection(db, "event_balances"), where("eventId", "==", eventId));
 // Derives netBalances and optimizedDebts client-side from pair docs
 // Falls back to computeEventBalances(bills) when no pair docs exist
 ```
@@ -522,6 +553,7 @@ query(
 ### Calculation Logic
 
 **Tax and tip are distributed proportionally** based on item subtotals:
+
 ```
 personSubtotal = sum of (item.price / numberOfPeopleSharingItem)
 proportion = personSubtotal / totalAssignedSubtotal
@@ -551,6 +583,7 @@ Server-side Cloud Function triggered on every `bills/{billId}` write. No client 
 ### Settlement Flow
 
 **Global Settlement** (`processSettlement` Cloud Function):
+
 1. Reads `balances/{uid1_uid2}` to get `balance` and `unsettledBillIds`
 2. For each bill: marks debtor as settled (`settledPersonIds`), zeros `processedBalances[debtorUid]`
 3. Zeros `balances` balance
@@ -558,6 +591,7 @@ Server-side Cloud Function triggered on every `bills/{billId}` write. No client 
 5. Pipeline re-fires from `settledPersonIds` change → updates `event_balances` via flow-through
 
 **Event-Scoped Settlement** (`processEventSettlement` Cloud Function):
+
 1. Reads `event_balances/{eventId_uid1_uid2}` to get `unsettledBillIds`
 2. For each bill: marks debtor as settled, zeros `processedEventBalances[debtorUid]`
 3. Zeros event pair balance
@@ -565,12 +599,14 @@ Server-side Cloud Function triggered on every `bills/{billId}` write. No client 
 5. **One settle action reduces both event and global friend balances**
 
 **Settlement Reversal** (`reverseSettlement` Cloud Function):
+
 - Removes debtor from `settledPersonIds` on each bill
 - Does NOT directly modify balance docs — pipeline auto-fires and recalculates via deltas
 
 ### Type System
 
 All types are in `src/types/`:
+
 - **`bill.types.ts`** - BillData, BillItem, Bill (Firestore document)
 - **`person.types.ts`** - Person, UserProfile, Friend, VenmoCharge
 - **`assignment.types.ts`** - ItemAssignment, AssignmentMode, PersonTotal
@@ -585,6 +621,7 @@ Components should always type their props with an interface.
 ### Adding Items (Manual or AI)
 
 Items can be added two ways:
+
 1. **AI**: `analyzeReceipt()` → Gemini extracts items → `setBillData()` with full bill
 2. **Manual**: User clicks "Add Item" → `addItem()` → Creates bill if null, or appends to existing
 
@@ -595,6 +632,7 @@ Both paths recalculate `subtotal` and `total` after item changes.
 Uses **deep link URL scheme**: `venmo://paycharge?txn=charge&recipients={id}&amount={amount}&note={note}`
 
 The `note` field contains itemized breakdown generated by `generateItemDescription()`:
+
 ```
 "Restaurant Name: Pizza ($12.00), Soda (split 2 ways) ($3.00)"
 ```
@@ -604,6 +642,7 @@ Fallback to web URL if Venmo app not detected.
 ### Friends List Autocomplete
 
 When typing in "Add Person" field:
+
 - Filters friends using `startsWith()` (not `includes()`)
 - Clicking suggestion automatically adds friend to bill via `addFromFriend()`
 - Friends stored in Firestore and synced on component mount
@@ -611,6 +650,7 @@ When typing in "Add Person" field:
 ### Squads (Saved Friend Groups)
 
 Users can save frequent groups of people to avoid re-entering names:
+
 - **Create Squad**: Settings → Squads tab → Add squad with name and members
 - **Use Squad**: Bill page → "Add from Squad" → Automatically populates people list
 - **Storage**: Squads stored in Firestore under `users/{userId}/squads`
@@ -619,6 +659,7 @@ Users can save frequent groups of people to avoid re-entering names:
 ### Bill Session Management
 
 The app uses a single-active-session model with archives:
+
 - **Active Session**: One bill at a time is "active" (latest bill user is working on)
 - **Auto-save**: All changes sync to Firestore in real-time via `useBillSession`
 - **Dashboard**: Shows active session (marked "Latest") + all saved/archived bills
@@ -629,6 +670,7 @@ The app uses a single-active-session model with archives:
 ## Environment Variables
 
 Required in `.env`:
+
 ```
 VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=
@@ -640,16 +682,20 @@ VITE_FIREBASE_APP_ID=
 
 ## Environments & Backend Deployment Pipeline
 
-Backend changes (Cloud Functions, Firestore rules/indexes, Storage rules) flow
-through a **beta → prod** pipeline so production doesn't break. Frontend/app
-releases are gated separately via the app stores and are NOT part of this.
+Backend changes (Cloud Functions, Firestore rules/indexes, Storage rules) ship
+from **`main` → prod**. `main` is the single working branch; every push to it
+auto-deploys to production, so verify locally and keep CI green before pushing.
+The **beta** project (`divit-beta`) remains available as an optional **manual**
+staging target — deploy to it by hand when you want to test a backend change
+before prod. Frontend/app releases are gated separately via the app stores and
+are NOT part of this.
 
 ### Two Firebase projects
 
-| Alias (`.firebaserc`) | Project ID     | Role |
-| --------------------- | -------------- | ---- |
-| `prod` / `default`    | `divit-6d217`  | Production |
-| `beta`                | `divit-beta`   | Testing/staging (mirrors prod) |
+| Alias (`.firebaserc`) | Project ID    | Role                           |
+| --------------------- | ------------- | ------------------------------ |
+| `prod` / `default`    | `divit-6d217` | Production                     |
+| `beta`                | `divit-beta`  | Testing/staging (mirrors prod) |
 
 Both are on Blaze, same Firestore location (`nam5`), and beta has its own
 `GEMINI_API_KEY` secret + web app. The beta web client config lives in a
@@ -659,53 +705,27 @@ gitignored **`.env.beta`** (used by `npm run dev:beta`); regenerate with
 ### Branch → environment mapping
 
 ```
-work on `develop` → CI gates (unit tests + functions build)
-   → push to `develop`  → AUTO-deploys backend to BETA (divit-beta)
-   → merge `develop` → `main` → AUTO-deploys backend to PROD (divit-6d217), NO approval gate
+work on `main` → CI gates (unit tests + functions build)
+   → push to `main` → AUTO-deploys backend to PROD (divit-6d217), NO approval gate
 ```
 
-- **`develop`** = integration branch / what's on beta. **Commit day-to-day work directly to `develop` — do NOT create feature branches.** (Assistants: never `git checkout -b` for routine work; stay on `develop`.)
-- **`main`** = production. Treat "merge to main" as "ship to prod." Promote with a `develop → main` PR or `git merge --ff-only develop`.
+- **`main`** = production **and** the working branch. **Commit day-to-day work directly to `main` — do NOT create feature branches** for routine work.
+- Every push to `main` ships to prod, so make sure the change is verified and CI is green **before** you push.
 - A gate can be added anytime: repo **Settings → Environments → `production` → Required reviewers** (no code change).
 
 ### GitHub Actions (`.github/workflows/`)
 
-- **`ci.yml`** — on every PR + push to `main`/`develop`. Hard gates: **`npm test`** (Vitest) and **functions `tsc` build**. Lint runs but is **non-blocking** (`continue-on-error`) because the repo has pre-existing lint errors; make it a hard gate once those are fixed.
-- **`deploy-backend.yml`** — on push to `develop`/`main` touching backend paths (or manual dispatch). Picks the project by branch and runs `firebase deploy --only functions,firestore,storage --project <beta|prod>`. Deploys via dedicated `github-deployer` service accounts (focused roles), keyed by GitHub secrets **`FIREBASE_SERVICE_ACCOUNT`** (prod) and **`FIREBASE_SERVICE_ACCOUNT_BETA`** (beta). Each deployer SA also has `billing.viewer` on the billing account (the Blaze pre-check needs it).
+- **`ci.yml`** — on every PR + push to `main`. Hard gates: **`npm test`** (Vitest) and **functions `tsc` build**. Lint runs but is **non-blocking** (`continue-on-error`) because the repo has pre-existing lint errors; make it a hard gate once those are fixed.
+- **`deploy-backend.yml`** — on push to `main` touching backend paths (or manual dispatch). Runs `firebase deploy --only functions,firestore,storage --project prod`. Deploys via the dedicated `github-deployer` service account (focused roles), keyed by GitHub secret **`FIREBASE_SERVICE_ACCOUNT`** (prod). The deployer SA also has `billing.viewer` on the billing account (the Blaze pre-check needs it).
 
 ### Testing a backend change
 
-1. Make the change on `develop`; CI runs on push and must pass.
-2. Push to `develop` → it deploys to beta. Test with `npm run dev:beta` (frontend → beta backend), force-run a scheduled function from the GCP Cloud Scheduler console, or call functions directly.
-3. When beta looks good, promote `develop → main` → prod deploys automatically.
-
-### Promoting `develop` → `main` (ship to prod)
-
-Only promote after the change is verified on **beta** and CI is green. Merging to
-`main` auto-deploys to prod with **no approval gate**, so "merge to main" = "ship it."
-
-**Preferred — Pull Request (auditable, re-runs CI):**
-1. Open a PR `develop → main`:
-   ```bash
-   gh pr create --base main --head develop --fill
-   ```
-   (or via the GitHub UI).
-2. Confirm CI passes on the PR and review the diff.
-3. Merge the PR. The push to `main` triggers `deploy-backend.yml` → **prod deploy**.
-
-**Fast-forward from the CLI** (when `develop` is strictly ahead of `main`):
-```bash
-git checkout main
-git pull origin main            # make sure local main is current
-git merge --ff-only develop     # fast-forward main up to develop
-git push origin main            # triggers the prod deploy (no gate)
-git checkout develop            # return to the working branch
-```
-
-Notes:
-- If `--ff-only` fails (branches diverged), rebase `develop` onto `main` or use a normal merge / PR instead of forcing it.
-- After a release, `main` and `develop` point at the same commit; new work moves `develop` ahead again.
-- Never develop directly on `main` — every push there deploys to prod.
+1. Make the change on `main`; CI runs on push and must pass.
+2. (Optional) Deploy to **beta** manually first to sanity-check before prod:
+   `firebase deploy --only functions,firestore,storage --project beta`, then test
+   with `npm run dev:beta` (frontend → beta backend), force-run a scheduled
+   function from the GCP Cloud Scheduler console, or call functions directly.
+3. Push to `main` → prod deploys automatically.
 
 ### Manual deploy (break-glass only)
 
@@ -713,7 +733,7 @@ Notes:
 firebase deploy --only functions,firestore,storage --project beta   # or prod
 ```
 
-Prefer the GitHub Action — local `firebase deploy` ships your *local* tree and reintroduces prod-vs-git drift. Use manual only when CI is unavailable.
+Prefer the GitHub Action — local `firebase deploy` ships your _local_ tree and reintroduces prod-vs-git drift. Use manual only when CI is unavailable.
 
 ### Gotchas
 
@@ -768,6 +788,7 @@ functions/src/             # Firebase Cloud Functions
 ## Important Notes
 
 ### General
+
 - **Mobile breakpoint**: 768px (defined in `use-mobile.tsx`)
 - **Item IDs**: Generated using `item-${Date.now()}` or `person-${Date.now()}`
 - **Firestore undefined**: Never save `undefined` to Firestore - omit the field or use conditional spreading
@@ -775,7 +796,9 @@ functions/src/             # Firebase Cloud Functions
 ### Database Best Practices
 
 **Firestore Writes:**
+
 - **Never save `undefined`**: Firestore throws errors on undefined values. Always omit the field or use conditional spreading:
+
   ```typescript
   // Good
   { name: 'John', ...(venmoId && { venmoId }) }
@@ -783,27 +806,32 @@ functions/src/             # Firebase Cloud Functions
   // Bad
   { name: 'John', venmoId: undefined }
   ```
+
 - **Use `merge: true`**: When updating user documents, use `setDoc(ref, data, { merge: true })` to avoid overwriting
 - **Use `arrayUnion`**: For adding items to arrays without duplicates (friends, members)
 - **Use `serverTimestamp()`**: For consistent timestamps across clients
 
 **Real-time Listeners:**
+
 - Always unsubscribe in cleanup functions to prevent memory leaks
 - Handle loading and error states for better UX
 - Use `onSnapshot` for real-time updates, `getDoc`/`getDocs` for one-time reads
 
 **Queries:**
+
 - Composite indexes required for multi-field queries (configured in `firestore.indexes.json`)
 - Order of `where()` clauses matters for index creation
 - `orderBy` field must also have a `where` clause or be in index
 
 **Data Modeling:**
+
 - **Squads**: Stored as array in user document (not subcollection) for atomic updates
 - **Friends**: Stored as array in user document (simple, no need for subcollection)
 - **Bills**: Top-level collection (enables sharing, better security rules, independent lifecycle)
 - **Members array**: Enables granular access control via security rules
 
 ### Bill Management
+
 - **Bill state can be null**: Always check `billData` before accessing properties. Bill is created on first item add OR receipt upload.
 - **Auto-save**: All bill changes automatically sync to Firestore via `useBillSession` hook
 - **Active session**: Only one bill is "active" at a time; creating a new bill archives the current one
@@ -811,11 +839,13 @@ functions/src/             # Firebase Cloud Functions
 - **Real-time sync**: `useBillSession` debounces updates to avoid excessive Firestore writes
 
 ### Settings Page
+
 - **Card-based UI**: Settings page uses tabbed card layout (Profile, Friends, Squads)
 - **Auth required**: Settings page shows sign-in prompt when user is not authenticated
 - **Three tabs**: Profile (Venmo ID), Friends (manage friends list), Squads (manage saved groups)
 
 ### Navigation
+
 - **AuthButton**: Shows only "Settings" option in dropdown (other options removed as of recent commit)
 - **Dashboard**: Primary hub for creating and managing bills
 - **Landing page**: Enhanced with new animations, parallax gradients, and feature showcases
