@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { UserCircle, Users, History, Shield, Repeat } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettingsCard } from '@/components/profile/ProfileSettingsCard';
 import { ManageFriendsCard } from '@/components/profile/ManageFriendsCard';
@@ -22,24 +21,19 @@ export default function SettingsView() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 w-full">
         <TabsList className="shrink-0 grid w-full grid-cols-5">
-          <TabsTrigger value="profile" className="gap-1 text-xs md:gap-2 md:text-sm">
-            <UserCircle className="w-3 h-3 md:w-4 md:h-4" />
+          <TabsTrigger value="profile" className="text-xs md:text-sm">
             <span>Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="friends" className="gap-1 text-xs md:gap-2 md:text-sm">
-            <Users className="w-3 h-3 md:w-4 md:h-4" />
+          <TabsTrigger value="friends" className="text-xs md:text-sm">
             <span>Friends</span>
           </TabsTrigger>
-          <TabsTrigger value="history" className="gap-1 text-xs md:gap-2 md:text-sm">
-            <History className="w-3 h-3 md:w-4 md:h-4" />
+          <TabsTrigger value="history" className="text-xs md:text-sm">
             <span>History</span>
           </TabsTrigger>
-          <TabsTrigger value="squads" className="gap-1 text-xs md:gap-2 md:text-sm">
-            <Shield className="w-3 h-3 md:w-4 md:h-4" />
+          <TabsTrigger value="squads" className="text-xs md:text-sm">
             <span>Squads</span>
           </TabsTrigger>
-          <TabsTrigger value="recurring" className="gap-1 text-xs md:gap-2 md:text-sm">
-            <Repeat className="w-3 h-3 md:w-4 md:h-4" />
+          <TabsTrigger value="recurring" className="text-xs md:text-sm">
             <span>Recurring</span>
           </TabsTrigger>
         </TabsList>
