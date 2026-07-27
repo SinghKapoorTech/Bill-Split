@@ -4,7 +4,6 @@ import { ProfileSettingsCard } from '@/components/profile/ProfileSettingsCard';
 import { ManageFriendsCard } from '@/components/profile/ManageFriendsCard';
 import { SettlementHistoryCard } from '@/components/settings/SettlementHistoryCard';
 import { SquadsSettingsCard } from '@/components/settings/SquadsSettingsCard';
-import { RecurringBillsSettingsCard } from '@/components/settings/RecurringBillsSettingsCard';
 import { layout } from '@/lib/styles';
 import { useLocation } from 'react-router-dom';
 
@@ -20,7 +19,7 @@ export default function SettingsView() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 w-full">
-        <TabsList className="shrink-0 grid w-full grid-cols-5">
+        <TabsList className="shrink-0 grid w-full grid-cols-4">
           <TabsTrigger value="profile" className="text-xs md:text-sm">
             <span>Profile</span>
           </TabsTrigger>
@@ -32,9 +31,6 @@ export default function SettingsView() {
           </TabsTrigger>
           <TabsTrigger value="squads" className="text-xs md:text-sm">
             <span>Squads</span>
-          </TabsTrigger>
-          <TabsTrigger value="recurring" className="text-xs md:text-sm">
-            <span>Recurring</span>
           </TabsTrigger>
         </TabsList>
 
@@ -52,10 +48,6 @@ export default function SettingsView() {
 
         <TabsContent value="squads" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
           <SquadsSettingsCard />
-        </TabsContent>
-
-        <TabsContent value="recurring" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
-          <RecurringBillsSettingsCard />
         </TabsContent>
       </Tabs>
     </div>
