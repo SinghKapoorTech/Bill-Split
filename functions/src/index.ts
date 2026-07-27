@@ -6,6 +6,8 @@
  */
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { logger } from 'firebase-functions';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { defineSecret } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
@@ -500,6 +502,71 @@ export const reconcileEventFootprints = onCall(
     }
     const { reconcileOrphanedEventFootprints } = await import('./migrations/reconcileOrphanedEventFootprints.js');
     return reconcileOrphanedEventFootprints(getFirestore());
+  }
+);
+
+/**
+ * Maintainer accounts allowed to run the ledger reconciliation on demand.
+ * These are the two owner UIDs; keep in sync if maintainers change.
+ */
+const ADMIN_UIDS = [
+  'RrGSa7ixSSRhUlieYzDQNnExAjx1', // maintainer account (Aakaash)
+  'e5do2UHqO2W9M8If4rmfTKiK3VV2', // maintainer account
+] as const;
+
+/**
+ * Cloud Function: Ledger reconciliation (admin, on demand).
+ *
+ * Rebuilds `balances` and `event_balances` from the source-of-truth bills,
+ * repairing accumulated delta-drift, backfilling anchors, and removing junk
+ * docs. Admin-guarded: caller's uid must be in ADMIN_UIDS. Defaults to a dry
+ * run (report-only); pass { dryRun: false } to apply. Optional { uidFilter }
+ * restricts writes to docs whose participants intersect the given UIDs.
+ */
+export const reconcileLedger = onCall<{ dryRun?: boolean; uidFilter?: string[] }>(
+  { timeoutSeconds: 300, memory: '512MiB' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
+    if (!ADMIN_UIDS.includes(request.auth.uid as (typeof ADMIN_UIDS)[number])) {
+      throw new HttpsError('permission-denied', 'Not authorized to run ledger reconciliation');
+    }
+    const { reconcileLedgerCore } = await import('./reconciliation/reconcileLedger.js');
+    const dryRun = request.data?.dryRun ?? true;
+    const uidFilter = request.data?.uidFilter;
+    return reconcileLedgerCore(getFirestore(), { dryRun, ...(uidFilter && { uidFilter }) });
+  }
+);
+
+/**
+ * Cloud Function: Scheduled ledger drift report (daily, report-only).
+ *
+ * Runs reconcileLedgerCore in dry-run mode every day and logs the drift report.
+ * NEVER auto-writes — surfacing drift is a signal to run reconcileLedger
+ * (dryRun:false) manually after review.
+ */
+export const scheduledLedgerReconcile = onSchedule(
+  { schedule: 'every 24 hours', timeoutSeconds: 300, memory: '512MiB' },
+  async () => {
+    // NOTE: reconcileLedgerCore reads the full bills/users/events/balances/event_balances
+    // collections into memory. This is acceptable at current data size but is a known
+    // scaling ceiling — revisit if any of those collections grow large.
+    try {
+      const { reconcileLedgerCore } = await import('./reconciliation/reconcileLedger.js');
+      const report = await reconcileLedgerCore(getFirestore(), { dryRun: true });
+      logger.info('scheduledLedgerReconcile drift report', {
+        scanned: report.scanned,
+        wouldPatch: report.patched,
+        wouldZero: report.zeroed,
+        wouldDelete: report.deleted,
+        wouldStampBills: report.billsStamped,
+      });
+    } catch (err) {
+      logger.error('scheduledLedgerReconcile failed', { error: String(err) });
+      // Swallow — a failed dry-run report must not surface as a scheduler error
+      // and trigger unnecessary retry/alert-spam.
+    }
   }
 );
 

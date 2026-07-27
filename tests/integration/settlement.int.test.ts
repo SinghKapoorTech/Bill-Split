@@ -5,6 +5,7 @@ import { writeBill, updateBill, withBillTriggers } from './helpers/triggerLoop';
 import { processSettlementCore } from '../../functions/src/settlementProcessor';
 import { processEventSettlementCore } from '../../functions/src/eventSettlementProcessor';
 import { processSettlementReversalCore } from '../../functions/src/settlementReversal';
+import { isBalanceSettledConsistent } from '../../shared/ledgerCalculations';
 
 const ALICE = 'alice';
 const BOB = 'bob';
@@ -207,6 +208,33 @@ describe('settlement flows', () => {
     expect(settlement!.fromUserId).toBe(ALICE);          // debtor of the settled bill
     expect(settlement!.toUserId).toBe(BOB);              // creditor of the settled bill
     expect((await getDoc('balances', PAIR_ID))!.balance).toBeCloseTo(30, 2); // b1..b3 remain
+  });
+
+  it('post-settlement pair balance satisfies the ledger invariant (near-zero balance and empty unsettledBillIds)', async () => {
+    // Single-bill scenario: only b1 (bob owes 12 to alice). Settle globally.
+    await clearFirestore();
+    const singleBill = makeBill({
+      ownerId: ALICE,
+      people: [{ uid: ALICE, name: 'Alice' }, { uid: BOB, name: 'Bob' }],
+      items: [{ name: 'Meal', price: 24 }],
+      itemAssignments: { 'item-1': ['user-alice', 'user-bob'] },
+    });
+    await writeBill('b1', singleBill);
+
+    const bal = await getDoc('balances', PAIR_ID);
+    expect(bal!.balance).toBeCloseTo(12, 2);
+
+    await withBillTriggers(() =>
+      processSettlementCore(ALICE, { friendUserId: BOB })
+    );
+
+    const settledBal = await getDoc('balances', PAIR_ID);
+    const resultingBalance: number = settledBal!.balance;
+    const unsettledBillIds: string[] = settledBal!.unsettledBillIds ?? [];
+
+    expect(isBalanceSettledConsistent(resultingBalance, unsettledBillIds)).toBe(true);
+    expect(resultingBalance).toBeCloseTo(0, 2);
+    expect(unsettledBillIds).toEqual([]);
   });
 
   it('reversing a global settlement restores both ledgers', async () => {
