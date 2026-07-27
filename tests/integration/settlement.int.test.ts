@@ -23,17 +23,23 @@ function bill(price: number, eventId?: string, paidById?: string) {
     ownerId: ALICE,
     ...(eventId && { eventId }),
     ...(paidById && { paidById }),
-    people: [{ uid: ALICE, name: 'Alice' }, { uid: BOB, name: 'Bob' }],
+    people: [
+      { uid: ALICE, name: 'Alice' },
+      { uid: BOB, name: 'Bob' },
+    ],
     items: [{ name: 'Meal', price }],
     itemAssignments: { 'item-1': ['user-alice', 'user-bob'] },
   });
 }
 
 async function seedThreeBills() {
-  await db.collection('events').doc(EVENT_ID).set(makeEvent({ ownerId: ALICE, memberIds: [ALICE, BOB] }));
-  await writeBill('b1', bill(24));            // bob owes 12
-  await writeBill('b2', bill(16));            // bob owes 8
-  await writeBill('b3', bill(20, EVENT_ID));  // bob owes 10
+  await db
+    .collection('events')
+    .doc(EVENT_ID)
+    .set(makeEvent({ ownerId: ALICE, memberIds: [ALICE, BOB] }));
+  await writeBill('b1', bill(24)); // bob owes 12
+  await writeBill('b2', bill(16)); // bob owes 8
+  await writeBill('b3', bill(20, EVENT_ID)); // bob owes 10
 }
 
 describe('settlement flows', () => {
@@ -47,7 +53,7 @@ describe('settlement flows', () => {
 
   it('global settlement zeros the balance, records it, and flows through to event pairs', async () => {
     const result = await withBillTriggers(() =>
-      processSettlementCore(ALICE, { friendUserId: BOB })
+      processSettlementCore(ALICE, { friendUserId: BOB }),
     );
 
     expect(result.amountSettled).toBeCloseTo(30, 2);
@@ -62,8 +68,8 @@ describe('settlement flows', () => {
     expect(eventBal!.balance).toBeCloseTo(0, 2);
 
     const settlement = await getDoc('settlements', result.settlementId);
-    expect(settlement!.fromUserId).toBe(BOB);            // debtor
-    expect(settlement!.toUserId).toBe(ALICE);            // creditor
+    expect(settlement!.fromUserId).toBe(BOB); // debtor
+    expect(settlement!.toUserId).toBe(ALICE); // creditor
     expect(settlement!.amount).toBeCloseTo(30, 2);
     expect(settlement!.settledBillIds).toEqual(expect.arrayContaining(['b1', 'b2', 'b3']));
 
@@ -75,7 +81,7 @@ describe('settlement flows', () => {
 
   it('event settlement settles only event bills and flows through to the global balance', async () => {
     const result = await withBillTriggers(() =>
-      processEventSettlementCore(ALICE, { eventId: EVENT_ID, friendUserId: BOB })
+      processEventSettlementCore(ALICE, { eventId: EVENT_ID, friendUserId: BOB }),
     );
 
     expect(result.amountSettled).toBeCloseTo(10, 2);
@@ -98,13 +104,13 @@ describe('settlement flows', () => {
     expect(settlement!.eventId).toBe(EVENT_ID);
   });
 
-  it('event settlement with offsetting bills settles each bill\'s own debtor (not an arbitrary one)', async () => {
+  it("event settlement with offsetting bills settles each bill's own debtor (not an arbitrary one)", async () => {
     // b3: alice paid, bob owes 10. b4: bob paid, alice owes 10 → event pair balance 0.
     await writeBill('b4', bill(20, EVENT_ID, BOB));
     expect((await getDoc('event_balances', EVENT_PAIR_ID))!.balance).toBeCloseTo(0, 2);
 
     await withBillTriggers(() =>
-      processEventSettlementCore(ALICE, { eventId: EVENT_ID, friendUserId: BOB })
+      processEventSettlementCore(ALICE, { eventId: EVENT_ID, friendUserId: BOB }),
     );
 
     // Each bill settles ITS debtor: bob on b3 (alice paid), alice on b4 (bob paid).
@@ -127,9 +133,9 @@ describe('settlement flows', () => {
     expect((await getDoc('balances', PAIR_ID))!.balance).toBeCloseTo(25, 2);
 
     const result = await withBillTriggers(() =>
-      processSettlementCore(ALICE, { friendUserId: BOB })
+      processSettlementCore(ALICE, { friendUserId: BOB }),
     );
-    expect(result.amountSettled).toBeCloseTo(25, 2);       // net amount
+    expect(result.amountSettled).toBeCloseTo(25, 2); // net amount
 
     // b5's debtor is ALICE (bob paid) — not the aggregate debtor bob.
     const b5 = (await db.collection('bills').doc('b5').get()).data()!;
@@ -142,7 +148,11 @@ describe('settlement flows', () => {
     await updateBill('b5', {
       billData: {
         items: [{ id: 'item-1', name: 'Meal', price: 20 }],
-        subtotal: 20, tax: 0, tip: 0, total: 20, restaurantName: 'Test Diner',
+        subtotal: 20,
+        tax: 0,
+        tip: 0,
+        total: 20,
+        restaurantName: 'Test Diner',
       },
     });
     expect((await getDoc('balances', PAIR_ID))!.balance).toBeCloseTo(0, 2);
@@ -160,31 +170,34 @@ describe('settlement flows', () => {
     // stay in unsettledBillIds so the pipeline can still reverse it.
     expect(result.billsSettled).toBe(2);
     expect(result.billsSkipped).toBe(1);
-    expect(result.amountSettled).toBeCloseTo(20, 2);     // NOT 30
+    expect(result.amountSettled).toBeCloseTo(20, 2); // NOT 30
 
     const bal = await getDoc('balances', PAIR_ID);
-    expect(bal!.balance).toBeCloseTo(10, 2);             // b3's +10 remains, NOT 0
-    expect(bal!.unsettledBillIds).toEqual(['b3']);        // b1,b2 removed; b3 kept
+    expect(bal!.balance).toBeCloseTo(10, 2); // b3's +10 remains, NOT 0
+    expect(bal!.unsettledBillIds).toEqual(['b3']); // b1,b2 removed; b3 kept
 
     const settlement = await getDoc('settlements', result.settlementId);
-    expect(settlement!.amount).toBeCloseTo(20, 2);        // not overstated
+    expect(settlement!.amount).toBeCloseTo(20, 2); // not overstated
     expect(settlement!.skippedBillIds).toEqual(['b3']);
   });
 
   it('event settlement skips a bill anchored by a third party and keeps its debt', async () => {
-    await writeBill('b4', bill(40, EVENT_ID));            // event: bob owes 20 → pair +30
+    await writeBill('b4', bill(40, EVENT_ID)); // event: bob owes 20 → pair +30
     expect((await getDoc('event_balances', EVENT_PAIR_ID))!.balance).toBeCloseTo(30, 2);
 
     await db.collection('bills').doc('b4').update({ paidById: 'carol' });
 
-    const result = await processEventSettlementCore(ALICE, { eventId: EVENT_ID, friendUserId: BOB });
+    const result = await processEventSettlementCore(ALICE, {
+      eventId: EVENT_ID,
+      friendUserId: BOB,
+    });
 
-    expect(result.billsSettled).toBe(1);                 // b3
-    expect(result.billsSkipped).toBe(1);                 // b4
-    expect(result.amountSettled).toBeCloseTo(10, 2);     // NOT 30
+    expect(result.billsSettled).toBe(1); // b3
+    expect(result.billsSkipped).toBe(1); // b4
+    expect(result.amountSettled).toBeCloseTo(10, 2); // NOT 30
 
     const eventBal = await getDoc('event_balances', EVENT_PAIR_ID);
-    expect(eventBal!.balance).toBeCloseTo(20, 2);        // b4's +20 remains, NOT 0
+    expect(eventBal!.balance).toBeCloseTo(20, 2); // b4's +20 remains, NOT 0
     expect(eventBal!.unsettledBillIds).toEqual(['b4']);
   });
 
@@ -199,14 +212,14 @@ describe('settlement flows', () => {
     }
 
     const result = await processSettlementCore(ALICE, { friendUserId: BOB });
-    expect(result.billsSettled).toBe(1);                 // only b5
+    expect(result.billsSettled).toBe(1); // only b5
     expect(result.amountSettled).toBeCloseTo(15, 2);
 
     // The settled money moved alice → bob (bob paid b5). The immutable record
     // must reflect THAT, not the aggregate sign (which points bob → alice).
     const settlement = await getDoc('settlements', result.settlementId);
-    expect(settlement!.fromUserId).toBe(ALICE);          // debtor of the settled bill
-    expect(settlement!.toUserId).toBe(BOB);              // creditor of the settled bill
+    expect(settlement!.fromUserId).toBe(ALICE); // debtor of the settled bill
+    expect(settlement!.toUserId).toBe(BOB); // creditor of the settled bill
     expect((await getDoc('balances', PAIR_ID))!.balance).toBeCloseTo(30, 2); // b1..b3 remain
   });
 
@@ -215,7 +228,10 @@ describe('settlement flows', () => {
     await clearFirestore();
     const singleBill = makeBill({
       ownerId: ALICE,
-      people: [{ uid: ALICE, name: 'Alice' }, { uid: BOB, name: 'Bob' }],
+      people: [
+        { uid: ALICE, name: 'Alice' },
+        { uid: BOB, name: 'Bob' },
+      ],
       items: [{ name: 'Meal', price: 24 }],
       itemAssignments: { 'item-1': ['user-alice', 'user-bob'] },
     });
@@ -224,9 +240,7 @@ describe('settlement flows', () => {
     const bal = await getDoc('balances', PAIR_ID);
     expect(bal!.balance).toBeCloseTo(12, 2);
 
-    await withBillTriggers(() =>
-      processSettlementCore(ALICE, { friendUserId: BOB })
-    );
+    await withBillTriggers(() => processSettlementCore(ALICE, { friendUserId: BOB }));
 
     const settledBal = await getDoc('balances', PAIR_ID);
     const resultingBalance: number = settledBal!.balance;
@@ -239,12 +253,12 @@ describe('settlement flows', () => {
 
   it('reversing a global settlement restores both ledgers', async () => {
     const settled = await withBillTriggers(() =>
-      processSettlementCore(ALICE, { friendUserId: BOB })
+      processSettlementCore(ALICE, { friendUserId: BOB }),
     );
     expect((await getDoc('balances', PAIR_ID))!.balance).toBeCloseTo(0, 2);
 
     const reversed = await withBillTriggers(() =>
-      processSettlementReversalCore(ALICE, { settlementId: settled.settlementId })
+      processSettlementReversalCore(ALICE, { settlementId: settled.settlementId }),
     );
     expect(reversed.reversed).toBe(true);
     expect(reversed.billsReversed).toBe(3);
@@ -260,5 +274,49 @@ describe('settlement flows', () => {
       const b = (await db.collection('bills').doc(id).get()).data()!;
       expect(b.settledPersonIds ?? []).not.toContain('user-bob');
     }
+  });
+});
+
+// ── Reversal must not depend on mutable bill state ────────────────────────
+// Regression: settlementReversal derived the debtor from the bill's CURRENT
+// paidById and silently fell back to `toUserId` (the creditor) when that
+// anchor matched neither party. Editing who paid between settle and reverse
+// therefore un-settled nobody, flagged the creditor as unsettled, and deleted
+// the settlement record — permanently erasing the debt.
+describe('settlement reversal — resilient to payer edits', () => {
+  beforeEach(async () => {
+    await clearFirestore();
+    await writeBill('r1', bill(24)); // bob owes alice 12
+  });
+
+  it('un-settles the debtor even after the payer was corrected', async () => {
+    const settled = await withBillTriggers(() =>
+      processSettlementCore(ALICE, { friendUserId: BOB }),
+    );
+    expect((await getDoc('balances', PAIR_ID))!.balance).toBeCloseTo(0, 2);
+    expect((await getDoc('bills', 'r1'))!.settledPersonIds).toContain('user-bob');
+
+    // Someone corrects the record: a third party actually fronted this bill.
+    await db.collection('bills').doc('r1').update({ paidById: 'carol' });
+
+    const reversed = await withBillTriggers(() =>
+      processSettlementReversalCore(ALICE, { settlementId: settled.settlementId }),
+    );
+
+    const b = (await getDoc('bills', 'r1'))!;
+    expect(b.settledPersonIds ?? []).not.toContain('user-bob');
+    expect(b.unsettledParticipantIds ?? []).not.toContain(ALICE);
+    expect(reversed.billsReversed).toBe(1);
+  });
+
+  it('reports billsReversed exactly once per bill', async () => {
+    await writeBill('r2', bill(16));
+    const settled = await withBillTriggers(() =>
+      processSettlementCore(ALICE, { friendUserId: BOB }),
+    );
+    const reversed = await withBillTriggers(() =>
+      processSettlementReversalCore(ALICE, { settlementId: settled.settlementId }),
+    );
+    expect(reversed.billsReversed).toBe(2);
   });
 });

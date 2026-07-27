@@ -2,26 +2,49 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow authenticated users to upload/read their own receipts
-    match /receipts/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
     }
 
-    // Allow authenticated users to upload/read profile photos
+    // Cost control: cap upload size. Only valid for create/update — a delete
+    // carries no `request.resource`, so delete is granted separately below.
+    // (In Storage rules `write` covers create+update+delete, so a size check
+    // on `write` silently blocks every deletion.)
+    function isUnderSizeLimit() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+
+    function isImage() {
+      return request.resource.contentType != null
+             && request.resource.contentType.matches('image/.*');
+    }
+
+    // Receipts — always images (camera / image picker), owner-scoped.
+    match /receipts/{userId}/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isUnderSizeLimit() && isImage();
+      allow delete: if isOwner(userId);
+    }
+
+    // Profile photos — images; readable by any signed-in user so friends see avatars.
     match /profile-photos/{userId}/{allPaths=**} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if isOwner(userId) && isUnderSizeLimit() && isImage();
+      allow delete: if isOwner(userId);
     }
 
-    // Allow authenticated users to upload feedback screenshots
+    // Feedback attachments — users may legitimately attach non-image
+    // diagnostics, so only the size cap applies here.
     match /feedback/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isUnderSizeLimit();
+      allow delete: if isOwner(userId);
     }
 
-    // Allow anyone to read/write collaborative session receipts
-    // This is needed for anonymous users and shared sessions
-    match /receipts/collaborative/{allPaths=**} {
-      allow read, write: if true;
-    }
+    // NOTE: /receipts/collaborative/** previously allowed unauthenticated read
+    // AND write to anyone on the internet (unbounded uploads, arbitrary content
+    // types, free hosting on the app's own domain). Nothing in src/ reads or
+    // writes that path — the live paths are the three above — so the rule was
+    // dead config and has been removed rather than narrowed.
   }
 }

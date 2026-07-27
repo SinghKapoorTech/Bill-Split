@@ -22,7 +22,7 @@ import {
 } from '@/types/recurring.types';
 import { Person } from '@/types/person.types';
 import { BillData } from '@/types/bill.types';
-import { firstRunDate } from '@shared/recurringSchedule';
+import { firstRunDate, nextRunDateAfterEdit } from '@shared/recurringSchedule';
 
 const COLLECTION = 'recurring_bills';
 
@@ -36,7 +36,7 @@ async function triggerImmediateGeneration(recurringBillId: string): Promise<void
   try {
     const fn = httpsCallable<{ recurringBillId: string }, { created: number }>(
       functions,
-      'generateRecurringBillNow'
+      'generateRecurringBillNow',
     );
     await fn({ recurringBillId });
   } catch (err) {
@@ -76,7 +76,7 @@ export interface RecurringBillInput {
  * Strips `undefined` (Firestore rejects it) via conditional inclusion.
  */
 function buildWritableData(params: RecurringBillInput): Record<string, unknown> {
-  const cleanPeople = params.people.map(p => {
+  const cleanPeople = params.people.map((p) => {
     const clean: Record<string, unknown> = { id: p.id, name: p.name };
     if (p.venmoId) clean.venmoId = p.venmoId;
     return clean;
@@ -87,7 +87,8 @@ function buildWritableData(params: RecurringBillInput): Record<string, unknown> 
     startDate: params.schedule.startDate,
   };
   if (params.schedule.dayOfWeek !== undefined) cleanSchedule.dayOfWeek = params.schedule.dayOfWeek;
-  if (params.schedule.dayOfMonth !== undefined) cleanSchedule.dayOfMonth = params.schedule.dayOfMonth;
+  if (params.schedule.dayOfMonth !== undefined)
+    cleanSchedule.dayOfMonth = params.schedule.dayOfMonth;
   if (params.schedule.endDate) cleanSchedule.endDate = params.schedule.endDate;
 
   const data: Record<string, unknown> = {
@@ -139,9 +140,20 @@ export const recurringBillService = {
    * preserves createdAt/status/generatedBillIds.
    */
   async updateRecurringBillFromInput(id: string, params: RecurringBillInput): Promise<void> {
-    await updateDoc(doc(db, COLLECTION, id), {
+    const ref = doc(db, COLLECTION, id);
+
+    // The new nextRunDate must be clamped past what has already been generated.
+    // computeNextRunDate() re-anchors to the template's ORIGINAL startDate, and
+    // the generator keys idempotency on recurringCycleDate — so under a changed
+    // schedule every historical cycle looks new and is regenerated as real debt.
+    const existing = await getDoc(ref);
+    const lastRunDate = existing.exists()
+      ? ((existing.data() as RecurringBill).lastRunDate ?? null)
+      : null;
+
+    await updateDoc(ref, {
       ...buildWritableData(params),
-      nextRunDate: computeNextRunDate(params.schedule),
+      nextRunDate: nextRunDateAfterEdit(params.schedule, lastRunDate),
       updatedAt: serverTimestamp(),
     });
     await triggerImmediateGeneration(id);
@@ -156,32 +168,32 @@ export const recurringBillService = {
     const q = query(
       collection(db, COLLECTION),
       where('ownerId', '==', userId),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
     );
     const snap = await getDocs(q);
-    return snap.docs.map(d => d.data() as RecurringBill);
+    return snap.docs.map((d) => d.data() as RecurringBill);
   },
 
   subscribeToUserRecurringBills(
     userId: string,
     onData: (bills: RecurringBill[]) => void,
-    onError?: (error: Error) => void
+    onError?: (error: Error) => void,
   ): Unsubscribe {
     const q = query(
       collection(db, COLLECTION),
       where('ownerId', '==', userId),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
     );
     return onSnapshot(
       q,
-      (snap) => onData(snap.docs.map(d => d.data() as RecurringBill)),
-      (err) => onError?.(err)
+      (snap) => onData(snap.docs.map((d) => d.data() as RecurringBill)),
+      (err) => onError?.(err),
     );
   },
 
   async updateRecurringBill(
     id: string,
-    updates: Partial<Omit<RecurringBill, 'id' | 'createdAt'>>
+    updates: Partial<Omit<RecurringBill, 'id' | 'createdAt'>>,
   ): Promise<void> {
     await updateDoc(doc(db, COLLECTION, id), {
       ...updates,

@@ -47,7 +47,8 @@ export function firstRunDate(schedule: RecurringScheduleConfig): string {
       return fmt(new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), candidateDay)));
     }
     // Otherwise roll to next month.
-    const nextYear = start.getUTCMonth() === 11 ? start.getUTCFullYear() + 1 : start.getUTCFullYear();
+    const nextYear =
+      start.getUTCMonth() === 11 ? start.getUTCFullYear() + 1 : start.getUTCFullYear();
     const nextMonth = (start.getUTCMonth() + 1) % 12;
     const nextDay = clampDayOfMonth(nextYear, nextMonth, dom);
     return fmt(new Date(Date.UTC(nextYear, nextMonth, nextDay)));
@@ -68,7 +69,7 @@ export function firstRunDate(schedule: RecurringScheduleConfig): string {
 export function advanceRunDate(
   dateStr: string,
   frequency: RecurringFrequency,
-  dayOfMonth?: number
+  dayOfMonth?: number,
 ): string {
   const d = parse(dateStr);
 
@@ -87,6 +88,39 @@ export function advanceRunDate(
   }
 
   return fmt(d);
+}
+
+/**
+ * The nextRunDate to persist when an EXISTING template is edited.
+ *
+ * Editing must never rewind the generator's cursor into already-generated
+ * history. Using firstRunDate() directly re-anchors to the template's original
+ * startDate; because the generator keys idempotency on `recurringCycleDate`,
+ * every past cycle under the changed schedule looks brand new and is recreated
+ * as real, settleable debt (a monthly template moved from the 1st to the 15th
+ * regenerates its entire history as a parallel series).
+ *
+ * So: start from the new schedule's first occurrence and advance until it is
+ * strictly after `lastRunDate` — the watermark of what has already run. A
+ * template that has never run keeps its full catch-up behaviour.
+ */
+export function nextRunDateAfterEdit(
+  schedule: RecurringScheduleConfig,
+  lastRunDate: string | null | undefined,
+): string {
+  let candidate = firstRunDate(schedule);
+  if (!lastRunDate) return candidate;
+
+  // Bounded: a weekly schedule anchored a century back is ~5.2k cycles. The cap
+  // only exists so malformed input can never spin forever.
+  const MAX_ADVANCES = 10000;
+  for (let i = 0; i < MAX_ADVANCES && candidate <= lastRunDate; i++) {
+    if (schedule.endDate && candidate > schedule.endDate) break;
+    const next = advanceRunDate(candidate, schedule.frequency, schedule.dayOfMonth);
+    if (next <= candidate) break; // defensive: never stall on a non-advancing schedule
+    candidate = next;
+  }
+  return candidate;
 }
 
 /**

@@ -10,6 +10,16 @@ import {
 } from '../../shared/ledgerCalculations.js';
 
 const BILLS_COLLECTION = 'bills';
+
+/**
+ * Normalizes a bill-local person id (`user-<uid>`) to a raw Firebase UID.
+ * Person ids arrive in BOTH shapes depending on how the person was added
+ * (squad, email lookup and event-member paths all produce the prefixed form),
+ * so anything that compares or keys on an identity must normalize first.
+ */
+function toUid(id: string): string {
+  return id.startsWith('user-') ? id.slice(5) : id;
+}
 const FRIEND_BALANCES_COLLECTION = 'balances';
 
 /**
@@ -38,16 +48,20 @@ export interface CreateBillCoreParams {
   itemAssignments?: Record<string, string[]>;
   /** Extra fields merged into the bill document (e.g. recurringBillId). */
   extraFields?: Record<string, unknown>;
+  /**
+   * Explicit document ID. When supplied the bill is written with `create()`,
+   * so a concurrent caller attempting the same ID fails with ALREADY_EXISTS
+   * instead of silently minting a duplicate. Used by recurring generation to
+   * make each (template, cycle) pair unique by construction.
+   */
+  billId?: string;
 }
 
 /**
  * Shared bill creation logic — atomically creates a bill and updates balances.
  * Used by both the createBill onCall handler and the recurring bill processor.
  */
-export async function createBillCore(
-  db: Firestore,
-  params: CreateBillCoreParams
-): Promise<string> {
+export async function createBillCore(db: Firestore, params: CreateBillCoreParams): Promise<string> {
   const {
     billType,
     billData,
@@ -62,12 +76,19 @@ export async function createBillCore(
     isSimpleTransaction = false,
     itemAssignments = {},
     extraFields = {},
+    billId: explicitBillId,
   } = params;
 
-  const billRef = db.collection(BILLS_COLLECTION).doc();
+  const billRef = explicitBillId
+    ? db.collection(BILLS_COLLECTION).doc(explicitBillId)
+    : db.collection(BILLS_COLLECTION).doc();
   const billId = billRef.id;
   const now = Timestamp.now();
-  const creditorId = paidById || ownerId;
+  // Normalize before use: creditorId keys `balances` doc ids and their
+  // `participants` array, so a `user-`-prefixed paidById would mint a corrupt
+  // pair doc (e.g. "user-bob_alice") that the ledger pipeline then refuses to
+  // maintain, silently stranding the debt.
+  const creditorId = toUid(paidById || ownerId);
 
   // Derive participantIds (normalized UIDs)
   const ids = new Set<string>();
@@ -87,7 +108,7 @@ export async function createBillCore(
     itemAssignments,
     billData.tip,
     billData.tax,
-    billData.otherFees ?? 0
+    billData.otherFees ?? 0,
   );
 
   const linkedFriendUids = new Set(participantIds);
@@ -102,14 +123,17 @@ export async function createBillCore(
 
   // Balance docs we'll touch (only friends with a non-trivial amount).
   const footprintEntries = Object.entries(newFootprint).filter(
-    ([, amount]) => Math.abs(amount) >= BALANCE_THRESHOLD
+    ([, amount]) => Math.abs(amount) >= BALANCE_THRESHOLD,
   );
 
   await db.runTransaction(async (tx) => {
     // ── Phase 1: READS ──
     // Firestore requires ALL reads before ANY writes in a transaction, so read
     // every balance doc up front (before writing the bill or the balances).
-    const balanceReads: Record<string, { ref: FirebaseFirestore.DocumentReference; currentBalance: number }> = {};
+    const balanceReads: Record<
+      string,
+      { ref: FirebaseFirestore.DocumentReference; currentBalance: number }
+    > = {};
     for (const [friendId] of footprintEntries) {
       const balanceId = getFriendBalanceId(creditorId, friendId);
       const balanceRef = db.collection(FRIEND_BALANCES_COLLECTION).doc(balanceId);
@@ -138,12 +162,14 @@ export async function createBillCore(
       splitEvenly,
       isSimpleTransaction,
       paidById: creditorId,
-      members: [{
-        userId: ownerId,
-        name: ownerName,
-        joinedAt: now,
-        isAnonymous: false,
-      }],
+      members: [
+        {
+          userId: ownerId,
+          name: ownerName,
+          joinedAt: now,
+          isAnonymous: false,
+        },
+      ],
       createdAt: now,
       updatedAt: now,
       lastActivity: now,
@@ -152,21 +178,31 @@ export async function createBillCore(
       ...extraFields,
     };
 
-    tx.set(billRef, billDoc);
+    // An explicit ID means the caller is relying on key uniqueness for
+    // idempotency — create() rejects a duplicate rather than overwriting it.
+    if (explicitBillId) {
+      tx.create(billRef, billDoc);
+    } else {
+      tx.set(billRef, billDoc);
+    }
 
     // 2. Update balances atomically
     for (const [friendId, amount] of footprintEntries) {
       const { ref, currentBalance } = balanceReads[friendId];
       const deltaSingle = toSingleBalance(creditorId, friendId, amount);
 
-      tx.set(ref, {
-        id: ref.id,
-        participants: [creditorId, friendId].sort(),
-        balance: currentBalance + deltaSingle,
-        unsettledBillIds: FieldValue.arrayUnion(billId),
-        lastUpdatedAt: now,
-        lastBillId: billId,
-      }, { merge: true });
+      tx.set(
+        ref,
+        {
+          id: ref.id,
+          participants: [creditorId, friendId].sort(),
+          balance: currentBalance + deltaSingle,
+          unsettledBillIds: FieldValue.arrayUnion(billId),
+          lastUpdatedAt: now,
+          lastBillId: billId,
+        },
+        { merge: true },
+      );
     }
   });
 
@@ -180,47 +216,81 @@ export const createBill = onCall(
     memory: '256MiB',
   },
   async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'User must be authenticated');
-  }
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated');
+    }
 
-  const {
-    billType,
-    billData,
-    people,
-    ownerId,
-    ownerName,
-    paidById,
-    eventId,
-    squadId,
-    status = 'active',
-  } = request.data;
-
-  if (!billData || !people || !ownerId) {
-    throw new HttpsError('invalid-argument', 'Missing required fields');
-  }
-
-  try {
-    const db = getFirestore();
-    const billId = await createBillCore(db, {
+    const {
       billType,
       billData,
       people,
-      ownerId,
       ownerName,
       paidById,
       eventId,
       squadId,
-      status,
-      splitEvenly: request.data.splitEvenly || false,
-      isSimpleTransaction: request.data.isSimpleTransaction || false,
-    });
-    return { billId };
-  } catch (error) {
-    console.error('Failed to create bill atomically:', error);
-    throw new HttpsError('internal', 'Failed to create bill and update ledger.');
-  }
-});
+      status = 'active',
+    } = request.data;
+
+    // The caller IS the owner — a client-supplied ownerId is never trusted.
+    // createBillCore writes `balances` via the Admin SDK, which bypasses the
+    // "server-only" Firestore rule on that collection, so accepting the client's
+    // ownerId let any signed-in user mint real debt between arbitrary strangers.
+    const ownerId: string = request.auth.uid;
+
+    if (!billData || !people) {
+      throw new HttpsError('invalid-argument', 'Missing required fields');
+    }
+    if (!Array.isArray(people)) {
+      throw new HttpsError('invalid-argument', 'people must be an array');
+    }
+
+      // paidById may legitimately differ from the owner ("someone else paid"), but
+    // it must be someone actually on the bill — otherwise the ledger anchor can be
+    // pointed at a stranger who never agreed to front anything.
+    if (paidById) {
+      const participants = new Set<string>([ownerId]);
+      for (const person of people as Array<{ id?: string }>) {
+        if (person?.id) participants.add(toUid(person.id));
+      }
+      if (!participants.has(toUid(paidById))) {
+        throw new HttpsError('permission-denied', 'paidById must be a participant on this bill');
+      }
+    }
+
+    // Event bills: the caller must actually belong to the event they are filing into.
+    if (eventId) {
+      const eventSnap = await getFirestore().collection('events').doc(eventId).get();
+      if (!eventSnap.exists) {
+        throw new HttpsError('not-found', 'Event not found');
+      }
+      const memberIds: string[] = eventSnap.data()?.memberIds || [];
+      if (!memberIds.includes(ownerId)) {
+        throw new HttpsError('permission-denied', 'Not a member of this event');
+      }
+    }
+
+    try {
+      const db = getFirestore();
+      const billId = await createBillCore(db, {
+        billType,
+        billData,
+        people,
+        ownerId,
+        ownerName,
+        paidById,
+        eventId,
+        squadId,
+        status,
+        splitEvenly: request.data.splitEvenly || false,
+        isSimpleTransaction: request.data.isSimpleTransaction || false,
+      });
+      return { billId };
+    } catch (error) {
+      console.error('Failed to create bill atomically:', error);
+      throw new HttpsError('internal', 'Failed to create bill and update ledger.');
+    }
+  },
+);
 
 export const joinBillAsGuest = onCall(
   {
@@ -262,9 +332,9 @@ export const joinBillAsGuest = onCall(
 
       // Check if authenticated user is already in the bill
       if (callerUid) {
-        const existingPeople: Array<{id: string}> = billData.people || [];
+        const existingPeople: Array<{ id: string }> = billData.people || [];
         const alreadyInBill = existingPeople.some(
-          (p: {id: string}) => p.id === callerUid || p.id === `user-${callerUid}`
+          (p: { id: string }) => p.id === callerUid || p.id === `user-${callerUid}`,
         );
         if (alreadyInBill) {
           return { userId: callerUid };
@@ -282,7 +352,7 @@ export const joinBillAsGuest = onCall(
           name: guestName,
           ...(request.auth?.token?.email ? { email: request.auth.token.email } : {}),
           joinedAt: now,
-          isAnonymous: false
+          isAnonymous: false,
         };
 
         const newPerson = {
@@ -296,7 +366,7 @@ export const joinBillAsGuest = onCall(
           participantIds: FieldValue.arrayUnion(callerUid),
           unsettledParticipantIds: FieldValue.arrayUnion(callerUid),
           updatedAt: now,
-          lastActivity: now
+          lastActivity: now,
         });
       } else {
         // Anonymous guest: create a shadow user
@@ -307,13 +377,14 @@ export const joinBillAsGuest = onCall(
         userId = guestUserId;
 
         // Ensure a reasonable username based on the guest name
-        const username = guestName
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, '-')
-          .replace(/[^a-z0-9-]/g, '')
-          .replace(/-+/g, '-')
-          .replace(/^-|-$/g, '') || 'guest';
+        const username =
+          guestName
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, '-')
+            .replace(/[^a-z0-9-]/g, '')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '') || 'guest';
 
         const guestProfile = {
           uid: guestUserId,
@@ -324,7 +395,7 @@ export const joinBillAsGuest = onCall(
           createdAt: now,
           lastLoginAt: now,
           isShadow: true,
-          createdById: ownerId
+          createdById: ownerId,
         };
 
         tx.set(newGuestDoc, guestProfile);
@@ -333,7 +404,7 @@ export const joinBillAsGuest = onCall(
           userId: guestUserId,
           name: guestName,
           joinedAt: now,
-          isAnonymous: true
+          isAnonymous: true,
         };
 
         const newPerson = {
@@ -347,13 +418,13 @@ export const joinBillAsGuest = onCall(
           participantIds: FieldValue.arrayUnion(guestUserId),
           unsettledParticipantIds: FieldValue.arrayUnion(guestUserId),
           updatedAt: now,
-          lastActivity: now
+          lastActivity: now,
         });
       }
 
       return { userId };
     });
-  }
+  },
 );
 
 export const leaveBillAsGuest = onCall(
@@ -372,7 +443,7 @@ export const leaveBillAsGuest = onCall(
     }
 
     const billRef = db.collection(BILLS_COLLECTION).doc(billId);
-    
+
     await db.runTransaction(async (tx) => {
       const billSnap = await tx.get(billRef);
       if (!billSnap.exists) {
@@ -380,7 +451,7 @@ export const leaveBillAsGuest = onCall(
       }
 
       const billData = billSnap.data()!;
-      
+
       // Validate share code
       if (billData.shareCode !== shareCode) {
         throw new HttpsError('permission-denied', 'Invalid share code');
@@ -401,7 +472,9 @@ export const leaveBillAsGuest = onCall(
 
       // Clean up the bill document (Remove from people, members, itemAssignments)
       const people = billData.people || [];
-      const updatedPeople = people.filter((p: any) => p.id !== shadowUserId && p.id !== `user-${shadowUserId}`);
+      const updatedPeople = people.filter(
+        (p: any) => p.id !== shadowUserId && p.id !== `user-${shadowUserId}`,
+      );
 
       const members = billData.members || [];
       const updatedMembers = members.filter((m: any) => m.userId !== shadowUserId);
@@ -409,9 +482,11 @@ export const leaveBillAsGuest = onCall(
       const itemAssignments = { ...(billData.itemAssignments || {}) };
       let assignmentsChanged = false;
       for (const [itemId, assignees] of Object.entries(itemAssignments)) {
-        const arr = (assignees as string[]);
+        const arr = assignees as string[];
         if (arr.includes(shadowUserId) || arr.includes(`user-${shadowUserId}`)) {
-          itemAssignments[itemId] = arr.filter(id => id !== shadowUserId && id !== `user-${shadowUserId}`);
+          itemAssignments[itemId] = arr.filter(
+            (id) => id !== shadowUserId && id !== `user-${shadowUserId}`,
+          );
           assignmentsChanged = true;
         }
       }
@@ -423,7 +498,7 @@ export const leaveBillAsGuest = onCall(
         participantIds: FieldValue.arrayRemove(shadowUserId),
         unsettledParticipantIds: FieldValue.arrayRemove(shadowUserId),
         updatedAt: now,
-        lastActivity: now
+        lastActivity: now,
       };
 
       if (assignmentsChanged) {
@@ -439,7 +514,7 @@ export const leaveBillAsGuest = onCall(
     });
 
     return { success: true };
-  }
+  },
 );
 
 export const updateGuestName = onCall(
@@ -458,7 +533,7 @@ export const updateGuestName = onCall(
     }
 
     const billRef = db.collection(BILLS_COLLECTION).doc(billId);
-    
+
     await db.runTransaction(async (tx) => {
       const billSnap = await tx.get(billRef);
       if (!billSnap.exists) {
@@ -466,7 +541,7 @@ export const updateGuestName = onCall(
       }
 
       const billData = billSnap.data()!;
-      
+
       // Validate share code
       if (billData.shareCode !== shareCode) {
         throw new HttpsError('permission-denied', 'Invalid share code');
@@ -506,12 +581,12 @@ export const updateGuestName = onCall(
         people: updatedPeople,
         members: updatedMembers,
         updatedAt: Timestamp.now(),
-        lastActivity: Timestamp.now()
+        lastActivity: Timestamp.now(),
       });
     });
 
     return { success: true };
-  }
+  },
 );
 
 export const claimShadowUser = onCall(
@@ -536,17 +611,18 @@ export const claimShadowUser = onCall(
     // 1. Verify shadow user exists and is a shadow user
     const shadowUserRef = db.collection('users').doc(shadowUserId);
     const shadowUserSnap = await shadowUserRef.get();
-    
+
     if (!shadowUserSnap.exists) {
       throw new HttpsError('not-found', 'Shadow user not found');
     }
-    
+
     if (shadowUserSnap.data()?.isShadow !== true) {
       throw new HttpsError('permission-denied', 'Cannot claim a standard user account');
     }
 
     // 2. Find all bills where the shadow user is a participant
-    const billsSnapshot = await db.collection(BILLS_COLLECTION)
+    const billsSnapshot = await db
+      .collection(BILLS_COLLECTION)
       .where('participantIds', 'array-contains', shadowUserId)
       .get();
 
@@ -566,7 +642,9 @@ export const claimShadowUser = onCall(
 
       let unsettledParticipantIds = billData.unsettledParticipantIds || [];
       if (unsettledParticipantIds.includes(shadowUserId)) {
-        unsettledParticipantIds = unsettledParticipantIds.filter((id: string) => id !== shadowUserId);
+        unsettledParticipantIds = unsettledParticipantIds.filter(
+          (id: string) => id !== shadowUserId,
+        );
         if (!unsettledParticipantIds.includes(realUserId)) unsettledParticipantIds.push(realUserId);
       }
 
@@ -617,10 +695,10 @@ export const claimShadowUser = onCall(
       const itemAssignments = { ...(billData.itemAssignments || {}) };
       let assignmentsChanged = false;
       for (const [itemId, assignees] of Object.entries(itemAssignments)) {
-        const arr = (assignees as string[]);
+        const arr = assignees as string[];
         if (arr.includes(shadowUserId) || arr.includes(`user-${shadowUserId}`)) {
           // Remove shadow id, add real id (avoiding duplicates)
-          const newArr = arr.filter(id => id !== shadowUserId && id !== `user-${shadowUserId}`);
+          const newArr = arr.filter((id) => id !== shadowUserId && id !== `user-${shadowUserId}`);
           if (!newArr.includes(realUserId) && !newArr.includes(`user-${realUserId}`)) {
             newArr.push(`user-${realUserId}`); // Use user- prefix for item assignments consistently
           }
@@ -636,7 +714,7 @@ export const claimShadowUser = onCall(
         members: finalMembers,
         people: finalPeople,
         updatedAt: Timestamp.now(),
-        lastActivity: Timestamp.now()
+        lastActivity: Timestamp.now(),
       };
 
       // Handle paidById if the guest was marked as payer
@@ -655,10 +733,10 @@ export const claimShadowUser = onCall(
     batch.delete(shadowUserRef);
 
     // 5. Commit all changes
-    // Firestore batch limits to 500 operations. Highly unlikely a shadow user is on >499 bills, 
+    // Firestore batch limits to 500 operations. Highly unlikely a shadow user is on >499 bills,
     // plus 1 delete = max 499 bills.
     await batch.commit();
 
     return { success: true, claimedBills: billsSnapshot.size };
-  }
+  },
 );

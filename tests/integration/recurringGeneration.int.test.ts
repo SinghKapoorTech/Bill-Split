@@ -14,40 +14,40 @@
  * Dates are fixed and `todayStr` is injected, so nothing here depends on when
  * the suite runs.
  */
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { db, clearFirestore } from "./helpers/env";
-import { makeEvent } from "./helpers/builders";
-import { withBillTriggers, deleteBill } from "./helpers/triggerLoop";
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { db, clearFirestore } from './helpers/env';
+import { makeEvent } from './helpers/builders';
+import { withBillTriggers, deleteBill } from './helpers/triggerLoop';
 import {
   generateDueRecurringBills,
   generateRecurringBillNowCore,
-} from "../../functions/src/recurringBillProcessor";
-import { firstRunDate } from "../../shared/recurringSchedule";
+} from '../../functions/src/recurringBillProcessor';
+import { firstRunDate, nextRunDateAfterEdit } from '../../shared/recurringSchedule';
 
-const ALICE = "alice";
-const BOB = "bob";
-const PAIR_ID = "alice_bob";
+const ALICE = 'alice';
+const BOB = 'bob';
+const PAIR_ID = 'alice_bob';
 
 const PEOPLE = [
-  { id: `user-${ALICE}`, name: "Alice" },
-  { id: `user-${BOB}`, name: "Bob" },
+  { id: `user-${ALICE}`, name: 'Alice' },
+  { id: `user-${BOB}`, name: 'Bob' },
 ];
 
 /** A minimal-valid active template; override any field per test. */
 function makeTemplate(overrides: Record<string, unknown> = {}) {
   return {
-    id: "rec1",
+    id: 'rec1',
     ownerId: ALICE,
-    ownerName: "Alice",
-    title: "Rent",
+    ownerName: 'Alice',
+    title: 'Rent',
     amount: 100,
     paidById: ALICE,
     people: PEOPLE,
     splitEvenly: true,
-    schedule: { frequency: "monthly", dayOfMonth: 1, startDate: "2026-01-01" },
-    status: "active",
-    nextRunDate: "2026-07-01",
-    lastRunDate: "2026-06-01",
+    schedule: { frequency: 'monthly', dayOfMonth: 1, startDate: '2026-01-01' },
+    status: 'active',
+    nextRunDate: '2026-07-01',
+    lastRunDate: '2026-06-01',
     generatedBillIds: [],
     ...overrides,
   };
@@ -56,145 +56,138 @@ function makeTemplate(overrides: Record<string, unknown> = {}) {
 async function seedTemplate(overrides: Record<string, unknown> = {}) {
   const template = makeTemplate(overrides);
   await db
-    .collection("recurring_bills")
+    .collection('recurring_bills')
     .doc(template.id as string)
     .set(template);
   return template;
 }
 
-async function getTemplate(id = "rec1") {
-  return (await db.collection("recurring_bills").doc(id).get()).data()!;
+async function getTemplate(id = 'rec1') {
+  return (await db.collection('recurring_bills').doc(id).get()).data()!;
 }
 
 /** Generated bills for a template, sorted by the cycle they belong to. */
-async function generatedBills(recurringId = "rec1") {
-  const snap = await db
-    .collection("bills")
-    .where("recurringBillId", "==", recurringId)
-    .get();
+async function generatedBills(recurringId = 'rec1') {
+  const snap = await db.collection('bills').where('recurringBillId', '==', recurringId).get();
   return snap.docs
     .map((d) => d.data())
-    .sort((a, b) =>
-      String(a.recurringCycleDate).localeCompare(String(b.recurringCycleDate)),
-    );
+    .sort((a, b) => String(a.recurringCycleDate).localeCompare(String(b.recurringCycleDate)));
 }
 
 async function getBalance(pairId = PAIR_ID) {
-  const snap = await db.collection("balances").doc(pairId).get();
+  const snap = await db.collection('balances').doc(pairId).get();
   return snap.exists ? snap.data()! : null;
 }
 
 // ── Eligibility: which templates a pass picks up ────────────────────────────
 
-describe("recurring generation — template eligibility", () => {
+describe('recurring generation — template eligibility', () => {
   beforeEach(clearFirestore);
 
-  it("skips a paused template even when its next run date has passed", async () => {
-    await seedTemplate({ status: "paused", nextRunDate: "2026-01-01" });
+  it('skips a paused template even when its next run date has passed', async () => {
+    await seedTemplate({ status: 'paused', nextRunDate: '2026-01-01' });
 
-    const result = await generateDueRecurringBills(db, "2026-07-01");
+    const result = await generateDueRecurringBills(db, '2026-07-01');
 
     expect(result).toEqual({ processed: 0, created: 0 });
     expect(await generatedBills()).toHaveLength(0);
     // Paused templates must be left completely untouched, so resuming picks up
     // exactly where it left off.
-    expect((await getTemplate()).nextRunDate).toBe("2026-01-01");
-    expect((await getTemplate()).lastRunDate).toBe("2026-06-01");
+    expect((await getTemplate()).nextRunDate).toBe('2026-01-01');
+    expect((await getTemplate()).lastRunDate).toBe('2026-06-01');
   });
 
-  it("skips a completed template", async () => {
-    await seedTemplate({ status: "completed", nextRunDate: "2026-01-01" });
+  it('skips a completed template', async () => {
+    await seedTemplate({ status: 'completed', nextRunDate: '2026-01-01' });
 
-    expect(await generateDueRecurringBills(db, "2026-07-01")).toEqual({
+    expect(await generateDueRecurringBills(db, '2026-07-01')).toEqual({
       processed: 0,
       created: 0,
     });
     expect(await generatedBills()).toHaveLength(0);
   });
 
-  it("skips a template whose next run date is still in the future", async () => {
+  it('skips a template whose next run date is still in the future', async () => {
     await seedTemplate({
-      nextRunDate: "2026-08-01",
-      lastRunDate: "2026-07-01",
+      nextRunDate: '2026-08-01',
+      lastRunDate: '2026-07-01',
     });
 
-    expect(await generateDueRecurringBills(db, "2026-07-15")).toEqual({
+    expect(await generateDueRecurringBills(db, '2026-07-15')).toEqual({
       processed: 0,
       created: 0,
     });
     expect(await generatedBills()).toHaveLength(0);
-    expect((await getTemplate()).lastRunDate).toBe("2026-07-01"); // bookkeeping untouched
+    expect((await getTemplate()).lastRunDate).toBe('2026-07-01'); // bookkeeping untouched
   });
 });
 
 // ── Catch-up / backfill across missed cycles ────────────────────────────────
 
-describe("recurring generation — catch-up across missed cycles", () => {
+describe('recurring generation — catch-up across missed cycles', () => {
   beforeEach(clearFirestore);
 
-  it("backfills every missed weekly cycle in a single pass and advances the template", async () => {
+  it('backfills every missed weekly cycle in a single pass and advances the template', async () => {
     // 2026-06-01 is a Monday. Never run before (lastRunDate null).
     await seedTemplate({
-      schedule: { frequency: "weekly", dayOfWeek: 1, startDate: "2026-06-01" },
-      nextRunDate: "2026-06-01",
+      schedule: { frequency: 'weekly', dayOfWeek: 1, startDate: '2026-06-01' },
+      nextRunDate: '2026-06-01',
       lastRunDate: null,
     });
 
-    const result = await generateDueRecurringBills(db, "2026-06-22");
+    const result = await generateDueRecurringBills(db, '2026-06-22');
 
     expect(result).toEqual({ processed: 1, created: 4 });
     const bills = await generatedBills();
     expect(bills.map((b) => b.recurringCycleDate)).toEqual([
-      "2026-06-01",
-      "2026-06-08",
-      "2026-06-15",
-      "2026-06-22",
+      '2026-06-01',
+      '2026-06-08',
+      '2026-06-15',
+      '2026-06-22',
     ]);
 
     const template = await getTemplate();
-    expect(template.nextRunDate).toBe("2026-06-29"); // one cycle past the last created
-    expect(template.lastRunDate).toBe("2026-06-22");
-    expect(template.status).toBe("active");
+    expect(template.nextRunDate).toBe('2026-06-29'); // one cycle past the last created
+    expect(template.lastRunDate).toBe('2026-06-22');
+    expect(template.status).toBe('active');
     // Every generated bill is linked back on the template.
     expect(template.generatedBillIds).toHaveLength(4);
-    expect([...template.generatedBillIds].sort()).toEqual(
-      bills.map((b) => b.id).sort(),
-    );
+    expect([...template.generatedBillIds].sort()).toEqual(bills.map((b) => b.id).sort());
   });
 
-  it("anchors a first-ever run to the aligned first occurrence, not a raw unaligned start date", async () => {
+  it('anchors a first-ever run to the aligned first occurrence, not a raw unaligned start date', async () => {
     // Legacy repair path: nextRunDate was seeded to the raw startDate (the 1st)
     // while the schedule actually fires on the 15th. The first run must realign
     // rather than generate an off-schedule bill dated the 1st.
     await seedTemplate({
       schedule: {
-        frequency: "monthly",
+        frequency: 'monthly',
         dayOfMonth: 15,
-        startDate: "2026-05-01",
+        startDate: '2026-05-01',
       },
-      nextRunDate: "2026-05-01",
+      nextRunDate: '2026-05-01',
       lastRunDate: null,
     });
 
-    const result = await generateDueRecurringBills(db, "2026-07-20");
+    const result = await generateDueRecurringBills(db, '2026-07-20');
 
     expect(result.created).toBe(3);
     const cycles = (await generatedBills()).map((b) => b.recurringCycleDate);
-    expect(cycles).toEqual(["2026-05-15", "2026-06-15", "2026-07-15"]);
-    expect(cycles).not.toContain("2026-05-01"); // the unaligned seed never becomes a bill
-    expect((await getTemplate()).nextRunDate).toBe("2026-08-15");
+    expect(cycles).toEqual(['2026-05-15', '2026-06-15', '2026-07-15']);
+    expect(cycles).not.toContain('2026-05-01'); // the unaligned seed never becomes a bill
+    expect((await getTemplate()).nextRunDate).toBe('2026-08-15');
   });
 
-  it("accumulates the ledger once per backfilled cycle", async () => {
+  it('accumulates the ledger once per backfilled cycle', async () => {
     await seedTemplate({
       amount: 100,
       splitEvenly: true,
-      schedule: { frequency: "weekly", dayOfWeek: 1, startDate: "2026-06-01" },
-      nextRunDate: "2026-06-01",
+      schedule: { frequency: 'weekly', dayOfWeek: 1, startDate: '2026-06-01' },
+      nextRunDate: '2026-06-01',
       lastRunDate: null,
     });
 
-    await withBillTriggers(() => generateDueRecurringBills(db, "2026-06-15"));
+    await withBillTriggers(() => generateDueRecurringBills(db, '2026-06-15'));
 
     // 3 cycles × ($100 split 2 ways) → Bob owes Alice 150.
     const balance = await getBalance();
@@ -205,48 +198,48 @@ describe("recurring generation — catch-up across missed cycles", () => {
 
 // ── endDate termination ─────────────────────────────────────────────────────
 
-describe("recurring generation — end date", () => {
+describe('recurring generation — end date', () => {
   beforeEach(clearFirestore);
 
-  it("stops at the end date and marks the template completed", async () => {
+  it('stops at the end date and marks the template completed', async () => {
     await seedTemplate({
       schedule: {
-        frequency: "monthly",
+        frequency: 'monthly',
         dayOfMonth: 1,
-        startDate: "2026-01-01",
-        endDate: "2026-03-01",
+        startDate: '2026-01-01',
+        endDate: '2026-03-01',
       },
-      nextRunDate: "2026-01-01",
+      nextRunDate: '2026-01-01',
       lastRunDate: null,
     });
 
-    const result = await generateDueRecurringBills(db, "2026-06-01");
+    const result = await generateDueRecurringBills(db, '2026-06-01');
 
     // Only the 3 cycles up to and including the end date — not every cycle
     // between the start date and today.
     expect(result.created).toBe(3);
     expect((await generatedBills()).map((b) => b.recurringCycleDate)).toEqual([
-      "2026-01-01",
-      "2026-02-01",
-      "2026-03-01",
+      '2026-01-01',
+      '2026-02-01',
+      '2026-03-01',
     ]);
-    expect((await getTemplate()).status).toBe("completed");
+    expect((await getTemplate()).status).toBe('completed');
   });
 
-  it("does not generate again once the template has completed", async () => {
+  it('does not generate again once the template has completed', async () => {
     await seedTemplate({
       schedule: {
-        frequency: "monthly",
+        frequency: 'monthly',
         dayOfMonth: 1,
-        startDate: "2026-01-01",
-        endDate: "2026-03-01",
+        startDate: '2026-01-01',
+        endDate: '2026-03-01',
       },
-      nextRunDate: "2026-01-01",
+      nextRunDate: '2026-01-01',
       lastRunDate: null,
     });
 
-    await generateDueRecurringBills(db, "2026-06-01");
-    const second = await generateDueRecurringBills(db, "2026-09-01");
+    await generateDueRecurringBills(db, '2026-06-01');
+    const second = await generateDueRecurringBills(db, '2026-09-01');
 
     expect(second).toEqual({ processed: 0, created: 0 }); // status is now 'completed'
     expect(await generatedBills()).toHaveLength(3);
@@ -255,57 +248,57 @@ describe("recurring generation — end date", () => {
 
 // ── Shape of the generated bill, per generatedType ──────────────────────────
 
-describe("recurring generation — generated bill shape", () => {
+describe('recurring generation — generated bill shape', () => {
   beforeEach(clearFirestore);
 
-  it("builds an evenly-split simple transaction from a legacy quick template", async () => {
-    await seedTemplate({ amount: 100, splitEvenly: true, title: "Rent" });
+  it('builds an evenly-split simple transaction from a legacy quick template', async () => {
+    await seedTemplate({ amount: 100, splitEvenly: true, title: 'Rent' });
 
-    await generateDueRecurringBills(db, "2026-07-01");
+    await generateDueRecurringBills(db, '2026-07-01');
 
     const [bill] = await generatedBills();
     expect(bill.billData.items).toHaveLength(1);
-    expect(bill.billData.items[0]).toMatchObject({ name: "Rent", price: 100 });
+    expect(bill.billData.items[0]).toMatchObject({ name: 'Rent', price: 100 });
     expect(bill.billData.total).toBe(100);
-    expect(bill.billData.restaurantName).toBe("Rent");
+    expect(bill.billData.restaurantName).toBe('Rent');
     // The single item is shared by everyone on the template.
     expect(bill.itemAssignments[bill.billData.items[0].id]).toEqual([
       `user-${ALICE}`,
       `user-${BOB}`,
     ]);
     expect(bill.isSimpleTransaction).toBe(true);
-    expect(bill.billType).toBe("private");
+    expect(bill.billType).toBe('private');
     expect(bill.paidById).toBe(ALICE);
-    expect(bill.title).toBe("Rent");
-    expect(bill.recurringBillId).toBe("rec1");
-    expect(bill.recurringCycleDate).toBe("2026-07-01");
+    expect(bill.title).toBe('Rent');
+    expect(bill.recurringBillId).toBe('rec1');
+    expect(bill.recurringCycleDate).toBe('2026-07-01');
   });
 
-  it("copies a detailed template snapshot verbatim instead of rebuilding from amount", async () => {
+  it('copies a detailed template snapshot verbatim instead of rebuilding from amount', async () => {
     const billData = {
       items: [
-        { id: "item-1", name: "Internet", price: 60 },
-        { id: "item-2", name: "Electric", price: 40 },
+        { id: 'item-1', name: 'Internet', price: 60 },
+        { id: 'item-2', name: 'Electric', price: 40 },
       ],
       subtotal: 100,
       tax: 8,
       tip: 0,
       otherFees: 2,
       total: 110,
-      restaurantName: "Utilities",
+      restaurantName: 'Utilities',
     };
     const itemAssignments = {
-      "item-1": [`user-${ALICE}`, `user-${BOB}`],
-      "item-2": [`user-${BOB}`],
+      'item-1': [`user-${ALICE}`, `user-${BOB}`],
+      'item-2': [`user-${BOB}`],
     };
     await seedTemplate({
-      generatedType: "detailed",
+      generatedType: 'detailed',
       amount: 110,
       billData,
       itemAssignments,
     });
 
-    await generateDueRecurringBills(db, "2026-07-01");
+    await generateDueRecurringBills(db, '2026-07-01');
 
     const [bill] = await generatedBills();
     expect(bill.billData).toEqual(billData); // per-item detail preserved
@@ -314,32 +307,32 @@ describe("recurring generation — generated bill shape", () => {
     expect(bill.isAirbnb).toBeUndefined();
   });
 
-  it("carries airbnb stay metadata onto each generated occurrence", async () => {
+  it('carries airbnb stay metadata onto each generated occurrence', async () => {
     const airbnbData = {
-      startDate: "2026-07-01",
-      endDate: "2026-07-05",
+      startDate: '2026-07-01',
+      endDate: '2026-07-05',
       nights: 4,
       totalStayCost: 800,
-      fees: [{ id: "fee-1", name: "Cleaning", amount: 100 }],
+      fees: [{ id: 'fee-1', name: 'Cleaning', amount: 100 }],
     };
     const billData = {
-      items: [{ id: "item-1", name: "Stay", price: 900 }],
+      items: [{ id: 'item-1', name: 'Stay', price: 900 }],
       subtotal: 900,
       tax: 0,
       tip: 0,
       otherFees: 0,
       total: 900,
-      restaurantName: "Tahoe Cabin",
+      restaurantName: 'Tahoe Cabin',
     };
     await seedTemplate({
-      generatedType: "airbnb",
+      generatedType: 'airbnb',
       amount: 900,
       billData,
-      itemAssignments: { "item-1": [`user-${ALICE}`, `user-${BOB}`] },
+      itemAssignments: { 'item-1': [`user-${ALICE}`, `user-${BOB}`] },
       airbnbData,
     });
 
-    await generateDueRecurringBills(db, "2026-07-01");
+    await generateDueRecurringBills(db, '2026-07-01');
 
     const [bill] = await generatedBills();
     expect(bill.isAirbnb).toBe(true);
@@ -351,35 +344,32 @@ describe("recurring generation — generated bill shape", () => {
 
 // ── Downstream usage of generated bills ─────────────────────────────────────
 
-describe("recurring generation — downstream usage", () => {
+describe('recurring generation — downstream usage', () => {
   beforeEach(clearFirestore);
 
-  it("generates event bills that feed the per-pair event ledger", async () => {
+  it('generates event bills that feed the per-pair event ledger', async () => {
     await db
-      .collection("events")
-      .doc("trip1")
+      .collection('events')
+      .doc('trip1')
       .set(makeEvent({ ownerId: ALICE, memberIds: [ALICE, BOB] }));
-    await seedTemplate({ eventId: "trip1", amount: 100, splitEvenly: true });
+    await seedTemplate({ eventId: 'trip1', amount: 100, splitEvenly: true });
 
-    await withBillTriggers(() => generateDueRecurringBills(db, "2026-07-01"));
+    await withBillTriggers(() => generateDueRecurringBills(db, '2026-07-01'));
 
     const [bill] = await generatedBills();
-    expect(bill.billType).toBe("event");
-    expect(bill.eventId).toBe("trip1");
+    expect(bill.billType).toBe('event');
+    expect(bill.eventId).toBe('trip1');
 
     // Flows into both the event-scoped and global friend ledgers.
-    const eventBalance = await db
-      .collection("event_balances")
-      .doc("trip1_alice_bob")
-      .get();
+    const eventBalance = await db.collection('event_balances').doc('trip1_alice_bob').get();
     expect(eventBalance.exists).toBe(true);
     expect(eventBalance.data()!.balance).toBeCloseTo(50, 2);
     expect((await getBalance())!.balance).toBeCloseTo(50, 2);
   });
 
-  it("reverses the ledger when a generated bill is deleted", async () => {
+  it('reverses the ledger when a generated bill is deleted', async () => {
     await seedTemplate({ amount: 100, splitEvenly: true });
-    await withBillTriggers(() => generateDueRecurringBills(db, "2026-07-01"));
+    await withBillTriggers(() => generateDueRecurringBills(db, '2026-07-01'));
     expect((await getBalance())!.balance).toBeCloseTo(50, 2);
 
     const [bill] = await generatedBills();
@@ -394,7 +384,7 @@ describe("recurring generation — downstream usage", () => {
 
 // ── Reported bug: past start date produces no bills on create ───────────────
 
-describe("recurring generation — past start date on create (reported bug)", () => {
+describe('recurring generation — past start date on create (reported bug)', () => {
   beforeEach(clearFirestore);
 
   /**
@@ -404,13 +394,13 @@ describe("recurring generation — past start date on create (reported bug)", ()
    */
   async function seedAsClientWould(startDate: string) {
     const schedule = {
-      frequency: "monthly" as const,
+      frequency: 'monthly' as const,
       dayOfMonth: 1,
       startDate,
     };
     await db
-      .collection("recurring_bills")
-      .doc("rec1")
+      .collection('recurring_bills')
+      .doc('rec1')
       .set(
         makeTemplate({
           schedule,
@@ -422,8 +412,8 @@ describe("recurring generation — past start date on create (reported bug)", ()
       );
   }
 
-  it("writing the template alone creates no bills — generation is a separate step", async () => {
-    await seedAsClientWould("2026-04-01");
+  it('writing the template alone creates no bills — generation is a separate step', async () => {
+    await seedAsClientWould('2026-04-01');
 
     // No generation pass has run. This is the reported symptom: pressing Done
     // persists the template but nothing generates the overdue occurrences.
@@ -432,22 +422,22 @@ describe("recurring generation — past start date on create (reported bug)", ()
     // The template is nonetheless correctly seeded as *due* — its next run is
     // in the past, so any generation pass will pick it up.
     const template = await getTemplate();
-    expect(template.status).toBe("active");
-    expect(template.nextRunDate).toBe("2026-04-01");
-    expect(template.nextRunDate < "2026-07-19").toBe(true);
+    expect(template.status).toBe('active');
+    expect(template.nextRunDate).toBe('2026-04-01');
+    expect(template.nextRunDate < '2026-07-19').toBe(true);
   });
 
-  it("a generation pass backfills every past occurrence — the logic itself is sound", async () => {
-    await seedAsClientWould("2026-04-01");
+  it('a generation pass backfills every past occurrence — the logic itself is sound', async () => {
+    await seedAsClientWould('2026-04-01');
 
-    await withBillTriggers(() => generateDueRecurringBills(db, "2026-07-19"));
+    await withBillTriggers(() => generateDueRecurringBills(db, '2026-07-19'));
 
     // April, May, June, July — every cycle between the past start date and today.
     expect((await generatedBills()).map((b) => b.recurringCycleDate)).toEqual([
-      "2026-04-01",
-      "2026-05-01",
-      "2026-06-01",
-      "2026-07-01",
+      '2026-04-01',
+      '2026-05-01',
+      '2026-06-01',
+      '2026-07-01',
     ]);
     // And the backfill lands on the ledger: 4 × ($100 split 2 ways).
     expect((await getBalance())!.balance).toBeCloseTo(200, 2);
@@ -456,103 +446,201 @@ describe("recurring generation — past start date on create (reported bug)", ()
 
 // ── Fault isolation ─────────────────────────────────────────────────────────
 
-describe("recurring generation — fault isolation", () => {
+describe('recurring generation — fault isolation', () => {
   beforeEach(clearFirestore);
   // The processor logs the failing template; keep the expected noise out of the
   // test output while still asserting it was reported.
-  const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   afterEach(() => errorSpy.mockClear());
 
-  it("keeps processing other templates when one template throws", async () => {
+  it('keeps processing other templates when one template throws', async () => {
     // Malformed: no schedule at all, so the first-run anchoring throws.
     await db
-      .collection("recurring_bills")
-      .doc("rec-broken")
-      .set(
-        makeTemplate({ id: "rec-broken", schedule: null, lastRunDate: null }),
-      );
-    await seedTemplate({ id: "rec-good" });
+      .collection('recurring_bills')
+      .doc('rec-broken')
+      .set(makeTemplate({ id: 'rec-broken', schedule: null, lastRunDate: null }));
+    await seedTemplate({ id: 'rec-good' });
 
-    const result = await generateDueRecurringBills(db, "2026-07-01");
+    const result = await generateDueRecurringBills(db, '2026-07-01');
 
     expect(result.processed).toBe(2);
     expect(result.created).toBe(1); // the healthy template still ran
-    expect(await generatedBills("rec-good")).toHaveLength(1);
-    expect(await generatedBills("rec-broken")).toHaveLength(0);
+    expect(await generatedBills('rec-good')).toHaveLength(1);
+    expect(await generatedBills('rec-broken')).toHaveLength(0);
     expect(errorSpy).toHaveBeenCalled(); // failure was surfaced, not swallowed silently
   });
 });
 
 // ── The fix: immediate generation on create/edit ────────────────────────────
 
-describe("recurring generation — generateRecurringBillNowCore (create/edit path)", () => {
+describe('recurring generation — generateRecurringBillNowCore (create/edit path)', () => {
   beforeEach(clearFirestore);
 
   /** Seeds a template exactly as recurringBillService.createRecurringBill() does. */
   async function seedAsClientWould(startDate: string, overrides = {}) {
-    const schedule = { frequency: "monthly" as const, dayOfMonth: 1, startDate };
-    await db.collection("recurring_bills").doc("rec1").set(
-      makeTemplate({
-        schedule,
-        nextRunDate: firstRunDate(schedule),
-        lastRunDate: null,
-        amount: 100,
-        splitEvenly: true,
-        ...overrides,
-      })
-    );
+    const schedule = { frequency: 'monthly' as const, dayOfMonth: 1, startDate };
+    await db
+      .collection('recurring_bills')
+      .doc('rec1')
+      .set(
+        makeTemplate({
+          schedule,
+          nextRunDate: firstRunDate(schedule),
+          lastRunDate: null,
+          amount: 100,
+          splitEvenly: true,
+          ...overrides,
+        }),
+      );
   }
 
-  it("generates every overdue occurrence immediately for a past start date", async () => {
+  it('generates every overdue occurrence immediately for a past start date', async () => {
     // The reported scenario: user picks a start date months in the past and
     // presses Done. This is what the client now fires straight after saving.
-    await seedAsClientWould("2026-04-01");
+    await seedAsClientWould('2026-04-01');
 
     const result = await withBillTriggers(() =>
-      generateRecurringBillNowCore(db, "rec1", ALICE, "2026-07-19")
+      generateRecurringBillNowCore(db, 'rec1', ALICE, '2026-07-19'),
     );
 
     expect(result).toEqual({ created: 4 });
     expect((await generatedBills()).map((b) => b.recurringCycleDate)).toEqual([
-      "2026-04-01", "2026-05-01", "2026-06-01", "2026-07-01",
+      '2026-04-01',
+      '2026-05-01',
+      '2026-06-01',
+      '2026-07-01',
     ]);
     expect((await getBalance())!.balance).toBeCloseTo(200, 2); // 4 × ($100 / 2)
   });
 
-  it("is idempotent with the hourly pass — no duplicate bills or double-counting", async () => {
-    await seedAsClientWould("2026-06-01");
+  it('is idempotent with the hourly pass — no duplicate bills or double-counting', async () => {
+    await seedAsClientWould('2026-06-01');
 
-    await withBillTriggers(() => generateRecurringBillNowCore(db, "rec1", ALICE, "2026-07-19"));
+    await withBillTriggers(() => generateRecurringBillNowCore(db, 'rec1', ALICE, '2026-07-19'));
     const balanceAfterImmediate = (await getBalance())!.balance;
 
     // The hourly scheduler fires right after the immediate run.
-    const hourly = await withBillTriggers(() => generateDueRecurringBills(db, "2026-07-19"));
+    const hourly = await withBillTriggers(() => generateDueRecurringBills(db, '2026-07-19'));
 
     expect(hourly.created).toBe(0);
     expect(await generatedBills()).toHaveLength(2); // June + July only
     expect((await getBalance())!.balance).toBeCloseTo(balanceAfterImmediate, 2);
   });
 
-  it("refuses to generate a template the caller does not own", async () => {
-    await seedAsClientWould("2026-04-01");
+  it('refuses to generate a template the caller does not own', async () => {
+    await seedAsClientWould('2026-04-01');
 
-    await expect(
-      generateRecurringBillNowCore(db, "rec1", BOB, "2026-07-19")
-    ).rejects.toThrow("Not authorized");
+    await expect(generateRecurringBillNowCore(db, 'rec1', BOB, '2026-07-19')).rejects.toThrow(
+      'Not authorized',
+    );
 
     expect(await generatedBills()).toHaveLength(0); // nothing leaked
   });
 
-  it("throws for a template that does not exist", async () => {
-    await expect(
-      generateRecurringBillNowCore(db, "nope", ALICE, "2026-07-19")
-    ).rejects.toThrow("Recurring bill not found");
+  it('throws for a template that does not exist', async () => {
+    await expect(generateRecurringBillNowCore(db, 'nope', ALICE, '2026-07-19')).rejects.toThrow(
+      'Recurring bill not found',
+    );
   });
 
-  it("is a no-op for a paused template", async () => {
-    await seedAsClientWould("2026-04-01", { status: "paused" });
+  it('is a no-op for a paused template', async () => {
+    await seedAsClientWould('2026-04-01', { status: 'paused' });
 
-    expect(await generateRecurringBillNowCore(db, "rec1", ALICE, "2026-07-19")).toEqual({ created: 0 });
+    expect(await generateRecurringBillNowCore(db, 'rec1', ALICE, '2026-07-19')).toEqual({
+      created: 0,
+    });
     expect(await generatedBills()).toHaveLength(0);
+  });
+});
+
+// ── Editing a template must not backfill history ───────────────────────────
+// Regression: recurringBillService.updateRecurringBillFromInput used to rewind
+// nextRunDate to firstRunDate(newSchedule) on every edit. Because generation
+// keys idempotency on recurringCycleDate, changing the schedule day made every
+// past cycle look brand new — regenerating the whole history as real debt
+// (measured: a 6-month $1200 template produced +7 bills / +$8,400).
+describe('recurring generation — editing a live template', () => {
+  beforeEach(clearFirestore);
+
+  const started = { frequency: 'monthly' as const, dayOfMonth: 1, startDate: '2026-01-01' };
+  const moved = { frequency: 'monthly' as const, dayOfMonth: 15, startDate: '2026-01-01' };
+
+  async function seedAndGenerate() {
+    await db
+      .collection('recurring_bills')
+      .doc('rec1')
+      .set(
+        makeTemplate({ schedule: started, nextRunDate: firstRunDate(started), lastRunDate: null }),
+      );
+    await withBillTriggers(() => generateDueRecurringBills(db, '2026-07-26'));
+  }
+
+  it('moving the day of month does not regenerate past cycles', async () => {
+    await seedAndGenerate();
+    const before = await generatedBills();
+    const balanceBefore = (await getBalance())!.balance;
+    expect(before.length).toBeGreaterThan(0);
+
+    // Client edit path, post-fix: cursor clamped past what already ran.
+    const tpl = await getTemplate();
+    await db
+      .collection('recurring_bills')
+      .doc('rec1')
+      .update({
+        schedule: moved,
+        nextRunDate: nextRunDateAfterEdit(moved, tpl.lastRunDate),
+      });
+    await withBillTriggers(() => generateDueRecurringBills(db, '2026-07-26'));
+
+    const after = await generatedBills();
+    expect(after).toHaveLength(before.length); // no parallel series
+    expect((await getBalance())!.balance).toBeCloseTo(balanceBefore, 2);
+  });
+
+  it('proves the test has teeth: the OLD rewind really did backfill', async () => {
+    await seedAndGenerate();
+    const before = await generatedBills();
+
+    // Reproduce the pre-fix client write verbatim.
+    await db
+      .collection('recurring_bills')
+      .doc('rec1')
+      .update({
+        schedule: moved,
+        nextRunDate: firstRunDate(moved),
+      });
+    await withBillTriggers(() => generateDueRecurringBills(db, '2026-07-26'));
+
+    expect((await generatedBills()).length).toBeGreaterThan(before.length);
+  });
+});
+
+// ── Concurrent generation must not double-charge ───────────────────────────
+// Regression: the cycle-existence check is a non-transactional check-then-create
+// and createBillCore used to mint a random doc ID, so the hourly scheduler and
+// the client-fired generateRecurringBillNow could both create the same cycle.
+// Bills are now keyed `${templateId}_${cycleDate}` and written with create().
+describe('recurring generation — concurrent passes', () => {
+  beforeEach(clearFirestore);
+
+  it('racing the immediate and hourly passes creates each cycle exactly once', async () => {
+    const schedule = { frequency: 'monthly' as const, dayOfMonth: 1, startDate: '2026-05-01' };
+    await db
+      .collection('recurring_bills')
+      .doc('rec1')
+      .set(makeTemplate({ schedule, nextRunDate: firstRunDate(schedule), lastRunDate: null }));
+
+    await withBillTriggers(async () => {
+      await Promise.all([
+        generateRecurringBillNowCore(db, 'rec1', ALICE, '2026-07-19'),
+        generateDueRecurringBills(db, '2026-07-19'),
+      ]);
+    });
+
+    const bills = await generatedBills();
+    const cycles = bills.map((b) => b.recurringCycleDate);
+    expect(new Set(cycles).size).toBe(cycles.length); // no duplicate cycle
+    expect(cycles).toEqual(['2026-05-01', '2026-06-01', '2026-07-01']);
+    expect((await getBalance())!.balance).toBeCloseTo(150, 2); // 3 x ($100/2)
   });
 });

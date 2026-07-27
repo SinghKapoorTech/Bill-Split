@@ -41,7 +41,7 @@ export interface ReversalResult {
 
 export async function processSettlementReversalCore(
   callerId: string,
-  req: ReversalRequest
+  req: ReversalRequest,
 ): Promise<ReversalResult> {
   const { settlementId } = req;
 
@@ -68,35 +68,72 @@ export async function processSettlementReversalCore(
 
   await db().runTransaction(async (tx) => {
     // Phase 1: Read all settled bills
-    const billRefs = billIds.map(id => db().collection(BILLS_COLLECTION).doc(id));
-    const billSnaps = await Promise.all(billRefs.map(r => tx.get(r)));
+    const billRefs = billIds.map((id) => db().collection(BILLS_COLLECTION).doc(id));
+    const billSnaps = await Promise.all(billRefs.map((r) => tx.get(r)));
 
-    // Phase 2: Un-settle each bill
+    // Phase 2: Un-settle each bill.
+    //
+    // The person to un-settle is whichever of the settlement's two parties is
+    // ACTUALLY recorded in this bill's settledPersonIds. Deriving it from the
+    // bill's current paidById (as this used to) breaks the moment someone
+    // corrects who paid: the anchor then matches neither party, the old code
+    // silently fell through to `toUserId` — the CREDITOR — and un-settled
+    // nobody while still deleting the settlement record, erasing the debt.
+    // Reading actual settled state is anchor-independent and self-correcting.
+    let reversedThisAttempt = 0;
     for (let i = 0; i < billRefs.length; i++) {
       const snap = billSnaps[i];
       if (!snap.exists) continue;
 
       const bill = snap.data()!;
-      const billOwner = bill.ownerId;
+      const settledPersonIds: string[] = bill.settledPersonIds || [];
+      const people = (bill.people || []) as Array<{ id: string }>;
+      const isSettledParty = (uid: string) => (p: { id: string }) =>
+        personIdToFirebaseUid(p.id) === uid && settledPersonIds.includes(p.id);
 
-      // Determine who was the debtor on this bill
-      const creditorUid = personIdToFirebaseUid(bill.paidById || billOwner);
-      const unsettlingUid = creditorUid === toUserId ? fromUserId : toUserId;
+      // Prefer the recorded debtor; fall back to the creditor, which is the
+      // settled party on reverse-direction bills within a mixed pair.
+      const person =
+        people.find(isSettledParty(fromUserId)) ?? people.find(isSettledParty(toUserId));
 
-      const person = (bill.people || []).find(
-        (p: { id: string }) => personIdToFirebaseUid(p.id) === unsettlingUid
-      );
-      if (!person) continue;
+      if (!person) {
+        logger.warn('Reversal: neither party is settled on this bill, skipping', {
+          settlementId,
+          billId: billIds[i],
+          fromUserId,
+          toUserId,
+        });
+        continue;
+      }
 
       tx.update(billRefs[i], {
         settledPersonIds: FieldValue.arrayRemove(person.id),
-        unsettledParticipantIds: FieldValue.arrayUnion(unsettlingUid),
+        unsettledParticipantIds: FieldValue.arrayUnion(personIdToFirebaseUid(person.id)),
       });
 
-      billsReversed++;
+      reversedThisAttempt++;
     }
 
-    // Delete the settlement record
+    // Publish the counter from THIS attempt's inner state — never accumulate
+    // across attempts, or a Firestore transaction retry double-counts.
+    // (Mirrors settlementProcessor / eventSettlementProcessor.)
+    billsReversed = reversedThisAttempt;
+
+    // Only retire the settlement record if we actually undid something.
+    // Deleting it after un-settling nothing would destroy the sole record of
+    // the payment while leaving every bill marked settled — the exact failure
+    // this function exists to prevent. This is reachable: claimShadowUser
+    // rewrites people/itemAssignments/paidById but NOT settledPersonIds, so a
+    // claimed guest leaves stale person ids that match neither party.
+    // (An orphaned record whose bills were all deleted still gets cleaned up.)
+    const anyBillStillExists = billSnaps.some((snap) => snap.exists);
+    if (reversedThisAttempt === 0 && anyBillStillExists) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Could not identify the settled party on any bill; settlement left intact.',
+      );
+    }
+
     tx.delete(settlementRef);
   });
 

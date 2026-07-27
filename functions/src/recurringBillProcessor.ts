@@ -4,7 +4,11 @@ import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { createBillCore } from './billFunctions.js';
 import { firstRunDate, advanceRunDate } from '../../shared/recurringSchedule.js';
-import { resolveSplitAmounts, buildPerPersonShareItems, roundCents } from '../../shared/splitAmounts.js';
+import {
+  resolveSplitAmounts,
+  buildPerPersonShareItems,
+  roundCents,
+} from '../../shared/splitAmounts.js';
 
 interface BillDataShape {
   items: { id: string; name: string; price: number }[];
@@ -82,7 +86,7 @@ function buildBillPayload(template: RecurringBillDoc) {
         total: amount,
         restaurantName: title,
       },
-      itemAssignments: { [itemId]: people.map(p => p.id) },
+      itemAssignments: { [itemId]: people.map((p) => p.id) },
     };
   }
 
@@ -119,7 +123,7 @@ function buildBillPayload(template: RecurringBillDoc) {
 async function generateForTemplate(
   db: Firestore,
   docSnap: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot,
-  todayStr: string
+  todayStr: string,
 ): Promise<number> {
   const template = docSnap.data() as RecurringBillDoc;
   const templateRef = docSnap.ref;
@@ -162,31 +166,52 @@ async function generateForTemplate(
         if (template.airbnbData) extraFields.airbnbData = template.airbnbData;
       }
 
-      const billId = await createBillCore(db, {
-        billType: template.eventId ? 'event' : 'private',
-        billData,
-        people: template.people,
-        ownerId: template.ownerId,
-        ownerName: template.ownerName,
-        paidById: template.paidById,
-        eventId: template.eventId,
-        status: 'active',
-        splitEvenly: template.splitEvenly,
-        isSimpleTransaction: generatedType === 'quick',
-        itemAssignments,
-        extraFields,
-      });
+      // Deterministic ID: one document per (template, cycle). The existence
+      // query above is a non-transactional check-then-create, so the hourly
+      // scheduler and the client-fired generateRecurringBillNow can both see
+      // "no bill yet" and each create one — double-charging the group. Keying
+      // the document turns that race into a loud ALREADY_EXISTS we can absorb.
+      let billId: string | null = null;
+      try {
+        billId = await createBillCore(db, {
+          billType: template.eventId ? 'event' : 'private',
+          billData,
+          people: template.people,
+          ownerId: template.ownerId,
+          ownerName: template.ownerName,
+          paidById: template.paidById,
+          eventId: template.eventId,
+          status: 'active',
+          splitEvenly: template.splitEvenly,
+          isSimpleTransaction: generatedType === 'quick',
+          itemAssignments,
+          extraFields,
+          billId: `${template.id}_${currentRunDate}`,
+        });
+      } catch (err) {
+        const code = (err as { code?: number | string })?.code;
+        const alreadyExists =
+          code === 6 || code === 'already-exists' || /ALREADY_EXISTS/i.test(String(err));
+        if (!alreadyExists) throw err;
+        console.log(
+          `Skipped duplicate bill for recurring ${template.id} (cycle ${currentRunDate}) — created concurrently`,
+        );
+      }
 
-      newBillIds.push(billId);
-      created++;
-      console.log(`Created bill ${billId} for recurring ${template.id} (cycle ${currentRunDate})`);
+      if (billId) {
+        newBillIds.push(billId);
+        created++;
+        console.log(
+          `Created bill ${billId} for recurring ${template.id} (cycle ${currentRunDate})`,
+        );
+      }
     }
 
     // Advance to next cycle
     currentRunDate = advanceRunDate(
       currentRunDate,
       template.schedule.frequency,
-      template.schedule.dayOfMonth
+      template.schedule.dayOfMonth,
     );
   }
 
@@ -219,7 +244,7 @@ async function generateForTemplate(
  */
 export async function generateDueRecurringBills(
   db: Firestore,
-  todayStr: string
+  todayStr: string,
 ): Promise<{ processed: number; created: number }> {
   // Query all active recurring bills that are due
   const snapshot = await db
@@ -260,7 +285,7 @@ export async function generateRecurringBillNowCore(
   db: Firestore,
   recurringBillId: string,
   ownerId: string,
-  todayStr: string
+  todayStr: string,
 ): Promise<{ created: number }> {
   const docSnap = await db.collection('recurring_bills').doc(recurringBillId).get();
 
@@ -295,7 +320,7 @@ export const processRecurringBills = onSchedule(
     const db = getFirestore();
     const todayStr = new Date().toISOString().split('T')[0];
     await generateDueRecurringBills(db, todayStr);
-  }
+  },
 );
 
 /**
