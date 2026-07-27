@@ -24,6 +24,9 @@ import {
   calculateFriendFootprint,
   toSingleBalance,
   BALANCE_THRESHOLD,
+  isWritableBalancePair,
+  sanitizeFootprint,
+  isBalanceSettledConsistent,
 } from '../../shared/ledgerCalculations.js';
 import type { PersonTotal, BillData } from '../../shared/types.js';
 
@@ -251,6 +254,9 @@ async function applyFriendLedger(
     // Legacy bills without processedBalancesAnchorId fall back to the
     // payload's before-anchor (their footprint was written under it).
     const storedFootprint: Record<string, number> = billData.processedBalances || {};
+    if (!billData.processedBalancesAnchorId && Object.keys(storedFootprint).length > 0) {
+      logger.warn('ledger: processing bill with footprint but no processedBalancesAnchorId (legacy — reconciler should backfill)', { billId });
+    }
     const storedAnchorId: string =
       billData.processedBalancesAnchorId ?? payloadPreviousAnchorId ?? anchorId;
 
@@ -272,6 +278,7 @@ async function applyFriendLedger(
       const { oldAnchorId, oldFootprint } = reversal;
       for (const [friendId, amount] of Object.entries(oldFootprint)) {
         if (Math.abs(amount) < BALANCE_THRESHOLD) continue;
+        if (!isWritableBalancePair(oldAnchorId, friendId)) continue;
         const balanceId = getFriendBalanceId(oldAnchorId, friendId);
         const entry = getPlanEntry(plan, balanceId, [oldAnchorId, friendId].sort());
         entry.reversalDelta += toSingleBalance(oldAnchorId, friendId, -amount);
@@ -285,6 +292,10 @@ async function applyFriendLedger(
     if (Object.keys(deltas).length === 0 && !reversal) return;
 
     for (const friendId of Object.keys(deltas)) {
+      if (!isWritableBalancePair(anchorId, friendId)) {
+        logger.warn('ledger: skipping non-writable balance pair', { billId, anchorId, id: friendId });
+        continue;
+      }
       const balanceId = getFriendBalanceId(anchorId, friendId);
       const entry = getPlanEntry(plan, balanceId, [anchorId, friendId].sort());
       // Convert anchor-relative delta to single-balance sign convention
@@ -327,9 +338,20 @@ async function applyFriendLedger(
       // Reversal-only doc whose guard failed: nothing to write.
       if (!entry.hasNewDelta && !reversalApplied) continue;
 
-      const billIdUpdate = entry.hasNewDelta && entry.addBillId
+      const addBillId = entry.hasNewDelta && entry.addBillId;
+      const billIdUpdate = addBillId
         ? { unsettledBillIds: FieldValue.arrayUnion(billId) }
         : { unsettledBillIds: FieldValue.arrayRemove(billId) };
+
+      // Invariant check (observability only): a near-zero balance must have no
+      // unsettled bills, and a non-zero balance must have at least one.
+      const existingBills: string[] = existing?.unsettledBillIds || [];
+      const resultingBills = addBillId
+        ? Array.from(new Set([...existingBills, billId]))
+        : existingBills.filter(id => id !== billId);
+      if (!isBalanceSettledConsistent(currentBalance + totalDelta, resultingBills)) {
+        logger.error('ledger: balance/unsettled invariant violated', { billId, balanceId, balance: currentBalance + totalDelta, unsettledCount: resultingBills.length });
+      }
 
       tx.set(ref, {
         id: ref.id,
@@ -344,7 +366,7 @@ async function applyFriendLedger(
     // Save footprint (with the anchor it was computed under) and bump version
     const currentVersion: number = (billData._ledgerVersion ?? 0);
     tx.update(billRef, {
-      processedBalances: stripZeros(newFootprint),
+      processedBalances: sanitizeFootprint(stripZeros(newFootprint), anchorId),
       processedBalancesAnchorId: anchorId,
       _ledgerVersion: currentVersion + 1,
     });
@@ -502,6 +524,9 @@ async function applyEventPairLedger(
     // (processedEventId) — moving a bill between events must reverse the old
     // event's pair docs, not just start writing to the new event's.
     const storedFootprint: Record<string, number> = billData.processedEventBalances || {};
+    if (!billData.processedEventBalancesAnchorId && Object.keys(storedFootprint).length > 0) {
+      logger.warn('ledger: processing bill with footprint but no processedEventBalancesAnchorId (legacy — reconciler should backfill)', { billId });
+    }
     const storedAnchorId: string =
       billData.processedEventBalancesAnchorId ?? payloadPreviousAnchorId ?? anchorId;
     const storedEventId: string =
@@ -529,6 +554,7 @@ async function applyEventPairLedger(
       const { oldAnchorId, oldEventId, oldFootprint } = reversal;
       for (const [participantId, amount] of Object.entries(oldFootprint)) {
         if (Math.abs(amount) < BALANCE_THRESHOLD) continue;
+        if (!isWritableBalancePair(oldAnchorId, participantId)) continue;
         const balanceId = getEventBalanceId(oldEventId, oldAnchorId, participantId);
         const entry = getPlanEntry(plan, balanceId, [oldAnchorId, participantId].sort(), oldEventId);
         entry.reversalDelta += toSingleBalance(oldAnchorId, participantId, -amount);
@@ -542,6 +568,10 @@ async function applyEventPairLedger(
     if (Object.keys(deltas).length === 0 && !reversal) return;
 
     for (const participantId of Object.keys(deltas)) {
+      if (!isWritableBalancePair(anchorId, participantId)) {
+        logger.warn('ledger: skipping non-writable balance pair', { billId, anchorId, id: participantId });
+        continue;
+      }
       const balanceId = getEventBalanceId(eventId, anchorId, participantId);
       const entry = getPlanEntry(plan, balanceId, [anchorId, participantId].sort(), eventId);
       entry.newDelta += toSingleBalance(anchorId, participantId, deltas[participantId]);
@@ -582,9 +612,20 @@ async function applyEventPairLedger(
       // Reversal-only doc whose guard failed: nothing to write.
       if (!entry.hasNewDelta && !reversalApplied) continue;
 
-      const billIdUpdate = entry.hasNewDelta && entry.addBillId
+      const addBillId = entry.hasNewDelta && entry.addBillId;
+      const billIdUpdate = addBillId
         ? { unsettledBillIds: FieldValue.arrayUnion(billId) }
         : { unsettledBillIds: FieldValue.arrayRemove(billId) };
+
+      // Invariant check (observability only): a near-zero balance must have no
+      // unsettled bills, and a non-zero balance must have at least one.
+      const existingBills: string[] = existing?.unsettledBillIds || [];
+      const resultingBills = addBillId
+        ? Array.from(new Set([...existingBills, billId]))
+        : existingBills.filter(id => id !== billId);
+      if (!isBalanceSettledConsistent(currentBalance + totalDelta, resultingBills)) {
+        logger.error('ledger: balance/unsettled invariant violated', { billId, balanceId, balance: currentBalance + totalDelta, unsettledCount: resultingBills.length });
+      }
 
       tx.set(ref, {
         id: ref.id,
@@ -599,7 +640,7 @@ async function applyEventPairLedger(
 
     // Save event footprint (with the anchor and event it was computed under)
     tx.update(billRef, {
-      processedEventBalances: stripZeros(newFootprint),
+      processedEventBalances: sanitizeFootprint(stripZeros(newFootprint), anchorId),
       processedEventBalancesAnchorId: anchorId,
       processedEventId: eventId,
     });

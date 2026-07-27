@@ -4,6 +4,7 @@ import { db, clearFirestore } from './helpers/env';
 import { makeBill, makeEvent } from './helpers/builders';
 import { writeBill, updateBill, deleteBill } from './helpers/triggerLoop';
 import { processLedgerWrite } from '../../functions/src/ledgerProcessor';
+import { getFriendBalanceId } from '../../shared/ledgerCalculations';
 
 const ALICE = 'alice';
 const BOB = 'bob';
@@ -219,6 +220,43 @@ describe('ledger pipeline — core flows', () => {
     const bill = await getBill('legacy-1');
     expect(bill.processedBalances).toEqual({ [ALICE]: expect.closeTo(12, 2) });
     expect(bill.processedBalancesAnchorId).toBe(BOB);
+  });
+
+  it('a legacy corrupt footprint keyed by the anchor never creates a self-pair doc and is sanitized out', async () => {
+    // Simulate a legacy/corrupt bill whose stored processedBalances erroneously
+    // contains an entry keyed by the current anchor (alice = ownerId). The
+    // anti-corruption guards must (a) never write an {anchor}_{anchor} self-pair
+    // doc and (b) drop the anchor key from the persisted processedBalances.
+    await db.collection('bills').doc('corrupt-1').set({
+      ...standardBill(),
+      processedBalances: { [ALICE]: 5, [BOB]: 12 },  // ALICE key is corrupt
+      processedBalancesAnchorId: ALICE,
+      _ledgerVersion: 1,
+    });
+    await db.collection('balances').doc(PAIR_ID).set({
+      id: PAIR_ID,
+      participants: [ALICE, BOB],
+      balance: 12,
+      unsettledBillIds: ['corrupt-1'],
+      lastUpdatedAt: Timestamp.now(),
+      lastBillId: 'corrupt-1',
+    });
+
+    // _friendScanTrigger is a relevant field → forces a full pipeline re-run.
+    await updateBill('corrupt-1', { _friendScanTrigger: Timestamp.now() });
+
+    // No self-pair balance doc should ever be created.
+    const selfPair = await getBalance(getFriendBalanceId(ALICE, ALICE));
+    expect(selfPair).toBeNull();
+
+    // The persisted footprint must no longer contain the anchor's own key.
+    const bill = await getBill('corrupt-1');
+    expect(bill.processedBalances).not.toHaveProperty(ALICE);
+    expect(bill.processedBalances).toEqual({ [BOB]: expect.closeTo(12, 2) });
+
+    // The legit Bob↔Alice balance is unaffected.
+    const bal = await getBalance(PAIR_ID);
+    expect(bal!.balance).toBeCloseTo(12, 2);
   });
 
   it('unlinked guests are excluded from balances', async () => {

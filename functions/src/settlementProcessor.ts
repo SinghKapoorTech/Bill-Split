@@ -18,7 +18,7 @@
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { getFriendBalanceId, BALANCE_THRESHOLD, toSingleBalance } from '../../shared/ledgerCalculations.js';
+import { getFriendBalanceId, BALANCE_THRESHOLD, toSingleBalance, isBalanceSettledConsistent } from '../../shared/ledgerCalculations.js';
 
 let _db: ReturnType<typeof getFirestore> | null = null;
 function db() {
@@ -205,6 +205,12 @@ export async function processSettlementCore(
       unsettledBillIds: skippedBillIds,
       lastUpdatedAt: now,
     });
+    const resultingBalance = currentBalance - settledDelta;
+    if (!isBalanceSettledConsistent(resultingBalance, skippedBillIds)) {
+      logger.error('settlement: post-settlement balance/unsettled invariant violated (residue?)', {
+        balanceId, resultingBalance, skippedCount: skippedBillIds.length,
+      });
+    }
 
     // 5. Write settlement record (amount = what was actually settled)
     tx.set(settlementRef, {

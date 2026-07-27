@@ -94,6 +94,61 @@ export function calculateFriendFootprint(input: FriendFootprintInput): Record<st
 }
 
 /**
+ * Returns true only when `a` and `b` form a writable balance pair.
+ *
+ * A pair is writable iff:
+ * - `a !== b` (no self-pair)
+ * - Both are non-empty strings
+ * - Neither is the literal `"anonymous"`
+ * - Neither starts with `"user-"`, `"guest-"`, or `"person-"` (those are
+ *   bill-local person IDs, not raw Firebase UIDs)
+ */
+export function isWritableBalancePair(a: string, b: string): boolean {
+  if (a === b) return false;
+  const INVALID_PREFIXES = ['user-', 'guest-', 'person-'];
+  const isValidUid = (id: string): boolean => {
+    if (!id || id === 'anonymous') return false;
+    return !INVALID_PREFIXES.some((prefix) => id.startsWith(prefix));
+  };
+  return isValidUid(a) && isValidUid(b);
+}
+
+/**
+ * Checks whether a balance document satisfies the ledger invariant:
+ * a near-zero balance MUST have zero unsettled bills, and a non-zero balance
+ * MUST have at least one unsettled bill.
+ *
+ * Returns true iff the document is consistent.
+ */
+export function isBalanceSettledConsistent(balance: number, unsettledBillIds: string[]): boolean {
+  const isNearZero = Math.abs(balance) < BALANCE_THRESHOLD;
+  const hasNoBills = unsettledBillIds.length === 0;
+  return isNearZero === hasNoBills;
+}
+
+/**
+ * Returns a sanitized copy of a footprint, dropping entries that must never be
+ * written to a balance doc:
+ * - The anchor's own key (the creditor does not owe themselves).
+ * - Any key that fails `isWritableBalancePair(anchorId, key)` (self-pairs,
+ *   synthetic person IDs, "anonymous", etc.).
+ *
+ * Does NOT mutate the input.
+ */
+export function sanitizeFootprint(
+  footprint: Record<string, number>,
+  anchorId: string
+): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [key, value] of Object.entries(footprint)) {
+    if (key === anchorId) continue;
+    if (!isWritableBalancePair(anchorId, key)) continue;
+    result[key] = value;
+  }
+  return result;
+}
+
+/**
  * Converts an anchor-relative amount to the single-balance sign convention
  * used in friend_balances documents.
  *
