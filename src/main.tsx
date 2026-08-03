@@ -4,6 +4,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import "./index.css";
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { SplashGate } from "@/components/splash/SplashGate";
 
 // Configure status bar for mobile platforms
 if (Capacitor.isNativePlatform()) {
@@ -13,6 +14,8 @@ if (Capacitor.isNativePlatform()) {
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
-    <App />
+    <SplashGate>
+      <App />
+    </SplashGate>
   </ErrorBoundary>
 );

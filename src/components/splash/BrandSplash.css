@@ -1,0 +1,78 @@
+/* src/components/splash/BrandSplash.css */
+
+@font-face {
+  font-family: 'JetBrains Mono Splash';
+  src: url('./fonts/JetBrainsMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+.brandSplash {
+  position: fixed;
+  inset: 0;
+  background: #14161A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.brandSplash__stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.brandSplash__row {
+  display: flex;
+  align-items: center;
+}
+
+.brandSplash__type1,
+.brandSplash__type2 {
+  font-family: 'JetBrains Mono Splash', monospace;
+  font-weight: 500;
+  font-size: 23px;
+  display: inline-block;
+  overflow: hidden;
+  white-space: pre;
+  width: 0;
+}
+
+.brandSplash__type1 {
+  color: #E0DED9;
+  animation: brandType1 0.28s steps(12, end) forwards;
+}
+
+.brandSplash__type2 {
+  color: #C1502E;
+  white-space: nowrap;
+  animation: brandType2 0.15s steps(4, end) 0.34s forwards;
+}
+
+.brandSplash__cursor1,
+.brandSplash__cursor2 {
+  width: 10px;
+  height: 21px;
+  margin-left: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.brandSplash__cursor1 {
+  background: #E0DED9;
+  animation: brandBlink 0.3s steps(1) 2 forwards, brandStop 0.01s linear 0.34s forwards;
+}
+
+.brandSplash__cursor2 {
+  background: #C1502E;
+  animation: brandBlink 0.5s steps(1) 0.49s infinite;
+}
+
+/* 12.3ch / 4.3ch: "singh kapoor" is 12 chars, "tech" is 4 — ch units match
+   the monospace character advance width exactly, so the reveal can't clip
+   the last character (an earlier em-based guess did). */
+@keyframes brandType1 { to { width: 12.3ch; } }
+@keyframes brandType2 { to { width: 4.3ch; } }
+@keyframes brandBlink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes brandStop { to { opacity: 0; } }
