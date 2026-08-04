@@ -36,11 +36,14 @@ export const balanceDir = {
     neutral:    'bg-muted/60 text-muted-foreground',
   },
 
-  // Avatar fallback background + text when no photo is available
+  // Avatar fallback background + text when no photo is available.
+  // Initials use text-foreground, not the direction colour: a direction colour on
+  // a 10% tint of the same hue is unreadable at 48px. Direction still reads from
+  // the tint, the coloured left border, and the You owe / Owes You badge.
   fallback: {
-    'you-owe':  'bg-destructive/10 text-destructive',
-    'owes-you': 'bg-success/10 text-success',
-    neutral:    'bg-muted text-muted-foreground',
+    'you-owe':  'bg-destructive/20 text-foreground',
+    'owes-you': 'bg-success/20 text-foreground',
+    neutral:    'bg-muted text-foreground',
   },
 
   // CSS color value used in style={{ borderLeftColor }} — kept as inline style because it's dynamic

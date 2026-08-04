@@ -28,7 +28,9 @@ export function UserAvatar({
       {photoURL && (
         <AvatarImage src={photoURL} alt={name} className="object-cover" />
       )}
-      <AvatarFallback className={cn('[color:hsl(var(--background))]', fallbackClassName)}>
+      {/* text-foreground, not --background: the old value was near-black on dark
+          muted and cream on light muted, i.e. unreadable in both themes. */}
+      <AvatarFallback className={cn('font-semibold text-foreground', fallbackClassName)}>
         {getInitials(name)}
       </AvatarFallback>
     </Avatar>

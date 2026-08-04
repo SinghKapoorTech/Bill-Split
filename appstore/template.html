@@ -1,0 +1,193 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: var(--canvas-w);
+        height: var(--canvas-h);
+        overflow: hidden;
+      }
+      body {
+        position: relative;
+        background: var(--c-accent, var(--c-canvas));
+        font-family: 'Outfit', sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ── Low-poly faceting ───────────────────────────────────────────────
+         Fixed clip-path triangles tinted with translucent white/black over the
+         accent colour. Hardcoded (not random) so renders are deterministic. */
+      .facet {
+        position: absolute;
+        inset: 0;
+      }
+      .l1 {
+        background: rgba(255, 255, 255, 0.06);
+        clip-path: polygon(0 0, 46% 0, 0 38%);
+      }
+      .l2 {
+        background: rgba(0, 0, 0, 0.1);
+        clip-path: polygon(46% 0, 100% 0, 100% 22%);
+      }
+      .l3 {
+        background: rgba(255, 255, 255, 0.04);
+        clip-path: polygon(100% 22%, 100% 62%, 58% 34%);
+      }
+      .l4 {
+        background: rgba(0, 0, 0, 0.07);
+        clip-path: polygon(0 38%, 34% 20%, 0 74%);
+      }
+      .l5 {
+        background: rgba(255, 255, 255, 0.05);
+        clip-path: polygon(0 74%, 30% 52%, 26% 100%, 0 100%);
+      }
+      .l6 {
+        background: rgba(0, 0, 0, 0.12);
+        clip-path: polygon(100% 62%, 100% 100%, 62% 100%);
+      }
+      .l7 {
+        background: rgba(255, 255, 255, 0.035);
+        clip-path: polygon(26% 100%, 52% 64%, 62% 100%);
+      }
+      .l8 {
+        background: rgba(0, 0, 0, 0.06);
+        clip-path: polygon(34% 20%, 58% 34%, 30% 52%);
+      }
+
+      /* Soft vignette so the device reads as lifted off the background */
+      #vignette {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          circle at 50% 60%,
+          var(--c-glow) 0%,
+          transparent 55%
+        );
+      }
+
+      /* ── Bottom triangle band ────────────────────────────────────────────
+         The Splitwise-style row of coloured triangles along the bottom edge. */
+      #tribar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 190px;
+      }
+      #tribar i {
+        position: absolute;
+        bottom: 0;
+        display: block;
+        height: 190px;
+        width: 300px;
+      }
+      #tribar i:nth-child(1) {
+        left: -40px;
+        background: var(--c-tri1);
+        clip-path: polygon(0 100%, 50% 0, 100% 100%);
+      }
+      #tribar i:nth-child(2) {
+        left: 210px;
+        background: var(--c-tri2);
+        clip-path: polygon(0 100%, 60% 22%, 100% 100%);
+        opacity: 0.95;
+      }
+      #tribar i:nth-child(3) {
+        left: 470px;
+        background: var(--c-tri3);
+        clip-path: polygon(0 100%, 42% 8%, 100% 100%);
+      }
+      #tribar i:nth-child(4) {
+        left: 730px;
+        background: var(--c-tri1);
+        clip-path: polygon(0 100%, 55% 30%, 100% 100%);
+        opacity: 0.9;
+      }
+      #tribar i:nth-child(5) {
+        left: 990px;
+        background: var(--c-tri2);
+        clip-path: polygon(0 100%, 48% 0, 100% 100%);
+      }
+      #tribar i:nth-child(6) {
+        left: 1180px;
+        background: var(--c-tri3);
+        clip-path: polygon(0 100%, 60% 26%, 100% 100%);
+        opacity: 0.92;
+      }
+
+      /* ── Type ────────────────────────────────────────────────────────── */
+      #copy {
+        position: absolute;
+        z-index: 3;
+        top: var(--headline-top);
+        left: var(--margin-x);
+        right: var(--margin-x);
+      }
+      #headline {
+        font-weight: 700;
+        font-size: var(--headline-size);
+        line-height: var(--headline-leading);
+        letter-spacing: -0.02em;
+        color: var(--c-headline);
+        white-space: pre-line;
+        text-shadow: 0 2px 18px rgba(0, 0, 0, 0.22);
+      }
+      #subhead {
+        margin-top: var(--subhead-gap);
+        font-weight: 400;
+        font-size: var(--subhead-size);
+        line-height: var(--subhead-leading);
+        color: var(--c-subhead);
+        white-space: pre-line;
+      }
+
+      /* ── Device ──────────────────────────────────────────────────────── */
+      #device {
+        position: absolute;
+        z-index: 4;
+        top: var(--screen-top);
+        left: 50%;
+        transform: translateX(-50%);
+        padding: var(--bezel);
+        background: var(--c-device-body);
+        border: 1px solid var(--c-device-edge);
+        border-radius: var(--corner-radius);
+        box-shadow: 0 50px 130px rgba(0, 0, 0, 0.5);
+      }
+      #screen {
+        display: block;
+        width: var(--screen-width);
+        border-radius: calc(var(--corner-radius) - var(--bezel));
+      }
+    </style>
+  </head>
+  <body>
+    <div class="facet l1"></div>
+    <div class="facet l2"></div>
+    <div class="facet l3"></div>
+    <div class="facet l4"></div>
+    <div class="facet l5"></div>
+    <div class="facet l6"></div>
+    <div class="facet l7"></div>
+    <div class="facet l8"></div>
+    <div id="vignette"></div>
+    <div id="tribar"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div id="copy">
+      <div id="headline"></div>
+      <div id="subhead"></div>
+    </div>
+    <div id="device"><img id="screen" alt="" /></div>
+  </body>
+</html>
