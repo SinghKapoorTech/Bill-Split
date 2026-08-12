@@ -244,7 +244,7 @@ export const createBill = onCall(
       throw new HttpsError('invalid-argument', 'people must be an array');
     }
 
-      // paidById may legitimately differ from the owner ("someone else paid"), but
+    // paidById may legitimately differ from the owner ("someone else paid"), but
     // it must be someone actually on the bill — otherwise the ledger anchor can be
     // pointed at a stranger who never agreed to front anything.
     if (paidById) {
@@ -717,9 +717,13 @@ export const claimShadowUser = onCall(
         lastActivity: Timestamp.now(),
       };
 
-      // Handle paidById if the guest was marked as payer
+      // Handle paidById if the guest was marked as payer.
+      // A-08: store the RAW uid. `createBill` normalizes via toUid(), so this
+      // was the one server path that re-introduced a `user-` prefix into the
+      // field the ledger anchors on — and a prefixed anchor is rejected by
+      // isWritableBalancePair, silently erasing the claimed user's debt.
       if (billData.paidById === shadowUserId || billData.paidById === `user-${shadowUserId}`) {
-        updates.paidById = `user-${realUserId}`;
+        updates.paidById = realUserId;
       }
 
       if (assignmentsChanged) {

@@ -27,6 +27,7 @@ import {
   isWritableBalancePair,
   sanitizeFootprint,
   isBalanceSettledConsistent,
+  personIdToFirebaseUid,
 } from '../../shared/ledgerCalculations.js';
 import type { PersonTotal, BillData } from '../../shared/types.js';
 
@@ -240,7 +241,12 @@ async function applyFriendLedger(
     // the trigger payload, so a redelivered/out-of-order SUPERSEDED write can't
     // apply stale amounts (its payload described an older bill state).
     const ownerId: string = billData.ownerId;
-    const anchorId: string = billData.paidById || ownerId;
+    // A-08: normalize the anchor. `paidById` reaches Firestore from client
+    // writes that bypass `createBill`'s toUid() (PaidByBanner emits the
+    // `user-`-prefixed person.id), and `isWritableBalancePair` rejects prefixed
+    // ids — so an un-normalized anchor makes the pipeline reverse the old
+    // footprint and silently decline to write the new one, erasing the debt.
+    const anchorId: string = personIdToFirebaseUid(billData.paidById || ownerId);
     const people = (billData.people as Array<{ id: string; name: string }>) || [];
     const personTotals = computeBillPersonTotals(
       billData.billData as BillData,
@@ -532,7 +538,8 @@ async function applyEventPairLedger(
     // Same reasoning as applyFriendLedger: applied amounts + anchor come from
     // the freshly-read bill, defeating superseded-write redelivery.
     const ownerId: string = billData.ownerId;
-    const anchorId: string = billData.paidById || ownerId;
+    // A-08: normalize — see applyFriendLedger.
+    const anchorId: string = personIdToFirebaseUid(billData.paidById || ownerId);
     const people = (billData.people as Array<{ id: string; name: string }>) || [];
     const personTotals = computeBillPersonTotals(
       billData.billData as BillData,
@@ -742,7 +749,7 @@ async function clearStaleEventFootprint(
     const staleAnchorId: string =
       billData.processedEventBalancesAnchorId ??
       payloadPreviousAnchorId ??
-      (billData.paidById || billData.ownerId);
+      personIdToFirebaseUid(billData.paidById || billData.ownerId);
 
     // Read all involved pair docs (all reads precede all writes).
     const targets: Array<{
@@ -860,6 +867,11 @@ export async function processLedgerWrite(
 ): Promise<void> {
   // ── DELETE ──────────────────────────────────────────────────────────────
   if (before && !after) {
+    // A-08: deliberately NOT normalized — DELETE only ever REVERSES, so this is
+    // purely a read locator for where the footprint was written (see the note
+    // on payloadPreviousAnchorId). A stored processed*AnchorId still wins below;
+    // this is only the fallback for legacy bills that lack one, and for those
+    // the un-normalized value is the correct guess.
     const anchorId = before.paidById || before.ownerId;
     logger.info('Bill deleted', { billId, anchorId, stage: 'DELETE' });
 
@@ -917,7 +929,9 @@ export async function processLedgerWrite(
 
   const operation = before ? 'UPDATE' : 'CREATE';
   const ownerId = after.ownerId;
-  const creditorId = after.paidById || ownerId;
+  // A-08: normalize the anchor at the entry point too, so logs and every
+  // downstream consumer see the same uid the balance docs are keyed by.
+  const creditorId = personIdToFirebaseUid(after.paidById || ownerId);
 
   logger.info('Processing bill', {
     billId,
@@ -931,6 +945,14 @@ export async function processLedgerWrite(
   // the freshly-read bill's processed*AnchorId — so redelivered trigger
   // events (at-least-once semantics) are no-ops. The payload's before-anchor
   // is passed only as a fallback for legacy bills without the anchor field.
+  // A-08: deliberately NOT normalized. This is a READ locator — it answers
+  // "where was the previous footprint written?", not "where does the next one
+  // go?". Its only consumer is the fallback for legacy bills that have a
+  // footprint but no processed*AnchorId, and those footprints were written by
+  // the pre-hardening pipeline under whatever anchor the bill carried at the
+  // time — prefix included. Normalizing here would make the stale and current
+  // anchors compare equal, skipping the reversal and applying only the delta
+  // to a doc that was never seeded. Normalize write targets, preserve locators.
   const payloadPreviousAnchorId = before ? before.paidById || before.ownerId : undefined;
   const payloadPreviousEventId = before?.eventId;
 

@@ -47,7 +47,6 @@ A smart bill-splitting app that uses AI to analyze receipts and fairly distribut
 
 3. Set up environment variables (create `.env` file):
    ```
-   VITE_GEMINI_API_KEY=your_gemini_api_key
    VITE_FIREBASE_API_KEY=your_firebase_api_key
    VITE_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
    VITE_FIREBASE_PROJECT_ID=your_firebase_project_id

@@ -1,5 +1,6 @@
 import { doc, setDoc, arrayUnion, FirestoreError } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { sanitizeVenmoHandle } from '@/utils/venmo';
 
 /**
  * Friend data structure for Firestore
@@ -28,7 +29,7 @@ export interface FirestoreResult {
  */
 export async function saveFriendToFirestore(
   userId: string,
-  friend: FriendData
+  friend: FriendData,
 ): Promise<FirestoreResult> {
   try {
     const userDocRef = doc(db, 'users', userId);
@@ -38,8 +39,13 @@ export async function saveFriendToFirestore(
       name: friend.name.trim(),
     };
 
-    if (friend.venmoId) {
-      friendData.venmoId = friend.venmoId;
+    // Persist the handle only if it is plausible. `sanitizeVenmoHandle` strips
+    // a leading '@' and returns undefined for anything that could not be a real
+    // handle — a stored venmoId ends up interpolated into a payment deep link,
+    // and one friend can set another's, so this must not be a trusted field.
+    const safeVenmoId = sanitizeVenmoHandle(friend.venmoId);
+    if (safeVenmoId) {
+      friendData.venmoId = safeVenmoId;
     }
 
     await setDoc(
@@ -47,7 +53,7 @@ export async function saveFriendToFirestore(
       {
         friends: arrayUnion(friendData),
       },
-      { merge: true }
+      { merge: true },
     );
 
     return { success: true };
@@ -73,7 +79,7 @@ export async function saveFriendToFirestore(
  */
 export async function updateUserProfile(
   userId: string,
-  updates: Record<string, unknown>
+  updates: Record<string, unknown>,
 ): Promise<FirestoreResult> {
   try {
     const userDocRef = doc(db, 'users', userId);
@@ -103,7 +109,7 @@ export async function updateUserProfile(
  */
 export function createPersonObject(
   name: string,
-  venmoId: string
+  venmoId: string,
 ): { name: string; venmoId?: string } {
   const trimmedName = name.trim();
   const trimmedVenmoId = venmoId.trim();
@@ -118,5 +124,3 @@ export function createPersonObject(
 
   return personData;
 }
-
-

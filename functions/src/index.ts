@@ -5,6 +5,11 @@
  * and manages trip invitations
  */
 
+// MUST be the first import: it applies the global maxInstances ceiling, and
+// firebase-functions snapshots global options when each function is DEFINED.
+// Any module imported before this one registers its triggers uncapped.
+import './globalOptions.js';
+
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { logger } from 'firebase-functions';
@@ -19,6 +24,19 @@ initializeApp();
 
 // Define secret for Gemini API key
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
+
+/**
+ * Hard ceiling on the inbound receipt payload, in bytes of DECODED image data.
+ *
+ * This is a cost/abuse safety net, not a quality limit. Sizing rationale:
+ *  - Web uploads are compressed to ~1MB client-side (`useFileUpload.ts`).
+ *  - Native camera captures are NOT compressed (`useImagePicker.ts` uses
+ *    `Camera.getPhoto({ quality: 90 })` with no width cap) and legitimately
+ *    produce 3–7MB on a modern phone. A tighter cap would reject real scans.
+ *  - Firebase callables reject >10MB requests at the platform layer anyway.
+ * So this bounds a hostile caller without breaking the native scan path.
+ */
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 /**
  * Represents a single line item on the bill
@@ -62,6 +80,10 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
     secrets: [geminiApiKey],
     timeoutSeconds: 120,
     memory: '512MiB',
+    // Tighter than the global ceiling: every instance is a paid Gemini call,
+    // so this is the one function where runaway concurrency costs real money
+    // per invocation rather than just compute time.
+    maxInstances: 10,
   },
   async (request) => {
     // Validate request
@@ -76,7 +98,32 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
     }
 
     if (!base64Image.startsWith('data:image/')) {
-      throw new HttpsError('invalid-argument', 'base64Image must be a data URI with image MIME type');
+      throw new HttpsError(
+        'invalid-argument',
+        'base64Image must be a data URI with image MIME type',
+      );
+    }
+
+    // Reject oversized payloads BEFORE spending a Gemini call on them. Base64
+    // inflates by 4/3, so decoded bytes ≈ (length of the data segment) * 3/4.
+    const commaIndex = base64Image.indexOf(',');
+    if (commaIndex === -1) {
+      throw new HttpsError(
+        'invalid-argument',
+        'base64Image must be a data URI with a base64 payload',
+      );
+    }
+    const approxBytes = Math.floor(((base64Image.length - commaIndex - 1) * 3) / 4);
+    if (approxBytes > MAX_IMAGE_BYTES) {
+      logger.warn('analyzeBill: payload rejected as oversized', {
+        uid: request.auth.uid,
+        approxBytes,
+        limit: MAX_IMAGE_BYTES,
+      });
+      throw new HttpsError(
+        'invalid-argument',
+        `Image is too large (${Math.round(approxBytes / 1024 / 1024)}MB). Maximum is ${MAX_IMAGE_BYTES / 1024 / 1024}MB.`,
+      );
     }
 
     try {
@@ -136,7 +183,9 @@ Rules:
         console.log('Gemini parsed billData:', JSON.stringify(billData, null, 2));
       } catch (parseError) {
         console.error('JSON parsing failed. Raw response:', cleanedText);
-        throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+        throw new Error(
+          `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
+        );
       }
 
       // Add unique IDs to each item
@@ -169,7 +218,9 @@ Rules:
       }
 
       // Derive otherFees from the printed total rather than relying on AI extraction
-      billData.otherFees = parseFloat(Math.max(0, billData.total - billData.subtotal - billData.tax - billData.tip).toFixed(2));
+      billData.otherFees = parseFloat(
+        Math.max(0, billData.total - billData.subtotal - billData.tax - billData.tip).toFixed(2),
+      );
 
       // Validate numeric fields with detailed error
       if (
@@ -184,7 +235,9 @@ Rules:
           tip: billData.tip,
           total: billData.total,
         });
-        throw new Error(`Invalid response: missing required numeric fields. Received types: subtotal=${typeof billData.subtotal}, tax=${typeof billData.tax}, tip=${typeof billData.tip}, total=${typeof billData.total}`);
+        throw new Error(
+          `Invalid response: missing required numeric fields. Received types: subtotal=${typeof billData.subtotal}, tax=${typeof billData.tax}, tip=${typeof billData.tip}, total=${typeof billData.total}`,
+        );
       }
 
       return billData;
@@ -198,7 +251,7 @@ Rules:
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       throw new HttpsError('internal', `Failed to analyze receipt: ${errorMessage}`);
     }
-  }
+  },
 );
 
 /**
@@ -216,134 +269,132 @@ interface InviteMemberRequest {
  * - If yes: Adds them directly to the event's memberIds
  * - If no: Adds email to pendingInvites for when they sign up
  */
-export const inviteMemberToEvent = onCall<InviteMemberRequest>(
-  async (request) => {
-    // Validate authentication
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'User must be authenticated');
+export const inviteMemberToEvent = onCall<InviteMemberRequest>(async (request) => {
+  // Validate authentication
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'User must be authenticated');
+  }
+
+  const { eventId, email } = request.data;
+  const inviterId = request.auth.uid;
+
+  // Validate input
+  if (!eventId || !email) {
+    throw new HttpsError('invalid-argument', 'eventId and email are required');
+  }
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    throw new HttpsError('invalid-argument', 'Invalid email format');
+  }
+
+  try {
+    const db = getFirestore();
+    const eventRef = db.collection('events').doc(eventId);
+    const eventDoc = await eventRef.get();
+
+    if (!eventDoc.exists) {
+      throw new HttpsError('not-found', 'Event not found');
     }
 
-    const { eventId, email } = request.data;
-    const inviterId = request.auth.uid;
+    const eventData = eventDoc.data();
 
-    // Validate input
-    if (!eventId || !email) {
-      throw new HttpsError('invalid-argument', 'eventId and email are required');
+    if (!eventData) {
+      throw new HttpsError('not-found', 'Event data not found');
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      throw new HttpsError('invalid-argument', 'Invalid email format');
+    // Check if inviter is a member of the event
+    if (!eventData.memberIds || !eventData.memberIds.includes(inviterId)) {
+      throw new HttpsError('permission-denied', 'Only event members can invite others');
     }
 
+    // Check if user with this email already exists
+    let userRecord;
     try {
-      const db = getFirestore();
-      const eventRef = db.collection('events').doc(eventId);
-      const eventDoc = await eventRef.get();
-
-      if (!eventDoc.exists) {
-        throw new HttpsError('not-found', 'Event not found');
-      }
-
-      const eventData = eventDoc.data();
-
-      if (!eventData) {
-        throw new HttpsError('not-found', 'Event data not found');
-      }
-
-      // Check if inviter is a member of the event
-      if (!eventData.memberIds || !eventData.memberIds.includes(inviterId)) {
-        throw new HttpsError('permission-denied', 'Only event members can invite others');
-      }
-
-      // Check if user with this email already exists
-      let userRecord;
-      try {
-        const auth = getAuth();
-        userRecord = await auth.getUserByEmail(email);
-      } catch (error: unknown) {
-        // User doesn't exist yet
-        if ((error as { code?: string }).code !== 'auth/user-not-found') {
-          throw error;
-        }
-      }
-
-      if (userRecord) {
-        // User exists - add them directly to the trip
-        const userId = userRecord.uid;
-
-        // Check if already a member
-        if (eventData.memberIds.includes(userId)) {
-          throw new HttpsError('already-exists', 'User is already a member of this event');
-        }
-
-        // Add user to event
-        const { FieldValue } = await import('firebase-admin/firestore');
-        await eventRef.update({
-          memberIds: FieldValue.arrayUnion(userId),
-          pendingInvites: FieldValue.arrayRemove(email),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-
-        return {
-          success: true,
-          userExists: true,
-          message: `${email} has been added to the event`,
-        };
-      } else {
-        // User doesn't exist - add to pending invites
-        const pendingInvites = eventData.pendingInvites || [];
-
-        // Check if already invited
-        if (pendingInvites.includes(email)) {
-          throw new HttpsError('already-exists', 'This email has already been invited');
-        }
-
-        // Get inviter info
-        const auth = getAuth();
-        const inviterRecord = await auth.getUser(inviterId);
-        const inviterName = inviterRecord.displayName || inviterRecord.email || 'Someone';
-
-        // Add to pending invites
-        const { FieldValue } = await import('firebase-admin/firestore');
-        await eventRef.update({
-          pendingInvites: FieldValue.arrayUnion(email),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-
-        // Create invitation record
-        await db.collection('eventInvitations').add({
-          eventId,
-          eventName: eventData.name,
-          email,
-          invitedBy: inviterId,
-          invitedByName: inviterName,
-          invitedAt: FieldValue.serverTimestamp(),
-          status: 'pending',
-        });
-
-        // TODO: Send invitation email here using nodemailer or Firebase Extensions
-        // For now, we'll just store the invitation
-
-        return {
-          success: true,
-          userExists: false,
-          message: `Invitation sent to ${email}`,
-        };
-      }
-    } catch (error) {
-      console.error('Error inviting member:', error);
-
-      if (error instanceof HttpsError) {
+      const auth = getAuth();
+      userRecord = await auth.getUserByEmail(email);
+    } catch (error: unknown) {
+      // User doesn't exist yet
+      if ((error as { code?: string }).code !== 'auth/user-not-found') {
         throw error;
       }
-
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new HttpsError('internal', `Failed to invite member: ${errorMessage}`);
     }
+
+    if (userRecord) {
+      // User exists - add them directly to the trip
+      const userId = userRecord.uid;
+
+      // Check if already a member
+      if (eventData.memberIds.includes(userId)) {
+        throw new HttpsError('already-exists', 'User is already a member of this event');
+      }
+
+      // Add user to event
+      const { FieldValue } = await import('firebase-admin/firestore');
+      await eventRef.update({
+        memberIds: FieldValue.arrayUnion(userId),
+        pendingInvites: FieldValue.arrayRemove(email),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      return {
+        success: true,
+        userExists: true,
+        message: `${email} has been added to the event`,
+      };
+    } else {
+      // User doesn't exist - add to pending invites
+      const pendingInvites = eventData.pendingInvites || [];
+
+      // Check if already invited
+      if (pendingInvites.includes(email)) {
+        throw new HttpsError('already-exists', 'This email has already been invited');
+      }
+
+      // Get inviter info
+      const auth = getAuth();
+      const inviterRecord = await auth.getUser(inviterId);
+      const inviterName = inviterRecord.displayName || inviterRecord.email || 'Someone';
+
+      // Add to pending invites
+      const { FieldValue } = await import('firebase-admin/firestore');
+      await eventRef.update({
+        pendingInvites: FieldValue.arrayUnion(email),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      // Create invitation record
+      await db.collection('eventInvitations').add({
+        eventId,
+        eventName: eventData.name,
+        email,
+        invitedBy: inviterId,
+        invitedByName: inviterName,
+        invitedAt: FieldValue.serverTimestamp(),
+        status: 'pending',
+      });
+
+      // TODO: Send invitation email here using nodemailer or Firebase Extensions
+      // For now, we'll just store the invitation
+
+      return {
+        success: true,
+        userExists: false,
+        message: `Invitation sent to ${email}`,
+      };
+    }
+  } catch (error) {
+    console.error('Error inviting member:', error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new HttpsError('internal', `Failed to invite member: ${errorMessage}`);
   }
-);
+});
 
 /**
  * Cloud Function: Ledger Pipeline
@@ -387,7 +438,7 @@ export const processSettlement = onCall<import('./settlementProcessor.js').Settl
 
     const { processSettlementCore } = await import('./settlementProcessor.js');
     return processSettlementCore(request.auth.uid, request.data);
-  }
+  },
 );
 
 /**
@@ -397,17 +448,16 @@ export const processSettlement = onCall<import('./settlementProcessor.js').Settl
  * zeros the event balance, and writes a settlement record — all in one transaction.
  * The balances are updated automatically via the ledgerProcessor flow-through.
  */
-export const processEventSettlement = onCall<import('./eventSettlementProcessor.js').EventSettleRequest>(
-  { timeoutSeconds: 60, memory: '256MiB' },
-  async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'User must be authenticated');
-    }
-
-    const { processEventSettlementCore } = await import('./eventSettlementProcessor.js');
-    return processEventSettlementCore(request.auth.uid, request.data);
+export const processEventSettlement = onCall<
+  import('./eventSettlementProcessor.js').EventSettleRequest
+>({ timeoutSeconds: 60, memory: '256MiB' }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'User must be authenticated');
   }
-);
+
+  const { processEventSettlementCore } = await import('./eventSettlementProcessor.js');
+  return processEventSettlementCore(request.auth.uid, request.data);
+});
 
 /**
  * Cloud Function: Reverse a settlement.
@@ -424,7 +474,7 @@ export const reverseSettlement = onCall<import('./settlementReversal.js').Revers
 
     const { processSettlementReversalCore } = await import('./settlementReversal.js');
     return processSettlementReversalCore(request.auth.uid, request.data);
-  }
+  },
 );
 
 /**
@@ -433,7 +483,13 @@ export const reverseSettlement = onCall<import('./settlementReversal.js').Revers
  * Atomically creates a bill document and updates friend balances
  * in a single transaction.
  */
-export { createBill, joinBillAsGuest, leaveBillAsGuest, updateGuestName, claimShadowUser } from './billFunctions.js';
+export {
+  createBill,
+  joinBillAsGuest,
+  leaveBillAsGuest,
+  updateGuestName,
+  claimShadowUser,
+} from './billFunctions.js';
 
 /**
  * Cloud Function: Recurring Bill Processor
@@ -480,7 +536,7 @@ export const generateRecurringBillNow = onCall<{ recurringBillId: string }>(
       }
       throw new HttpsError('internal', `Failed to generate recurring bill: ${message}`);
     }
-  }
+  },
 );
 
 /**
@@ -500,9 +556,10 @@ export const reconcileEventFootprints = onCall(
     if (!adminUid || request.auth.uid !== adminUid) {
       throw new HttpsError('permission-denied', 'Not authorized to run migrations');
     }
-    const { reconcileOrphanedEventFootprints } = await import('./migrations/reconcileOrphanedEventFootprints.js');
+    const { reconcileOrphanedEventFootprints } =
+      await import('./migrations/reconcileOrphanedEventFootprints.js');
     return reconcileOrphanedEventFootprints(getFirestore());
-  }
+  },
 );
 
 /**
@@ -536,7 +593,7 @@ export const reconcileLedger = onCall<{ dryRun?: boolean; uidFilter?: string[] }
     const dryRun = request.data?.dryRun ?? true;
     const uidFilter = request.data?.uidFilter;
     return reconcileLedgerCore(getFirestore(), { dryRun, ...(uidFilter && { uidFilter }) });
-  }
+  },
 );
 
 /**
@@ -567,7 +624,7 @@ export const scheduledLedgerReconcile = onSchedule(
       // Swallow — a failed dry-run report must not surface as a scheduler error
       // and trigger unnecessary retry/alert-spam.
     }
-  }
+  },
 );
 
 /**

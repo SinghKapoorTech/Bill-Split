@@ -1,14 +1,16 @@
-import { useAuth } from "@/contexts/AuthContext";
-import { Person, BillData, ItemAssignment, PersonTotal } from "@/types";
-import { Loader2 } from "lucide-react";
-import { SplitSummary } from "@/components/people/SplitSummary";
-import { StepFooter } from "@/components/shared/StepFooter";
-import { billService } from "@/services/billService";
-import { arrayUnion, arrayRemove } from "firebase/firestore";
-import { useToast } from "@/hooks/use-toast";
-import { SplitMethod } from "../SplitMethodSelector";
-import { SplitDonutChart } from "@/components/shared/SplitDonutChart";
-import { resolveSplitAmounts, buildPerPersonShareItems } from "@shared/splitAmounts";
+import { useMemo } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { buildParticipantRoles } from '@/utils/billParticipants';
+import { Person, BillData, ItemAssignment, PersonTotal } from '@/types';
+import { Loader2 } from 'lucide-react';
+import { SplitSummary } from '@/components/people/SplitSummary';
+import { StepFooter } from '@/components/shared/StepFooter';
+import { billService } from '@/services/billService';
+import { arrayUnion, arrayRemove } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { SplitMethod } from '../SplitMethodSelector';
+import { SplitDonutChart } from '@/components/shared/SplitDonutChart';
+import { resolveSplitAmounts, buildPerPersonShareItems } from '@shared/splitAmounts';
 
 interface ReviewStepProps {
   amount: string;
@@ -22,6 +24,12 @@ interface ReviewStepProps {
   totalSteps: number;
   billId?: string;
   settledPersonIds?: string[];
+  /**
+   * The bill's creator. Must come from the session, not `user.uid` — on a
+   * transaction you did not create, the current viewer is not the owner, and
+   * using the viewer's uid mislabels them as the creator.
+   */
+  ownerId?: string;
   isOwner?: boolean;
   splitMethod: SplitMethod;
   percentages: Record<string, number>;
@@ -40,6 +48,7 @@ export function ReviewStep({
   totalSteps,
   billId,
   settledPersonIds,
+  ownerId,
   isOwner = true,
   splitMethod,
   percentages,
@@ -48,24 +57,34 @@ export function ReviewStep({
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // Role tags ('Created' / 'Paid') next to each name — mirrors GuestClaimView:207.
+  const roleLabels = useMemo(
+    () => buildParticipantRoles(people, ownerId, paidById),
+    [people, ownerId, paidById],
+  );
+
   const handleMarkAsSettled = async (personId: string, isSettled: boolean) => {
     if (!user || !billId) return;
 
     try {
       await billService.updateBill(billId, {
-        settledPersonIds: (isSettled ? arrayUnion(personId) : arrayRemove(personId)) as unknown as string[]
+        settledPersonIds: (isSettled
+          ? arrayUnion(personId)
+          : arrayRemove(personId)) as unknown as string[],
       });
 
       toast({
-        title: isSettled ? "Marked as Settled" : "Undo Settled",
-        description: isSettled ? "Their balance has been updated to $0 for this bill." : "Their balance has been restored for this bill.",
+        title: isSettled ? 'Marked as Settled' : 'Undo Settled',
+        description: isSettled
+          ? 'Their balance has been updated to $0 for this bill.'
+          : 'Their balance has been restored for this bill.',
       });
     } catch (error) {
-      console.error("Failed to mark as settled", error);
+      console.error('Failed to mark as settled', error);
       toast({
-        title: "Error",
-        description: "Failed to update settlement status.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to update settlement status.',
+        variant: 'destructive',
       });
     }
   };
@@ -74,7 +93,13 @@ export function ReviewStep({
 
   // Per-person amounts — same shared math as the save path, so the review
   // screen always shows exactly what gets persisted.
-  const personAmounts = resolveSplitAmounts(numAmount, people, splitMethod, percentages, exactAmounts);
+  const personAmounts = resolveSplitAmounts(
+    numAmount,
+    people,
+    splitMethod,
+    percentages,
+    exactAmounts,
+  );
 
   // Build billData and assignments matching the split method
   let dummyBillData: BillData;
@@ -82,13 +107,13 @@ export function ReviewStep({
 
   if (splitMethod === 'equal') {
     dummyBillData = {
-      items: [{ id: "dummy-item", name: title || "Expense", price: numAmount }],
+      items: [{ id: 'dummy-item', name: title || 'Expense', price: numAmount }],
       subtotal: numAmount,
       tax: 0,
       tip: 0,
       total: numAmount,
     };
-    dummyItemAssignments = { "dummy-item": people.map(p => p.id) };
+    dummyItemAssignments = { 'dummy-item': people.map((p) => p.id) };
   } else {
     const { items, itemAssignments } = buildPerPersonShareItems(people, personAmounts);
     dummyBillData = {
@@ -101,7 +126,7 @@ export function ReviewStep({
     dummyItemAssignments = itemAssignments;
   }
 
-  const personTotals: PersonTotal[] = people.map(p => {
+  const personTotals: PersonTotal[] = people.map((p) => {
     const personAmount = personAmounts[p.id] ?? 0;
     return {
       personId: p.id,
@@ -116,12 +141,8 @@ export function ReviewStep({
 
   return (
     <div className="flex flex-col gap-6 p-4 max-w-md mx-auto w-full">
-
       {personTotals.length > 1 && (
-        <SplitDonutChart
-          personTotals={personTotals}
-          total={numAmount}
-        />
+        <SplitDonutChart personTotals={personTotals} total={numAmount} roleLabels={roleLabels} />
       )}
 
       <div className="w-full">
@@ -132,7 +153,8 @@ export function ReviewStep({
           billData={dummyBillData}
           itemAssignments={dummyItemAssignments}
           paidById={paidById}
-          ownerId={user?.uid}
+          ownerId={ownerId}
+          roleLabels={roleLabels}
           settledPersonIds={settledPersonIds}
           onMarkAsSettled={billId ? handleMarkAsSettled : undefined}
         />
@@ -148,11 +170,11 @@ export function ReviewStep({
       {/* Desktop only: StepFooter */}
       <div className="hidden md:block">
         <StepFooter
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onBack={isOwner ? onPrev : undefined}
-            onComplete={onComplete}
-            completeLabel={isOwner ? "Done" : "Back"}
+          currentStep={currentStep}
+          totalSteps={totalSteps}
+          onBack={isOwner ? onPrev : undefined}
+          onComplete={onComplete}
+          completeLabel={isOwner ? 'Done' : 'Back'}
         />
       </div>
     </div>

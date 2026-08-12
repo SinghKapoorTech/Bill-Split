@@ -1,8 +1,9 @@
 import { Person } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { personIdToFirebaseUid } from '@shared/ledgerCalculations';
 import { useState } from 'react';
 
 export type SplitMethod = 'equal' | 'percentage' | 'exact';
@@ -37,21 +38,32 @@ export function PaidByBanner({
 
   if (people.length === 0) return null;
 
-  const currentSplitLabel = SPLIT_OPTIONS.find(o => o.value === splitMethod)?.label || 'equally';
+  const currentSplitLabel = SPLIT_OPTIONS.find((o) => o.value === splitMethod)?.label || 'equally';
 
-  // Determine the current "paid by" display label
-  const effectivePaidById = paidById || user?.uid;
-  const paidByPerson = people.find(p => {
-    const isMe = p.id === user?.uid || (p as Person & { userId?: string }).userId === user?.uid || p.id === `user-${user?.uid}`;
-    const optionValue = isMe && user ? user.uid : p.id;
-    return optionValue === effectivePaidById;
-  });
-  const paidByIsMe = paidByPerson && (
-    paidByPerson.id === user?.uid ||
-    (paidByPerson as Person & { userId?: string }).userId === user?.uid ||
-    paidByPerson.id === `user-${user?.uid}`
-  );
-  const paidByLabel = paidByIsMe ? 'you' : (paidByPerson?.name.split(' ')[0] || 'you');
+  const isSelf = (p: Person) =>
+    p.id === user?.uid ||
+    (p as Person & { userId?: string }).userId === user?.uid ||
+    p.id === `user-${user?.uid}`;
+
+  /**
+   * The value handed to `onPaidByChange`, which is persisted verbatim as the
+   * bill's `paidById` — the field the ledger anchors on.
+   *
+   * A-08: this MUST be a raw Firebase uid. Linked people are minted with a
+   * `user-{uid}` id, so emitting `person.id` unnormalized meant tapping anyone
+   * other than yourself wrote a prefixed anchor, which the pipeline's
+   * `isWritableBalancePair` rejects — silently erasing the debt.
+   * Unlinked ids (`person-…`, `guest-…`) pass through untouched, by design.
+   */
+  const optionValueFor = (p: Person) =>
+    isSelf(p) && user ? user.uid : personIdToFirebaseUid(p.id);
+
+  // Normalize the incoming value too, so a legacy bill that already holds a
+  // prefixed anchor still highlights the right person.
+  const effectivePaidById = paidById ? personIdToFirebaseUid(paidById) : user?.uid;
+  const paidByPerson = people.find((p) => optionValueFor(p) === effectivePaidById);
+  const paidByIsMe = paidByPerson && isSelf(paidByPerson);
+  const paidByLabel = paidByIsMe ? 'you' : paidByPerson?.name.split(' ')[0] || 'you';
 
   return (
     <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground pt-4 mb-2 flex-wrap">
@@ -64,8 +76,8 @@ export function PaidByBanner({
         </PopoverTrigger>
         <PopoverContent className="w-48 p-1" align="center" sideOffset={6}>
           {people.map((person: Person) => {
-            const isMe = person.id === user?.uid || (person as Person & { userId?: string }).userId === user?.uid || person.id === `user-${user?.uid}`;
-            const optionValue = isMe && user ? user.uid : person.id;
+            const isMe = isSelf(person);
+            const optionValue = optionValueFor(person);
             const label = isMe ? 'you' : person.name.split(' ')[0];
             const isSelected = optionValue === effectivePaidById;
 
@@ -77,16 +89,12 @@ export function PaidByBanner({
                   setPaidByOpen(false);
                 }}
                 className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-colors",
-                  isSelected
-                    ? "bg-blue-50 text-blue-700"
-                    : "hover:bg-muted text-foreground"
+                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-colors',
+                  isSelected ? 'bg-blue-50 text-blue-700' : 'hover:bg-muted text-foreground',
                 )}
               >
                 <span className="flex-1 text-sm font-medium">{label}</span>
-                {isSelected && (
-                  <Check className="w-4 h-4 text-blue-600 shrink-0" />
-                )}
+                {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
               </button>
             );
           })}
@@ -102,7 +110,7 @@ export function PaidByBanner({
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-1" align="center" sideOffset={6}>
-              {SPLIT_OPTIONS.map(option => (
+              {SPLIT_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   onClick={() => {
@@ -110,10 +118,10 @@ export function PaidByBanner({
                     setSplitOpen(false);
                   }}
                   className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-colors",
+                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-colors',
                     splitMethod === option.value
-                      ? "bg-blue-50 text-blue-700"
-                      : "hover:bg-muted text-foreground"
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'hover:bg-muted text-foreground',
                   )}
                 >
                   <div className="flex-1 min-w-0">

@@ -43,7 +43,7 @@ const MAX_BILLS_PER_SCAN = 50;
 function extractFriendUids(friends: Array<string | { userId?: string; id?: string }>): Set<string> {
   const uids = new Set<string>();
   for (const f of friends) {
-    const uid = typeof f === 'string' ? f : (f.userId || f.id);
+    const uid = typeof f === 'string' ? f : f.userId || f.id;
     if (uid && typeof uid === 'string') uids.add(uid);
   }
   return uids;
@@ -56,7 +56,7 @@ function extractFriendUids(friends: Array<string | { userId?: string; id?: strin
 export async function processFriendAdd(
   userId: string,
   before: DocumentData | undefined,
-  after: DocumentData | undefined
+  after: DocumentData | undefined,
 ): Promise<void> {
   if (!before || !after) return;
 
@@ -87,12 +87,20 @@ export async function processFriendAdd(
       break;
     }
 
+    const remaining = MAX_BILLS_PER_SCAN - totalBillsTouched;
+
     // Query bills owned by this user that include the new friend.
     // Uses existing composite index: participantIds ARRAY-CONTAINS + ownerId
+    //
+    // The limit belongs on the QUERY, not on a post-hoc slice: Firestore bills
+    // one read per document returned, so slicing afterwards still paid for
+    // every matching bill. A user with 1,000 shared bills was charged 1,000
+    // reads to perform at most 50 writes.
     const billsSnap = await db()
       .collection(BILLS_COLLECTION)
       .where('participantIds', 'array-contains', newFriendUid)
       .where('ownerId', '==', userId)
+      .limit(remaining)
       .get();
 
     if (billsSnap.empty) {
@@ -100,8 +108,7 @@ export async function processFriendAdd(
       continue;
     }
 
-    const remaining = MAX_BILLS_PER_SCAN - totalBillsTouched;
-    const billsToTouch = billsSnap.docs.slice(0, remaining);
+    const billsToTouch = billsSnap.docs;
 
     // Batch-write _friendScanTrigger to re-trigger the ledger pipeline.
     // The pipeline's hasRelevantChange() includes _friendScanTrigger,
@@ -116,7 +123,11 @@ export async function processFriendAdd(
     await batch.commit();
     totalBillsTouched += billsToTouch.length;
 
-    logger.info('Bills touched for friend', { userId, friendUid: newFriendUid, billsTouched: billsToTouch.length });
+    logger.info('Bills touched for friend', {
+      userId,
+      friendUid: newFriendUid,
+      billsTouched: billsToTouch.length,
+    });
   }
 
   logger.info('Friend scan complete', { userId, totalBillsTouched });
@@ -128,7 +139,7 @@ export const friendAddProcessor = onDocumentUpdated(
     await processFriendAdd(
       event.params.userId,
       event.data?.before?.data(),
-      event.data?.after?.data()
+      event.data?.after?.data(),
     );
-  }
+  },
 );

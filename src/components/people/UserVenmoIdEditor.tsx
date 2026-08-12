@@ -14,8 +14,9 @@ export function UserVenmoIdEditor({ currentVenmoId }: UserVenmoIdEditorProps) {
   const { updateVenmoId } = useUserProfile();
 
   const handleSave = async () => {
-    await updateVenmoId(venmoId.trim());
-    setIsEditing(false);
+    // Stay open if the value was rejected, so the user can fix it.
+    const saved = await updateVenmoId(venmoId.trim());
+    if (saved) setIsEditing(false);
   };
 
   const handleCancel = () => {
@@ -31,9 +32,7 @@ export function UserVenmoIdEditor({ currentVenmoId }: UserVenmoIdEditorProps) {
             (@{currentVenmoId.replace(/^@+/, '')})
           </span>
         ) : (
-          <span className="text-xs text-muted-foreground italic">
-            No Venmo ID
-          </span>
+          <span className="text-xs text-muted-foreground italic">No Venmo ID</span>
         )}
         <Button
           variant="ghost"

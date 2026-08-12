@@ -13,14 +13,14 @@ import {
   arrayUnion,
   arrayRemove,
   orderBy,
-  runTransaction
+  runTransaction,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '@/config/firebase';
 import { Bill, BillData, BillType, BillMember, BillStatus } from '@/types/bill.types';
 import { Person } from '@/types/person.types';
 import { removeUndefinedFields } from '@/utils/firestoreHelpers';
-
+import { personIdToFirebaseUid } from '@shared/ledgerCalculations';
 
 const BILLS_COLLECTION = 'bills';
 
@@ -55,7 +55,7 @@ export const billService = {
     people: Person[],
     eventId?: string,
     squadId?: string,
-    status: BillStatus = 'active'
+    status: BillStatus = 'active',
   ): Promise<string> {
     const fn = httpsCallable<any, { billId: string }>(functions, 'createBill');
     const result = await fn({
@@ -66,7 +66,7 @@ export const billService = {
       people,
       eventId,
       squadId,
-      status
+      status,
     });
     return result.data.billId;
   },
@@ -83,7 +83,7 @@ export const billService = {
     people: Person[],
     eventId?: string,
     squadId?: string,
-    status: BillStatus = 'active'
+    status: BillStatus = 'active',
   ): Promise<string> {
     const dummyItemId = `item-${Date.now()}`;
     const billData: BillData = {
@@ -91,15 +91,15 @@ export const billService = {
         {
           id: dummyItemId,
           name: title,
-          price: amount
-        }
+          price: amount,
+        },
       ],
       subtotal: amount,
       tax: 0,
       tip: 0,
       otherFees: 0,
       total: amount,
-      restaurantName: title
+      restaurantName: title,
     };
 
     const fn = httpsCallable<any, { billId: string }>(functions, 'createBill');
@@ -114,9 +114,9 @@ export const billService = {
       squadId,
       status,
       splitEvenly: true,
-      isSimpleTransaction: true
+      isSimpleTransaction: true,
     });
-    
+
     return result.data.billId;
   },
 
@@ -141,11 +141,11 @@ export const billService = {
     const q = query(
       collection(db, BILLS_COLLECTION),
       where('eventId', '==', eventId),
-      orderBy('updatedAt', 'desc')
+      orderBy('updatedAt', 'desc'),
     );
 
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => doc.data() as Bill);
+    return querySnapshot.docs.map((doc) => doc.data() as Bill);
   },
 
   /**
@@ -155,15 +155,19 @@ export const billService = {
     const q = query(
       collection(db, BILLS_COLLECTION),
       where('eventId', '==', eventId),
-      orderBy('updatedAt', 'desc')
+      orderBy('updatedAt', 'desc'),
     );
 
-    return onSnapshot(q, (snapshot) => {
-      const bills = snapshot.docs.map(doc => doc.data() as Bill);
-      callback(bills);
-    }, (error) => {
-      console.error('[billService] subscribeBillsByEvent error', error);
-    });
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const bills = snapshot.docs.map((doc) => doc.data() as Bill);
+        callback(bills);
+      },
+      (error) => {
+        console.error('[billService] subscribeBillsByEvent error', error);
+      },
+    );
   },
 
   /**
@@ -173,11 +177,11 @@ export const billService = {
     const q = query(
       collection(db, BILLS_COLLECTION),
       where('squadId', '==', squadId),
-      orderBy('updatedAt', 'desc')
+      orderBy('updatedAt', 'desc'),
     );
 
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => doc.data() as Bill);
+    return querySnapshot.docs.map((doc) => doc.data() as Bill);
   },
 
   /**
@@ -187,15 +191,19 @@ export const billService = {
     const q = query(
       collection(db, BILLS_COLLECTION),
       where('squadId', '==', squadId),
-      orderBy('updatedAt', 'desc')
+      orderBy('updatedAt', 'desc'),
     );
 
-    return onSnapshot(q, (snapshot) => {
-      const bills = snapshot.docs.map(doc => doc.data() as Bill);
-      callback(bills);
-    }, (error) => {
-      console.error('[billService] subscribeBillsBySquad error', error);
-    });
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const bills = snapshot.docs.map((doc) => doc.data() as Bill);
+        callback(bills);
+      },
+      (error) => {
+        console.error('[billService] subscribeBillsBySquad error', error);
+      },
+    );
   },
 
   /**
@@ -203,6 +211,17 @@ export const billService = {
    */
   async updateBill(billId: string, updates: Partial<Bill>): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
+
+    // A-08 (defence in depth): this is the single choke point for every client
+    // write to a bill, and unlike `createBill` it is a DIRECT Firestore write
+    // with no callable to normalize for us. `PaidByBanner` emits the
+    // `user-`-prefixed `person.id` when you tap anyone but yourself, so without
+    // this the prefix lands in the field the ledger anchors on.
+    // The pipeline normalizes too — belt and braces, since a corrupt anchor is
+    // silent and erases money.
+    if (updates.paidById) {
+      updates = { ...updates, paidById: personIdToFirebaseUid(updates.paidById) };
+    }
 
     // If people is being updated, use a transaction to atomically read
     // existing participantIds and merge with derived ones. This prevents
@@ -227,24 +246,30 @@ export const billService = {
               .filter((m: any) => !m.isAnonymous && m.userId)
               .map((m: any) => m.userId);
 
-            const merged = Array.from(new Set([...existingParticipantIds, ...derived, ...memberUids]));
+            const merged = Array.from(
+              new Set([...existingParticipantIds, ...derived, ...memberUids]),
+            );
 
             // Compute unsettledParticipantIds preserving settled users.
             const settledPersonIds = new Set<string>(billData?.settledPersonIds || []);
             const settledUids = new Set<string>(
               (billData?.people || [])
                 .filter((p: Person) => settledPersonIds.has(p.id))
-                .map((p: Person) => p.id.startsWith('user-') ? p.id.slice(5) : p.id)
+                .map((p: Person) => (p.id.startsWith('user-') ? p.id.slice(5) : p.id)),
             );
-            const unsettledDerived = merged.filter(uid => !settledUids.has(uid));
+            const unsettledDerived = merged.filter((uid) => !settledUids.has(uid));
 
-            finalUpdates = { ...finalUpdates, participantIds: merged, unsettledParticipantIds: unsettledDerived };
+            finalUpdates = {
+              ...finalUpdates,
+              participantIds: merged,
+              unsettledParticipantIds: unsettledDerived,
+            };
           }
 
           const cleanedUpdates = removeUndefinedFields({
             ...finalUpdates,
             updatedAt: serverTimestamp(),
-            lastActivity: serverTimestamp()
+            lastActivity: serverTimestamp(),
           });
 
           transaction.update(billRef, cleanedUpdates);
@@ -260,7 +285,7 @@ export const billService = {
       const cleanedUpdates = removeUndefinedFields({
         ...updates,
         updatedAt: serverTimestamp(),
-        lastActivity: serverTimestamp()
+        lastActivity: serverTimestamp(),
       });
 
       try {
@@ -278,10 +303,7 @@ export const billService = {
    * Gets a bill by share code
    */
   async getBillByShareCode(shareCode: string): Promise<Bill | null> {
-    const q = query(
-      collection(db, BILLS_COLLECTION),
-      where('shareCode', '==', shareCode)
-    );
+    const q = query(collection(db, BILLS_COLLECTION), where('shareCode', '==', shareCode));
 
     const querySnapshot = await getDocs(q);
     if (querySnapshot.empty) {
@@ -311,7 +333,7 @@ export const billService = {
       userId,
       name: userName,
       joinedAt: now,
-      isAnonymous: userId.startsWith('guest-') || userId === 'anonymous'
+      isAnonymous: userId.startsWith('guest-') || userId === 'anonymous',
     };
 
     // Only add email if defined
@@ -337,7 +359,7 @@ export const billService = {
         unsettledParticipantIds: arrayUnion(userId),
       }),
       updatedAt: serverTimestamp(),
-      lastActivity: serverTimestamp()
+      lastActivity: serverTimestamp(),
     });
   },
 
@@ -379,7 +401,7 @@ export const billService = {
       shareCodeCreatedAt: now,
       shareCodeExpiresAt: expiresAt,
       shareCodeCreatedBy: userId,
-      updatedAt: serverTimestamp()
+      updatedAt: serverTimestamp(),
     });
 
     return code;
@@ -393,7 +415,7 @@ export const billService = {
     billId: string,
     itemId: string,
     personId: string,
-    isAssigned: boolean
+    isAssigned: boolean,
   ): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
 
@@ -404,13 +426,13 @@ export const billService = {
       await updateDoc(billRef, {
         [fieldPath]: arrayUnion(personId),
         updatedAt: serverTimestamp(),
-        lastActivity: serverTimestamp()
+        lastActivity: serverTimestamp(),
       });
     } else {
       await updateDoc(billRef, {
         [fieldPath]: arrayRemove(personId),
         updatedAt: serverTimestamp(),
-        lastActivity: serverTimestamp()
+        lastActivity: serverTimestamp(),
       });
     }
   },
@@ -419,17 +441,13 @@ export const billService = {
    * Atomically sets the full assignment array for an item
    * Used by "Select All" / "Deselect All" per item
    */
-  async setItemAssignment(
-    billId: string,
-    itemId: string,
-    personIds: string[]
-  ): Promise<void> {
+  async setItemAssignment(billId: string, itemId: string, personIds: string[]): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
     const fieldPath = `itemAssignments.${itemId}`;
     await updateDoc(billRef, {
       [fieldPath]: personIds,
       updatedAt: serverTimestamp(),
-      lastActivity: serverTimestamp()
+      lastActivity: serverTimestamp(),
     });
   },
 
@@ -440,7 +458,7 @@ export const billService = {
   async updatePersonDetails(
     billId: string,
     personId: string,
-    updates: Partial<Person>
+    updates: Partial<Person>,
   ): Promise<void> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
 
@@ -453,13 +471,13 @@ export const billService = {
       const people = billData.people || [];
 
       // 2. Find and update the person
-      const personIndex = people.findIndex(p => p.id === personId);
+      const personIndex = people.findIndex((p) => p.id === personId);
       if (personIndex === -1) throw new Error('Person not found on this bill');
 
       const updatedPeople = [...people];
       // Merge updates, then strip any undefined values (Firestore rejects them)
       const merged = { ...updatedPeople[personIndex], ...updates };
-      Object.keys(merged).forEach(key => {
+      Object.keys(merged).forEach((key) => {
         if (merged[key as keyof typeof merged] === undefined) {
           delete merged[key as keyof typeof merged];
         }
@@ -469,19 +487,24 @@ export const billService = {
       // 3. Write back the updated people array
       // Also update member record if this person is a member
       const members = billData.members || [];
-      const memberIndex = members.findIndex(m => m.userId === personId);
+      const memberIndex = members.findIndex((m) => m.userId === personId);
 
-      const updatePayload: { people: Person[]; updatedAt: ReturnType<typeof serverTimestamp>; lastActivity: ReturnType<typeof serverTimestamp>; members?: BillMember[] } = {
+      const updatePayload: {
+        people: Person[];
+        updatedAt: ReturnType<typeof serverTimestamp>;
+        lastActivity: ReturnType<typeof serverTimestamp>;
+        members?: BillMember[];
+      } = {
         people: updatedPeople,
         updatedAt: serverTimestamp(),
-        lastActivity: serverTimestamp()
+        lastActivity: serverTimestamp(),
       };
 
       if (memberIndex !== -1 && updates.name) {
         const updatedMembers = [...members];
         updatedMembers[memberIndex] = {
           ...updatedMembers[memberIndex],
-          name: updates.name
+          name: updates.name,
         };
         updatePayload.members = updatedMembers;
       }
@@ -510,7 +533,12 @@ export const billService = {
   /**
    * Updates the name of a guest shadow user
    */
-  async updateGuestName(billId: string, shareCode: string, shadowUserId: string, newName: string): Promise<void> {
+  async updateGuestName(
+    billId: string,
+    shareCode: string,
+    shadowUserId: string,
+    newName: string,
+  ): Promise<void> {
     const fn = httpsCallable<any, { success: boolean }>(functions, 'updateGuestName');
     await fn({ billId, shareCode, shadowUserId, newName });
   },
@@ -519,10 +547,11 @@ export const billService = {
    * Claims a shadow user's history and merges it into the current authenticated user
    */
   async claimShadowUser(shadowUserId: string): Promise<{ success: boolean; claimedBills: number }> {
-    const fn = httpsCallable<any, { success: boolean; claimedBills: number }>(functions, 'claimShadowUser');
+    const fn = httpsCallable<any, { success: boolean; claimedBills: number }>(
+      functions,
+      'claimShadowUser',
+    );
     const result = await fn({ shadowUserId });
     return result.data;
   },
 };
-
-

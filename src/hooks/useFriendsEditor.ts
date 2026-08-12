@@ -4,6 +4,7 @@ import { useToast } from './use-toast';
 import { ERROR_MESSAGES } from '@/utils/uiConstants';
 import { userService } from '@/services/userService';
 import { Friend } from '@/types/person.types';
+import { sanitizeVenmoHandle } from '@/utils/venmo';
 
 export function useFriendsEditor() {
   const { profile, updateFriends } = useUserProfile();
@@ -66,20 +67,20 @@ export function useFriendsEditor() {
         if (!isActive) return;
 
         const suggestions: Friend[] = globalUsers
-          .filter(u => u.uid !== profile?.uid && !friends.some(f => f.id === u.uid))
-          .map(u => ({
+          .filter((u) => u.uid !== profile?.uid && !friends.some((f) => f.id === u.uid))
+          .map((u) => ({
             id: u.uid,
             name: u.displayName || 'App User',
             venmoId: u.venmoId,
             email: u.email || u.phoneNumber,
             username: u.username,
-            balance: 0
+            balance: 0,
           }));
 
         setFriendSuggestions(suggestions);
         setShowSuggestions(suggestions.length > 0);
       } catch (error) {
-        console.error("Global search failed", error);
+        console.error('Global search failed', error);
         if (isActive) {
           setFriendSuggestions([]);
           setShowSuggestions(false);
@@ -122,7 +123,8 @@ export function useFriendsEditor() {
     if (!finalEmail.trim()) {
       toast({
         title: 'Email Required',
-        description: 'An email is required to add an external friend so they can access the app later.',
+        description:
+          'An email is required to add an external friend so they can access the app later.',
         variant: 'destructive',
       });
       return;
@@ -136,7 +138,9 @@ export function useFriendsEditor() {
         id: userId,
         name: finalName.trim(),
         email: finalEmail.trim(),
-        venmoId: finalVenmoId.replace(/^@+/, '').trim() || undefined,
+        // Drop anything that isn't a plausible handle — this value is later
+        // interpolated into a payment deep link (see A-06 / tests/venmo.test.ts).
+        venmoId: sanitizeVenmoHandle(finalVenmoId),
         balance: 0,
       };
 
@@ -163,9 +167,31 @@ export function useFriendsEditor() {
     await updateFriends(updatedFriends);
   };
 
-  const handleEditFriend = async (friendId: string, updates: { name?: string; email?: string; venmoId?: string }) => {
+  const handleEditFriend = async (
+    friendId: string,
+    updates: { name?: string; email?: string; venmoId?: string },
+  ) => {
     try {
-      await userService.updateShadowUser(friendId, updates);
+      // A shadow user's venmoId is set by ANOTHER user, so it is untrusted
+      // input on the path to a payment URL — sanitize before it is persisted.
+      // Reject an unusable handle rather than writing over the stored one:
+      // coercing to '' would let an unrelated edit (renaming a friend) silently
+      // erase a venmoId that was already there.
+      let safeUpdates = updates;
+      if (updates.venmoId !== undefined && updates.venmoId !== '') {
+        const safeVenmoId = sanitizeVenmoHandle(updates.venmoId);
+        if (!safeVenmoId) {
+          toast({
+            title: 'Invalid Venmo ID',
+            description: 'Enter your Venmo username, email or phone — no spaces or & ? # = / characters.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        safeUpdates = { ...updates, venmoId: safeVenmoId };
+      }
+
+      await userService.updateShadowUser(friendId, safeUpdates);
       await refreshFriends();
     } catch (error: unknown) {
       toast({

@@ -4,6 +4,7 @@ import { Timestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserProfile, Friend } from '@/types';
+import { isValidVenmoHandle } from '@/utils/venmo';
 import { useToast } from './use-toast';
 
 export function useUserProfile() {
@@ -23,44 +24,62 @@ export function useUserProfile() {
 
     // Use a real-time listener so any write to the user doc (e.g., updated
     // friend balances after a bill is completed) is immediately reflected.
-    const unsubscribe = onSnapshot(docRef, async (docSnap) => {
-      if (docSnap.exists()) {
-        setProfile(docSnap.data() as UserProfile);
-      } else {
-        // First login — create the profile
-        const now = Timestamp.now();
-        const newProfile: UserProfile = {
-          uid: user.uid,
-          email: user.email || '',
-          displayName: user.displayName || '',
-          friends: [],
-          squadIds: [],
-          createdAt: now,
-          lastLoginAt: now,
-          ...(user.photoURL && { photoURL: user.photoURL }),
-        };
-        await setDoc(docRef, newProfile);
-        // The onSnapshot will fire again after the setDoc, no need to setState here
-      }
-      setLoading(false);
-    }, (error: Error) => {
-      console.error('Error listening to profile:', error);
-      toast({
-        title: 'Error loading profile',
-        description: error.message,
-        variant: 'destructive',
-      });
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      docRef,
+      async (docSnap) => {
+        if (docSnap.exists()) {
+          setProfile(docSnap.data() as UserProfile);
+        } else {
+          // First login — create the profile
+          const now = Timestamp.now();
+          const newProfile: UserProfile = {
+            uid: user.uid,
+            email: user.email || '',
+            displayName: user.displayName || '',
+            friends: [],
+            squadIds: [],
+            createdAt: now,
+            lastLoginAt: now,
+            ...(user.photoURL && { photoURL: user.photoURL }),
+          };
+          await setDoc(docRef, newProfile);
+          // The onSnapshot will fire again after the setDoc, no need to setState here
+        }
+        setLoading(false);
+      },
+      (error: Error) => {
+        console.error('Error listening to profile:', error);
+        toast({
+          title: 'Error loading profile',
+          description: error.message,
+          variant: 'destructive',
+        });
+        setLoading(false);
+      },
+    );
 
     return () => unsubscribe();
   }, [user]);
 
-  const updateVenmoId = async (venmoId: string) => {
-    if (!user || !profile) return;
+  /** @returns true if the value was saved; false if it was rejected or failed. */
+  const updateVenmoId = async (venmoId: string): Promise<boolean> => {
+    if (!user || !profile) return false;
 
     // Remove any @ symbols and whitespace
     const cleanVenmoId = venmoId.replace(/^@+/, '').trim();
+
+    // Reject anything that isn't a plausible handle rather than storing it.
+    // A stored venmoId is later interpolated into a payment deep link, so this
+    // is the cheapest place to keep query-string metacharacters out of the
+    // ledger. Empty is allowed — that's how a user clears their handle.
+    if (cleanVenmoId !== '' && !isValidVenmoHandle(cleanVenmoId)) {
+      toast({
+        title: 'Invalid Venmo ID',
+        description: 'Enter your Venmo username, email or phone — no spaces or & ? # = / characters.',
+        variant: 'destructive',
+      });
+      return false;
+    }
 
     try {
       const docRef = doc(db, 'users', user.uid);
@@ -73,6 +92,7 @@ export function useUserProfile() {
         title: 'Venmo ID saved',
         description: 'Your Venmo ID has been updated successfully.',
       });
+      return true;
     } catch (error: unknown) {
       console.error('Error updating Venmo ID:', error);
       toast({
@@ -80,6 +100,7 @@ export function useUserProfile() {
         description: (error as Error).message,
         variant: 'destructive',
       });
+      return false;
     }
   };
 
@@ -90,7 +111,7 @@ export function useUserProfile() {
       const docRef = doc(db, 'users', user.uid);
 
       // Store only the Firebase UIDs — balances live in balances collection
-      const friendIds: string[] = friends.map(f => f.id!).filter(Boolean);
+      const friendIds: string[] = friends.map((f) => f.id!).filter(Boolean);
 
       const updatedProfile = { ...profile, friends: friendIds };
 

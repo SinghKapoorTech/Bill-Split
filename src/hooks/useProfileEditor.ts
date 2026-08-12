@@ -19,11 +19,17 @@ export function useProfileEditor() {
     }
   }, [profile]);
 
-  const handleSave = async () => {
+  /** @returns true if the value was saved. Callers MUST gate any success toast
+   *  on this — ProfileSettingsCard previously toasted 'Profile updated'
+   *  unconditionally, so a rejected save showed both an error and a success. */
+  const handleSave = async (): Promise<boolean> => {
     setSaving(true);
-    await updateVenmoId(venmoId.trim());
+    const saved = await updateVenmoId(venmoId.trim());
     setSaving(false);
-    setIsEditing(false);
+    // Stay in edit mode on rejection so the user can correct the value —
+    // closing the editor would read as success while discarding their input.
+    if (saved) setIsEditing(false);
+    return saved;
   };
 
   const handleCancel = () => {

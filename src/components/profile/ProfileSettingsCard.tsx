@@ -1,5 +1,15 @@
 import { useRef, useState } from 'react';
-import { User as UserIcon, Check, X, Camera, Loader2, Trash2, MessageSquare, Sun, Moon } from 'lucide-react';
+import {
+  User as UserIcon,
+  Check,
+  X,
+  Camera,
+  Loader2,
+  Trash2,
+  MessageSquare,
+  Sun,
+  Moon,
+} from 'lucide-react';
 import { FeedbackModal } from './FeedbackModal';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,7 +44,10 @@ export function ProfileSettingsCard() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const handleSave = async () => {
-    await save();
+    // Only claim success if the save actually happened — `save()` returns false
+    // when the Venmo ID is rejected, and it has already shown its own error.
+    const saved = await save();
+    if (!saved) return;
     toast({
       title: SUCCESS_MESSAGES.PROFILE_UPDATED,
       description: SUCCESS_MESSAGES.PROFILE_UPDATED_DESC,
@@ -118,7 +131,9 @@ export function ProfileSettingsCard() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="name" className="text-sm md:text-base">Name</Label>
+          <Label htmlFor="name" className="text-sm md:text-base">
+            Name
+          </Label>
           <Input
             id="name"
             value={profile?.displayName || user?.displayName || ''}
@@ -128,7 +143,9 @@ export function ProfileSettingsCard() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-sm md:text-base">Email</Label>
+          <Label htmlFor="email" className="text-sm md:text-base">
+            Email
+          </Label>
           <Input
             id="email"
             value={profile?.email || user?.email || ''}
@@ -140,9 +157,7 @@ export function ProfileSettingsCard() {
         <div className="space-y-2">
           <Label htmlFor="venmoId" className="text-sm md:text-base">
             {UI_TEXT.VENMO_USERNAME}
-            <span className="text-xs text-muted-foreground ml-2">
-              {UI_TEXT.VENMO_WITHOUT_AT}
-            </span>
+            <span className="text-xs text-muted-foreground ml-2">{UI_TEXT.VENMO_WITHOUT_AT}</span>
           </Label>
           <div className="flex gap-2">
             <Input
@@ -169,13 +184,17 @@ export function ProfileSettingsCard() {
         <div className="flex items-center justify-between py-1">
           <Label className="text-sm md:text-base">Appearance</Label>
           <div className="flex items-center gap-2">
-            <Sun className={`w-4 h-4 ${theme === 'light' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <Sun
+              className={`w-4 h-4 ${theme === 'light' ? 'text-primary' : 'text-muted-foreground'}`}
+            />
             <Switch
               checked={theme === 'dark'}
               onCheckedChange={() => toggleTheme()}
               aria-label="Toggle dark mode"
             />
-            <Moon className={`w-4 h-4 ${theme === 'dark' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <Moon
+              className={`w-4 h-4 ${theme === 'dark' ? 'text-primary' : 'text-muted-foreground'}`}
+            />
           </div>
         </div>
 
@@ -189,33 +208,20 @@ export function ProfileSettingsCard() {
               <Check className="w-4 h-4 mr-2" />
               {saving ? UI_TEXT.SAVING : UI_TEXT.SAVE_CHANGES}
             </Button>
-            <Button
-              onClick={handleCancel}
-              disabled={saving}
-              variant="outline"
-              className="flex-1"
-            >
+            <Button onClick={handleCancel} disabled={saving} variant="outline" className="flex-1">
               <X className="w-4 h-4 mr-2" />
               {UI_TEXT.CANCEL}
             </Button>
           </div>
         )}
         <div className="space-y-2">
-          <Button
-              onClick={signOut}
-              variant="outline"
-              className="flex-1 text-destructive"
-            >
-              {UI_TEXT.SIGN_OUT}
-            </Button>
+          <Button onClick={signOut} variant="outline" className="flex-1 text-destructive">
+            {UI_TEXT.SIGN_OUT}
+          </Button>
         </div>
 
         <div className="border-t pt-4 mt-2">
-          <Button
-            onClick={() => setFeedbackOpen(true)}
-            variant="outline"
-            className="w-full gap-2"
-          >
+          <Button onClick={() => setFeedbackOpen(true)} variant="outline" className="w-full gap-2">
             <MessageSquare className="w-4 h-4" />
             Send Feedback
           </Button>
@@ -224,10 +230,7 @@ export function ProfileSettingsCard() {
           </p>
         </div>
 
-        <FeedbackModal
-          open={feedbackOpen}
-          onOpenChange={setFeedbackOpen}
-        />
+        <FeedbackModal open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       </div>
     </Card>
   );
