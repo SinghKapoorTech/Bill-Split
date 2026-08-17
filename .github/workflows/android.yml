@@ -28,12 +28,19 @@ jobs:
       - name: Build web app
         run: npm run build
         env:
+          # Native loads index.html at the webview root and needs RELATIVE asset
+          # paths. Without this the app installs and opens to a white screen
+          # (see vite.config.ts and commit e61a3de). Asserted in the next step.
+          CAPACITOR_BUILD: '1'
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
           VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+
+      - name: Assert native asset paths
+        run: node scripts/assert-native-build.mjs
 
       - name: Sync Capacitor
         run: npx cap sync android

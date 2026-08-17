@@ -49,8 +49,14 @@ echo "--- Installing npm dependencies ---"
 npm ci --prefer-offline --no-audit --no-fund
 
 # 3. Build the web app (Vite)
+#    CAPACITOR_BUILD=1 makes Vite emit RELATIVE asset paths. Native loads
+#    index.html at the webview root, so without it the app installs and opens
+#    to a white screen (see vite.config.ts and commit e61a3de).
 echo "--- Building web app ---"
-npm run build
+CAPACITOR_BUILD=1 npm run build
+
+echo "--- Asserting native asset paths ---"
+node scripts/assert-native-build.mjs
 
 # 4. Sync Capacitor (copies web assets + updates native plugins + pod install)
 echo "--- Capacitor sync ---"
