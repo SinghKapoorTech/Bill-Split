@@ -1,0 +1,10 @@
+# Shell scripts must keep LF endings. They execute on macOS (Xcode Cloud runs
+# ios/App/ci_scripts/ci_post_clone.sh) and on Linux (GitHub Actions runs
+# android/gradlew), where a trailing CR breaks the shebang with a "bad
+# interpreter" error.
+#
+# The repo is already all-LF and this changes no file today. It pins that
+# invariant so a contributor whose git has core.autocrlf=false cannot commit
+# CRLF and silently break native CI.
+*.sh    text eol=lf
+gradlew text eol=lf
