@@ -67,6 +67,17 @@ jobs:
       - name: Unit tests (shared/backend logic)
         run: npm test
 
+      # Security rules are a production boundary and the Admin-SDK integration
+      # suite bypasses them entirely, so nothing else here can catch a rules
+      # regression. The emulator needs Java (preinstalled on ubuntu-latest) and
+      # the firebase CLI, which is NOT a repo dependency — it is a global
+      # install locally, so CI has to provide it explicitly.
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools@latest
+
+      - name: Security rules tests
+        run: npm run test:rules
+
       # Compiles functions/src AND ../shared — catches backend type errors before deploy.
       - name: Functions typecheck/build
         working-directory: functions

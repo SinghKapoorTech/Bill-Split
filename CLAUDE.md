@@ -6,6 +6,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Never** include a `Co-Authored-By` line in commit messages.
 
+## Production Readiness Gate (MANDATORY before handing work back)
+
+Do NOT present a change as done, ready, or safe to push until every step below
+has actually been run and the output read. Evidence in the same message as the
+claim — never "should work".
+
+**1. Run the gates that apply to the change.**
+
+| Change touches | Must run |
+| --- | --- |
+| anything | `npm test`, `npm run typecheck` (must not exceed the CI ratchet), `npm run lint` (must not exceed baseline) |
+| `src/` | `npm run build` |
+| `functions/` or `shared/` | `npm --prefix functions run build` (or `tsc --noEmit`), `npm run test:integration` |
+| `firestore.rules` / `storage.rules` | `npm run test:rules` |
+| native / CI config | confirm the affected workflow still produces a correct artifact |
+
+**2. Test the security property, not the happy path.** For anything touching
+rules, auth, or a Cloud Function boundary: first write a test that FAILS against
+the current code, proving the hole is real; only then fix it. A test that asserts
+the current behaviour is correct will happily bless a vulnerability — this has
+already happened once in this repo.
+
+**3. Get an adversarial review before handing back.** Dispatch a subagent to try
+to BREAK the change — find a bypass of the new check, a legitimate flow it
+breaks, or a migration it silently requires. Reviewing your own work is not
+sufficient; self-review missed a hole that a fresh reviewer found in minutes.
+
+**4. Check backward compatibility against EXISTING production data.** New
+required fields, tightened rules, and changed shapes must be tested against
+documents written before the change. If existing data would break, a migration
+script is part of the change, not a follow-up — and it must be run against prod
+BEFORE the code that depends on it deploys.
+
+**5. Know what the push actually triggers.** Pushing to `main` auto-deploys the
+backend to PROD when the diff matches the `deploy-backend.yml` path filter, and
+always builds and uploads a draft AAB to Play. Say which of these will fire.
+
+Report honestly: what was verified, what was not, and what remains open. If a
+step was skipped, say which and why — do not imply coverage that does not exist.
+
 ## Project Overview
 
 Bill Split is a React + TypeScript application that uses AI to analyze receipts and fairly split bills among friends with Venmo integration. The app supports both AI-powered receipt scanning and manual bill creation, collaborative group events with multiple receipts, and saved friend groups (Squads).
