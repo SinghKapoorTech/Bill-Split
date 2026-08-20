@@ -1,5 +1,6 @@
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, Timestamp, writeBatch, collection, query, where, getDocs, documentId } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { doc, getDoc, Timestamp, collection, query, where, getDocs, documentId, limit } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '@/config/firebase';
 import { Squad, HydratedSquad, CreateSquadInput, UpdateSquadInput, SquadMember } from '@/types/squad.types';
 import { UserProfile } from '@/types/person.types';
 import { generateSquadId } from '@/utils/squadUtils';
@@ -7,6 +8,53 @@ import { userService } from './userService';
 
 const USERS_COLLECTION = 'users';
 const BATCH_SIZE = 30; // Firestore 'in' operator limit
+
+/**
+ * All squad writes are server-side. A client that could name a squad's members
+ * could force a stranger into a squad it controls and thereby read their bills,
+ * so `squads/*` is `allow write: if false` and these callables are the only
+ * writer. They also write the squad document and every member's `squadIds` in
+ * one batch, so the two can never drift apart.
+ */
+function callSquadFn<Req, Res>(name: string) {
+  return async (payload: Req): Promise<Res> => {
+    const fn = httpsCallable<Req, Res>(functions, name);
+    const result = await fn(payload);
+    return result.data;
+  };
+}
+
+interface SquadMemberPayload { id: string; contact?: string; }
+
+const createSquadFn = callSquadFn<
+  { name: string; description?: string; members: SquadMemberPayload[] },
+  { squadId: string }
+>('createSquad');
+
+const updateSquadFn = callSquadFn<
+  { squadId: string; name?: string; description?: string; members?: SquadMemberPayload[] },
+  { squadId: string }
+>('updateSquad');
+
+const deleteSquadFn = callSquadFn<{ squadId: string }, { squadId: string }>('deleteSquad');
+
+/**
+ * Surfaces the real reason a callable refused. Without this every failure
+ * collapses into "Please try again", which is wrong advice for
+ * permission-denied and invites an infinite retry on a permanent error.
+ */
+function squadError(error: unknown, fallback: string): Error {
+  const e = error as { code?: string; message?: string };
+  if (e?.message && typeof e.code === 'string' && e.code.startsWith('functions/')) {
+    return new Error(e.message);
+  }
+  return new Error(e?.message || fallback);
+}
+
+/** The contact the user typed, used server-side as proof they know this person. */
+function contactOf(member: SquadMember): string | undefined {
+  return member.email || member.phoneNumber || undefined;
+}
 
 interface FirestoreSquad {
   id: string;
@@ -57,7 +105,7 @@ async function batchFetchProfiles(userIds: string[]): Promise<Record<string, Use
 
   for (let i = 0; i < uniqueIds.length; i += BATCH_SIZE) {
     const batch = uniqueIds.slice(i, i + BATCH_SIZE);
-    const q = query(usersRef, where(documentId(), 'in', batch));
+    const q = query(usersRef, where(documentId(), 'in', batch), limit(BATCH_SIZE));
     const snap = await getDocs(q);
     snap.docs.forEach(d => {
       profileMap[d.id] = d.data() as UserProfile;
@@ -112,7 +160,7 @@ export async function fetchUserSquads(userId: string): Promise<HydratedSquad[]> 
 
     for (let i = 0; i < userProfile.squadIds.length; i += BATCH_SIZE) {
       const batch = userProfile.squadIds.slice(i, i + BATCH_SIZE);
-      const q = query(squadsRef, where(documentId(), 'in', batch));
+      const q = query(squadsRef, where(documentId(), 'in', batch), limit(BATCH_SIZE));
       const snap = await getDocs(q);
       snap.docs.forEach(d => {
         squads.push(convertFromFirestore({ id: d.id, ...d.data() } as FirestoreSquad));
@@ -142,74 +190,29 @@ export async function fetchUserSquads(userId: string): Promise<HydratedSquad[]> 
  */
 export async function saveSquad(userId: string, input: CreateSquadInput): Promise<string> {
   try {
-    const squadId = generateSquadId();
-    const now = new Date();
+    // Members are resolved client-side (this may create shadow users, which the
+    // caller owns). The squad document itself is written by the server.
+    const members = await Promise.all(input.members.map(async (member) => {
+      const contact = contactOf(member);
+      if (member.id) return { id: member.id, contact };
+      const identifier = member.email || member.phoneNumber || member.venmoId;
+      const id = identifier
+        ? await userService.resolveUser(identifier, member.name)
+        : await userService.createShadowUser(member.name, member.name);
+      return { id, contact };
+    }));
 
-    // Resolve all members to User IDs
-    const memberIdPromises = input.members.map(async (member) => {
-      // If member already has an ID (e.g. selected from existing users), use it
-      if (member.id) return member.id;
-
-      // Otherwise, resolve using contact info or create shadow user
-      // If no contact info is provided, we can't create a stable user.
-      // For now, checking if we have email or phone.
-      const identifier = member.email || member.phoneNumber || member.venmoId; // VenmoID valid identifier? Maybe not for auth, but let's assume valid for now if we want to support it. 
-      // Actually, userService.resolveUser checks getUserByContact which checks email/phone. VenmoID isn't indexed there yet. 
-      // Let's assume input has email/phone as valid identifiers.
-
-      if (identifier) {
-        return userService.resolveUser(identifier, member.name);
-      }
-
-      // Fallback: If no identifier, create a shadow user with just the name? 
-      // This might create duplicates easily. But necessary if user only provides name.
-      // But user requirement says "put in their email/phonenumber".
-      // Let's enforce that for now? Or better, just create a shadow user with a random ID and the name.
-      // We'll use the name as the contact identifier to at least try to reuse? No, badidea.
-      // We will create a new shadow user if no identifier.
-      return userService.createShadowUser(member.name, member.name); // Using name as contact is weird but creates a user. 
+    const { squadId } = await createSquadFn({
+      name: input.name,
+      description: input.description,
+      members,
     });
-
-    const memberIds = await Promise.all(memberIdPromises);
-
-    // Ensure current user is in the squad? 
-    // Usually yes, but let's trust the input or add userId if not present.
-    if (!memberIds.includes(userId)) {
-      memberIds.push(userId);
-    }
-
-    const newSquad: Squad = {
-      id: squadId,
-      name: input.name.trim(),
-      description: input.description?.trim(),
-      memberIds: memberIds,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    // Atomically create squad doc + update all member profiles in one batch
-    const batch = writeBatch(db);
-
-    const squadRef = doc(db, 'squads', squadId);
-    batch.set(squadRef, {
-      ...convertToFirestore(newSquad),
-      id: squadId
-    });
-
-    for (const mId of memberIds) {
-      if (mId.startsWith('guest_')) continue;
-      const userRef = doc(db, 'users', mId);
-      batch.update(userRef, { squadIds: arrayUnion(squadId) });
-    }
-
-    await batch.commit();
     return squadId;
   } catch (error) {
     console.error('Error saving squad:', error);
-    throw new Error('Failed to save squad');
+    throw squadError(error, 'Failed to save squad');
   }
 }
-
 /**
  * Updates an existing squad
  * @param userId - The user's unique identifier
@@ -219,69 +222,33 @@ export async function saveSquad(userId: string, input: CreateSquadInput): Promis
  */
 export async function updateSquad(userId: string, squadId: string, updates: UpdateSquadInput): Promise<void> {
   try {
-    const squadRef = doc(db, 'squads', squadId);
-    const squadDoc = await getDoc(squadRef);
-
-    if (!squadDoc.exists()) throw new Error("Squad not found");
-    const currentMemberIds = squadDoc.data().memberIds || [];
-
-    const updateData: Record<string, unknown> = {
-      updatedAt: Timestamp.now()
-    };
-
-    if (updates.name) updateData.name = updates.name.trim();
-    if (updates.description !== undefined) updateData.description = updates.description?.trim();
-
-    let newMemberIds = currentMemberIds;
+    let members: { id: string; contact?: string }[] | undefined;
 
     if (updates.members) {
-      const memberIdPromises = updates.members.map(async (member) => {
-        if (member.id) return member.id;
+      members = await Promise.all(updates.members.map(async (member) => {
+        const contact = contactOf(member);
+        if (member.id) return { id: member.id, contact };
         const identifier = member.email || member.phoneNumber;
-        if (identifier) {
-          return userService.resolveUser(identifier, member.name);
-        }
-        return userService.createShadowUser(member.name, member.name);
-      });
-      newMemberIds = await Promise.all(memberIdPromises);
-
-      // Add squad to new members, remove from removed members
-      // This is complex in a single `updateSquad` call without batching properly or transactions.
-      // For simplicity, we'll just update the squad doc memberIds list. 
-      // Ideally we should sync the `users` collections too.
-      // Let's do a best-effort sync.
-
-      updateData.memberIds = newMemberIds;
+        const id = identifier
+          ? await userService.resolveUser(identifier, member.name)
+          : await userService.createShadowUser(member.name, member.name);
+        return { id, contact };
+      }));
     }
 
-    // Atomically update squad doc + sync all member profiles in one batch
-    const batch = writeBatch(db);
-    batch.update(squadRef, updateData);
-
-    if (updates.members) {
-      const addedMembers = newMemberIds.filter((id: string) => !currentMemberIds.includes(id));
-      const removedMembers = currentMemberIds.filter((id: string) => !newMemberIds.includes(id));
-
-      for (const id of addedMembers) {
-        if (id.startsWith('guest_')) continue;
-        const userRef = doc(db, 'users', id);
-        batch.update(userRef, { squadIds: arrayUnion(squadId) });
-      }
-      for (const id of removedMembers) {
-        if (id.startsWith('guest_')) continue;
-        const userRef = doc(db, 'users', id);
-        batch.update(userRef, { squadIds: arrayRemove(squadId) });
-      }
-    }
-
-    await batch.commit();
-
+    // The server updates the squad document and every member's squadIds in one
+    // batch, so membership cannot desync if the call fails partway.
+    await updateSquadFn({
+      squadId,
+      ...(updates.name !== undefined ? { name: updates.name } : {}),
+      ...(updates.description !== undefined ? { description: updates.description } : {}),
+      ...(members ? { members } : {}),
+    });
   } catch (error) {
     console.error('Error updating squad:', error);
-    throw new Error('Failed to update squad');
+    throw squadError(error, 'Failed to update squad');
   }
 }
-
 /**
  * Deletes a squad
  * @param userId - The user's unique identifier
@@ -290,29 +257,12 @@ export async function updateSquad(userId: string, squadId: string, updates: Upda
  */
 export async function deleteSquad(userId: string, squadId: string): Promise<void> {
   try {
-    const squadRef = doc(db, 'squads', squadId);
-    const squadDoc = await getDoc(squadRef);
-    if (!squadDoc.exists()) return;
-
-    const memberIds = squadDoc.data().memberIds || [];
-
-    // Atomically delete squad doc + remove squadId from all member profiles
-    const batch = writeBatch(db);
-    batch.delete(squadRef);
-
-    for (const mId of memberIds) {
-      if (mId.startsWith('guest_')) continue;
-      const userRef = doc(db, 'users', mId);
-      batch.update(userRef, { squadIds: arrayRemove(squadId) });
-    }
-
-    await batch.commit();
+    await deleteSquadFn({ squadId });
   } catch (error) {
     console.error('Error deleting squad:', error);
-    throw new Error('Failed to delete squad');
+    throw squadError(error, 'Failed to delete squad');
   }
 }
-
 /**
  * Gets a single squad by ID
  * @param userId - The user's unique identifier

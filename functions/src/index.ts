@@ -500,6 +500,10 @@ export {
  */
 export { processRecurringBills } from './recurringBillProcessor.js';
 
+// ========== Squads ==========
+// All squad writes are server-only; see squadFunctions.ts.
+export { createSquad, updateSquad, deleteSquad } from './squadFunctions.js';
+
 /**
  * Cloud Function: Generate a recurring bill's due occurrences immediately.
  *

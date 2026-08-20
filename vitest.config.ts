@@ -14,6 +14,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.{test,spec}.ts'],
-    exclude: [...configDefaults.exclude, 'tests/integration/**'],
+    // Emulator-backed suites are excluded: they need Java + the Firestore
+    // emulator. Run them with `npm run test:integration` / `npm run test:rules`.
+    exclude: [...configDefaults.exclude, 'tests/integration/**', 'tests/rules/**'],
   },
 });

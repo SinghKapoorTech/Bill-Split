@@ -14,7 +14,7 @@ import {
   documentId,
   limit
 } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { auth, db } from '@/config/firebase';
 import { UserProfile, Friend, Squad } from '@/types/person.types';
 
 const USERS_COLLECTION = 'users';
@@ -229,7 +229,7 @@ export const userService = {
 
     for (let i = 0; i < friendIds.length; i += BATCH_SIZE) {
       const batch = friendIds.slice(i, i + BATCH_SIZE);
-      const q = query(usersRef, where(documentId(), 'in', batch));
+      const q = query(usersRef, where(documentId(), 'in', batch), limit(BATCH_SIZE));
       const snap = await getDocs(q);
       snap.docs.forEach(d => {
         profileMap[d.id] = d.data() as UserProfile;
@@ -296,9 +296,14 @@ export const userService = {
       newProfile.phoneNumber = contact;
     }
     
-    if (creatorId) {
-      newProfile.createdById = creatorId;
+    // createdById is REQUIRED: security rules only let a shadow user be created
+    // and later edited by its creator. Default to the signed-in user so callers
+    // that omit creatorId still produce a well-formed, editable shadow.
+    const ownerId = creatorId || auth.currentUser?.uid;
+    if (!ownerId) {
+      throw new Error('Must be signed in to create a shadow user');
     }
+    newProfile.createdById = ownerId;
 
     await setDoc(doc(db, USERS_COLLECTION, newUserId), newProfile);
     return newUserId;
@@ -411,7 +416,7 @@ export const userService = {
 
     for (let i = 0; i < userIdsArray.length; i += BATCH_SIZE) {
       const batch = userIdsArray.slice(i, i + BATCH_SIZE);
-      const q = query(usersRef, where(documentId(), 'in', batch));
+      const q = query(usersRef, where(documentId(), 'in', batch), limit(BATCH_SIZE));
       const snap = await getDocs(q);
       snap.docs.forEach(d => {
         profileMap[d.id] = d.data() as UserProfile;

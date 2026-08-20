@@ -20,7 +20,8 @@
     "ios": "CAPACITOR_BUILD=1 npm run build && cap sync && cap open ios",
     "android": "npm run build:mobile && cap open android",
     "ci:ios": "CAPACITOR_BUILD=1 npm run build && npx cap sync ios && cd ios/App && pod install && cd .. && npm run cap:ios",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-bill-split-rules \"vitest run --config vitest.rules.config.ts\""
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^7.3.1",
@@ -95,6 +96,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",
