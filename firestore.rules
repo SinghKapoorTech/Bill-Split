@@ -210,6 +210,26 @@ service cloud.firestore {
                        request.auth.uid == resource.data.ownerId;
     }
 
+    // ========== Entitlements & Usage (Admin SDK only) ==========
+    // Plan state and consumption counters. Written EXCLUSIVELY by the Admin SDK
+    // (the RevenueCat webhook and analyzeBill). A client that could write these
+    // could grant itself Pro or reset its own scan quota, so ALL client writes
+    // are denied — including the owner's own.
+    //
+    // Reads are owner-only so the app can render the quota indicator and paywall
+    // state. Client reads are a RENDERING HINT ONLY; every limit is enforced
+    // server-side. See docs/superpowers/specs/2026-09-06-monetization-design.md
+    // §5.1 and §4.3.1.
+    match /entitlements/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    match /usage/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
     // ========== Friend Balances Collection ==========
     match /balances/{balanceId} {
       // allow get: handles both existing docs and non-existent docs.
