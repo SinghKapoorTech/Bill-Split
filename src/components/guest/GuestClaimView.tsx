@@ -18,6 +18,7 @@ import { ItemAssignmentBadges } from '@/components/shared/ItemAssignmentBadges';
 import { EditPersonDialog } from '@/components/people/EditPersonDialog';
 import { VenmoChargeDialog } from '@/components/venmo/VenmoChargeDialog';
 import { describeIncludedExtras } from '@/utils/venmo';
+import { debugLog } from '@/utils/debugLog';
 import {
   Dialog,
   DialogContent,
@@ -45,7 +46,7 @@ export function GuestClaimView({
   onAddSelfToPeople,
   onClaimItem,
   onUpdatePerson,
-  onRemovePerson
+  onRemovePerson,
 }: GuestClaimViewProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -67,54 +68,81 @@ export function GuestClaimView({
 
   // Find if current user is already in people list
   const currentPerson = useMemo(() => {
-    console.log('[GuestClaimView] === Finding current person ===');
-    console.log('[GuestClaimView] user:', user ? { uid: user.uid, displayName: user.displayName } : null);
-    console.log('[GuestClaimView] guestId:', guestId);
-    console.log('[GuestClaimView] session.people:', JSON.stringify(session.people?.map(p => ({ id: p.id, name: p.name })), null, 2));
-    console.log('[GuestClaimView] session.participantIds:', session.participantIds);
-    console.log('[GuestClaimView] session.members:', JSON.stringify(session.members?.map(m => ({ userId: m.userId, name: m.name })), null, 2));
-    console.log('[GuestClaimView] session.ownerId:', session.ownerId);
+    debugLog('[GuestClaimView] === Finding current person ===');
+    debugLog(
+      '[GuestClaimView] user:',
+      user ? { uid: user.uid, displayName: user.displayName } : null,
+    );
+    debugLog('[GuestClaimView] guestId:', guestId);
+    debugLog(
+      '[GuestClaimView] session.people:',
+      JSON.stringify(
+        session.people?.map((p) => ({ id: p.id, name: p.name })),
+        null,
+        2,
+      ),
+    );
+    debugLog('[GuestClaimView] session.participantIds:', session.participantIds);
+    debugLog(
+      '[GuestClaimView] session.members:',
+      JSON.stringify(
+        session.members?.map((m) => ({ userId: m.userId, name: m.name })),
+        null,
+        2,
+      ),
+    );
+    debugLog('[GuestClaimView] session.ownerId:', session.ownerId);
 
     if (!session.people) {
-      console.log('[GuestClaimView] No session.people — returning null');
+      debugLog('[GuestClaimView] No session.people — returning null');
       return null;
     }
 
     if (user) {
       // Logged-in user: match by user ID (checking both raw and prefixed formats)
       const prefixedId = `user-${user.uid}`;
-      const byId = session.people.find(p => p.id === user.uid || p.id === prefixedId);
+      const byId = session.people.find((p) => p.id === user.uid || p.id === prefixedId);
       if (byId) {
-        console.log('[GuestClaimView] Matched by ID:', byId);
+        debugLog('[GuestClaimView] Matched by ID:', byId);
         return byId;
       }
-      console.log('[GuestClaimView] No match by ID (checked uid=%s, prefixed=%s)', user.uid, prefixedId);
+      debugLog(
+        '[GuestClaimView] No match by ID (checked uid=%s, prefixed=%s)',
+        user.uid,
+        prefixedId,
+      );
 
       // Fallback: user is a confirmed participant but was added with a person-* ID
       // (e.g. added manually to a quick bill). Match by display name.
       if (user.displayName && session.participantIds?.includes(user.uid)) {
-        const byName = session.people.find(p =>
-          p.name.toLowerCase() === user.displayName!.toLowerCase()
+        const byName = session.people.find(
+          (p) => p.name.toLowerCase() === user.displayName!.toLowerCase(),
         );
         if (byName) {
-          console.log('[GuestClaimView] Matched by name (participantIds fallback):', byName);
+          debugLog('[GuestClaimView] Matched by name (participantIds fallback):', byName);
           return byName;
         }
-        console.log('[GuestClaimView] In participantIds but no name match for displayName=%s', user.displayName);
+        debugLog(
+          '[GuestClaimView] In participantIds but no name match for displayName=%s',
+          user.displayName,
+        );
       } else {
-        console.log('[GuestClaimView] Not in participantIds or no displayName. displayName=%s, inParticipants=%s',
-          user.displayName, session.participantIds?.includes(user.uid));
+        debugLog(
+          '[GuestClaimView] Not in participantIds or no displayName. displayName=%s, inParticipants=%s',
+          user.displayName,
+          session.participantIds?.includes(user.uid),
+        );
       }
 
-      console.log('[GuestClaimView] Returning null for logged-in user');
+      debugLog('[GuestClaimView] Returning null for logged-in user');
       return null;
     } else if (guestId) {
       // Anonymous user: match by stored guest ID (checking both raw and prefixed formats)
-      const match = session.people.find(p => p.id === guestId || p.id === `user-${guestId}`);
-      console.log('[GuestClaimView] Anonymous match:', match);
+      const match = session.people.find((p) => p.id === guestId || p.id === `user-${guestId}`);
+      debugLog('[GuestClaimView] Anonymous match:', match);
       return match;
     }
-    console.log('[GuestClaimView] No user and no guestId — returning null');
+    debugLog('[GuestClaimView] No user and no guestId — returning null');
     return null;
   }, [session.people, user, guestId]);
 
@@ -141,7 +169,7 @@ export function GuestClaimView({
         const { billService } = await import('@/services/billService');
         await billService.leaveBillAsGuest(session.id, session.shareCode, currentPerson.id);
       } catch (e) {
-        console.error("Failed to delete guest shadow user", e);
+        console.error('Failed to delete guest shadow user', e);
       }
     }
 
@@ -150,16 +178,21 @@ export function GuestClaimView({
     localStorage.removeItem(`guest-id-${session.id}`);
     setShowRemoveDialog(false);
     // Redirect to join page so they can re-enter their name
-    navigate(`/join/${session.id}${session.shareCode ? `?code=${session.shareCode}` : ''}`, { replace: true });
+    navigate(`/join/${session.id}${session.shareCode ? `?code=${session.shareCode}` : ''}`, {
+      replace: true,
+    });
   };
 
   // Find the person who paid for the bill
   const payerPerson = useMemo(() => {
     const creditorId = session.paidById || session.ownerId;
     if (!creditorId || !session.people) return null;
-    return session.people.find(
-      p => p.id === creditorId || p.id === `user-${creditorId}` || `user-${p.id}` === creditorId
-    ) || null;
+    return (
+      session.people.find(
+        (p) =>
+          p.id === creditorId || p.id === `user-${creditorId}` || `user-${p.id}` === creditorId,
+      ) || null
+    );
   }, [session.paidById, session.ownerId, session.people]);
 
   // What the current person owes — same shared calculation as the ledger
@@ -174,16 +207,22 @@ export function GuestClaimView({
       session.billData,
       session.people || [],
       session.itemAssignments || {},
-      Boolean(session.splitEvenly)
+      Boolean(session.splitEvenly),
     );
-    return totals.find(t => t.personId === currentPerson.id)?.total ?? 0;
-  }, [session.billData, session.people, session.itemAssignments, session.splitEvenly, currentPerson]);
+    return totals.find((t) => t.personId === currentPerson.id)?.total ?? 0;
+  }, [
+    session.billData,
+    session.people,
+    session.itemAssignments,
+    session.splitEvenly,
+    currentPerson,
+  ]);
 
   // Is the logged-in viewer the person who paid (the creditor)? Mirrors the
   // `didIPay` check in SplitSummary. Anonymous guests are never the creditor.
   const creditorId = session.paidById || session.ownerId;
   const didIPay = Boolean(
-    user && creditorId && (creditorId === user.uid || creditorId === `user-${user.uid}`)
+    user && creditorId && (creditorId === user.uid || creditorId === `user-${user.uid}`),
   );
 
   // Full roster totals + assignment completeness — only needed for the payer view.
@@ -193,26 +232,32 @@ export function GuestClaimView({
       session.billData,
       session.people || [],
       session.itemAssignments || {},
-      Boolean(session.splitEvenly)
+      Boolean(session.splitEvenly),
     );
   }, [didIPay, session.billData, session.people, session.itemAssignments, session.splitEvenly]);
 
   const allItemsAssigned = useMemo(() => {
     const items = session.billData?.items || [];
     if (items.length === 0) return false;
-    return items.every(item => ((session.itemAssignments || {})[item.id] || []).length > 0);
+    return items.every((item) => ((session.itemAssignments || {})[item.id] || []).length > 0);
   }, [session.billData, session.itemAssignments]);
 
   // Role tags ('Created' / 'Paid') shown next to names on the payer view.
   const roleLabels = useMemo(
     () => buildParticipantRoles(session.people || [], session.ownerId, session.paidById),
-    [session.people, session.ownerId, session.paidById]
+    [session.people, session.ownerId, session.paidById],
   );
 
   // Names for the 'Created by / Paid by' header (debtor/guest view).
   const attribution = useMemo(
-    () => describeBillAttribution(session.ownerId, session.paidById, session.people || [], session.members || []),
-    [session.ownerId, session.paidById, session.people, session.members]
+    () =>
+      describeBillAttribution(
+        session.ownerId,
+        session.paidById,
+        session.people || [],
+        session.members || [],
+      ),
+    [session.ownerId, session.paidById, session.people, session.members],
   );
 
   // Creditor marks a debtor's share settled (or undoes it). Permitted for a
@@ -221,7 +266,9 @@ export function GuestClaimView({
   const handleMarkDebtorSettled = async (personId: string, settled: boolean) => {
     try {
       await billService.updateBill(session.id, {
-        settledPersonIds: (settled ? arrayUnion(personId) : arrayRemove(personId)) as unknown as string[],
+        settledPersonIds: (settled
+          ? arrayUnion(personId)
+          : arrayRemove(personId)) as unknown as string[],
       });
       toast({
         title: settled ? 'Marked as Settled' : 'Undo Settled',
@@ -247,7 +294,7 @@ export function GuestClaimView({
 
     // Build itemized description
     const assignedItems: string[] = [];
-    (session.billData?.items || []).forEach(item => {
+    (session.billData?.items || []).forEach((item) => {
       const assignedPeople = (session.itemAssignments || {})[item.id] || [];
       if (assignedPeople.includes(currentPerson.id)) {
         const shareCount = assignedPeople.length;
@@ -259,11 +306,19 @@ export function GuestClaimView({
       }
     });
 
-    const restaurantName = session.billData?.restaurantName || (session.isSimpleTransaction && session.billData?.items?.[0]?.name) || 'Divit';
-    const extrasSuffix = describeIncludedExtras(session.billData?.tax, session.billData?.tip, session.billData?.otherFees);
-    const note = assignedItems.length > 0
-      ? `${restaurantName}: ${assignedItems.join(', ')}${extrasSuffix}`
-      : `${restaurantName} - Your share`;
+    const restaurantName =
+      session.billData?.restaurantName ||
+      (session.isSimpleTransaction && session.billData?.items?.[0]?.name) ||
+      'Divit';
+    const extrasSuffix = describeIncludedExtras(
+      session.billData?.tax,
+      session.billData?.tip,
+      session.billData?.otherFees,
+    );
+    const note =
+      assignedItems.length > 0
+        ? `${restaurantName}: ${assignedItems.join(', ')}${extrasSuffix}`
+        : `${restaurantName} - Your share`;
 
     const charge: VenmoCharge = {
       recipientId: payerPerson.venmoId || '',
@@ -284,9 +339,7 @@ export function GuestClaimView({
     return (
       <div className="flex flex-col items-center justify-center py-12 space-y-4">
         <AlertTriangle className="w-8 h-8 text-destructive" />
-        <p className="text-muted-foreground">
-          We couldn't find your profile on this bill.
-        </p>
+        <p className="text-muted-foreground">We couldn't find your profile on this bill.</p>
         <Button variant="outline" onClick={() => navigate('/dashboard')}>
           Back to Dashboard
         </Button>
@@ -300,18 +353,18 @@ export function GuestClaimView({
     if (!currentPerson) return;
     try {
       await billService.updateBill(session.id, {
-        settledPersonIds: arrayRemove(currentPerson.id) as unknown as string[]
+        settledPersonIds: arrayRemove(currentPerson.id) as unknown as string[],
       });
       toast({
-        title: "Undo Settled",
-        description: "Your balance has been restored for this bill.",
+        title: 'Undo Settled',
+        description: 'Your balance has been restored for this bill.',
       });
     } catch (error) {
-      console.error("Failed to undo settle", error);
+      console.error('Failed to undo settle', error);
       toast({
-        title: "Error",
-        description: "Failed to undo settle. Please try again.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to undo settle. Please try again.',
+        variant: 'destructive',
       });
     }
   };
@@ -328,14 +381,20 @@ export function GuestClaimView({
             {attribution.ownerIsPayer ? (
               <span className="text-muted-foreground">
                 Created &amp; paid by{' '}
-                <span className="font-medium text-foreground">{attribution.creatorName ?? 'Unknown'}</span>
+                <span className="font-medium text-foreground">
+                  {attribution.creatorName ?? 'Unknown'}
+                </span>
               </span>
             ) : (
               <span className="text-muted-foreground">
                 Created by{' '}
-                <span className="font-medium text-foreground">{attribution.creatorName ?? 'Unknown'}</span>
+                <span className="font-medium text-foreground">
+                  {attribution.creatorName ?? 'Unknown'}
+                </span>
                 {' · '}
-                <span className="font-medium text-foreground">{attribution.payerName ?? 'Unknown'}</span>{' '}
+                <span className="font-medium text-foreground">
+                  {attribution.payerName ?? 'Unknown'}
+                </span>{' '}
                 paid
               </span>
             )}
@@ -361,7 +420,11 @@ export function GuestClaimView({
             billData={session.billData!}
             itemAssignments={session.itemAssignments || {}}
             roleLabels={roleLabels}
-            billName={session.billData?.restaurantName || (session.isSimpleTransaction && session.billData?.items?.[0]?.name) || 'Divit'}
+            billName={
+              session.billData?.restaurantName ||
+              (session.isSimpleTransaction && session.billData?.items?.[0]?.name) ||
+              'Divit'
+            }
             settledPersonIds={session.settledPersonIds || []}
             paidById={session.paidById}
             ownerId={session.ownerId}
@@ -372,91 +435,91 @@ export function GuestClaimView({
 
       {/* User info header with total and pay button (debtors / guests) */}
       {!didIPay && (
-      <Card className={`p-4 ${isSettled ? 'bg-success/10 border-success/40' : ''}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSettled ? 'bg-success/20' : 'bg-primary/10'}`}>
-              {isSettled ? (
-                <CheckCircle2 className="w-5 h-5 text-success" />
-              ) : (
-                <User className="w-5 h-5 text-primary" />
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className={`font-medium text-lg ${isSettled ? 'text-success' : ''}`}>{currentPerson.name}</span>
-                {isSettled && (
-                  <span className="text-[10px] font-bold tracking-wider uppercase text-success bg-success/20 px-1.5 py-0.5 rounded-sm shrink-0">
-                    Settled
-                  </span>
+        <Card className={`p-4 ${isSettled ? 'bg-success/10 border-success/40' : ''}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center ${isSettled ? 'bg-success/20' : 'bg-primary/10'}`}
+              >
+                {isSettled ? (
+                  <CheckCircle2 className="w-5 h-5 text-success" />
+                ) : (
+                  <User className="w-5 h-5 text-primary" />
                 )}
-                {!isSettled && (
-                  <Button
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`font-medium text-lg ${isSettled ? 'text-success' : ''}`}>
+                    {currentPerson.name}
+                  </span>
+                  {isSettled && (
+                    <span className="text-[10px] font-bold tracking-wider uppercase text-success bg-success/20 px-1.5 py-0.5 rounded-sm shrink-0">
+                      Settled
+                    </span>
+                  )}
+                  {!isSettled && (
+                    <Button
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
                       onClick={() => setIsEditDialogOpen(true)}
-                  >
-                      <Edit2 className="w-3 h-3" />
-                  </Button>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {currentPerson.venmoId && (
-                    <span className="text-xs text-muted-foreground">
-                      {currentPerson.venmoId}
-                    </span>
-                )}
-                {!user && !isSettled && (
-                    <button
-                        onClick={handleSwitchUser}
-                        className="text-xs text-muted-foreground underline hover:text-primary ml-1"
                     >
-                        Not you?
+                      <Edit2 className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {currentPerson.venmoId && (
+                    <span className="text-xs text-muted-foreground">{currentPerson.venmoId}</span>
+                  )}
+                  {!user && !isSettled && (
+                    <button
+                      onClick={handleSwitchUser}
+                      className="text-xs text-muted-foreground underline hover:text-primary ml-1"
+                    >
+                      Not you?
                     </button>
-                )}
+                  )}
+                </div>
               </div>
             </div>
+            <div className="text-right">
+              <span className="text-sm text-muted-foreground block">Total</span>
+              <span
+                className={`text-xl font-bold ${isSettled ? 'text-success line-through' : 'text-primary'}`}
+              >
+                ${myTotal.toFixed(2)}
+              </span>
+            </div>
           </div>
-          <div className="text-right">
-            <span className="text-sm text-muted-foreground block">Total</span>
-            <span className={`text-xl font-bold ${isSettled ? 'text-success line-through' : 'text-primary'}`}>
-              ${myTotal.toFixed(2)}
-            </span>
-          </div>
-        </div>
 
-        {/* Undo Settle button - shown when settled */}
-        {isSettled && (
-          <div className="mt-3 pt-3 border-t border-success/20">
-            <Button
-              onClick={handleUndoSettle}
-              variant="outline"
-              className="w-full gap-2 border-success/40 text-success hover:bg-success/10"
-              size="sm"
-            >
-              <Undo2 className="w-4 h-4" />
-              Undo Settle
-            </Button>
-          </div>
-        )}
+          {/* Undo Settle button - shown when settled */}
+          {isSettled && (
+            <div className="mt-3 pt-3 border-t border-success/20">
+              <Button
+                onClick={handleUndoSettle}
+                variant="outline"
+                className="w-full gap-2 border-success/40 text-success hover:bg-success/10"
+                size="sm"
+              >
+                <Undo2 className="w-4 h-4" />
+                Undo Settle
+              </Button>
+            </div>
+          )}
 
-        {/* Pay on Venmo button - hidden when settled */}
-        {!isSettled && payerPerson && currentPerson.id !== payerPerson.id && myTotal > 0 && (
-          <div className="mt-3 pt-3 border-t">
-            <Button
-              onClick={handlePayOnVenmo}
-              className="w-full gap-2"
-              size="sm"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z" />
-              </svg>
-              Pay {payerPerson.name.split(' ')[0]} on Venmo
-            </Button>
-          </div>
-        )}
-      </Card>
+          {/* Pay on Venmo button - hidden when settled */}
+          {!isSettled && payerPerson && currentPerson.id !== payerPerson.id && myTotal > 0 && (
+            <div className="mt-3 pt-3 border-t">
+              <Button onClick={handlePayOnVenmo} className="w-full gap-2" size="sm">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.384 4.616c.616.952.933 2.064.933 3.432 0 4.284-3.636 9.816-6.612 13.248H6.864L4.8 4.728l6.12-.576 1.176 13.488c1.44-2.304 3.576-6.144 3.576-8.688 0-1.176-.24-2.064-.696-2.832l4.608-1.504z" />
+                </svg>
+                Pay {payerPerson.name.split(' ')[0]} on Venmo
+              </Button>
+            </div>
+          )}
+        </Card>
       )}
 
       {/* Edit Person Dialog */}
@@ -465,61 +528,58 @@ export function GuestClaimView({
         onClose={() => setIsEditDialogOpen(false)}
         person={currentPerson}
         onSave={handleUpdateProfile}
-        existingNames={session.people?.map(p => p.name) || []}
+        existingNames={session.people?.map((p) => p.name) || []}
       />
 
-      {!didIPay && (items.length === 0 ? (
-        <Card className="p-8 text-center">
-          <p className="text-muted-foreground">
-            No items on the bill yet. Wait for the host to add items.
-          </p>
-        </Card>
-      ) : (
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Receipt className="w-5 h-5 text-primary" />
-            <h3 className="text-xl font-semibold">Bill Items</h3>
-          </div>
-          
-          <div className="space-y-4">
-            {items.map((item) => {
-              const assignedTo = itemAssignments[item.id] || [];
-              const hasAssignments = assignedTo.length > 0;
+      {!didIPay &&
+        (items.length === 0 ? (
+          <Card className="p-8 text-center">
+            <p className="text-muted-foreground">
+              No items on the bill yet. Wait for the host to add items.
+            </p>
+          </Card>
+        ) : (
+          <Card className="p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Receipt className="w-5 h-5 text-primary" />
+              <h3 className="text-xl font-semibold">Bill Items</h3>
+            </div>
 
-              return (
-                <div
-                  key={item.id}
-                  className={`p-3 rounded-lg border-2 transition-all ${
-                    hasAssignments
-                      ? 'border-primary/30 bg-primary/5'
-                      : 'border-border'
-                  }`}
-                >
-                  {/* Item name and price */}
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium">{item.name}</span>
-                    <span className="text-primary font-semibold">
-                      ${item.price.toFixed(2)}
-                    </span>
+            <div className="space-y-4">
+              {items.map((item) => {
+                const assignedTo = itemAssignments[item.id] || [];
+                const hasAssignments = assignedTo.length > 0;
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      hasAssignments ? 'border-primary/30 bg-primary/5' : 'border-border'
+                    }`}
+                  >
+                    {/* Item name and price */}
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium">{item.name}</span>
+                      <span className="text-primary font-semibold">${item.price.toFixed(2)}</span>
+                    </div>
+
+                    {/* Assignment badges - only current user's badge is clickable */}
+                    {session.people && session.people.length > 0 && (
+                      <ItemAssignmentBadges
+                        item={item}
+                        people={session.people}
+                        itemAssignments={itemAssignments}
+                        onAssign={onClaimItem}
+                        showSplit={true}
+                        restrictToPersonId={currentPerson.id}
+                      />
+                    )}
                   </div>
-
-                  {/* Assignment badges - only current user's badge is clickable */}
-                  {session.people && session.people.length > 0 && (
-                    <ItemAssignmentBadges
-                      item={item}
-                      people={session.people}
-                      itemAssignments={itemAssignments}
-                      onAssign={onClaimItem}
-                      showSplit={true}
-                      restrictToPersonId={currentPerson.id}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      ))}
+                );
+              })}
+            </div>
+          </Card>
+        ))}
 
       {/* Guest Upsell Card */}
       {!user && currentPerson && (
@@ -529,13 +589,16 @@ export function GuestClaimView({
               Want to save this bill?
             </h3>
             <p className="text-sm text-muted-foreground">
-              Create an account to track balances with friends, settle up with one tap via Venmo, and keep a history of all your receipts.
+              Create an account to track balances with friends, settle up with one tap via Venmo,
+              and keep a history of all your receipts.
             </p>
-            <Button 
-              className="w-full mt-2" 
+            <Button
+              className="w-full mt-2"
               onClick={() => {
                 // Strip user- prefix to get the raw shadow user doc ID
-                const shadowUserId = currentPerson.id.startsWith('user-') ? currentPerson.id.substring(5) : currentPerson.id;
+                const shadowUserId = currentPerson.id.startsWith('user-')
+                  ? currentPerson.id.substring(5)
+                  : currentPerson.id;
                 navigate(`/auth?claimGuestId=${shadowUserId}&returnTo=/shared/${session.id}`);
               }}
             >
@@ -559,7 +622,8 @@ export function GuestClaimView({
               Remove yourself?
             </DialogTitle>
             <DialogDescription>
-              You will be removed from the bill and any items you claimed will be unassigned. You'll be taken back to the join page to re-enter your name.
+              You will be removed from the bill and any items you claimed will be unassigned. You'll
+              be taken back to the join page to re-enter your name.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -575,4 +639,3 @@ export function GuestClaimView({
     </div>
   );
 }
-
