@@ -22,6 +22,35 @@ Filled and saved — verified after a full page reload:
   privacy-preserving alternative (Sign in with Apple satisfies it). This is a common
   rejection for consumer apps and is worth fixing *before* submitting.
 
+### Sign in with Apple — progress (2026-09-05)
+
+Step 1 of 5 is **done**. Do not redo it.
+
+- [x] **App ID capability** — `com.singhkapoortech.divit` (`XLSVJ5V3B3`, team
+      `3LAJCPKLNV`) now has Sign In with Apple enabled, **as a primary App ID**,
+      server-to-server endpoint blank. Verified by reload, not by the save appearing
+      to succeed. In-App Purchase and Push Notifications were left untouched.
+- [ ] **Xcode entitlement** — `com.apple.developer.applesignin`. There is currently
+      **no `.entitlements` file in the project at all**. Add it via Xcode's Signing &
+      Capabilities UI rather than editing `project.pbxproj` by hand.
+- [ ] **Sign in with Apple key** — Keys → new key bound to this primary App ID. The
+      `.p8` downloads **once**; store it immediately.
+- [ ] **Firebase Auth provider** — enable Apple with the Services ID, Team ID
+      `3LAJCPKLNV`, Key ID and that `.p8`.
+- [ ] **Client code** — `AuthContext.tsx` imports only `GoogleAuthProvider`. Native
+      needs `@capacitor-firebase/authentication`'s own `signInWithApple`, not just a
+      web `OAuthProvider('apple.com')`, and `capacitor.config.ts` still lists
+      `providers: ["google.com"]`.
+
+⚠️ **Enabling the capability invalidated every provisioning profile on this App ID.**
+Xcode automatic signing regenerates on next build; anything on a manual profile —
+including Xcode Cloud via `ios/App/ci_scripts/ci_post_clone.sh` — needs refreshing
+before the next archive or signing will fail.
+
+When Apple sign-in ships, update `listing.md` and the 4.8 note above in the same
+change — both currently describe Google-only sign-in, and a listing that contradicts
+the binary is its own rejection.
+
 ## Screenshot slots — the part that wastes time
 
 Sizes are **not** interchangeable, and the UI actively misleads:

@@ -112,6 +112,34 @@ footer, which reads as "the fields are empty" when they simply hadn't rendered.
 
 **`timeout` is not on macOS by default.** Don't wrap commands in it.
 
+**A confirmation dialog can be invisible to `[role=dialog]`.** This one cost an hour
+on the Apple Developer portal. Clicking **Save** on an App ID opens a *Modify App
+Capabilities* confirm step ("…will invalidate any provisioning profiles…") with
+**Cancel / Confirm**. It is a plain `div` — it matches none of `[role=dialog]`,
+`.modal`, `dialog`, or `.modal-content`. Every probe for "is a modal open?" answered
+**no**, so the run looked like a click that silently did nothing: no network request,
+and the change gone after reload. The Save had worked every time; nothing ever pressed
+Confirm.
+
+Never conclude "the click did nothing" from a modal probe alone. Search for the
+*buttons* instead — `Confirm`, `Continue`, `Agree`, `OK` — anywhere in the document:
+
+```js
+[...document.querySelectorAll("button,a,input[type=button],input[type=submit]")]
+  .filter(b => /^(confirm|continue|agree|ok|save)$/i.test((b.innerText||b.value||"").trim()))
+```
+
+**A wrong-but-plausible diagnosis will eat the whole session.** Chasing the above, the
+tab also reported `visibilityState: "hidden"`, `innerHeight: 0`, and
+`Browser.getWindowForTarget` → "Browser window not found". All true, all real, and all
+a red herring — the window was merely off-screen (bounds `60,30→1500,817` on a
+1440-wide display). Time went into `Emulation.setDeviceMetricsOverride`,
+`setFocusEmulationEnabled`, `Page.setWebLifecycleState`, `bringToFront`, and AppleScript
+window juggling, none of which was the problem. A public forum thread about a genuine
+`501 PATCH` portal bug made the wrong theory *more* convincing; the actual request
+returned `200` on the first properly-confirmed attempt. When a fix doesn't work, re-test
+the diagnosis before escalating the fix.
+
 ## Known-good recipes
 
 **Upload N files in a fixed order.** Batch uploads land in *completion* order, not
@@ -164,6 +192,20 @@ async (page) => {
 const refOf = label => snap.match(
   new RegExp('textbox "' + label + '"[^\\n]*?\\[ref=(e\\d+)\\]'))?.[1];
 ```
+
+**When state and behaviour disagree, screenshot.** This is the highest-value move in
+this file and it kept getting skipped in favour of more DOM queries. If the DOM says the
+form is correct but the write never lands, stop querying and *look*:
+
+```js
+await page.screenshot({ path: "/tmp/state.png" });   // then read the image
+```
+
+One screenshot exposed the blocking *Modify App Capabilities* dialog after roughly an
+hour of DOM probes had each confidently reported "no modal open". The accessibility tree
+and `querySelector` only answer the question you thought to ask; pixels show what is
+actually on top. Reach for this the moment a second attempt fails for a reason you
+cannot name — not after the fifth.
 
 **Always verify by reload, not by the write succeeding.** A tool returning `OK` means the
 call was accepted, not that the value stuck. Reload the page, read the values back, and
