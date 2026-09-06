@@ -18,6 +18,7 @@ import { defineSecret } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { reserveScanSlot, SCAN_RATE_LIMIT } from './scanRateLimiter.js';
 
 // Initialize Firebase Admin
 initializeApp();
@@ -123,6 +124,24 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
       throw new HttpsError(
         'invalid-argument',
         `Image is too large (${Math.round(approxBytes / 1024 / 1024)}MB). Maximum is ${MAX_IMAGE_BYTES / 1024 / 1024}MB.`,
+      );
+    }
+
+    // Per-user abuse limit. Applies to every plan — this is not the business
+    // quota (see chunk 3), it is the backstop that stops a script looping the
+    // endpoint. The slot is reserved BEFORE the Gemini call so that a caller
+    // who deliberately errors cannot bypass it.
+    const rate = await reserveScanSlot(request.auth.uid);
+    if (!rate.allowed) {
+      const retryMinutes = Math.ceil(rate.retryAfterMs / 60_000);
+      logger.warn('analyzeBill: rate limit exceeded', {
+        uid: request.auth.uid,
+        limit: SCAN_RATE_LIMIT,
+        retryAfterMs: rate.retryAfterMs,
+      });
+      throw new HttpsError(
+        'resource-exhausted',
+        `Too many scans. You can scan up to ${SCAN_RATE_LIMIT} receipts per hour. Try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`,
       );
     }
 
