@@ -15,15 +15,30 @@ Filled and saved — verified after a full page reload:
 
 **Not submitted.** Still outstanding:
 
-- **Build** — must be uploaded from Xcode/Transporter; not reachable from the web UI
+- ~~**Build**~~ — **build 176 (version 1.0) was delivered successfully** and is
+  available to attach. Note it did NOT come from this repo's
+  `CURRENT_PROJECT_VERSION`, which is still `1`; build numbers are being set
+  somewhere else (Xcode Cloud via `ios/App/ci_scripts/ci_post_clone.sh`, or by
+  hand). Find out which before the next upload, or you will collide.
+
+  Delivery raised **ITMS-90068** (warning, not a rejection — the build is still
+  submittable): `MinimumOSVersion` 14.0 is below the 15.0 that App Store Connect
+  will require from Spring 2027. Fixed on 2026-09-06 by raising
+  `IPHONEOS_DEPLOYMENT_TARGET` to 15.0. iOS 14 support was already fictional —
+  `ios/App/Podfile` has declared `platform :ios, '15.0'` for some time, so every
+  pod was already built against 15.0 while the app target alone claimed 14.0.
+  The fix applies to the NEXT upload; it does not invalidate build 176.
 - **App Review Information** — demo account, blocked on the sign-in decision below
 - **App Privacy** labels and **age rating** questionnaire — separate sections
 - **Guideline 4.8 risk** — the app offers Google Sign-In only. Apple requires a
   privacy-preserving alternative (Sign in with Apple satisfies it). This is a common
   rejection for consumer apps and is worth fixing *before* submitting.
-- **Version number now disagrees with ASC.** `MARKETING_VERSION` was aligned to
-  Android's `versionName` on 2026-09-06 and is now **1.3**; the inflight ASC
-  record still says **1.0**. Change it in ASC before attaching a build.
+- **iOS stays on 1.0; Android is on 1.3. That drift is accepted, not a defect.**
+  iOS 1.0 genuinely is the first iOS release. `MARKETING_VERSION` was briefly
+  aligned to 1.3 on 2026-09-06 and reverted the same day once build 176 turned
+  out to be already delivered as 1.0 — changing it would have discarded that
+  build and forced an ASC version edit for no benefit. Realign at a natural
+  bump, not mid-submission.
 
 ## Compliance gate run — 2026-09-06
 
