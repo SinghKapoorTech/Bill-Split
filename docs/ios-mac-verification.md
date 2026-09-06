@@ -2,7 +2,14 @@
 
 Commit `5aa1a6f` changed three things under `ios/` that **could not be verified on
 Windows**: no Xcode, no CocoaPods, no simulator. The web and backend gates all
-passed and are deployed, but nothing below has ever been compiled or run.
+passed and are deployed.
+
+> **Status — 2026-09-05, run on the Mac** (Xcode 26.6, CocoaPods 1.17.0).
+> Steps **1, 2, 3 and 5 pass**; results recorded inline below.
+> **Step 4 is partly closed**: every static precondition is verified, but the
+> end-to-end capture is still unrun and needs real hardware.
+> **Step 6 is untouched.** No archive has been produced and nothing has been
+> uploaded, so no `ITMS-*` email can have arrived yet.
 
 Work top to bottom. **Step 4 is the one that matters most** — a mistake in this
 area already broke receipt scanning once during development and was only caught
@@ -13,8 +20,23 @@ changes sit inert in the repo until you build them.
 
 ```bash
 git pull
+npm install
+npm run build && npx cap copy ios     # populates ios/App/App/public
 cd ios/App && pod install && cd ../..
 ```
+
+**Do not skip the `cap copy`.** `ios/App/App/public` is gitignored, so on a fresh
+clone it does not exist, and the App target copies it as a bundle resource. Without
+it every build fails at:
+
+```
+CpResource .../App.app/public .../ios/App/App/public
+```
+
+which reads like a broken project file but is only missing web assets. A stale
+`dist/` causes the quieter version of the same problem — the build succeeds and
+you verify against whatever the last `npm run build` produced, so rebuild rather
+than reusing it.
 
 ---
 
@@ -29,9 +51,15 @@ verified (UUID counts, balanced braces) but never opened by Xcode.
 open ios/App/App.xcworkspace
 ```
 
-- [ ] The project loads with no "damaged / cannot be read" error
-- [ ] The navigator shows **PrivacyInfo.xcprivacy** inside the `App` group,
+- [x] The project loads with no "damaged / cannot be read" error
+- [x] The navigator shows **PrivacyInfo.xcprivacy** inside the `App` group,
       alongside `Info.plist` and `GoogleService-Info.plist`
+
+**Verified 2026-09-05** with `xcodebuild -list -workspace ios/App/App.xcworkspace`
+rather than the GUI — it fully parses `project.pbxproj` and enumerated every
+scheme with no error, which is stronger evidence than the project merely opening.
+The hand-edited project file is sound; the `git revert 3741fd3` fallback is not
+needed.
 
 **If it fails:** `git revert 3741fd3` restores the previous project file. The
 manifest can then be re-added through Xcode's own UI (drag into the `App` group,
@@ -46,8 +74,14 @@ the `.app` and silently does nothing. This is the whole point of the change.
 In Xcode: select `PrivacyInfo.xcprivacy` → File Inspector (⌥⌘1) → **Target
 Membership**.
 
-- [ ] **App** is ticked
-- [ ] Build Phases → Copy Bundle Resources lists `PrivacyInfo.xcprivacy`
+- [x] **App** is ticked
+- [x] Build Phases → Copy Bundle Resources lists `PrivacyInfo.xcprivacy`
+
+**Verified 2026-09-05.** All four insertions are present and correctly
+cross-referenced in `project.pbxproj` — `PBXBuildFile` (:20), `PBXFileReference`
+(:37), `PBXGroup` (:92), `PBXResourcesBuildPhase` (:176), with build-file
+`B1DC2621…` pointing at file-ref `B1DC2620…`. Step 5 confirms this took effect in
+a real build.
 
 ## 3. Pod privacy manifest inventory
 
@@ -59,10 +93,27 @@ pods were never checked.
 find ios/App/Pods -iname '*.xcprivacy'
 ```
 
-- [ ] `FirebaseAuth`, `FirebaseCore`, `FirebaseCoreInternal`, `GoogleUtilities`
+- [x] `FirebaseAuth`, `FirebaseCore`, `FirebaseCoreInternal`, `GoogleUtilities`
       and `GoogleSignIn` all appear
-- [ ] Note whether `AppAuth`, `GTMAppAuth`, `GTMSessionFetcher` and
+- [x] Note whether `AppAuth`, `GTMAppAuth`, `GTMSessionFetcher` and
       `RecaptchaInterop` appear
+
+**Verified 2026-09-05.** All five required manifests present, plus
+`FirebaseCoreExtension`. Of the four unknowns:
+
+| Pod | Manifest |
+| --- | --- |
+| `AppAuth` | yes |
+| `GTMAppAuth` | yes |
+| `GTMSessionFetcher` | **yes** |
+| `RecaptchaInterop` | none |
+
+**`GTMSessionFetcher` ships one, so the `ITMS-91053` risk flagged below is
+retired.** `RecaptchaInterop` (100.0.0) is the only gap and is not a concern: the
+pod is one `placeholder.m` plus three protocol headers, and grepping it for
+required-reason symbols (`UserDefaults`, file timestamps, disk space, boot time,
+`statfs`) returns nothing. There is no implementation there for Apple's scanner
+to find.
 
 `GTMSessionFetcher` is the one worth attention — it plausibly touches
 `UserDefaults` or file-timestamp APIs. If it has no manifest, that is not
@@ -100,6 +151,21 @@ Run on a **real device** (the simulator has no camera):
 - [ ] Choose **Photo Library** → pick an existing image → items come back
 - [ ] Xcode console shows no `You are missing NS...UsageDescription` message
 
+**Static preconditions verified 2026-09-05 — the runtime boxes above are still
+open.** All three keys are present in the *built* `Info.plist` (not just the
+source), including the restored `NSPhotoLibraryAddUsageDescription`, whose text
+now explains the reason. The plugin claim was confirmed directly in
+`CameraTypes.swift:10-12` — `allCases` does enumerate all three keys, so the
+silent-rejection path can only fire if one is absent, and none is.
+
+That eliminates the specific failure this step was written to catch. What remains
+unproven is the end-to-end run: sheet appears → capture → Gemini returns items.
+
+**Shortcut worth knowing:** the **Photo Library** leg is testable on the
+simulator. `checkUsageDescriptions()` runs before the picker opens regardless of
+source, so a missing key reproduces there too. Only **Take Photo** genuinely
+needs hardware.
+
 **If the sheet does not appear**, check `ios/App/App/Info.plist` still contains
 all three of `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`,
 `NSPhotoLibraryAddUsageDescription`. Do not remove any of them, whatever a
@@ -120,8 +186,15 @@ find ~/Library/Developer/Xcode/DerivedData/App-*/Build/Products \
 plutil -lint ios/App/App/PrivacyInfo.xcprivacy
 ```
 
-- [ ] `PrivacyInfo.xcprivacy` is found at the **root of `App.app`**
-- [ ] `plutil -lint` reports `OK`
+- [x] `PrivacyInfo.xcprivacy` is found at the **root of `App.app`**
+- [x] `plutil -lint` reports `OK`
+
+**Verified 2026-09-05** against a simulator build (`-sdk iphonesimulator`,
+`CODE_SIGNING_ALLOWED=NO`). The manifest is at the root of `App.app`, lints `OK`,
+is byte-identical to the source, and declares **9** collected data types as
+described. Eleven pod manifests also landed in their respective frameworks.
+Confirmed `@capacitor/filesystem` ships none at this version, so the app-level
+`C617.1` declaration is doing real work rather than being redundant.
 
 The manifest declares 9 collected data types and one required-reason API
 (`NSPrivacyAccessedAPICategoryFileTimestamp` / `C617.1`, for
@@ -136,6 +209,11 @@ The manifest declares 9 collected data types and one required-reason API
       the upload passing is not proof the manifest is right. If one arrives, note
       which category it names; that identifies the pod still missing a manifest.
 
+Step 3 lowered this risk considerably: `GTMSessionFetcher`, the pod most likely to
+trigger `ITMS-91053`, does ship a manifest. `RecaptchaInterop` is the only one
+without, and it has no implementation to scan. Still watch the email — a pod
+manifest can be present but incomplete, which only Apple's scanner sees.
+
 ---
 
 ## Manual steps in App Store Connect (not fixable from the repo)
@@ -143,6 +221,9 @@ The manifest declares 9 collected data types and one required-reason API
 - [ ] **Support URL** — still set to the old `https://bill-split-lemon.vercel.app`,
       which now returns **404**. Change it to `https://www.divit-bill.com/contact`
       (live and returning 200). Editing the repo does **not** update Apple.
+      Both codes re-confirmed by request on 2026-09-05. Note `appstore/listing.md`
+      already carries the correct URLs (fixed in `ce31d18`), so this is purely an
+      App Store Connect console edit.
 - [ ] **App Privacy labels** — still unfilled. Fill them from
       `ios/App/App/PrivacyInfo.xcprivacy`, which is now the source of truth:
       Name, Email Address, Phone Number, User ID, Other User Contact Info,
