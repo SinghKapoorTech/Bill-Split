@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  describeWindow,
   evaluateScanRate,
   SCAN_RATE_LIMIT,
   SCAN_RATE_WINDOW_MS,
@@ -252,5 +253,113 @@ describe('evaluateScanRate — parameter type', () => {
     // snap.data()?.x yields `undefined` under strict, never `null`.
     expect(evaluateScanRate(undefined, T0).allowed).toBe(true);
     expect(evaluateScanRate(undefined, T0).next).toEqual({ windowStartMs: T0, count: 1 });
+  });
+});
+
+describe('evaluateScanRate — effective config is surfaced to the caller', () => {
+  // Finding 3: the caller built "up to 30 receipts per hour" from the module
+  // constants while the decision was made against something else entirely. The
+  // decision now carries the numbers it actually used, so the sentence and the
+  // enforcement cannot drift apart.
+  it('reports the defaults when no config is supplied', () => {
+    const d = evaluateScanRate(null, T0);
+    expect(d.effectiveLimit).toBe(SCAN_RATE_LIMIT);
+    expect(d.effectiveWindowMs).toBe(SCAN_RATE_WINDOW_MS);
+  });
+
+  it('reports supplied config on both the allowed and the blocked path', () => {
+    const allowed = evaluateScanRate(null, T0, 10, 15 * 60_000);
+    expect(allowed.allowed).toBe(true);
+    expect(allowed.effectiveLimit).toBe(10);
+    expect(allowed.effectiveWindowMs).toBe(15 * 60_000);
+
+    const blocked = evaluateScanRate({ windowStartMs: T0, count: 10 }, T0 + 1, 10, 15 * 60_000);
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.effectiveLimit).toBe(10);
+    expect(blocked.effectiveWindowMs).toBe(15 * 60_000);
+  });
+
+  it('reports the FLOORED limit, matching what is enforced', () => {
+    // A message promising 1.5 scans would be nonsense, and one promising 2
+    // would be a lie — the in-window check blocks at 1.
+    const d = evaluateScanRate({ windowStartMs: T0, count: 1 }, T0 + 1, 1.5);
+    expect(d.allowed).toBe(false);
+    expect(d.effectiveLimit).toBe(1);
+  });
+
+  it('reports the FALLBACK values when config was rejected, not the bad input', () => {
+    // Otherwise a broken config would produce "up to 0 receipts per 0 minutes"
+    // while the limiter enforced 30 per hour.
+    const d = evaluateScanRate({ windowStartMs: T0, count: SCAN_RATE_LIMIT }, T0 + 1, 0, -1);
+    expect(d.usedConfigFallback).toBe(true);
+    expect(d.effectiveLimit).toBe(SCAN_RATE_LIMIT);
+    expect(d.effectiveWindowMs).toBe(SCAN_RATE_WINDOW_MS);
+  });
+
+  it('keeps retryAfterMs consistent with the reported window', () => {
+    const windowMs = 15 * 60_000;
+    const d = evaluateScanRate({ windowStartMs: T0, count: 10 }, T0, 10, windowMs);
+    expect(d.retryAfterMs).toBe(d.effectiveWindowMs);
+    expect(d.effectiveWindowMs).toBe(windowMs);
+  });
+});
+
+describe('describeWindow', () => {
+  it('describes the default one-hour window without a number', () => {
+    expect(describeWindow(SCAN_RATE_WINDOW_MS)).toBe('hour');
+    expect(describeWindow(60 * 60 * 1000)).toBe('hour');
+  });
+
+  it('describes sub-hour windows in minutes', () => {
+    expect(describeWindow(15 * 60_000)).toBe('15 minutes');
+    expect(describeWindow(30 * 60_000)).toBe('30 minutes');
+  });
+
+  it('describes a one-minute window without a number', () => {
+    expect(describeWindow(60_000)).toBe('minute');
+  });
+
+  it('describes 90 minutes in minutes, not a lossy "2 hours"', () => {
+    expect(describeWindow(90 * 60_000)).toBe('90 minutes');
+  });
+
+  it('describes multi-hour windows in hours', () => {
+    expect(describeWindow(2 * 60 * 60 * 1000)).toBe('2 hours');
+    expect(describeWindow(24 * 60 * 60 * 1000)).toBe('24 hours');
+  });
+
+  it('describes sub-minute windows in seconds', () => {
+    expect(describeWindow(30_000)).toBe('30 seconds');
+    expect(describeWindow(1_000)).toBe('second');
+  });
+
+  it('never contradicts the "try again in N minutes" half of the sentence', () => {
+    // 59_999ms rounds to 60 seconds but `Math.ceil(59_999 / 60_000)` is 1
+    // minute, so describing it in seconds would make the two halves of the
+    // message disagree — the exact failure this helper was added to prevent.
+    expect(describeWindow(59_999)).toBe('minute');
+    expect(describeWindow(59_500)).toBe('minute');
+    // Still genuinely sub-minute values keep their seconds.
+    expect(describeWindow(45_000)).toBe('45 seconds');
+  });
+
+  it('never emits NaN or a negative count to a user', () => {
+    // Same broken-Remote-Config shapes evaluateScanRate guards against; these
+    // reach describeWindow only via effectiveWindowMs, but the helper is public.
+    for (const bad of [NaN, Infinity, -Infinity, 0, -1, -60_000]) {
+      const text = describeWindow(bad);
+      expect(text).toBe('hour');
+      expect(text).not.toMatch(/NaN|-|Infinity/);
+    }
+    // A sub-second window still reads as a whole unit rather than "0 seconds".
+    expect(describeWindow(1)).toBe('second');
+  });
+
+  it('reads correctly as the tail of the user-facing sentence', () => {
+    const sentence = (limit: number, windowMs: number) =>
+      `You can scan up to ${limit} receipts per ${describeWindow(windowMs)}.`;
+    expect(sentence(30, 60 * 60 * 1000)).toBe('You can scan up to 30 receipts per hour.');
+    expect(sentence(10, 15 * 60_000)).toBe('You can scan up to 10 receipts per 15 minutes.');
+    expect(sentence(5, 2 * 60 * 60 * 1000)).toBe('You can scan up to 5 receipts per 2 hours.');
   });
 });

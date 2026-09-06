@@ -46,6 +46,16 @@ export interface ScanRateDecision {
   /** Milliseconds until the window reopens. Zero when allowed. */
   retryAfterMs: number;
   /**
+   * The limit and window this decision was ACTUALLY made against — post
+   * validation, post `Math.floor`, post fallback. Surfaced so the caller can
+   * build the user-facing message from the same numbers the decision used.
+   * Hardcoding `SCAN_RATE_LIMIT` / "per hour" at the call site produces a
+   * message that silently goes wrong the moment Remote Config supplies
+   * anything other than the defaults, or supplies something invalid.
+   */
+  effectiveLimit: number;
+  effectiveWindowMs: number;
+  /**
    * Set when `limit` or `windowMs` was rejected and the module default was used
    * instead. Callers should log this: a silent fallback hides a broken config.
    */
@@ -54,6 +64,41 @@ export interface ScanRateDecision {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
+}
+
+/**
+ * Renders a window length as the tail of "…receipts per ___" — "hour",
+ * "30 minutes", "2 hours". Pure and export-tested so the sentence and the
+ * `retryAfterMs` hint can never disagree about how long the window is.
+ *
+ * A count of one drops the number ("per hour", not "per 1 hour"); anything else
+ * keeps it. Hours are used only for exact multiples of an hour, so 90 minutes
+ * reads as "90 minutes" rather than a lossy "2 hours".
+ *
+ * Defensive like the rest of this module: a non-finite or non-positive input
+ * (the same broken-Remote-Config shapes `evaluateScanRate` guards against)
+ * describes the module default rather than emitting "NaN minutes" to a user.
+ */
+export function describeWindow(ms: number): string {
+  const value = isFiniteNumber(ms) && ms > 0 ? ms : SCAN_RATE_WINDOW_MS;
+
+  const plural = (count: number, unit: string) => (count === 1 ? unit : `${count} ${unit}s`);
+
+  // Seconds first, and only while they round to under a minute. Bounding on the
+  // ROUNDED value rather than on `value >= 60_000` is what stops the one
+  // self-contradiction this helper exists to prevent: a 59_999ms window would
+  // otherwise read "per 60 seconds" while the retry hint, from `Math.ceil` over
+  // the same number, said "try again in 1 minute".
+  const seconds = Math.round(value / 1000);
+  if (seconds < 60) {
+    return plural(Math.max(1, seconds), 'second');
+  }
+
+  if (value % (60 * 60 * 1000) === 0) {
+    return plural(value / (60 * 60 * 1000), 'hour');
+  }
+
+  return plural(Math.round(value / (60 * 1000)), 'minute');
 }
 
 export function evaluateScanRate(
@@ -75,10 +120,14 @@ export function evaluateScanRate(
   const effectiveWindowMs = windowOk ? windowMs : SCAN_RATE_WINDOW_MS;
   const usedConfigFallback = !limitOk || !windowOk;
 
-  const decide = (allowed: boolean, next: ScanRateState, retryAfterMs: number): ScanRateDecision =>
-    usedConfigFallback
-      ? { allowed, next, retryAfterMs, usedConfigFallback: true }
-      : { allowed, next, retryAfterMs };
+  const decide = (
+    allowed: boolean,
+    next: ScanRateState,
+    retryAfterMs: number,
+  ): ScanRateDecision => {
+    const base = { allowed, next, retryAfterMs, effectiveLimit, effectiveWindowMs };
+    return usedConfigFallback ? { ...base, usedConfigFallback: true } : base;
+  };
 
   const openFreshWindow = () => decide(true, { windowStartMs: nowMs, count: 1 }, 0);
 

@@ -18,7 +18,9 @@ import { defineSecret } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { reserveScanSlot, SCAN_RATE_LIMIT } from './scanRateLimiter.js';
+import { reserveScanSlot, recordScanOutcome } from './scanRateLimiter.js';
+import { describeWindow } from '../../shared/scanRateLimit.js';
+import { shouldSuggestDifferentImage, type ScanOutcome } from '../../shared/scanFailureStreak.js';
 
 // Initialize Firebase Admin
 initializeApp();
@@ -66,6 +68,22 @@ interface BillData {
  */
 interface AnalyzeBillRequest {
   base64Image: string;
+}
+
+/**
+ * Gemini answered, but the answer was unusable — unparseable JSON, no items, a
+ * malformed item, missing numeric fields.
+ *
+ * This exists purely to separate "the image was bad" from "the call failed".
+ * Both surface to the user as a failed scan, but only this class counts toward
+ * the consecutive-failure streak: a Gemini outage must never escalate a user
+ * with a perfectly good photo to "take a clearer photo".
+ */
+class ExtractionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ExtractionError';
+  }
 }
 
 /**
@@ -131,17 +149,42 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
     // quota (see chunk 3), it is the backstop that stops a script looping the
     // endpoint. The slot is reserved BEFORE the Gemini call so that a caller
     // who deliberately errors cannot bypass it.
-    const rate = await reserveScanSlot(request.auth.uid);
+    const uid = request.auth.uid;
+
+    // The limiter's own failures are its own error. Previously this call sat
+    // outside every try: a transaction that exhausted its retries propagated
+    // raw, Firebase relabelled it `internal`, and the logs could not tell it
+    // apart from a Gemini failure.
+    let rate: Awaited<ReturnType<typeof reserveScanSlot>>;
+    try {
+      rate = await reserveScanSlot(uid);
+    } catch (error) {
+      // FAIL CLOSED, deliberately. Letting the scan through when the limiter is
+      // broken hands an attacker a trivial bypass (break the limiter, scan
+      // freely) and every allowed scan is a paid Gemini call. A brief outage of
+      // scanning is cheaper than an unbounded bill.
+      logger.error('analyzeBill: scan rate limiter unavailable', { uid, error });
+      throw new HttpsError(
+        'unavailable',
+        'Scanning is temporarily unavailable. Please try again in a moment.',
+      );
+    }
+
     if (!rate.allowed) {
       const retryMinutes = Math.ceil(rate.retryAfterMs / 60_000);
       logger.warn('analyzeBill: rate limit exceeded', {
-        uid: request.auth.uid,
-        limit: SCAN_RATE_LIMIT,
+        uid,
+        limit: rate.effectiveLimit,
+        windowMs: rate.effectiveWindowMs,
         retryAfterMs: rate.retryAfterMs,
       });
+      // Built from the values the decision actually used, never from the module
+      // constants: with a Remote-Config limit of 10 the old sentence promised 30,
+      // and with a 15-minute window it said "per hour" while retryAfterMs — from
+      // the same decision — correctly said 15 minutes.
       throw new HttpsError(
         'resource-exhausted',
-        `Too many scans. You can scan up to ${SCAN_RATE_LIMIT} receipts per hour. Try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`,
+        `Too many scans. You can scan up to ${rate.effectiveLimit} receipts per ${describeWindow(rate.effectiveWindowMs)}. Try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`,
       );
     }
 
@@ -182,10 +225,24 @@ Rules:
         },
       };
 
-      // Call Gemini AI
+      // Call Gemini AI. A throw from generateContent itself is transport —
+      // network, timeout, Google-side quota — and stays an infrastructure failure.
       const result = await model.generateContent([prompt, imagePart]);
-      const response = await result.response;
-      const text = response.text();
+
+      // Reading the candidate is a different thing: the request already
+      // succeeded, so a throw here is a SAFETY/RECITATION block or an empty
+      // candidate, which is a property of the image we sent. Classifying that
+      // as infrastructure would leave a user whose photo Gemini refuses to read
+      // looping forever without ever reaching the guidance.
+      let text: string;
+      try {
+        const response = await result.response;
+        text = response.text();
+      } catch (responseError) {
+        throw new ExtractionError(
+          `Gemini returned no usable response: ${responseError instanceof Error ? responseError.message : 'Unknown error'}`,
+        );
+      }
 
       // Clean up the response - remove markdown code blocks if present
       let cleanedText = text.trim();
@@ -196,15 +253,34 @@ Rules:
       console.log('Gemini raw response:', text);
       console.log('Gemini cleaned response:', cleanedText);
 
-      let billData: BillData;
+      let parsed: unknown;
       try {
-        billData = JSON.parse(cleanedText);
-        console.log('Gemini parsed billData:', JSON.stringify(billData, null, 2));
+        parsed = JSON.parse(cleanedText);
+        console.log('Gemini parsed billData:', JSON.stringify(parsed, null, 2));
       } catch (parseError) {
         console.error('JSON parsing failed. Raw response:', cleanedText);
-        throw new Error(
+        throw new ExtractionError(
           `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
         );
+      }
+
+      // `null`, `42` and `[]` are all valid JSON, and `null` is a plausible
+      // model answer to "this is not a receipt". Every one of them reaches
+      // `billData.items` and throws a raw TypeError, which would be classified
+      // as an infrastructure failure — the exact opposite of the truth.
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        console.error('Non-object JSON response. Raw response:', cleanedText);
+        throw new ExtractionError('Invalid response: expected a JSON object');
+      }
+
+      const billData = parsed as BillData;
+
+      // Validate the data structure BEFORE mapping over it: a response with no
+      // `items` key used to throw a TypeError out of `.map`, which is
+      // indistinguishable from a transport failure when classifying the outcome.
+      if (!billData.items || !Array.isArray(billData.items)) {
+        console.error('Invalid items array. Full response:', billData);
+        throw new ExtractionError('Invalid response: items array is missing');
       }
 
       // Add unique IDs to each item
@@ -213,21 +289,15 @@ Rules:
         id: `item-${index}-${Date.now()}`,
       }));
 
-      // Validate the data structure
-      if (!billData.items || !Array.isArray(billData.items)) {
-        console.error('Invalid items array. Full response:', billData);
-        throw new Error('Invalid response: items array is missing');
-      }
-
       if (billData.items.length === 0) {
-        throw new Error('No items found on the receipt');
+        throw new ExtractionError('No items found on the receipt');
       }
 
       // Validate each item has required fields
       for (const item of billData.items) {
         if (!item.name || typeof item.price !== 'number') {
           console.error('Invalid item:', item);
-          throw new Error('Invalid item structure: missing name or price');
+          throw new ExtractionError('Invalid item structure: missing name or price');
         }
       }
 
@@ -254,10 +324,14 @@ Rules:
           tip: billData.tip,
           total: billData.total,
         });
-        throw new Error(
+        throw new ExtractionError(
           `Invalid response: missing required numeric fields. Received types: subtotal=${typeof billData.subtotal}, tax=${typeof billData.tax}, tip=${typeof billData.tip}, total=${typeof billData.total}`,
         );
       }
+
+      // One good scan clears the slate immediately — the guidance is about a run
+      // of failures, not a lifetime tally.
+      await recordScanOutcome(uid, 'success');
 
       return billData;
     } catch (error) {
@@ -265,6 +339,44 @@ Rules:
 
       if (error instanceof HttpsError) {
         throw error;
+      }
+
+      // Only Gemini answering with something unusable is evidence about the
+      // user's photo. A transport error, timeout, or Google-side quota is our
+      // problem and must leave the streak untouched, or an outage would tell
+      // users with perfectly good photos to go take a better one.
+      const outcome: ScanOutcome =
+        error instanceof ExtractionError ? 'extraction-failure' : 'infrastructure-failure';
+
+      // Only an extraction failure touches Firestore. An infrastructure failure
+      // must leave the stored streak alone anyway, and this runs inside a
+      // 120s-budget handler that has usually just spent most of that budget on
+      // a hanging Gemini call — an extra read here purely to log a number can
+      // push the callable past its deadline and replace the real error with an
+      // opaque `deadline-exceeded`.
+      const streak =
+        outcome === 'extraction-failure' ? await recordScanOutcome(uid, outcome) : null;
+
+      logger.error('analyzeBill: scan failed', {
+        uid,
+        outcome,
+        ...(streak !== null && { consecutiveFailures: streak }),
+      });
+
+      // MESSAGE ONLY — the scan is deliberately NOT blocked at the cap. The
+      // user's way out is submitting a better photo, so that path must stay
+      // open, and the success branch above resets the streak the moment it works.
+      //
+      // `failed-precondition`, not `internal`: the client error mapper passes
+      // that code's message through verbatim, whereas `internal` gets re-wrapped
+      // as "Failed to analyze receipt: <message>" — which would bury this
+      // guidance behind a prefix and make it indistinguishable from a real
+      // server bug, since genuine bugs also throw `internal` below.
+      if (streak !== null && shouldSuggestDifferentImage(streak)) {
+        throw new HttpsError(
+          'failed-precondition',
+          `We couldn't read that receipt after ${streak} tries. Try a clearer photo: good lighting, receipt flat, whole receipt in frame.`,
+        );
       }
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
