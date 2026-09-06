@@ -23,16 +23,16 @@ export function LandingFooter() {
 
           {/* Links */}
           <div className="flex gap-6 text-sm">
-            <a href="#" className="hover:text-amber-400 transition-colors">About</a>
-            <a href="#" className="hover:text-amber-400 transition-colors">Features</a>
-            <a href="#" className="hover:text-amber-400 transition-colors">Contact</a>
+            <a href="#how-it-works" className="hover:text-amber-400 transition-colors">About</a>
+            <a href="#features" className="hover:text-amber-400 transition-colors">Features</a>
+            <Link to="/contact" className="hover:text-amber-400 transition-colors">Contact</Link>
             <Link to="/privacy" className="hover:text-amber-400 transition-colors">Privacy</Link>
           </div>
         </div>
 
         {/* Copyright */}
         <div className="mt-6 pt-6 border-t border-stone-800 text-center text-sm text-stone-500">
-          © 2024 Divit. All rights reserved.
+          © {new Date().getFullYear()} Divit. All rights reserved.
         </div>
       </div>
     </motion.footer>

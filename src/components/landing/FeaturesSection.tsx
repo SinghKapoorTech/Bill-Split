@@ -57,7 +57,7 @@ export function FeaturesSection() {
   const duplicatedFeatures = [...features, ...features];
 
   return (
-    <section ref={sectionRef} className="py-24 px-4 md:px-8 relative overflow-hidden">
+    <section ref={sectionRef} id="features" className="scroll-mt-24 py-24 px-4 md:px-8 relative overflow-hidden">
       <div className="container mx-auto max-w-screen-2xl relative z-10">
         {/* Section header */}
         <motion.div

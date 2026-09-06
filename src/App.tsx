@@ -30,6 +30,7 @@ import AirbnbView from "./pages/AirbnbView";
 import RecurringBillView from "./pages/RecurringBillView";
 import BalanceDetailView from "./pages/BalanceDetailView";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Contact from "./pages/Contact";
 import BillsView from "./pages/BillsView";
 import { SettlementRequestsProvider } from "@/hooks/useSettlementRequests";
 
@@ -142,6 +143,7 @@ const App = () => (
 
                 {/* Public: legal pages */}
                 <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/contact" element={<Contact />} />
 
                 {/* Public: 404 */}
                 <Route path="*" element={<NotFound />} />

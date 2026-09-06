@@ -76,7 +76,7 @@ indexes those separately, so repeating them wastes characters.
 ## Support URL
 
 ```
-https://bill-split-lemon.vercel.app
+https://www.divit-bill.com/contact
 ```
 
 Must resolve to a page with a way to contact you. If the landing page has no
@@ -86,7 +86,7 @@ a common rejection.
 ## Marketing URL (optional)
 
 ```
-https://bill-split-lemon.vercel.app
+https://www.divit-bill.com
 ```
 
 ## Copyright

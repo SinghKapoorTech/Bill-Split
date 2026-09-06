@@ -2,7 +2,7 @@
 
 A smart bill-splitting app that uses AI to analyze receipts and fairly distribute costs among friends.
 
-🔗 **Live Demo:** [https://bill-split-lemon.vercel.app](https://bill-split-lemon.vercel.app)
+🔗 **Live Demo:** [https://www.divit-bill.com](https://www.divit-bill.com)
 
 ## Features
 

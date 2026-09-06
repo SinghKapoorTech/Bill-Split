@@ -50,7 +50,7 @@ step was skipped, say which and why — do not imply coverage that does not exis
 
 Bill Split is a React + TypeScript application that uses AI to analyze receipts and fairly split bills among friends with Venmo integration. The app supports both AI-powered receipt scanning and manual bill creation, collaborative group events with multiple receipts, and saved friend groups (Squads).
 
-**Live deployment:** https://bill-split-lemon.vercel.app
+**Live deployment:** https://www.divit-bill.com
 
 ### Core Features
 

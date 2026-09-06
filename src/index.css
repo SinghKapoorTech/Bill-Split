@@ -248,3 +248,28 @@ All colors MUST be HSL.
   }
 }
 
+
+/* Smooth scrolling for the landing page's in-page footer anchors (#features,
+   #how-it-works). This must be set on whichever element ACTUALLY scrolls, and
+   that differs by viewport:
+     - desktop: the document scrolls, so the rule belongs on <html>
+     - mobile (<=767px): the media query above sets html/body to overflow:hidden,
+       so LandingPage's wrapper is the real scroll root
+   `scroll-behavior` does not inherit into a nested scroll container, so setting
+   it on <html> alone leaves mobile hard-jumping. Both selectors are required.
+
+   Deliberately plain CSS, not Tailwind's `scroll-smooth` utility: index.html is
+   not in tailwind.config.ts `content`, so that class is never emitted for the
+   <html> element and silently does nothing. */
+html,
+.landing-scroll-root {
+  scroll-behavior: smooth;
+}
+
+/* Respect users who ask the OS for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  html,
+  .landing-scroll-root {
+    scroll-behavior: auto;
+  }
+}

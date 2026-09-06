@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
 import { Shield, ChevronLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { CONTACT_EMAIL } from '@/config/contact';
 
 const LAST_UPDATED = 'May 16, 2025';
-const CONTACT_EMAIL = 'singhkapoortech@gmail.com';
 
 interface SectionProps {
   title: string;
