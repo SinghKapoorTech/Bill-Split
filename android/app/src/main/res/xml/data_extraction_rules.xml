@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Divit holds balances, settlement records and cached bill data belonging to
+  more than one person. None of it should leave the device through Android's
+  automatic backup or device-to-device transfer: it is re-fetched from Firestore
+  on sign-in, so backing it up adds exposure without adding recovery value.
+
+  `android:allowBackup="false"` already disables cloud backup on every API
+  level; this file additionally covers device-to-device transfer, which
+  allowBackup does NOT govern on Android 12 (API 31) and above.
+
+  `path="."` is set explicitly on every rule. Android's documentation
+  demonstrates `<exclude>` only WITH a path and does not state whether it is
+  optional, and the parser builds `new File(domainDirectory, path)` — so an
+  omitted path may be skipped rather than treated as "the whole domain",
+  producing a rules file that silently excludes nothing. `.` is the documented
+  way to name the current directory and makes the intent unambiguous.
+
+  `root` covers the app's internal data directory (files/, databases/,
+  shared_prefs/ all live beneath it); `external` covers external storage.
+  Nothing in CI validates this file — confirm with `./gradlew :app:lintRelease`
+  on a machine with the Android SDK.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

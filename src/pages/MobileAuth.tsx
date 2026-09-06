@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -185,6 +185,24 @@ const MobileAuth = () => {
               </>
             )}
           </Button>
+        </motion.div>
+
+        {/*
+          The sign-in screen is the only surface a reviewer sees before
+          authenticating, so the privacy policy has to be reachable from here
+          too — not just from Settings behind the login (Guideline 5.1.1(i)).
+        */}
+        <motion.div
+          variants={itemVariants}
+          className="flex items-center justify-center gap-3 text-xs text-muted-foreground"
+        >
+          <Link to="/privacy" className="hover:text-foreground transition-colors">
+            Privacy Policy
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link to="/contact" className="hover:text-foreground transition-colors">
+            Contact &amp; Support
+          </Link>
         </motion.div>
       </motion.div>
     </div>

@@ -60,7 +60,7 @@ false negative on the single worst issue in this repo. Verified 2026-09-05.
 | 1 | No in-app account deletion | Apple 5.1.1(v); Play User Data | `grep -rniE 'deleteAccount\|account deletion' src functions/src` |
 | 2 | Google-only sign-in | Apple 4.8 | `grep -n 'AuthProvider' src/contexts/AuthContext.tsx` |
 | 3 | No app-level privacy manifest | Apple privacy manifest policy | `find ios -name PrivacyInfo.xcprivacy` |
-| 4 | Venmo hand-off breaks with Venmo not installed | Apple 2.1 | read `src/utils/venmo.ts` `openVenmoApp` |
+| 4 | Venmo hand-off ordering (verified correct — see §4 before changing) | Apple 2.1 | read `src/utils/venmo.ts` `getVenmoOpenStrategy` |
 | 5 | Unverified `divit://` deep link | Apple 2.1; Play | `ls public/.well-known; find ios -name '*.entitlements'` |
 | 6 | Gemini data sharing undeclared | Apple 5.1.1; Play Data Safety | `grep -rn 'gemini' functions/src/index.ts` |
 | 7 | Android backup of financial data | Play security | `grep -n allowBackup android/app/src/main/AndroidManifest.xml` |
@@ -113,11 +113,29 @@ answers and the Play Data Safety form. Reviewers compare them.
 ### 4. Venmo hand-off
 
 `openVenmoApp` sets `window.location.href` to the `venmo://` scheme, then falls
-back to the universal link after 2500ms. On an iOS review device without Venmo
-installed — the normal case — the scheme attempt surfaces an error before the
-fallback fires. Prefer the universal link first on iOS, or gate the scheme
-behind a real installed-app check. `isVenmoInstalled()` only sniffs the user
-agent; it does not detect Venmo.
+back to the universal link after 2500ms.
+
+**This is correct. Do not "fix" it.** Earlier revisions of this file told you to
+prefer the universal link on iOS; that guidance was wrong and shipping it would
+have broken the charge flow for every iOS user. Corrected 2026-09-06 after an
+adversarial review, with both facts verified against Venmo's live servers:
+
+- `account.venmo.com`'s apple-app-site-association claims only
+  `/go/checkout/wallet-network` and `/go/web/paypal`. **`/pay` is not claimed**,
+  so `https://account.venmo.com/pay?...` is not a universal link — iOS will
+  never route it to the Venmo app, whether or not Venmo is installed.
+- That URL 307s to `venmo.com/account/sign-in`. Universal-link-first therefore
+  lands the user on a web sign-in page instead of a prefilled charge.
+
+The Guideline 2.1 worry about a "Cannot Open Page" dialog is **mobile-Safari**
+behaviour — i.e. the divit-bill.com website, which App Review does not review.
+In the Capacitor binary the navigation never reaches WebKit's URL loader:
+`WebViewDelegationHandler.decidePolicyFor` cancels it and calls
+`UIApplication.open`, which fails silently on an unhandled scheme.
+
+Still true: `isVenmoInstalled()` only sniffs the user agent and does not detect
+Venmo — never gate the hand-off on it. Also note a Capacitor WKWebView on iPad
+reports `Macintosh`, not `iPad`, so user-agent branching misroutes iPad native.
 
 Divit does not process payments and takes no commission, so Guideline 3.1.1 does
 not apply — this is real-world peer-to-peer money movement handled entirely by

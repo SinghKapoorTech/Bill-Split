@@ -7,7 +7,7 @@ import { SettlementHistoryCard } from '@/components/settings/SettlementHistoryCa
 import { SquadsSettingsCard } from '@/components/settings/SquadsSettingsCard';
 import { RecurringBillsSettingsCard } from '@/components/settings/RecurringBillsSettingsCard';
 import { layout } from '@/lib/styles';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 export default function SettingsView() {
   const location = useLocation();
@@ -64,6 +64,24 @@ export default function SettingsView() {
           <RecurringBillsSettingsCard />
         </TabsContent>
       </Tabs>
+
+      {/*
+        Guideline 5.1.1(i) requires the privacy policy to be reachable from
+        INSIDE the app, not only from App Store Connect metadata. The /privacy
+        and /contact routes existed, but the only link to either lived in
+        LandingFooter — and RootRoute never renders LandingPage on native, so
+        neither page was reachable on device. Settings is the surface a
+        reviewer already opens.
+      */}
+      <div className="shrink-0 flex items-center justify-center gap-3 py-3 text-xs text-muted-foreground">
+        <Link to="/privacy" className="hover:text-foreground transition-colors">
+          Privacy Policy
+        </Link>
+        <span aria-hidden="true">·</span>
+        <Link to="/contact" className="hover:text-foreground transition-colors">
+          Contact &amp; Support
+        </Link>
+      </div>
     </div>
   );
 }

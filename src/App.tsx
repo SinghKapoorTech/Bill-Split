@@ -33,6 +33,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Contact from "./pages/Contact";
 import BillsView from "./pages/BillsView";
 import { SettlementRequestsProvider } from "@/hooks/useSettlementRequests";
+import { deepLinkToRoute } from "@/utils/deepLink";
 
 const queryClient = new QueryClient();
 
@@ -47,12 +48,12 @@ function DeepLinkHandler() {
     CapApp.addListener('appUrlOpen', (event) => {
       const url = event.url;
 
-      try {
-        const urlObj = new URL(url);
-        const path = urlObj.pathname + urlObj.search;
-        navigate(path);
-      } catch (error) {
-        console.error('Error parsing deep link URL:', error);
+      // Custom-scheme and universal links parse differently; see deepLink.ts.
+      const route = deepLinkToRoute(url);
+      if (route) {
+        navigate(route);
+      } else {
+        console.error('Unroutable deep link URL:', url);
       }
     }).then(handle => {
       if (cancelled) {
