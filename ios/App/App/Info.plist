@@ -70,8 +70,14 @@
 	<string>Divit needs camera access to scan receipts using AI</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Divit needs access to your photo library to select receipt images</string>
+	<!-- REQUIRED, do not remove. Divit never writes to the photo library, but
+	     @capacitor/camera validates ALL THREE usage-description keys on every
+	     getPhoto() call (CameraPlugin.swift checkUsageDescriptions ->
+	     CameraPropertyListKeys.allCases), regardless of saveToGallery. Removing
+	     this key makes getPhoto reject before the picker opens, and
+	     useImagePicker swallows the error - receipt scanning silently dies. -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Divit saves receipt images for later analysis</string>
+	<string>Divit needs this permission to use the system photo picker when you add a receipt image</string>
 	<key>GIDClientID</key>
 	<string>162777511812-2dps8kd79tucfc5si56act9lanueshcl.apps.googleusercontent.com</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

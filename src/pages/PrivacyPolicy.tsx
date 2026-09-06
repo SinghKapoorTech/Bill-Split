@@ -3,7 +3,7 @@ import { Shield, ChevronLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { CONTACT_EMAIL } from '@/config/contact';
 
-const LAST_UPDATED = 'May 16, 2025';
+const LAST_UPDATED = 'September 5, 2026';
 
 interface SectionProps {
   title: string;
@@ -110,13 +110,56 @@ export default function PrivacyPolicy() {
               <span className="text-foreground">Event and balance data</span> — group events,
               shared ledgers, and settlement records between linked friends
             </li>
+            <li>
+              <span className="text-foreground">Recurring bills</span> — templates for bills
+              that repeat, including the amount, the people involved, and the schedule
+            </li>
+            <li>
+              <span className="text-foreground">Settlement requests</span> — pending
+              "settle up" requests between you and another person, including the amount
+            </li>
+            <li>
+              <span className="text-foreground">Stay details</span> — for accommodation
+              splits, the check-in and check-out dates and number of nights you enter
+            </li>
+            <li>
+              <span className="text-foreground">Profile photo</span> — only if you upload
+              one; it is stored in Cloud Storage and is readable by other signed-in users
+            </li>
+            <li>
+              <span className="text-foreground">Phone number</span> — only if you or someone
+              adding you provides one
+            </li>
+            <li>
+              <span className="text-foreground">Feedback you send us</span> — if you use the
+              in-app feedback form, we store your message, your name, your email address,
+              and any files you attach
+            </li>
           </ul>
+
+          <p className="font-medium text-foreground pt-2">
+            About people you add who do not use Divit:
+          </p>
+          <p>
+            When you add someone to a bill, a friend list, or a squad, we create a
+            placeholder record for that person so balances can be tracked. That record can
+            contain the <span className="text-foreground">name, email address, phone number
+            and Venmo handle you enter for them</span>, and it is linked to your account as
+            its creator. These people have not signed up and have not agreed to this policy.
+            Please only enter details you have their permission to share, and contact us if
+            you or they want a placeholder record removed.
+          </p>
 
           <p className="font-medium text-foreground pt-2">Automatically collected:</p>
           <ul className="list-disc list-inside space-y-1 pl-2">
             <li>
-              Basic usage analytics via Firebase Analytics (screen views, feature usage) to
-              help us improve the app
+              A <span className="text-foreground">username</span> generated from your
+              display name, so other people can find you when adding friends
+            </li>
+            <li>
+              Usage analytics via Firebase Analytics (screen views, feature usage). These
+              are tied to a per-installation identifier rather than being fully anonymous,
+              and are collected as soon as the app starts
             </li>
             <li>Standard server logs (IP address, timestamps) retained by Firebase and Vercel</li>
           </ul>
@@ -128,9 +171,13 @@ export default function PrivacyPolicy() {
             <li>Authenticate you and sync your data across devices</li>
             <li>Calculate and display bill splits, balances, and settlement totals</li>
             <li>Generate Venmo payment links with itemized descriptions</li>
-            <li>Send event invitations by email to people you invite</li>
+            <li>
+              Record event invitations so the person can accept them when they next sign in
+              (we do not currently send invitation emails)
+            </li>
             <li>Allow friends you add to view shared bills and events</li>
-            <li>Improve app features and fix bugs using anonymized analytics</li>
+            <li>Improve app features and fix bugs using usage analytics</li>
+            <li>Respond to feedback and support requests you send us</li>
           </ul>
           <p>We do not use your data for advertising, and we do not sell it to anyone.</p>
         </Section>
@@ -214,6 +261,14 @@ export default function PrivacyPolicy() {
               <span className="text-foreground">With third-party services</span> listed in
               Section 5, as required to operate the app
             </li>
+            <li>
+              <span className="text-foreground">With other signed-in Divit users</span> —
+              so that people can find each other when adding friends, any signed-in user who
+              knows or looks up your account can read your profile record, which includes
+              your name, username, profile photo, email address, phone number and Venmo
+              handle. Do not put anything in your profile you would not want another Divit
+              user to see. We are working to narrow this
+            </li>
           </ul>
           <p>We never sell your data. We never share it for advertising purposes.</p>
         </Section>
@@ -232,6 +287,19 @@ export default function PrivacyPolicy() {
             <li>
               <span className="text-foreground">Settlement records</span> — kept
               indefinitely as an immutable history (like a bank statement)
+            </li>
+            <li>
+              <span className="text-foreground">Recurring bills</span> — deleting a
+              recurring bill stops it from generating new bills, but the template is
+              retained on our servers rather than erased
+            </li>
+            <li>
+              <span className="text-foreground">Profile photos</span> — kept until you
+              replace or remove the photo
+            </li>
+            <li>
+              <span className="text-foreground">Feedback</span> — messages and attachments
+              you send us are retained indefinitely unless you ask us to delete them
             </li>
             <li>
               <span className="text-foreground">Account data</span> — kept until you delete
@@ -264,8 +332,10 @@ export default function PrivacyPolicy() {
               will delete your account and associated data within 30 days
             </li>
             <li>
-              <span className="text-foreground">Opt out of analytics</span> — use a browser
-              that blocks Google Analytics, or contact us to request exclusion
+              <span className="text-foreground">Opt out of analytics</span> — Divit does not
+              yet offer an in-app analytics opt-out. On the web you can use a browser or
+              extension that blocks Google Analytics; in the iOS and Android apps that is
+              not possible, so please contact us and we will exclude your account
             </li>
           </ul>
           <p>
