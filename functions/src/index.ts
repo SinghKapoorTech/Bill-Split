@@ -174,15 +174,21 @@ Rules:
       cleanedText = cleanedText.replace(/```\s*$/g, '');
       cleanedText = cleanedText.trim();
 
-      console.log('Gemini raw response:', text);
-      console.log('Gemini cleaned response:', cleanedText);
-
+      // NOTE: do not log `text` / `cleanedText` / `billData` on the success path.
+      // They contain the restaurant name and every line item and price from the
+      // user's receipt. Cloud Logging is a separate retention store with its own
+      // access control that no bill deletion or account deletion reaches, so
+      // logging them there creates an undeletable spending profile per user.
+      // Log shape only.
       let billData: BillData;
       try {
         billData = JSON.parse(cleanedText);
-        console.log('Gemini parsed billData:', JSON.stringify(billData, null, 2));
       } catch (parseError) {
-        console.error('JSON parsing failed. Raw response:', cleanedText);
+        // Shape only — `cleanedText` is the receipt's contents.
+        console.error('JSON parsing failed.', {
+          responseLength: cleanedText.length,
+          startsWith: cleanedText.slice(0, 12),
+        });
         throw new Error(
           `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
         );
@@ -196,7 +202,12 @@ Rules:
 
       // Validate the data structure
       if (!billData.items || !Array.isArray(billData.items)) {
-        console.error('Invalid items array. Full response:', billData);
+        // Shape only — `billData` is the receipt's contents.
+        console.error('Invalid items array.', {
+          itemsType: typeof billData.items,
+          isArray: Array.isArray(billData.items),
+          topLevelKeys: Object.keys(billData ?? {}),
+        });
         throw new Error('Invalid response: items array is missing');
       }
 
@@ -207,7 +218,11 @@ Rules:
       // Validate each item has required fields
       for (const item of billData.items) {
         if (!item.name || typeof item.price !== 'number') {
-          console.error('Invalid item:', item);
+          // Shape only — `item` carries the item's name and price.
+          console.error('Invalid item structure.', {
+            hasName: Boolean(item?.name),
+            priceType: typeof item?.price,
+          });
           throw new Error('Invalid item structure: missing name or price');
         }
       }
@@ -229,11 +244,12 @@ Rules:
         typeof billData.tip !== 'number' ||
         typeof billData.total !== 'number'
       ) {
-        console.error('Missing numeric fields. Received:', {
-          subtotal: billData.subtotal,
-          tax: billData.tax,
-          tip: billData.tip,
-          total: billData.total,
+        // Types only — the values are the receipt's amounts.
+        console.error('Missing numeric fields.', {
+          subtotal: typeof billData.subtotal,
+          tax: typeof billData.tax,
+          tip: typeof billData.tip,
+          total: typeof billData.total,
         });
         throw new Error(
           `Invalid response: missing required numeric fields. Received types: subtotal=${typeof billData.subtotal}, tax=${typeof billData.tax}, tip=${typeof billData.tip}, total=${typeof billData.total}`,
