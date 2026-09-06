@@ -520,6 +520,12 @@ export { processRecurringBills } from './recurringBillProcessor.js';
 // All squad writes are server-only; see squadFunctions.ts.
 export { createSquad, updateSquad, deleteSquad } from './squadFunctions.js';
 
+// ========== Account deletion ==========
+// Required by App Store Review Guideline 5.1.1(v). Tombstones the user so
+// counterparties' shared bills and balances survive, revokes their Apple
+// token, and deletes the auth account last. See accountDeletion.ts.
+export { deleteAccount } from './accountDeletion.js';
+
 /**
  * Cloud Function: Generate a recurring bill's due occurrences immediately.
  *

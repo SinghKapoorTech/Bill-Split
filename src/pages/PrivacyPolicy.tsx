@@ -303,12 +303,24 @@ export default function PrivacyPolicy() {
             </li>
             <li>
               <span className="text-foreground">Account data</span> — kept until you delete
-              your account. To request deletion, email us at{' '}
-              <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary hover:underline">
-                {CONTACT_EMAIL}
-              </a>
+              your account, which you can do at any time in Settings → Profile → Delete
+              account
             </li>
           </ul>
+
+          <p className="mt-4">
+            Deleting your account removes your profile, email address, username, photo, phone
+            number, Venmo handle, friend list, and receipt images, and permanently revokes your
+            ability to sign in. If you signed in with Apple, we also revoke your Apple tokens.
+          </p>
+          <p className="mt-2">
+            Two things deliberately survive, because they are not solely yours. Bills you shared
+            with other people remain on those people's accounts, along with any balance between
+            you — a shared bill is as much their record as yours, and removing it would rewrite
+            their history. Settlement records remain as an immutable log of amounts paid. Your
+            first name stays visible to people you shared bills with, so those records remain
+            intelligible to them.
+          </p>
         </Section>
 
         {/* 8 */}
@@ -328,8 +340,9 @@ export default function PrivacyPolicy() {
               affected
             </li>
             <li>
-              <span className="text-foreground">Delete your account</span> — email us and we
-              will delete your account and associated data within 30 days
+              <span className="text-foreground">Delete your account</span> — in the app, at
+              Settings → Profile → Delete account. Deletion is immediate and does not require
+              contacting us
             </li>
             <li>
               <span className="text-foreground">Opt out of analytics</span> — Divit does not

@@ -1,16 +1,21 @@
 import React, { createContext, useContext, ReactNode, useEffect, useState } from 'react';
-import { User, signInWithPopup, signInWithCredential, GoogleAuthProvider, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
+import { User, signInWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider, db } from '@/config/firebase';
 import { collection, query, where, getDocs, updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { userService } from '@/services/userService';
+import {
+  SignInProvider,
+  describeSignInError,
+  isSilentAuthCancellation,
+} from '@/utils/authProviders';
 
 interface AuthContextType {
   user: User | null | undefined;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signIn: (provider: SignInProvider) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -142,11 +147,46 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
-  const signInWithGoogle = async () => {
-    try {
-      const isNative = Capacitor.isNativePlatform();
+  /**
+   * Signs in with Google or Apple.
+   *
+   * Apple is required by App Store Review Guideline 4.8 and ships on iOS only —
+   * see docs/superpowers/specs/2026-09-05-sign-in-with-apple-design.md.
+   *
+   * Both providers share one error path on purpose. The cancellation branch (a
+   * dismissed sheet must not raise an error toast) is exactly the same for
+   * both, and duplicating it is how it drifts out of sync.
+   */
+  const signIn = async (provider: SignInProvider) => {
+    const label = provider === 'apple' ? 'Apple' : 'Google';
 
-      if (isNative) {
+    try {
+      if (provider === 'apple') {
+        // iOS native only. The Apple sheet is presented by the native SDK, and
+        // the resulting credential is replayed into the JS SDK so both hold the
+        // session — matching what the Google native path below already does.
+        const result = await FirebaseAuthentication.signInWithApple();
+        const idToken = result.credential?.idToken;
+        const rawNonce = result.credential?.nonce;
+
+        if (!idToken) {
+          throw new Error('No ID token received from Sign in with Apple');
+        }
+
+        // Firebase rejects the Apple ID token unless it is replayed with the
+        // same raw nonce that was used to request it. The plugin does supply it
+        // on iOS, so a missing nonce means something is misconfigured rather
+        // than something worth retrying — fail loudly instead of handing
+        // Firebase a credential that can only ever come back invalid.
+        if (!rawNonce) {
+          throw new Error(
+            'Sign in with Apple returned no nonce. Check that the Apple provider is enabled in the Firebase console.'
+          );
+        }
+
+        const credential = new OAuthProvider('apple.com').credential({ idToken, rawNonce });
+        await signInWithCredential(auth, credential);
+      } else if (Capacitor.isNativePlatform()) {
         // Native sign-in for mobile apps
         const result = await FirebaseAuthentication.signInWithGoogle();
 
@@ -157,35 +197,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Sync native sign-in with Firebase JS SDK
         const credential = GoogleAuthProvider.credential(result.credential.idToken);
         await signInWithCredential(auth, credential);
-
-        toast({
-          title: 'Welcome!',
-          description: 'Successfully signed in with Google.',
-        });
       } else {
         // Web sign-in using popup
         await signInWithPopup(auth, googleProvider);
-        toast({
-          title: 'Welcome!',
-          description: 'Successfully signed in with Google.',
-        });
       }
+
+      toast({
+        title: 'Welcome!',
+        description: `Successfully signed in with ${label}.`,
+      });
     } catch (error: unknown) {
       console.error('[Auth] Sign-in error:', error);
-      const typedError = error as { code?: string; message?: string };
 
-      // Handle user cancellation gracefully
-      if (
-        typedError.code === 'auth/cancelled-popup-request' ||
-        typedError.code === 'auth/popup-closed-by-user' ||
-        typedError.message?.includes('cancel')
-      ) {
-        return; // Don't show error toast for cancellation
+      // Dismissing the sheet is a normal gesture, not a failure.
+      if (isSilentAuthCancellation(error)) {
+        return;
       }
 
       toast({
         title: 'Sign in failed',
-        description: typedError.message || 'Could not sign in with Google. Please try again.',
+        description: describeSignInError(error, provider),
         variant: 'destructive',
       });
     }
@@ -211,7 +242,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value = {
     user,
     loading,
-    signInWithGoogle,
+    signIn,
     signOut,
   };
 
