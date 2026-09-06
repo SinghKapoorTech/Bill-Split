@@ -6,6 +6,17 @@
  * client that could write them could grant itself Pro for free, so every client
  * write must be denied — including the owner's own.
  *
+ * Why entitlement state does NOT live on users/{userId}:
+ * `firestore.rules` grants `allow update: if request.auth.uid == userId` on
+ * user profile documents, which is a whole-document self-update rule with no
+ * field allowlist (firestore.rules:40). If a `plan` field were ever added to
+ * the user profile instead of a dedicated collection, that same rule would let
+ * any authenticated user write `{ plan: 'pro' }` to their own profile document
+ * and grant themselves Pro for free — no bypass required, just a normal
+ * client-side `updateDoc`. That's why entitlements and usage are split into
+ * their own collections with `allow write: if false`, rather than folded into
+ * the profile doc that clients are already allowed to update.
+ *
  * Run: npm run test:rules
  */
 import { readFileSync } from 'fs';
@@ -28,7 +39,7 @@ let testEnv: RulesTestEnvironment;
 
 beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
-    projectId: 'demo-bill-split-rules',
+    projectId: 'demo-bill-split-rules-entitlements',
     firestore: {
       rules: readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8'),
       host: '127.0.0.1',
@@ -110,17 +121,17 @@ describe('usage — consumption counters are Admin-SDK-only', () => {
   it('ALLOWS the owner to READ their own usage (quota indicator needs this)', async () => {
     await assertSucceeds(getDoc(doc(asOwner(), 'usage', OWNER)));
   });
-});
 
-describe('users — documents why entitlements do NOT live on the profile', () => {
-  it('CONFIRMS a user can still write arbitrary fields to their own profile', async () => {
-    // Not a bug to fix here — `allow update: if request.auth.uid == userId`
-    // (firestore.rules:40) is whole-document by design for profile fields.
-    // This test exists so that if anyone ever moves `plan` onto users/{userId},
-    // this passing assertion shows exactly why that grants free Pro.
-    await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), 'users', OWNER), { uid: OWNER, friends: [], squadIds: [] });
-    });
-    await assertSucceeds(updateDoc(doc(asOwner(), 'users', OWNER), { plan: 'pro' }));
+  it('BLOCKS the owner creating a usage doc from scratch', async () => {
+    // The hole this closes: create usage/{uid} with scansThisPeriod: 0 to
+    // defeat the monthly scan cap before a doc exists for this user.
+    await assertFails(
+      setDoc(doc(asOwner(), 'usage', 'uid_fresh'), { scansThisPeriod: 0, rateCount: 0 }),
+    );
+  });
+
+  it('BLOCKS the owner deleting their usage doc', async () => {
+    // The hole this closes: delete then recreate usage/{uid} to reset the quota.
+    await assertFails(deleteDoc(doc(asOwner(), 'usage', OWNER)));
   });
 });
