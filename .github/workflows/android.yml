@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Also upload the AAB to Play (default: build only)'
+        type: boolean
+        default: false
 
 jobs:
   build-and-upload:
@@ -66,7 +71,45 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: upload-key
 
+      # Compilation alone does not prove the manifest merged as intended:
+      # res/xml resources are not schema-validated, so a wrong
+      # dataExtractionRules file builds green. Print what actually landed.
+      - name: Report toolchain and merged manifest (manual run)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        working-directory: android
+        run: |
+          echo "== toolchain =="
+          grep -n 'tools.build:gradle' build.gradle
+          grep -nE 'compileSdkVersion|targetSdkVersion' variables.gradle
+          echo "== merged AndroidManifest — backup attributes =="
+          f=$(find app/build -name AndroidManifest.xml -path '*merged_manifest*' | head -1)
+          echo "file: ${f:-<not found>}"
+          if [ -n "$f" ]; then
+            grep -oE 'android:(allowBackup|dataExtractionRules)="[^"]*"' "$f" \
+              || echo "!! backup attributes absent from merged manifest"
+          fi
+
+      - name: Upload AAB for inspection (manual run)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-dry-run
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 7
+
+      # Everything below this point talks to Play. A manual run stops here
+      # unless publish=true, which is the only way to answer "does the Android
+      # build still compile?" without shipping a draft AAB — useful for
+      # toolchain changes (AGP, compileSdk/targetSdk, manifest merges) that CI
+      # does not otherwise build. A push to main always publishes, as before.
+      #
+      # The flag is opt-IN deliberately: workflow_dispatch inputs are validated
+      # against the DEFAULT branch's copy of this file, so a dispatch that
+      # passes no inputs works even when testing a branch whose workflow
+      # definition has not landed on main yet.
       - name: Debug service account
+        if: ${{ github.event_name == 'push' || inputs.publish }}
         run: |
           echo '${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}' > /tmp/sa.json
           echo "File size: $(wc -c < /tmp/sa.json) bytes"
@@ -74,6 +117,7 @@ jobs:
           rm /tmp/sa.json
 
       - name: Upload to Play Store Internal Testing
+        if: ${{ github.event_name == 'push' || inputs.publish }}
         uses: r0adkll/upload-google-play@v1.1.3
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
