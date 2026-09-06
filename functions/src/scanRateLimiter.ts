@@ -1,5 +1,13 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import { evaluateScanRate, SCAN_RATE_LIMIT, type ScanRateState } from '../../shared/scanRateLimit.js';
+import { logger } from 'firebase-functions';
+import {
+  evaluateScanRate,
+  SCAN_RATE_LIMIT,
+  type ScanRateState,
+} from '../../shared/scanRateLimit.js';
+
+/** Per-instance latch so a broken config warns once, not once per request. */
+let warnedConfigFallback = false;
 
 /**
  * Reserves one scan slot for `uid`, or reports that the window is exhausted.
@@ -24,6 +32,19 @@ export async function reserveScanSlot(
         : null;
 
     const decision = evaluateScanRate(current, Date.now());
+
+    if (decision.usedConfigFallback && !warnedConfigFallback) {
+      // The limiter is still enforcing, but on the module defaults rather than
+      // the supplied config. Once limit/windowMs come from Remote Config this
+      // is the only signal that a key is unpublished or mistyped.
+      //
+      // Once per instance: this runs inside runTransaction, so an unguarded
+      // warn would fire per request AND again on every transaction retry —
+      // one bad config key would become unbounded log spend. Instances recycle
+      // often enough that a persistently broken key still stays visible.
+      warnedConfigFallback = true;
+      logger.warn('scanRateLimiter: invalid limit/window config, using defaults', { uid });
+    }
 
     if (decision.allowed) {
       tx.set(
