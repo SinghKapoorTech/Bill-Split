@@ -33,7 +33,10 @@ function useScrollToHashOnMount() {
 
     // Wait a frame so layout has settled before measuring the scroll position.
     const frame = requestAnimationFrame(() => {
-      target?.scrollIntoView({ behavior: 'auto', block: 'start' });
+      // 'instant', not 'auto': 'auto' defers to the computed scroll-behavior,
+      // which index.css sets to `smooth` — so a deep link would animate from the
+      // top of the page instead of restoring position immediately.
+      target?.scrollIntoView({ behavior: 'instant', block: 'start' });
     });
     return () => cancelAnimationFrame(frame);
   }, []);
