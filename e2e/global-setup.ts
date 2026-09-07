@@ -47,6 +47,9 @@ async function globalSetup() {
     console.log('Firebase emulators already running, reusing...');
   } else {
     console.log('Starting Firebase emulators...');
+    // Homebrew's JDK, for macOS. On Linux CI the directory simply does not exist
+    // and prepending it is a no-op — the JDK there comes from actions/setup-java,
+    // which puts java on PATH already. Kept unconditional so local runs need no setup.
     const env = { ...process.env, PATH: `/opt/homebrew/opt/openjdk/bin:${process.env.PATH}` };
 
     // FUNCTIONS IS REQUIRED, not optional. Event creation and unarchiving are
@@ -62,12 +65,17 @@ async function globalSetup() {
       cwd: process.cwd(),
       env,
       stdio: 'ignore',
-      shell: '/bin/zsh',
+      // MUST NOT be zsh. GitHub's ubuntu-latest runners do not ship zsh, so this
+      // died with `spawnSync /bin/zsh ENOENT` in global setup — the e2e job went
+      // red on main without a single test running. bash exists on both macOS and
+      // ubuntu-latest; keep it that way.
+      shell: '/bin/bash',
     });
 
     execSync(
       'firebase emulators:start --only auth,firestore,functions &',
-      { cwd: process.cwd(), env, stdio: 'ignore', shell: '/bin/zsh' }
+      // bash, not zsh — see the note above; absent on ubuntu-latest.
+      { cwd: process.cwd(), env, stdio: 'ignore', shell: '/bin/bash' }
     );
 
     const startTime = Date.now();
