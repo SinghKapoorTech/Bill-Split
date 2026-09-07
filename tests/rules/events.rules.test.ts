@@ -72,8 +72,16 @@ beforeEach(async () => {
 
 const asOwner = () => testEnv.authenticatedContext(OWNER).firestore();
 const asMember = () => testEnv.authenticatedContext(MEMBER).firestore();
+// `email_verified` is explicit because the events rules now require it before
+// honouring an email-based invitation claim. It was implicit when this fixture
+// was written — every account came from Google or Apple, who always set it —
+// but a password account can put any address in that claim, so the rule stopped
+// taking the address on trust. The denial case lives in
+// tests/rules/emailVerification.rules.test.ts.
 const asInvitee = () =>
-  testEnv.authenticatedContext(INVITEE, { email: INVITEE_EMAIL }).firestore();
+  testEnv
+    .authenticatedContext(INVITEE, { email: INVITEE_EMAIL, email_verified: true })
+    .firestore();
 const asStranger = () => testEnv.authenticatedContext(STRANGER).firestore();
 const asAnon = () => testEnv.unauthenticatedContext().firestore();
 
