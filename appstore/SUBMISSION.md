@@ -28,11 +28,18 @@ Filled and saved — verified after a full page reload:
   `ios/App/Podfile` has declared `platform :ios, '15.0'` for some time, so every
   pod was already built against 15.0 while the app target alone claimed 14.0.
   The fix applies to the NEXT upload; it does not invalidate build 176.
-- **App Review Information** — demo account, blocked on the sign-in decision below
-- **App Privacy** labels and **age rating** questionnaire — separate sections
-- **Guideline 4.8 risk** — the app offers Google Sign-In only. Apple requires a
-  privacy-preserving alternative (Sign in with Apple satisfies it). This is a common
-  rejection for consumer apps and is worth fixing *before* submitting.
+- **App Review Information** — demo account. No longer blocked: Sign in with Apple
+  shipped 2026-09-06, so a reviewer has a sign-in path that Google cannot
+  geo-block. Still needs filling in.
+- **App Privacy** labels and **age rating** questionnaire — separate sections. The
+  labels must match `ios/App/App/PrivacyInfo.xcprivacy` and
+  `src/pages/PrivacyPolicy.tsx`; reviewers compare them.
+- ~~**Guideline 4.8 risk**~~ — **closed 2026-09-06.** Sign in with Apple shipped in
+  `c144ad2`; see the section below. `appstore/listing.md` still says Google-only and
+  must be updated before submitting.
+- **Associated Domains capability** must be enabled on the App ID before the next
+  archive — the entitlement is committed but the portal side is not done, and
+  signing fails without it. See the section below.
 - **iOS stays on 1.0; Android is on 1.3. That drift is accepted, not a defect.**
   iOS 1.0 genuinely is the first iOS release. `MARKETING_VERSION` was briefly
   aligned to 1.3 on 2026-09-06 and reverted the same day once build 176 turned
@@ -68,12 +75,15 @@ baseline, `npm run build` clean):**
   AGP 8.7.2 → 8.10.1 (8.9 is the floor for compileSdk 36; 8.11+ would also force a
   Gradle wrapper bump, and the wrapper is exactly at AGP 8.10's 8.11.1 minimum).
 
-**Groundwork only — does NOT work yet:**
+**Universal links — wired, pending one portal step:**
 
-- `public/.well-known/apple-app-site-association` (+ a `vercel.json` rewrite
-  exclusion and JSON content-type header, both verified against path-to-regexp 6).
-  The file is **inert without an Associated Domains entitlement**, which does not
-  exist in the project yet. See the Sign in with Apple section — same file.
+- `public/.well-known/apple-app-site-association` is **live in production**:
+  `200 application/json`, claiming `3LAJCPKLNV.com.singhkapoortech.divit` for
+  `/join/*`. The `vercel.json` rewrite exclusion and content-type header work —
+  confirmed against the deployed site, and no SPA route regressed.
+- The `com.apple.developer.associated-domains` entitlement was added 2026-09-06.
+  What remains is enabling the capability on the App ID in the developer portal.
+  See "Associated Domains" below.
 
 **Deliberately NOT changed, and why:**
 
@@ -119,49 +129,48 @@ baseline, `npm run build` clean):**
   must match `ios/App/App/PrivacyInfo.xcprivacy` (which is complete and correctly
   wired into the Resources build phase) and `src/pages/PrivacyPolicy.tsx`.
 
-### Sign in with Apple — progress (2026-09-05)
+### Sign in with Apple — SHIPPED (2026-09-06)
 
-Step 1 of 5 is **done**. Do not redo it.
+All five steps are done — commit `c144ad2`, which landed Sign in with Apple and
+in-app account deletion together, closing blocking gate rows 2 and 1. App ID
+`com.singhkapoortech.divit` (`XLSVJ5V3B3`, team `3LAJCPKLNV`) is a primary App ID
+with the capability enabled; `ios/App/App/App.entitlements` exists and is wired
+via `CODE_SIGN_ENTITLEMENTS`; `AuthContext.tsx` branches on provider and
+`capacitor.config.ts` lists both. Design notes:
+`docs/superpowers/specs/2026-09-05-sign-in-with-apple-design.md`.
 
-- [x] **App ID capability** — `com.singhkapoortech.divit` (`XLSVJ5V3B3`, team
-      `3LAJCPKLNV`) now has Sign In with Apple enabled, **as a primary App ID**,
-      server-to-server endpoint blank. Verified by reload, not by the save appearing
-      to succeed. In-App Purchase and Push Notifications were left untouched.
-- [ ] **Xcode entitlement** — `com.apple.developer.applesignin`. There is currently
-      **no `.entitlements` file in the project at all**. Add it via Xcode's Signing &
-      Capabilities UI rather than editing `project.pbxproj` by hand.
+Still true and still bites: **enabling a capability invalidates every provisioning
+profile on the App ID.** Xcode automatic signing regenerates on the next build;
+anything on a manual profile — including Xcode Cloud via
+`ios/App/ci_scripts/ci_post_clone.sh` — needs refreshing before the next archive,
+or signing fails. This applies again to Associated Domains, below.
 
-      ⚠️ **Land this SEPARATELY from the 2026-09-06 compliance changes.** Those
-      edited `MARKETING_VERSION` at `project.pbxproj:368` and `:389` — inside the
-      exact two `XCBuildConfiguration` blocks that gain
-      `CODE_SIGN_ENTITLEMENTS = App/App.entitlements;`. Xcode rewrites the whole
-      file on save, so doing both at once produces a conflict that is effectively
-      unmergeable by hand. Sequence them.
+`listing.md` still describes Google-only sign-in. Update it before submitting — a
+listing that contradicts the binary is its own rejection.
 
-      ⚠️ **Add Associated Domains to the same entitlements file while you are
-      there**, or the universal-link work needs a second pbxproj round-trip:
-      `com.apple.developer.associated-domains = applinks:www.divit-bill.com`.
-      Use the **`www` host only** — `divit-bill.com` 307s to `www`, and Apple's
-      AASA fetcher does not follow redirects, so listing the apex silently fails
-      validation. Associated Domains must also be enabled on the App ID in the
-      developer portal, exactly like Sign In with Apple was.
-- [ ] **Sign in with Apple key** — Keys → new key bound to this primary App ID. The
-      `.p8` downloads **once**; store it immediately.
-- [ ] **Firebase Auth provider** — enable Apple with the Services ID, Team ID
-      `3LAJCPKLNV`, Key ID and that `.p8`.
-- [ ] **Client code** — `AuthContext.tsx` imports only `GoogleAuthProvider`. Native
-      needs `@capacitor-firebase/authentication`'s own `signInWithApple`, not just a
-      web `OAuthProvider('apple.com')`, and `capacitor.config.ts` still lists
-      `providers: ["google.com"]`.
+### Associated Domains — added, BLOCKED on a portal step (2026-09-06)
 
-⚠️ **Enabling the capability invalidated every provisioning profile on this App ID.**
-Xcode automatic signing regenerates on next build; anything on a manual profile —
-including Xcode Cloud via `ios/App/ci_scripts/ci_post_clone.sh` — needs refreshing
-before the next archive or signing will fail.
+`App.entitlements` now also carries:
 
-When Apple sign-in ships, update `listing.md` and the 4.8 note above in the same
-change — both currently describe Google-only sign-in, and a listing that contradicts
-the binary is its own rejection.
+```xml
+<key>com.apple.developer.associated-domains</key>
+<array><string>applinks:www.divit-bill.com</string></array>
+```
+
+**Enable Associated Domains on the App ID in the developer portal before the next
+archive.** It was not enabled when this key was added. If it is still off, signing
+fails with a provisioning-profile mismatch at build time — loud, not silent.
+Deleting the key reverts cleanly.
+
+`www` **only**. `divit-bill.com` 307s to `www`, and Apple's AASA fetcher does not
+follow redirects, so listing the apex silently fails validation.
+
+Verified 2026-09-06 that the two ends match: the entitlement names
+`www.divit-bill.com`; that host serves
+`/.well-known/apple-app-site-association` as `200 application/json` claiming
+`3LAJCPKLNV.com.singhkapoortech.divit` for `/join/*`; and `/join/:sessionId` is a
+real route in `src/App.tsx`. Once the portal capability is on, universal links
+should work end to end — **not yet confirmed on a device.**
 
 ## Screenshot slots — the part that wastes time
 
