@@ -24,6 +24,7 @@ error. Was item #1 on the previous handoff's priority list.
 | `6c370a8` | the three people-loss / duplication fixes + their tests | no |
 | `1854812` | e2e quarantine banners + this handoff | no |
 | `d586e00` | same fixes ported to `AirbnbWizard`; reconciler extracted and shared | no |
+| `d4d476d` | squad add on `/airbnb/:billId` now persists (d586e00 missed it) | no |
 
 None match the `deploy-backend.yml` path filter, so pushing deploys NO backend.
 A push still always uploads a draft AAB to Play.
@@ -153,18 +154,38 @@ proven by a unit test, not because they fix this suite.
    destructive. There is NO cheap guard: from inside the wizard `undefined → B`
    is indistinguishable from `undefined → the draft's own id`. Needs the created
    id plumbed down from `useBillSession`, or an additive server-side merge.
-4. **`handleRemovePerson` / `handleUpdatePerson` are still on the stale-closure
+4. **`/transaction/:billId` evicts a guest who joined.** `SimpleTransactionWizard`
+   hydrates `people` once behind `hasLoadedBillId.current` (`:216`, `:259-271`)
+   and never re-syncs from later snapshots, so a guest added via
+   `billService.joinBill` (`arrayUnion`, `billService.ts:356`) is invisible to
+   it. The owner's debounced autosave then writes the array back without them
+   (`:390` captured, `:402` written, behind a 1000ms timer AND an await). Also
+   `:491`. Needs `peopleRef` + `reconcilePeopleWithServer`. **Takes two users to
+   observe — will not show up in solo testing.**
+5. **`/shared/:sessionId` — the guest-facing screen.**
+   `CollaborativeSessionView.tsx:62-66` adopts every snapshot unconditionally
+   with no in-flight guard; `handleAddSelfToPeople` (`:77-81`) and
+   `handleRemovePerson` (`:99-104`) build writes from the render closure behind
+   a 400ms debounce. Same treatment needed.
+6. **`useBillSession.ts:132`** materializes `savePayload.people` BEFORE the
+   `await` at `:152`, so someone added during a concurrent draft creation is
+   written out of the array — the same race the queue closes, one layer up.
+   Move the read after the await.
+7. **`useBillSession.ts:103-108`** clears `pendingUpdatesRef` BEFORE the
+   `if (!billId) return`, destroying the batch rather than retaining it.
+   Latent today (its only consumer always has a route param).
+8. **`handleRemovePerson` / `handleUpdatePerson` are still on the stale-closure
    pattern** in BOTH wizards (`BillWizard.tsx` ~:475/:492, `AirbnbWizard` the
    same shape). Pre-existing, same defect class as everything fixed above.
-5. `usePeopleManager.ts:151` vs `:170` — `addFromFriend`'s `alreadyExists` guard
+9. `usePeopleManager.ts:151` vs `:170` — `addFromFriend`'s `alreadyExists` guard
    reads the render closure while its write reads `current`. If a snapshot removed
    that person between commit and click, the user gets a false "Already added"
    toast, `null` is returned, and the friend genuinely is not added. Synchronous,
    so at most one render stale — low probability, worth collapsing.
-6. Untested new paths: the email branch (`usePeopleManager.ts:74`) and
+10. Untested new paths: the email branch (`usePeopleManager.ts:74`) and
    `addFromFriend` (`:170`) got the same change and neither is covered.
    `getUserByContact` is already mocked in the test file, so a case is cheap.
-7. Everything in the predecessor's backlog (chunk 4 RevenueCat, push
+11. Everything in the predecessor's backlog (chunk 4 RevenueCat, push
    notifications, `pausedReason` UI reader, CI e2e concurrency group, the
    Android Internal Testing red build on `main`).
 
@@ -207,6 +228,16 @@ proven by a unit test, not because they fix this suite.
 - **Both fixes shipped with NO end-to-end coverage, deliberately.** The three
   specs that exercise the flow are quarantined and the A/B proves they do not
   validate these changes. The unit tests are the evidence; the e2e suite is not.
+- **`d586e00` was an INCOMPLETE fix and `d4d476d` repairs it.** The squad path
+  never enters the wizard: `PeopleManager.handleAddSquad` uses the parent's
+  `onAddSquad` if supplied and otherwise falls back to a LOCAL-ONLY setPeople,
+  and `BillWizard.tsx:820` was the only place in the app passing that prop.
+  Lesson: checking the code you changed is not the same as checking the code
+  that routes around it. A codebase-wide sweep for the defect class found it;
+  reviewing the diff did not.
+- **The remaining findings are development-phase backlog, not ship blockers** —
+  owner's call, the app has no production clients yet. The cross-bill mis-flush
+  (#3) should be fixed before it does.
 - **Prettier failures on the three specs are PRE-EXISTING** — verified by running
   `prettier --check` against the `HEAD` copies. Not introduced here, not fixed here.
 
