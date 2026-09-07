@@ -164,7 +164,14 @@ Prefer the accessibility snapshot for targeting — it gives stable `ref`s. Fall
 11. **Verify by reload, not by the call returning OK.** A tool result means the call was
     accepted, not that the value stuck. Reload and read values back; check counters and
     counts. Silent failures are the norm, not the exception.
-12. **Paths in `code` mode must be absolute and native.** `setInputFiles` takes OS-native
+12. **A URL guard can match a login redirect.** Apple's portal bounces an expired session
+    to `idmsa.apple.com/IDMSWebAuth/signin?...&path=%2F...%2FXLSVJ5V3B3`, preserving the
+    original path in a query param — so `/XLSVJ5V3B3/.test(page.url())` passes on the
+    **login page**. Guard on a DOM element that only the real page has
+    (`document.getElementById(...)`), never on the URL alone. Getting this wrong points
+    credential-adjacent automation at a sign-in form, which is the one place this skill
+    must never touch. Sessions expire mid-task; re-assert before every write.
+13. **Paths in `code` mode must be absolute and native.** `setInputFiles` takes OS-native
     paths — a POSIX path fails on Windows. Build them with `path.resolve()` rather than
     string-concatenating, if this is ever run cross-platform.
 
