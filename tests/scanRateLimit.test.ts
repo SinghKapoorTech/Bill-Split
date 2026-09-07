@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  describeDuration,
   describeWindow,
   evaluateScanRate,
   SCAN_RATE_LIMIT,
@@ -361,5 +362,127 @@ describe('describeWindow', () => {
     expect(sentence(30, 60 * 60 * 1000)).toBe('You can scan up to 30 receipts per hour.');
     expect(sentence(10, 15 * 60_000)).toBe('You can scan up to 10 receipts per 15 minutes.');
     expect(sentence(5, 2 * 60 * 60 * 1000)).toBe('You can scan up to 5 receipts per 2 hours.');
+  });
+});
+
+describe('describeDuration', () => {
+  /** Parses either renderer's output back to milliseconds, for the properties below. */
+  const toMs = (text: string): number => {
+    const [countPart, unitPart] = text.split(' ');
+    const unit = unitPart ?? countPart; // describeWindow drops the count at 1
+    const count = unitPart ? Number(countPart) : 1;
+    expect(Number.isFinite(count)).toBe(true);
+    const scale = unit.startsWith('second')
+      ? 1_000
+      : unit.startsWith('minute')
+        ? 60_000
+        : 3_600_000;
+    return count * scale;
+  };
+
+  it('describes sub-minute waits in seconds, not a rounded-up minute', () => {
+    // The bug this replaces: the hint was `Math.ceil(ms / 60_000)` minutes, so
+    // every wait under a minute read "1 minute". Next to a 30-second window
+    // that told the user to wait twice the whole window.
+    expect(describeDuration(30_000)).toBe('30 seconds');
+    expect(describeDuration(1_000)).toBe('1 second');
+    expect(describeDuration(45_000)).toBe('45 seconds');
+    expect(describeDuration(59_000)).toBe('59 seconds');
+  });
+
+  it('rounds to nearest — the same rule describeWindow uses', () => {
+    // Deliberately NOT ceil. Rounding the hint up while the window rounds to
+    // nearest is what lets the hint out-scale the window it sits beside; see
+    // the sentence-coherence test at the end of this block.
+    expect(describeDuration(1)).toBe('1 second');
+    expect(describeDuration(1_001)).toBe('1 second');
+    expect(describeDuration(1_500)).toBe('2 seconds');
+    expect(describeDuration(30_500)).toBe('31 seconds');
+  });
+
+  it('switches to minutes at exactly 60 seconds', () => {
+    expect(describeDuration(59_999)).toBe('1 minute');
+    expect(describeDuration(60_000)).toBe('1 minute');
+    expect(describeDuration(60_001)).toBe('1 minute');
+    expect(describeDuration(90_001)).toBe('2 minutes');
+  });
+
+  it('describes 90 seconds as a rounded-up 2 minutes', () => {
+    expect(describeDuration(90_000)).toBe('2 minutes');
+  });
+
+  it('describes multi-minute waits in minutes', () => {
+    expect(describeDuration(15 * 60_000)).toBe('15 minutes');
+    expect(describeDuration(59 * 60_000)).toBe('59 minutes');
+  });
+
+  it('describes exact hours in hours', () => {
+    expect(describeDuration(60 * 60_000)).toBe('1 hour');
+    expect(describeDuration(2 * 60 * 60 * 1000)).toBe('2 hours');
+    expect(describeDuration(24 * 60 * 60 * 1000)).toBe('24 hours');
+  });
+
+  it('keeps inexact multi-hour waits in minutes rather than over-stating hours', () => {
+    // 90 minutes as "2 hours" would tell the user to wait 30 minutes too long.
+    expect(describeDuration(90 * 60_000)).toBe('90 minutes');
+    expect(describeDuration(60 * 60_000 + 1)).toBe('60 minutes');
+  });
+
+  it('always keeps the count, unlike describeWindow', () => {
+    // "Try again in minute" is not a sentence; "per minute" is.
+    expect(describeDuration(60_000)).toBe('1 minute');
+    expect(describeWindow(60_000)).toBe('minute');
+  });
+
+  it('never emits NaN, zero, or a negative wait to a user', () => {
+    for (const bad of [NaN, Infinity, -Infinity, 0, -1, -60_000]) {
+      const text = describeDuration(bad);
+      expect(text).toBe('1 second');
+      expect(text).not.toMatch(/NaN|-|Infinity/);
+    }
+  });
+
+  it('renders the blocked sentence coherently for the reported 30-second window', () => {
+    // The reported case: with a 30s window the old minutes-only hint said
+    // "Try again in 1 minute" — twice the window it sat next to.
+    const windowMs = 30_000;
+    const d = evaluateScanRate({ windowStartMs: T0, count: 30 }, T0 + 1_000, 30, windowMs);
+    expect(d.allowed).toBe(false);
+    const sentence = `You can scan up to ${d.effectiveLimit} receipts per ${describeWindow(
+      d.effectiveWindowMs,
+    )}. Try again in ${describeDuration(d.retryAfterMs)}.`;
+    expect(sentence).toBe('You can scan up to 30 receipts per 30 seconds. Try again in 29 seconds.');
+    expect(sentence).not.toMatch(/minute/);
+  });
+
+  it('NEVER tells the user to wait longer than the window they were just quoted', () => {
+    // The property, not one example of it. evaluateScanRate clamps retryAfterMs
+    // to at most one window, so the rendered hint must never exceed the rendered
+    // window for ANY window Remote Config could supply. A hint rounded UP while
+    // the window rounds to nearest breaks this for roughly half of all whole
+    // second windows — e.g. windowMs 61_000 would read
+    // "per minute. Try again in 2 minutes."
+    for (let windowMs = 1_000; windowMs <= 2 * 60 * 60 * 1000; windowMs += 1_000) {
+      const windowText = describeWindow(windowMs);
+      const windowValue = toMs(windowText);
+      for (const retryAfterMs of [windowMs, windowMs - 1, Math.ceil(windowMs / 2), 1]) {
+        const hintValue = toMs(describeDuration(retryAfterMs));
+        expect(
+          hintValue,
+          `windowMs=${windowMs} ("${windowText}") retryAfterMs=${retryAfterMs} ("${describeDuration(retryAfterMs)}")`,
+        ).toBeLessThanOrEqual(windowValue);
+      }
+    }
+  });
+
+  it('never under-promises by more than half a unit', () => {
+    // The cost of rounding to nearest instead of up: the hint can be short, but
+    // only ever by half a unit, and the rejection that follows carries a fresh,
+    // smaller hint. Rounding up instead would cost sentence coherence — a far
+    // worse trade, since the user is quoted the window in the same breath.
+    expect(describeDuration(89_000)).toBe('1 minute');
+    for (let ms = 1_000; ms <= 2 * 60 * 60 * 1000; ms += 1_000) {
+      expect(ms - toMs(describeDuration(ms)), `ms=${ms}`).toBeLessThanOrEqual(30_000);
+    }
   });
 });

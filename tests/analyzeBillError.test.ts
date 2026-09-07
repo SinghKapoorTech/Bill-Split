@@ -24,6 +24,50 @@ describe('mapAnalyzeBillError', () => {
     );
   });
 
+  it('passes the server message through verbatim for functions/unavailable', () => {
+    // The limiter fails closed and throws `unavailable` with a message written
+    // to be read as-is. Wrapping it produced "Failed to analyze receipt:
+    // Scanning is temporarily unavailable." — a sentence contradicting itself.
+    const error = {
+      code: 'functions/unavailable',
+      message: 'Scanning is temporarily unavailable. Please try again in a moment.',
+    };
+
+    expect(mapAnalyzeBillError(error)).toBe(
+      'Scanning is temporarily unavailable. Please try again in a moment.',
+    );
+    expect(mapAnalyzeBillError(error)).not.toMatch(/Failed to analyze receipt/);
+  });
+
+  it('passes an unprefixed unavailable code through verbatim too', () => {
+    const error = {
+      code: 'unavailable',
+      message: 'Scanning is temporarily unavailable. Please try again in a moment.',
+    };
+
+    expect(mapAnalyzeBillError(error)).toBe(
+      'Scanning is temporarily unavailable. Please try again in a moment.',
+    );
+  });
+
+  it('still wraps an unavailable error that carries no message', () => {
+    expect(mapAnalyzeBillError({ code: 'functions/unavailable' })).toBe(
+      'Failed to analyze receipt. Please try again.',
+    );
+  });
+
+  it('does not pass a bare code string through as the whole message', () => {
+    // The reachable platform shape: Cloud Run sheds load, the 503 body is an
+    // HTML page rather than the callable error envelope, and the client SDK
+    // defaults `message` to the code itself. Passed through, the toast would
+    // read exactly "unavailable".
+    for (const code of ['unavailable', 'resource-exhausted', 'failed-precondition']) {
+      const wrapped = mapAnalyzeBillError({ code: `functions/${code}`, message: code });
+      expect(wrapped).toBe(`Failed to analyze receipt: ${code}`);
+      expect(wrapped).not.toBe(code);
+    }
+  });
+
   it('hits the unauthenticated branch once the functions/ prefix is stripped', () => {
     const error = { code: 'functions/unauthenticated', message: 'The caller is unauthenticated.' };
 

@@ -39,10 +39,25 @@ export function mapAnalyzeBillError(error: unknown): string {
       return 'Analysis timed out. The receipt might be too complex or the service is busy. Please try again.';
     }
 
-    // resource-exhausted (rate limiter) and failed-precondition messages are
-    // written server-side to be shown to the user verbatim - pass them
-    // through unwrapped instead of burying them in the generic message below.
-    if ((code === 'resource-exhausted' || code === 'failed-precondition') && message) {
+    // resource-exhausted (rate limiter), failed-precondition (photo guidance)
+    // and unavailable (limiter fail-closed) messages are written server-side to
+    // be shown to the user verbatim - pass them through unwrapped instead of
+    // burying them in the generic message below. Without `unavailable` here the
+    // limiter's own "Scanning is temporarily unavailable. Please try again in a
+    // moment." renders as "Failed to analyze receipt: Scanning is temporarily
+    // unavailable..." - a sentence that contradicts itself.
+    //
+    // `message !== code` because these codes are NOT exclusively server-authored.
+    // The platform emits them too: Cloud Run shedding load returns a 503 whose
+    // body is an HTML page, not the callable JSON error envelope, and the client
+    // SDK then defaults `message` to the code string. Passing that through would
+    // make the entire toast read "unavailable" (or "resource-exhausted"). Those
+    // fall to the wrapped generic below, which at least frames them.
+    if (
+      (code === 'resource-exhausted' || code === 'failed-precondition' || code === 'unavailable') &&
+      message &&
+      message !== code
+    ) {
       return message;
     }
 

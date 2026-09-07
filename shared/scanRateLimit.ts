@@ -67,38 +67,81 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 /**
+ * The numeric half of both duration renderers: how many of which unit a
+ * duration reads as. `value` must already be finite and positive.
+ *
+ * Rounding is to NEAREST, and both renderers share it. That sharing is load
+ * bearing, not incidental: `retryAfterMs` is clamped by `evaluateScanRate` to
+ * at most one window, and this function is non-decreasing, so a retry hint can
+ * never render larger than the window rendered beside it in the same sentence.
+ * Rounding the hint UP instead would break exactly that — a 61-second window
+ * reads "per minute" while a 60.9-second wait ceils to "2 minutes", telling the
+ * user to wait longer than the whole window they were just quoted. The cost of
+ * nearest is a hint that can be short by up to half a unit, which costs at most
+ * one repeat rejection carrying a fresh, smaller hint.
+ *
+ * Hours are used only for exact multiples of an hour, so 90 minutes reads as
+ * "90 minutes" rather than a lossy "2 hours".
+ */
+function splitDuration(value: number): { count: number; unit: 'second' | 'minute' | 'hour' } {
+  // Seconds first, and only while they round to under a minute. Bounding on the
+  // ROUNDED value rather than on `value >= 60_000` is what stops the one
+  // self-contradiction this helper exists to prevent: a 59_999ms window would
+  // otherwise read "per 60 seconds" while the retry hint said "1 minute".
+  const seconds = Math.round(value / 1000);
+  if (seconds < 60) {
+    // Never "0 seconds" — a sub-second duration is still a whole unit.
+    return { count: Math.max(1, seconds), unit: 'second' };
+  }
+
+  if (value % (60 * 60 * 1000) === 0) {
+    return { count: value / (60 * 60 * 1000), unit: 'hour' };
+  }
+
+  return { count: Math.round(value / (60 * 1000)), unit: 'minute' };
+}
+
+/**
  * Renders a window length as the tail of "…receipts per ___" — "hour",
  * "30 minutes", "2 hours". Pure and export-tested so the sentence and the
  * `retryAfterMs` hint can never disagree about how long the window is.
  *
  * A count of one drops the number ("per hour", not "per 1 hour"); anything else
- * keeps it. Hours are used only for exact multiples of an hour, so 90 minutes
- * reads as "90 minutes" rather than a lossy "2 hours".
+ * keeps it.
  *
  * Defensive like the rest of this module: a non-finite or non-positive input
  * (the same broken-Remote-Config shapes `evaluateScanRate` guards against)
  * describes the module default rather than emitting "NaN minutes" to a user.
  */
 export function describeWindow(ms: number): string {
-  const value = isFiniteNumber(ms) && ms > 0 ? ms : SCAN_RATE_WINDOW_MS;
+  const { count, unit } = splitDuration(
+    isFiniteNumber(ms) && ms > 0 ? ms : SCAN_RATE_WINDOW_MS,
+  );
+  return count === 1 ? unit : `${count} ${unit}s`;
+}
 
-  const plural = (count: number, unit: string) => (count === 1 ? unit : `${count} ${unit}s`);
-
-  // Seconds first, and only while they round to under a minute. Bounding on the
-  // ROUNDED value rather than on `value >= 60_000` is what stops the one
-  // self-contradiction this helper exists to prevent: a 59_999ms window would
-  // otherwise read "per 60 seconds" while the retry hint, from `Math.ceil` over
-  // the same number, said "try again in 1 minute".
-  const seconds = Math.round(value / 1000);
-  if (seconds < 60) {
-    return plural(Math.max(1, seconds), 'second');
-  }
-
-  if (value % (60 * 60 * 1000) === 0) {
-    return plural(value / (60 * 60 * 1000), 'hour');
-  }
-
-  return plural(Math.round(value / (60 * 1000)), 'minute');
+/**
+ * Renders a wait as the tail of "Try again in ___" — "45 seconds", "1 minute",
+ * "90 minutes", "2 hours". The retry-hint counterpart to `describeWindow`,
+ * differing ONLY in that the count is always kept: "1 minute" is a quantity the
+ * user waits out, whereas "per minute" is a rate denominator.
+ *
+ * Exists because the hint used to be hardcoded to minutes
+ * (`Math.ceil(retryAfterMs / 60_000)`) while the window beside it was rendered
+ * by `describeWindow`. With a Remote-Config `windowMs` of 30s that produced
+ * "up to N receipts per 30 seconds. Try again in 1 minute" — telling the user to
+ * wait twice the whole window. Sharing `splitDuration` is what makes that class
+ * of contradiction unrepresentable rather than merely fixed for one case; see
+ * its docblock for why the rounding must match.
+ *
+ * Defensive like the rest of this module: a non-finite or non-positive input
+ * renders the smallest whole unit ("1 second") rather than "NaN minutes" or
+ * "0 seconds". No wait is ever described as zero — the caller only reaches this
+ * when the request was actually blocked.
+ */
+export function describeDuration(ms: number): string {
+  const { count, unit } = splitDuration(isFiniteNumber(ms) && ms > 0 ? ms : 1);
+  return `${count} ${unit}${count === 1 ? '' : 's'}`;
 }
 
 export function evaluateScanRate(

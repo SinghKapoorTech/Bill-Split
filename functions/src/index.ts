@@ -19,8 +19,18 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { reserveScanSlot, recordScanOutcome } from './scanRateLimiter.js';
-import { describeWindow } from '../../shared/scanRateLimit.js';
-import { shouldSuggestDifferentImage, type ScanOutcome } from '../../shared/scanFailureStreak.js';
+import { describeDuration, describeWindow } from '../../shared/scanRateLimit.js';
+import {
+  MAX_RECEIPT_AMOUNT,
+  isPersistableAmount,
+  isPersistableItemPrice,
+  itemSumIsCoherent,
+} from '../../shared/receiptAmounts.js';
+import {
+  classifyThrownScanError,
+  shouldSuggestDifferentImage,
+  type ScanOutcome,
+} from '../../shared/scanFailureStreak.js';
 
 // Initialize Firebase Admin
 initializeApp();
@@ -171,7 +181,6 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
     }
 
     if (!rate.allowed) {
-      const retryMinutes = Math.ceil(rate.retryAfterMs / 60_000);
       logger.warn('analyzeBill: rate limit exceeded', {
         uid,
         limit: rate.effectiveLimit,
@@ -182,9 +191,13 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
       // constants: with a Remote-Config limit of 10 the old sentence promised 30,
       // and with a 15-minute window it said "per hour" while retryAfterMs — from
       // the same decision — correctly said 15 minutes.
+      //
+      // Both halves render through the shared helpers. The retry hint used to be
+      // hardcoded to minutes, so a 30-second window produced "per 30 seconds.
+      // Try again in 1 minute" — a hint twice as long as the whole window.
       throw new HttpsError(
         'resource-exhausted',
-        `Too many scans. You can scan up to ${rate.effectiveLimit} receipts per ${describeWindow(rate.effectiveWindowMs)}. Try again in ${retryMinutes} minute${retryMinutes === 1 ? '' : 's'}.`,
+        `Too many scans. You can scan up to ${rate.effectiveLimit} receipts per ${describeWindow(rate.effectiveWindowMs)}. Try again in ${describeDuration(rate.retryAfterMs)}.`,
       );
     }
 
@@ -293,12 +306,41 @@ Rules:
         throw new ExtractionError('No items found on the receipt');
       }
 
-      // Validate each item has required fields
+      // Validate each item has required fields.
+      //
+      // Same tightening as the totals gate below, minus the non-negative rule:
+      // a comp or discount line legitimately reads as a negative item price, and
+      // rejecting those would fail real receipts. `Number.isFinite` subsumes the
+      // old `typeof === 'number'` check and additionally rejects the Infinity /
+      // NaN that JSON.parse can produce, which no downstream sum survives.
+      // `name` needs the same treatment as `price`: a bare truthiness check
+      // passes objects and arrays (`!{}` and `![]` are both false), so a
+      // model-supplied `{"name": {"x": 1}}` would reach Firestore and render as
+      // "[object Object]" inside the Venmo note built by generateItemDescription.
       for (const item of billData.items) {
-        if (!item.name || typeof item.price !== 'number') {
+        if (
+          typeof item.name !== 'string' ||
+          item.name.trim().length === 0 ||
+          !isPersistableItemPrice(item.price)
+        ) {
           console.error('Invalid item:', item);
-          throw new ExtractionError('Invalid item structure: missing name or price');
+          throw new ExtractionError('Invalid item structure: missing name or unusable price');
         }
+      }
+
+      // Cross-field sanity: per-field ceilings let every amount pass while one
+      // hallucinated item price still dominates the bill. Person totals come
+      // from the ITEM LIST, not from `total`, so that bogus item is the number
+      // the user is actually charged and nothing downstream re-checks it.
+      const itemSum = billData.items.reduce((sum, item) => sum + item.price, 0);
+      if (!itemSumIsCoherent(itemSum, billData.total)) {
+        console.error('Item sum incoherent with printed total:', {
+          itemSum,
+          total: billData.total,
+        });
+        throw new ExtractionError(
+          'Extracted item prices do not add up to the receipt total',
+        );
       }
 
       // Normalize tip field - handle null, undefined, or non-numeric values
@@ -306,28 +348,52 @@ Rules:
         billData.tip = 0;
       }
 
-      // Derive otherFees from the printed total rather than relying on AI extraction
-      billData.otherFees = parseFloat(
-        Math.max(0, billData.total - billData.subtotal - billData.tax - billData.tip).toFixed(2),
-      );
-
-      // Validate numeric fields with detailed error
-      if (
-        typeof billData.subtotal !== 'number' ||
-        typeof billData.tax !== 'number' ||
-        typeof billData.tip !== 'number' ||
-        typeof billData.total !== 'number'
-      ) {
-        console.error('Missing numeric fields. Received:', {
+      // Validate the numeric fields BEFORE otherFees is derived from them.
+      //
+      // Order is load-bearing: the derivation is arithmetic on these four
+      // values and `(Infinity).toFixed(2)` is the string "Infinity", which
+      // parseFloat turns straight back into Infinity — so running the gate
+      // afterwards left otherFees poisoned even once the gate was tightened.
+      //
+      // A value that fails here is an EXTRACTION failure, not a bug: the scan
+      // used to "succeed" on it, which reset the failure streak to 0, pushed an
+      // unusable bill to the client, and got refused at bill creation with a
+      // message the user could do nothing about.
+      const amounts: Array<[string, unknown]> = [
+        ['subtotal', billData.subtotal],
+        ['tax', billData.tax],
+        ['tip', billData.tip],
+        ['total', billData.total],
+      ];
+      const unusable = amounts.filter(([, value]) => !isPersistableAmount(value));
+      if (unusable.length > 0) {
+        console.error('Unusable numeric fields. Received:', {
           subtotal: billData.subtotal,
           tax: billData.tax,
           tip: billData.tip,
           total: billData.total,
         });
+        // Numbers are rendered (Infinity/NaN/-5 are the useful diagnostics and
+        // String() is total on them); anything else reports only its TYPE.
+        // Never `String(value)` on a model-supplied object: it THROWS for
+        // `JSON.parse('{"total":{"toString":1}}')` ("Cannot convert object to
+        // primitive value"), and that TypeError would escape this
+        // ExtractionError and be reclassified as an infrastructure failure —
+        // inverting the very classification this gate exists to get right. It
+        // would also echo an unbounded model-controlled string to the client.
         throw new ExtractionError(
-          `Invalid response: missing required numeric fields. Received types: subtotal=${typeof billData.subtotal}, tax=${typeof billData.tax}, tip=${typeof billData.tip}, total=${typeof billData.total}`,
+          `Invalid response: unusable numeric fields (${unusable
+            .map(([field, value]) => `${field}=${typeof value === 'number' ? value : typeof value}`)
+            .join(', ')}). Each must be a finite number between 0 and ${MAX_RECEIPT_AMOUNT}.`,
         );
       }
+
+      // Derive otherFees from the printed total rather than relying on AI
+      // extraction. Every input is now finite and within [0, MAX_RECEIPT_AMOUNT],
+      // so the result is too.
+      billData.otherFees = parseFloat(
+        Math.max(0, billData.total - billData.subtotal - billData.tax - billData.tip).toFixed(2),
+      );
 
       // One good scan clears the slate immediately — the guidance is about a run
       // of failures, not a lifetime tally.
@@ -341,12 +407,18 @@ Rules:
         throw error;
       }
 
-      // Only Gemini answering with something unusable is evidence about the
-      // user's photo. A transport error, timeout, or Google-side quota is our
-      // problem and must leave the streak untouched, or an outage would tell
-      // users with perfectly good photos to go take a better one.
+      // Only evidence about the user's photo may advance the streak. An
+      // ExtractionError is that by construction — Gemini answered and the
+      // answer was unusable. Everything else is classified by HTTP status
+      // rather than assumed to be transport: the SDK also throws for
+      // `400 INVALID_ARGUMENT` (corrupt base64, an unsupported MIME type —
+      // reachable, since the server only checks the `data:image/` prefix while
+      // the picker builds the URI from whatever format it got), and treating
+      // that as infrastructure left the user burning a slot per attempt with a
+      // streak that never advanced and guidance that could never fire.
+      // See classifyThrownScanError for which 4xx stay infrastructure.
       const outcome: ScanOutcome =
-        error instanceof ExtractionError ? 'extraction-failure' : 'infrastructure-failure';
+        error instanceof ExtractionError ? 'extraction-failure' : classifyThrownScanError(error);
 
       // Only an extraction failure touches Firestore. An infrastructure failure
       // must leave the stored streak alone anyway, and this runs inside a
