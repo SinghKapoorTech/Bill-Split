@@ -1,6 +1,11 @@
 # Divit — chunk 3 shipped (uncommitted), version gate + RC tooling + e2e/CI
 
-**Status:** MILESTONE — implementation complete and reviewed twice; **nothing committed, nothing pushed**
+> ⚠️ **SUPERSEDED — see `docs/handoffs/monetization-0907-part2.md`.**
+> Everything below was accurate when written, but the work is now COMMITTED AND
+> PUSHED (`e7cbe4b`, `543d939`, `0e7915a`, `ba134ee`) and deployed to prod.
+> The trap table and the beta/iOS verification detail here are still valuable.
+
+**Status:** SUPERSEDED — implementation complete; since shipped, see part 2
 **Workspace:** `/Users/simran/Documents/GitHub/Bill-Split`
 **Branch:** `main` — **15 ahead / 0 behind** `origin/main`, HEAD `a2bb01c`
 **Updated:** 2026-09-07
