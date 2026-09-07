@@ -4,7 +4,7 @@ Operational notes for submitting **Divit** (`com.singhkapoortech.divit`, ASC app
 `6760331853`). Copy for the listing itself lives in `listing.md`; this file is about
 *how the submission works* and what bites. Last verified 2026-09-05 against ASC.
 
-## State as of 2026-09-05 (iOS 1.0, inflight)
+## State (iOS 1.0, inflight — updated 2026-09-06)
 
 Filled and saved — verified after a full page reload:
 
@@ -35,8 +35,8 @@ Filled and saved — verified after a full page reload:
   labels must match `ios/App/App/PrivacyInfo.xcprivacy` and
   `src/pages/PrivacyPolicy.tsx`; reviewers compare them.
 - ~~**Guideline 4.8 risk**~~ — **closed 2026-09-06.** Sign in with Apple shipped in
-  `c144ad2`; see the section below. `appstore/listing.md` still says Google-only and
-  must be updated before submitting.
+  `c144ad2`; see the section below. `appstore/listing.md` was updated to match in
+  `e205fac`, so the listing no longer contradicts the binary.
 - ~~**Associated Domains capability**~~ — **enabled and verified 2026-09-06.** But
   it invalidated every provisioning profile on the App ID: refresh Xcode Cloud /
   manual profiles before the next archive. See the section below.
@@ -47,7 +47,56 @@ Filled and saved — verified after a full page reload:
   build and forced an ASC version edit for no benefit. Realign at a natural
   bump, not mid-submission.
 
-## Compliance gate run — 2026-09-06
+## Gate status — 2026-09-06, second run: ALL TEN ROWS CLEAR
+
+Re-ran `/store-submission` end to end after Sign in with Apple, in-app account
+deletion (`c144ad2`) and the Associated Domains work landed. Every row was
+re-executed from its verification command, not carried over.
+
+| # | Row | Status |
+| --- | --- | --- |
+| 1 | Account deletion | clear — `DeleteAccountCard` rendered in `SettingsView` (Profile tab) |
+| 2 | Sign in with Apple | clear — `providers: ["google.com","apple.com"]`, `shouldOfferApple` gates to iOS |
+| 3 | Privacy manifest | clear |
+| 4 | Venmo ordering | clear — scheme-first, see the skill's §4 before touching |
+| 5 | Deep links / universal links | clear — entitlement + capability + live AASA |
+| 6 | Gemini disclosure | clear in code and policy; **ASC labels still outstanding** |
+| 7 | Android backup | clear |
+| 8 | Play target API | clear — 36 |
+| 9 | Version drift | accepted (iOS 1.0 / Android 1.3), not a defect |
+| 10 | Support URL | clear |
+
+Guideline pass: 5.1.1(i) satisfied (four in-app `/privacy` links). The
+listing-vs-binary contradiction is gone — `listing.md` no longer claims
+Google-only sign-in.
+
+Gates: **349 tests / 24 files pass**, typecheck **36** (exactly the CI ratchet),
+lint **71** (baseline). Unchanged by any of this work.
+
+### What "all rows clear" does NOT mean
+
+The gate reads the repo. Three things it cannot see can still sink the
+submission, and none is verified:
+
+1. **The Firebase Apple provider is unverified.** `AuthContext` throws
+   *"Sign in with Apple returned no nonce. Check that the Apple provider is
+   enabled in the Firebase console."* That provider needs the Services ID, Team
+   ID, Key ID and the `.p8` configured server-side — none of it in this repo. If
+   it is not set up, Apple sign-in fails at runtime and the reviewer is blocked
+   on the exact path 4.8 required. **Do a real Apple sign-in on a device before
+   submitting.**
+2. **Provisioning profiles were invalidated** by enabling Associated Domains.
+   Automatic signing recovers on the next build; Xcode Cloud and manual profiles
+   must be refreshed first.
+3. **Universal links are unconfirmed on a device.** Test with a FRESH INSTALL —
+   iOS caches AASA results.
+
+Plus the hand-clicked ASC work, none of which the gate can check: App Privacy
+labels (must match `PrivacyInfo.xcprivacy` and `PrivacyPolicy.tsx`), age rating,
+IDFA questionnaire, the demo-credential question in `listing.md`, attaching a
+build, and the build-number mismatch (176 vs `CURRENT_PROJECT_VERSION = 1`).
+
+## Compliance gate run — 2026-09-06 (first run): what it changed
 
 `/store-submission` run against the blocking gate table, plus the `app-store-review`
 guideline pass. Account deletion (row 1) and Sign in with Apple (row 2) are owned
@@ -75,15 +124,15 @@ baseline, `npm run build` clean):**
   AGP 8.7.2 → 8.10.1 (8.9 is the floor for compileSdk 36; 8.11+ would also force a
   Gradle wrapper bump, and the wrapper is exactly at AGP 8.10's 8.11.1 minimum).
 
-**Universal links — wired, pending one portal step:**
+**Universal links — code-complete (the portal step was done later the same day):**
 
 - `public/.well-known/apple-app-site-association` is **live in production**:
   `200 application/json`, claiming `3LAJCPKLNV.com.singhkapoortech.divit` for
   `/join/*`. The `vercel.json` rewrite exclusion and content-type header work —
   confirmed against the deployed site, and no SPA route regressed.
-- The `com.apple.developer.associated-domains` entitlement was added 2026-09-06.
-  What remains is enabling the capability on the App ID in the developer portal.
-  See "Associated Domains" below.
+- The `com.apple.developer.associated-domains` entitlement was added 2026-09-06,
+  and the capability was enabled on the App ID the same day. See "Associated
+  Domains" below — it remains unconfirmed on a device.
 
 **Deliberately NOT changed, and why:**
 
@@ -145,8 +194,15 @@ anything on a manual profile — including Xcode Cloud via
 `ios/App/ci_scripts/ci_post_clone.sh` — needs refreshing before the next archive,
 or signing fails. This applies again to Associated Domains, below.
 
-`listing.md` still describes Google-only sign-in. Update it before submitting — a
-listing that contradicts the binary is its own rejection.
+`listing.md` was updated to match in `e205fac` — it now records that 4.8 and
+5.1.1(v) are satisfied, and its review notes walk a reviewer through building a
+bill by hand. That matters because a fresh Sign in with Apple lands in an EMPTY
+account and there is no email/password provider, so a pre-populated demo account
+could only be a Google one — the fragile path Apple sign-in was meant to avoid.
+
+Unresolved there: ticking "Sign-in required" in ASC exposes mandatory User Name
+and Password fields that an OAuth-only app cannot fill. Settle whether ASC
+accepts them blank with a note before starting the submission.
 
 ### Associated Domains — DONE (2026-09-06)
 
