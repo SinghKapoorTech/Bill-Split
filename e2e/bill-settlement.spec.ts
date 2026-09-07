@@ -57,8 +57,34 @@ test.describe('Bill Settlement', () => {
      * emulator, produces failures that vanish when re-run idle and warm. Measure on
      * an idle machine before concluding anything.
      *
-     * Next step: root-cause the remaining race by OBSERVING the People step, then
-     * delete this block and re-enable.
+     * 2026-09-07 (session 3) — TWO MORE REAL DEFECTS FIXED. NEITHER CLOSED THIS FLAKE.
+     * Do not re-attempt either; both are already in the tree with unit tests:
+     *   a) usePeopleManager wrote state from the render closure captured BEFORE
+     *      `await resolveShadowUserByName`, clobbering a snapshot that landed
+     *      mid-await. Now functional updates.
+     *      Test: tests/react/usePeopleManager.race.test.tsx
+     *   b) BillWizard guarded the persist with a bare `if (id)` and no else, so an
+     *      add made before the JIT draft existed was DISCARDED silently. Now queued
+     *      and flushed via usePeopleAdditionQueue.
+     *      Test: tests/react/usePeopleAdditionQueue.test.tsx
+     * Controlled A/B, 12 runs per side at matched load (~7.3): baseline 3 failed /
+     * 9 passed; with both fixes 5 failed / 7 passed. No improvement — within noise,
+     * but enough to say the remaining flake is NOT either of those defects.
+     *
+     * PROVEN about the failure, by direct observation (do not re-derive):
+     *   - The loss is ON WRITE, not on render. Emulator query after a failing run:
+     *     the bill doc itself held `people: 1` (owner only) with total $90. So
+     *     "the test is rotted" is dead as a hypothesis, permanently.
+     *   - In one captured failure `persistPeopleAddition` was never called at all.
+     *     That was defect (b), now fixed.
+     *   - These specs ALSO fail from pure CPU starvation with the data fully
+     *     CORRECT. Confirmed by instrumenting every people write: under 10 busy
+     *     cores the doc read ["Owner","Charlie"] throughout and the test still
+     *     failed on getByText('Charlie') at Review. Measure at 1-min load < 3 or
+     *     conclude nothing.
+     *
+     * Next step: instrument the SETTLE half — all three now fail at or after the
+     * settle step, not at the add step — and get a clean idle measurement first.
      */
     test.fixme('marks a person as settled and shows the Settled badge', async ({ page }) => {
         await loginAsTestUser(page);
