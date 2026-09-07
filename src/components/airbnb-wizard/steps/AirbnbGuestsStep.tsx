@@ -14,6 +14,7 @@ interface AirbnbGuestsStepProps {
     onRemove: (id: string) => void;
     onUpdate: (id: string, updates: Partial<Person>) => void;
     onAddFromFriend: (friend: { id?: string; name: string; venmoId?: string }) => void;
+    onAddSquad?: (members: Person[]) => void;
     onNext: () => void;
     onPrev: () => void;
     canProceed: boolean;
@@ -36,6 +37,7 @@ export function AirbnbGuestsStep({
     onRemove,
     onUpdate,
     onAddFromFriend,
+    onAddSquad,
     onNext,
     onPrev,
     canProceed,
@@ -70,6 +72,7 @@ export function AirbnbGuestsStep({
                         setNewGuestName('');
                     }}
                     onAddFromFriend={onAddFromFriend}
+                    onAddSquad={onAddSquad}
                     onRemove={onRemove}
                     onUpdate={async (id, updates) => onUpdate(id, updates)}
                     onSaveAsFriend={onSaveAsFriend || (() => { })}

@@ -388,6 +388,24 @@ export function AirbnbWizard({
     }
   };
 
+  /**
+   * Without this, PeopleManager falls back to a LOCAL-ONLY state update
+   * (PeopleManager.tsx:104-110): the whole squad appears in the UI and is never
+   * written to Firestore, so it vanishes on the next snapshot or reload.
+   * BillWizard was the only screen wiring this handler up.
+   */
+  const handleAtomicAddSquad = (newMembers: Person[]) => {
+    const existingIds = new Set(people.map((p) => p.id));
+    const existingNames = new Set(people.map((p) => p.name.toLowerCase()));
+    const uniqueNewPeople = newMembers.filter(
+      (p) => !existingIds.has(p.id) && !existingNames.has(p.name.toLowerCase()),
+    );
+    if (uniqueNewPeople.length === 0) return;
+
+    setPeople((current) => mergePeopleAdditions(current, uniqueNewPeople));
+    addOrQueuePeople(uniqueNewPeople);
+  };
+
   const handleRemovePerson = async (personId: string) => {
     peopleManager.removePerson(personId);
     bill.removePersonFromAssignments(personId);
@@ -544,6 +562,7 @@ export function AirbnbWizard({
               isMobile={isMobile}
               onAdd={handleAtomicAddPerson}
               onAddFromFriend={handleAtomicAddFromFriend}
+              onAddSquad={handleAtomicAddSquad}
               onRemove={handleRemovePerson}
               onUpdate={handleUpdatePerson}
               onNext={wizard.handleNextStep}
