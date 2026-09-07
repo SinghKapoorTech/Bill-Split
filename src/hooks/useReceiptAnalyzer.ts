@@ -31,10 +31,17 @@ export function useReceiptAnalyzer(
     try {
       const data = await analyzeBillImage(imagePreview);
       
-      // Filter out $0 items (add-ons, optional items, etc.)
+      // Filter out $0 items (add-ons, optional items, etc.).
+      //
+      // `!== 0`, NOT `> 0`: a negative line is a comp or discount, and the
+      // server gate accepts it deliberately (shared/receiptAmounts.ts). Dropping
+      // it here while keeping subtotal/total would OVER-COLLECT, because
+      // calculatePersonTotals derives every share from the item list alone —
+      // e.g. Burger $20, Burger $20, Promo -$10, total $30 would charge two
+      // diners $20 each against a $30 receipt.
       const filteredData: BillData = {
         ...data,
-        items: data.items.filter(item => item.price > 0),
+        items: data.items.filter(item => item.price !== 0),
       };
 
       let finalData: BillData;
