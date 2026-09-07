@@ -12,7 +12,10 @@ const config: CapacitorConfig = {
   plugins: {
     FirebaseAuthentication: {
       skipNativeAuth: false,
-      providers: ["google.com"],
+      // apple.com is required by App Store Review Guideline 4.8. It is wired up
+      // for iOS only — web and Android would each need an Apple Services ID and
+      // return URL, which are deliberately not configured.
+      providers: ["google.com", "apple.com"],
     },
     SplashScreen: {
       launchShowDuration: 2000,

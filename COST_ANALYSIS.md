@@ -60,7 +60,7 @@ The app is designed to operate profitably within Firebase's generous free tier d
 └─────────────────────────────────────────┘
 ```
 
-**Live Deployment:** https://bill-split-lemon.vercel.app
+**Live Deployment:** https://www.divit-bill.com
 
 ---
 

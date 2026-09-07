@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["3LAJCPKLNV.com.singhkapoortech.divit"],
+        "components": [
+          {
+            "/": "/join/*",
+            "comment": "Share links that open a bill directly in the app"
+          }
+        ]
+      }
+    ]
+  }
+}

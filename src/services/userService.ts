@@ -16,6 +16,11 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
 import { UserProfile, Friend, Squad } from '@/types/person.types';
+import {
+  buildProfileUpdates,
+  buildNewProfileFields,
+  buildNewProfileUsernameSeed,
+} from '@/utils/profileSync';
 
 const USERS_COLLECTION = 'users';
 
@@ -77,42 +82,34 @@ export const userService = {
     const now = Timestamp.now();
 
     if (!userSnap.exists()) {
-      // Create new profile
-      const displayName = user.displayName || (user.email ? user.email.split('@')[0] : 'user');
-      const username = await generateUniqueUsername(displayName);
-      const newProfile: UserProfile = {
-        uid: user.uid,
-        email: user.email || '',
-        displayName: user.displayName || 'User',
-        username,
-        friends: [],
-        squadIds: [],
+      // Create new profile. For an Apple sign-in this is the ONLY moment a real
+      // name is available — Apple returns it on the first authorization only.
+      const username = await generateUniqueUsername(buildNewProfileUsernameSeed(user));
+      const newProfile = {
+        ...buildNewProfileFields(user, username),
         createdAt: now,
         lastLoginAt: now,
-        hasSeenOnboarding: false,
-        ...(user.photoURL && { photoURL: user.photoURL }),
-        ...(user.phoneNumber && { phoneNumber: user.phoneNumber }),
-      };
+      } as UserProfile;
       await setDoc(userRef, newProfile);
     } else {
-      // Update last login and basic info
+      // Update last login and basic info. The merge rules live in a pure helper
+      // so they can be unit tested without Firebase — see tests/profileSync.ts.
+      // Critically, a provider that returns null must never erase a stored
+      // value: Sign in with Apple supplies the user's name only on the first
+      // authorization, and blanking it would rename them in every friend's app.
       const existingData = userSnap.data() as UserProfile;
-      const updates: Record<string, unknown> = {
-        lastLoginAt: now,
-        email: user.email || '',
-        displayName: user.displayName || 'User',
-        // Only update photoURL from OAuth if user hasn't uploaded a custom photo
-        ...(user.photoURL && !existingData.hasCustomPhoto && { photoURL: user.photoURL }),
-      };
+      const { updates, needsUsername, usernameSeed } = buildProfileUpdates(user, existingData);
 
-      if (user.phoneNumber) {
-        updates.phoneNumber = user.phoneNumber;
-      }
+      // Deleted accounts are never resurrected — buildProfileUpdates returns an
+      // empty plan for a tombstone, and writing lastLoginAt alone would still
+      // leave a live-looking profile.
+      if (Object.keys(updates).length === 0) return;
+
+      updates.lastLoginAt = now;
 
       // Ensure every user has a username (on-demand generation)
-      if (!existingData.username) {
-        const usernameBase = user.displayName || user.email?.split('@')[0] || 'user';
-        updates.username = await generateUniqueUsername(usernameBase);
+      if (needsUsername) {
+        updates.username = await generateUniqueUsername(usernameSeed);
       }
 
       await updateDoc(userRef, updates);

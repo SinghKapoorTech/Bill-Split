@@ -19,6 +19,7 @@ function clientCallableNames(): string[] {
   const files = [
     'src/services/squadService.ts',
     'src/services/settlementService.ts',
+    'src/services/accountService.ts',
   ];
   const names = new Set<string>();
   for (const f of files) {

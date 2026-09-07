@@ -70,21 +70,60 @@ export function getVenmoNativeScheme(charge: VenmoCharge): string {
   return `venmo://paycharge?txn=${txnType}&recipients=${encodedRecipient}&amount=${formattedAmount}&note=${encodedNote}`;
 }
 
+export type VenmoOpenStrategy = 'scheme-then-universal' | 'new-tab';
+
+/**
+ * Chooses how to hand off to Venmo, per platform.
+ *
+ * Mobile tries the `venmo://` scheme FIRST and falls back to the web link.
+ * That ordering looks wrong for iOS and is not — do not "fix" it to
+ * universal-link-first without re-checking the two facts below, both of which
+ * were verified against Venmo's live servers on 2026-09-06:
+ *
+ *  1. `account.venmo.com` claims exactly two paths in its
+ *     apple-app-site-association — `/go/checkout/wallet-network` and
+ *     `/go/web/paypal`. `/pay` is NOT among them, so
+ *     `https://account.venmo.com/pay?...` is not a universal link and iOS will
+ *     never route it to the Venmo app, installed or not.
+ *  2. That URL then 307s to `venmo.com/account/sign-in`. So universal-link-first
+ *     sends every iOS user to a web sign-in page instead of the app, which
+ *     breaks the charge flow rather than hardening it.
+ *
+ * The Guideline 2.1 worry about a "Cannot Open Page" dialog is a mobile-Safari
+ * behaviour, not a native-app one: inside Capacitor this navigation is
+ * intercepted by WebViewDelegationHandler and handed to `UIApplication.open`,
+ * which fails SILENTLY on an unhandled scheme. App Review runs the binary, not
+ * the website, so the reviewer never sees a dialog.
+ *
+ * Note there is deliberately no "is Venmo installed" branch — no such check
+ * exists from a web context. `isVenmoInstalled` below only sniffs the user
+ * agent and must not be used to gate this.
+ *
+ * Known gap (pre-existing, not introduced here): a Capacitor WKWebView on iPad
+ * defaults to desktop content mode and reports `Macintosh`, so iPad native
+ * lands on 'new-tab' rather than the scheme. Fixing that needs Capacitor
+ * platform detection, not a user-agent test.
+ */
+export function getVenmoOpenStrategy(userAgent: string): VenmoOpenStrategy {
+  if (/iPhone|iPad|iPod|Android/i.test(userAgent)) return 'scheme-then-universal';
+  return 'new-tab';
+}
+
 export function openVenmoApp(charge: VenmoCharge): void {
   const universalLink = getVenmoUniversalLink(charge);
   const nativeScheme = getVenmoNativeScheme(charge);
 
-  const isMobileOS = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  switch (getVenmoOpenStrategy(navigator.userAgent)) {
+    case 'scheme-then-universal':
+      window.location.href = nativeScheme;
+      setTimeout(() => {
+        window.location.href = universalLink;
+      }, 2500);
+      return;
 
-  if (isMobileOS) {
-    const startTime = Date.now();
-    window.location.href = nativeScheme;
-
-    setTimeout(() => {
-      window.location.href = universalLink;
-    }, 2500);
-  } else {
-    window.open(universalLink, '_blank');
+    case 'new-tab':
+      window.open(universalLink, '_blank');
+      return;
   }
 }
 

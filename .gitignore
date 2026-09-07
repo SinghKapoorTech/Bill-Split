@@ -49,3 +49,6 @@ blob-report/
 # Skills (installed via npx skills)
 .agents
 .claude/*
+.claude/skills/playwright-skill/tmp-screenshots
+# ...but authored project skills are checked in, like CLAUDE.md
+!.claude/skills/

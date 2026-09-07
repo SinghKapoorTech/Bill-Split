@@ -263,15 +263,21 @@ Rules:
       cleanedText = cleanedText.replace(/```\s*$/g, '');
       cleanedText = cleanedText.trim();
 
-      console.log('Gemini raw response:', text);
-      console.log('Gemini cleaned response:', cleanedText);
-
+      // NOTE: do not log `text` / `cleanedText` / `billData` on the success path.
+      // They contain the restaurant name and every line item and price from the
+      // user's receipt. Cloud Logging is a separate retention store with its own
+      // access control that no bill deletion or account deletion reaches, so
+      // logging them there creates an undeletable spending profile per user.
+      // Log shape only.
       let parsed: unknown;
       try {
         parsed = JSON.parse(cleanedText);
-        console.log('Gemini parsed billData:', JSON.stringify(parsed, null, 2));
       } catch (parseError) {
-        console.error('JSON parsing failed. Raw response:', cleanedText);
+        // Shape only — `cleanedText` is the receipt's contents.
+        console.error('JSON parsing failed.', {
+          responseLength: cleanedText.length,
+          startsWith: cleanedText.slice(0, 12),
+        });
         throw new ExtractionError(
           `Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
         );
@@ -282,7 +288,12 @@ Rules:
       // `billData.items` and throws a raw TypeError, which would be classified
       // as an infrastructure failure — the exact opposite of the truth.
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-        console.error('Non-object JSON response. Raw response:', cleanedText);
+        // Shape only — `cleanedText` is the receipt's contents.
+        console.error('Non-object JSON response.', {
+          parsedType: parsed === null ? 'null' : typeof parsed,
+          isArray: Array.isArray(parsed),
+          responseLength: cleanedText.length,
+        });
         throw new ExtractionError('Invalid response: expected a JSON object');
       }
 
@@ -292,7 +303,12 @@ Rules:
       // `items` key used to throw a TypeError out of `.map`, which is
       // indistinguishable from a transport failure when classifying the outcome.
       if (!billData.items || !Array.isArray(billData.items)) {
-        console.error('Invalid items array. Full response:', billData);
+        // Shape only — `billData` is the receipt's contents.
+        console.error('Invalid items array.', {
+          itemsType: typeof billData.items,
+          isArray: Array.isArray(billData.items),
+          topLevelKeys: Object.keys(billData ?? {}),
+        });
         throw new ExtractionError('Invalid response: items array is missing');
       }
 
@@ -323,7 +339,11 @@ Rules:
           item.name.trim().length === 0 ||
           !isPersistableItemPrice(item.price)
         ) {
-          console.error('Invalid item:', item);
+          // Shape only — `item` carries the item's name and price.
+          console.error('Invalid item structure.', {
+            nameType: typeof item?.name,
+            priceType: typeof item?.price,
+          });
           throw new ExtractionError('Invalid item structure: missing name or unusable price');
         }
       }
@@ -334,9 +354,12 @@ Rules:
       // the user is actually charged and nothing downstream re-checks it.
       const itemSum = billData.items.reduce((sum, item) => sum + item.price, 0);
       if (!itemSumIsCoherent(itemSum, billData.total)) {
-        console.error('Item sum incoherent with printed total:', {
-          itemSum,
-          total: billData.total,
+        // Shape only — the sum and total ARE receipt amounts. The ratio is
+        // what makes this diagnosable (a hallucinated magnitude is orders out),
+        // and it discloses nothing about what the meal cost.
+        console.error('Item sum incoherent with printed total.', {
+          ratio: billData.total > 0 ? Math.round((itemSum / billData.total) * 100) / 100 : null,
+          itemCount: billData.items.length,
         });
         throw new ExtractionError(
           'Extracted item prices do not add up to the receipt total',
@@ -367,11 +390,13 @@ Rules:
       ];
       const unusable = amounts.filter(([, value]) => !isPersistableAmount(value));
       if (unusable.length > 0) {
-        console.error('Unusable numeric fields. Received:', {
-          subtotal: billData.subtotal,
-          tax: billData.tax,
-          tip: billData.tip,
-          total: billData.total,
+        // Shape only — which fields failed and their types, never the amounts.
+        console.error('Unusable numeric fields.', {
+          failed: unusable.map(([field]) => field),
+          subtotal: typeof billData.subtotal,
+          tax: typeof billData.tax,
+          tip: typeof billData.tip,
+          total: typeof billData.total,
         });
         // Numbers are rendered (Infinity/NaN/-5 are the useful diagnostics and
         // String() is total on them); anything else reports only its TYPE.
@@ -706,6 +731,12 @@ export { processRecurringBills } from './recurringBillProcessor.js';
 // ========== Squads ==========
 // All squad writes are server-only; see squadFunctions.ts.
 export { createSquad, updateSquad, deleteSquad } from './squadFunctions.js';
+
+// ========== Account deletion ==========
+// Required by App Store Review Guideline 5.1.1(v). Tombstones the user so
+// counterparties' shared bills and balances survive, revokes their Apple
+// token, and deletes the auth account last. See accountDeletion.ts.
+export { deleteAccount } from './accountDeletion.js';
 
 /**
  * Cloud Function: Generate a recurring bill's due occurrences immediately.

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   getVenmoUniversalLink,
   getVenmoNativeScheme,
+  getVenmoOpenStrategy,
   isValidVenmoHandle,
   sanitizeVenmoHandle,
 } from '@/utils/venmo';
@@ -126,5 +127,50 @@ describe('A-06 — venmo handle validation at persist sites', () => {
   it('returns undefined for a handle that cannot be salvaged', () => {
     expect(sanitizeVenmoHandle('victim&recipients=attacker')).toBeUndefined();
     expect(sanitizeVenmoHandle(undefined)).toBeUndefined();
+  });
+});
+
+/**
+ * The Venmo hand-off ordering.
+ *
+ * Scheme-first on mobile is deliberate and was nearly "fixed" into a
+ * regression. `https://account.venmo.com/pay` is NOT a universal link — Venmo's
+ * AASA claims only /go/checkout/wallet-network and /go/web/paypal, and /pay
+ * 307s to a web sign-in page (both verified against live servers 2026-09-06).
+ * Sending iOS to the universal link first would therefore drop every user on a
+ * sign-in page instead of opening the Venmo app. These tests pin the ordering
+ * so that mistake cannot land silently.
+ */
+describe('getVenmoOpenStrategy', () => {
+  const IPHONE =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1';
+  const ANDROID =
+    'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36';
+  const DESKTOP =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+
+  it('tries the venmo:// scheme first on iPhone, where it opens the app', () => {
+    expect(getVenmoOpenStrategy(IPHONE)).toBe('scheme-then-universal');
+  });
+
+  it('tries the venmo:// scheme first on Android', () => {
+    expect(getVenmoOpenStrategy(ANDROID)).toBe('scheme-then-universal');
+  });
+
+  it('opens a new tab on desktop', () => {
+    expect(getVenmoOpenStrategy(DESKTOP)).toBe('new-tab');
+  });
+
+  /**
+   * A Capacitor WKWebView on iPad defaults to desktop content mode and reports
+   * `Macintosh`, so iPad native takes the DESKTOP branch, not an iPad one.
+   * Asserting an 'iPad' user agent here would be testing a string the app never
+   * produces. This documents the real behaviour instead; it is a pre-existing
+   * gap, not something the deep-link/Venmo work introduced.
+   */
+  it('takes the desktop branch for a Capacitor iPad webview (reports Macintosh)', () => {
+    const IPAD_CAPACITOR =
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15';
+    expect(getVenmoOpenStrategy(IPAD_CAPACITOR)).toBe('new-tab');
   });
 });

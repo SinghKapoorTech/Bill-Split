@@ -81,7 +81,8 @@ export function InviteMembersDialog({ open, onOpenChange, event }: InviteMembers
         <DialogHeader>
           <DialogTitle>Invite Members</DialogTitle>
           <DialogDescription>
-            Search for an app user by username, or invite by email.
+            Search for an app user by username, or invite by email. Friends who signed up with
+            Apple and hid their email address can only be found by username.
           </DialogDescription>
         </DialogHeader>
 
