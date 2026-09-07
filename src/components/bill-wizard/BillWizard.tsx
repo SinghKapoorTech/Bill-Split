@@ -18,7 +18,10 @@ import { WizardNavigation } from "./WizardNavigation";
 import { useBillWizard } from "./hooks/useBillWizard";
 import { useBillSession } from "./hooks/useBillSession";
 import { usePeopleAdditionQueue } from "./hooks/usePeopleAdditionQueue";
-import { mergePeopleAdditions } from "@/utils/peopleMerge";
+import {
+  mergePeopleAdditions,
+  reconcilePeopleWithServer,
+} from "@/utils/peopleMerge";
 import { usePeopleManager } from "@/hooks/usePeopleManager";
 import { useBillSplitter } from "@/hooks/useBillSplitter";
 import { useReceiptAnalyzer } from "@/hooks/useReceiptAnalyzer";
@@ -180,29 +183,16 @@ export function BillWizard({
   useEffect(() => {
     if (!initialPeople) return;
 
-    const serverIds = new Set(initialPeople.map((p) => p.id));
-
-    // Anything that has round-tripped is no longer in flight.
-    for (const id of Array.from(pendingPersonIdsRef.current)) {
-      if (serverIds.has(id)) pendingPersonIdsRef.current.delete(id);
-    }
-
-    // Nothing in flight → the server array is authoritative, so adopt it
-    // verbatim. This keeps REMOVALS working: a person deleted elsewhere really
-    // does disappear, which a blanket merge-by-id would have broken.
-    if (pendingPersonIdsRef.current.size === 0) {
-      setPeople(initialPeople);
-      return;
-    }
-
-    // Otherwise re-attach only the still-in-flight local additions.
     setPeople((current) => {
-      const stillPending = current.filter(
-        (p) => pendingPersonIdsRef.current.has(p.id) && !serverIds.has(p.id),
+      const result = reconcilePeopleWithServer(
+        current,
+        initialPeople,
+        pendingPersonIdsRef.current,
       );
-      return stillPending.length > 0
-        ? [...initialPeople, ...stillPending]
-        : initialPeople;
+      // Safe to assign from inside the updater: reconcile is pure and
+      // deterministic, so a double-invoked updater computes the same set.
+      pendingPersonIdsRef.current = result.pendingIds;
+      return result.people;
     });
   }, [initialPeople]);
 

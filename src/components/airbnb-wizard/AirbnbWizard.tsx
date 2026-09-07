@@ -16,6 +16,11 @@ import { WizardNavigation } from "@/components/bill-wizard/WizardNavigation";
 import { useBillWizard } from "@/components/bill-wizard/hooks/useBillWizard";
 import { useBillSession } from "@/components/bill-wizard/hooks/useBillSession";
 import { usePeopleManager } from "@/hooks/usePeopleManager";
+import { usePeopleAdditionQueue } from "@/components/bill-wizard/hooks/usePeopleAdditionQueue";
+import {
+  mergePeopleAdditions,
+  reconcilePeopleWithServer,
+} from "@/utils/peopleMerge";
 import { useBillSplitter } from "@/hooks/useBillSplitter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Person, BillData, ItemAssignment } from "@/types";
@@ -84,6 +89,17 @@ export function AirbnbWizard({
     useState<Bill["airbnbData"]>(initialAirbnbData);
 
   const peopleManager = usePeopleManager(people, setPeople);
+
+  // Mirrors BillWizard. `people` read from the render closure is NOT safe to
+  // persist: adding a person awaits a network round trip, and a Firestore
+  // snapshot can land during that await.
+  const peopleRef = useRef<Person[]>(people);
+  useEffect(() => {
+    peopleRef.current = people;
+  }, [people]);
+
+  // Ids added locally whose write has not round-tripped yet.
+  const pendingPersonIdsRef = useRef<Set<string>>(new Set());
   const bill = useBillSplitter({
     people,
     billData,
@@ -99,7 +115,16 @@ export function AirbnbWizard({
   }, [initialItemAssignments]);
 
   useEffect(() => {
-    if (initialPeople) setPeople(initialPeople);
+    if (!initialPeople) return;
+    setPeople((current) => {
+      const result = reconcilePeopleWithServer(
+        current,
+        initialPeople,
+        pendingPersonIdsRef.current,
+      );
+      pendingPersonIdsRef.current = result.pendingIds;
+      return result.people;
+    });
   }, [initialPeople]);
 
   useEffect(() => {
@@ -313,19 +338,42 @@ export function AirbnbWizard({
     }
   };
 
+  const markPeoplePending = useCallback((added: Person[]) => {
+    for (const p of added) pendingPersonIdsRef.current.add(p.id);
+  }, []);
+
+  const persistPeopleAddition = (id: string, added: Person[]) => {
+    markPeoplePending(added);
+
+    // Built from `peopleRef`, never the render closure, and deduped within
+    // `added` as well as against current state — a duplicated person is a
+    // money bug, not a cosmetic one.
+    const next = mergePeopleAdditions(peopleRef.current, added);
+
+    // The FULL array is sent so billService.updateBill can derive
+    // participantIds for the ledger/search.
+    return billService.updateBill(id, { people: next }).catch((err) => {
+      for (const p of added) pendingPersonIdsRef.current.delete(p.id);
+      console.error(err);
+      throw err; // let the queue retain and retry these people
+    });
+  };
+
+  /**
+   * Routes every add through the queue so one made before the just-in-time
+   * draft exists is flushed when the id arrives, rather than being dropped by
+   * a bare `if (id)`.
+   */
+  const addOrQueuePeople = usePeopleAdditionQueue(
+    billId || activeSession?.id,
+    persistPeopleAddition,
+    markPeoplePending,
+  );
+
   const handleAtomicAddPerson = async (name?: string, venmoId?: string) => {
     const newPerson = await peopleManager.addPerson(name, venmoId);
     if (newPerson) {
-      const id = billId || activeSession?.id;
-      if (id) {
-        // Pass the full people array so billService.updateBill can correctly
-        // derive and update the participantIds field for ledger/search.
-        billService
-          .updateBill(id, {
-            people: [...people, newPerson],
-          })
-          .catch(console.error);
-      }
+      addOrQueuePeople([newPerson]);
     }
   };
 
@@ -336,14 +384,7 @@ export function AirbnbWizard({
   }) => {
     const newPerson = peopleManager.addFromFriend(friend);
     if (newPerson) {
-      const id = billId || activeSession?.id;
-      if (id) {
-        billService
-          .updateBill(id, {
-            people: [...people, newPerson],
-          })
-          .catch(console.error);
-      }
+      addOrQueuePeople([newPerson]);
     }
   };
 

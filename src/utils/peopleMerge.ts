@@ -28,3 +28,46 @@ export function mergePeopleAdditions(
 
   return next;
 }
+
+/**
+ * Reconciles a Firestore snapshot's people array against local state.
+ *
+ * The snapshot is authoritative, with one exception: an addition whose write
+ * has not round-tripped yet. A snapshot that predates that write carries the
+ * OLD array, and adopting it wholesale silently drops the just-added person —
+ * with no error, after the wizard has already accepted `people.length > 1`.
+ *
+ * When nothing is in flight the server array is adopted VERBATIM rather than
+ * merged by id. That is deliberate: a blanket merge would resurrect anyone
+ * deleted elsewhere, which trades data loss for data resurrection. Removals
+ * must keep working, which is why only still-pending ids are re-attached.
+ *
+ * Pure so both wizards can share it — the logic is subtle enough that a second
+ * copy would drift.
+ */
+export function reconcilePeopleWithServer(
+  current: Person[],
+  server: Person[],
+  pendingIds: ReadonlySet<string>,
+): { people: Person[]; pendingIds: Set<string> } {
+  const serverIds = new Set(server.map((p) => p.id));
+
+  // Anything the server now confirms is no longer in flight.
+  const stillInFlight = new Set<string>();
+  for (const id of pendingIds) {
+    if (!serverIds.has(id)) stillInFlight.add(id);
+  }
+
+  if (stillInFlight.size === 0) {
+    return { people: server, pendingIds: stillInFlight };
+  }
+
+  const reattach = current.filter(
+    (p) => stillInFlight.has(p.id) && !serverIds.has(p.id),
+  );
+
+  return {
+    people: reattach.length > 0 ? [...server, ...reattach] : server,
+    pendingIds: stillInFlight,
+  };
+}
