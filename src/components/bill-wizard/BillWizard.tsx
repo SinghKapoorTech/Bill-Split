@@ -139,6 +139,24 @@ export function BillWizard({
   const upload = useFileUpload();
   const analyzer = useReceiptAnalyzer(setBillData, setPeople, billData);
   const peopleManager = usePeopleManager(people, setPeople);
+
+  // `people` read from the render closure is NOT safe to persist. Adding a
+  // person awaits `peopleManager.addPerson`, and a Firestore snapshot can land
+  // during that await and reset `people` (see the sync effect below). Writing
+  // `[...people, newPerson]` from the closure then re-persists the PRE-clobber
+  // array, permanently dropping an earlier guest — which is why adding two
+  // guests in quick succession could lose the first one.
+  const peopleRef = useRef<Person[]>(people);
+  useEffect(() => {
+    peopleRef.current = people;
+  }, [people]);
+
+  // Ids added locally whose Firestore write has not round-tripped yet. A
+  // snapshot that predates the write carries the OLD people array, and adopting
+  // it wholesale silently drops the just-added person — with no error, after
+  // canProceedFromStep(1) has already accepted people.length > 1. The wizard
+  // then advances and Review shows the owner carrying the full total.
+  const pendingPersonIdsRef = useRef<Set<string>>(new Set());
   const bill = useBillSplitter({
     people,
     billData,
@@ -158,9 +176,32 @@ export function BillWizard({
   }, [initialItemAssignments]);
 
   useEffect(() => {
-    if (initialPeople) {
-      setPeople(initialPeople);
+    if (!initialPeople) return;
+
+    const serverIds = new Set(initialPeople.map((p) => p.id));
+
+    // Anything that has round-tripped is no longer in flight.
+    for (const id of Array.from(pendingPersonIdsRef.current)) {
+      if (serverIds.has(id)) pendingPersonIdsRef.current.delete(id);
     }
+
+    // Nothing in flight → the server array is authoritative, so adopt it
+    // verbatim. This keeps REMOVALS working: a person deleted elsewhere really
+    // does disappear, which a blanket merge-by-id would have broken.
+    if (pendingPersonIdsRef.current.size === 0) {
+      setPeople(initialPeople);
+      return;
+    }
+
+    // Otherwise re-attach only the still-in-flight local additions.
+    setPeople((current) => {
+      const stillPending = current.filter(
+        (p) => pendingPersonIdsRef.current.has(p.id) && !serverIds.has(p.id),
+      );
+      return stillPending.length > 0
+        ? [...initialPeople, ...stillPending]
+        : initialPeople;
+    });
   }, [initialPeople]);
 
   // Initialize receipt image preview from session if exists
@@ -326,18 +367,41 @@ export function BillWizard({
     }
   };
 
+  /**
+   * Persists newly-added people, guarding BOTH halves of the add race.
+   *
+   * 1. Builds the array from `peopleRef`, never the render closure, so a
+   *    snapshot that landed mid-await cannot cause us to re-persist a stale
+   *    array and drop an earlier guest.
+   * 2. Marks the new ids in flight so the sync effect above will not adopt a
+   *    pre-write snapshot over them.
+   *
+   * Pending ids are cleared on failure too — otherwise a person whose write
+   * never landed would linger locally forever, looking saved when they are not.
+   */
+  const persistPeopleAddition = (id: string, added: Person[]) => {
+    for (const p of added) pendingPersonIdsRef.current.add(p.id);
+
+    const existing = new Set(peopleRef.current.map((p) => p.id));
+    const next = [
+      ...peopleRef.current,
+      ...added.filter((p) => !existing.has(p.id)),
+    ];
+
+    // The FULL array is sent so billService.updateBill can derive participantIds
+    // for the ledger/search.
+    billService.updateBill(id, { people: next }).catch((err) => {
+      for (const p of added) pendingPersonIdsRef.current.delete(p.id);
+      console.error(err);
+    });
+  };
+
   const handleAtomicAddPerson = async (name?: string, venmoId?: string) => {
     const newPerson = await peopleManager.addPerson(name, venmoId);
     if (newPerson) {
       const id = billId || activeSession?.id;
       if (id) {
-        // Pass the full people array so billService.updateBill can correctly
-        // derive and update the participantIds field for ledger/search.
-        billService
-          .updateBill(id, {
-            people: [...people, newPerson],
-          })
-          .catch(console.error);
+        persistPeopleAddition(id, [newPerson]);
       }
     }
   };
@@ -361,11 +425,7 @@ export function BillWizard({
     if (newPerson) {
       const id = billId || activeSession?.id;
       if (id) {
-        billService
-          .updateBill(id, {
-            people: [...people, newPerson],
-          })
-          .catch(console.error);
+        persistPeopleAddition(id, [newPerson]);
       }
     }
   };
@@ -381,17 +441,11 @@ export function BillWizard({
     if (uniqueNewPeople.length === 0) return;
 
     // Optimistic local update
-    const updatedPeople = [...people, ...uniqueNewPeople];
-    setPeople(updatedPeople);
+    setPeople([...peopleRef.current, ...uniqueNewPeople]);
 
-    // Persist the full people array so participantIds syncs correctly
     const id = billId || activeSession?.id;
     if (id) {
-      billService
-        .updateBill(id, {
-          people: updatedPeople,
-        })
-        .catch(console.error);
+      persistPeopleAddition(id, uniqueNewPeople);
     }
   };
 
