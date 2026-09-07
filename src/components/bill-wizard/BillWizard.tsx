@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useReturnTo } from "@/hooks/useReturnTo";
 import { billService } from "@/services/billService";
@@ -17,6 +17,8 @@ import { ReviewStep } from "./steps/ReviewStep";
 import { WizardNavigation } from "./WizardNavigation";
 import { useBillWizard } from "./hooks/useBillWizard";
 import { useBillSession } from "./hooks/useBillSession";
+import { usePeopleAdditionQueue } from "./hooks/usePeopleAdditionQueue";
+import { mergePeopleAdditions } from "@/utils/peopleMerge";
 import { usePeopleManager } from "@/hooks/usePeopleManager";
 import { useBillSplitter } from "@/hooks/useBillSplitter";
 import { useReceiptAnalyzer } from "@/hooks/useReceiptAnalyzer";
@@ -379,30 +381,51 @@ export function BillWizard({
    * Pending ids are cleared on failure too — otherwise a person whose write
    * never landed would linger locally forever, looking saved when they are not.
    */
-  const persistPeopleAddition = (id: string, added: Person[]) => {
+  /**
+   * Marks ids as in flight. Called the instant people are accepted — including
+   * while they only sit in the addition queue — because the sync effect above
+   * adopts the server array verbatim whenever nothing is pending, which would
+   * take a queued person straight back off the visible People step.
+   */
+  const markPeoplePending = useCallback((added: Person[]) => {
     for (const p of added) pendingPersonIdsRef.current.add(p.id);
+  }, []);
 
-    const existing = new Set(peopleRef.current.map((p) => p.id));
-    const next = [
-      ...peopleRef.current,
-      ...added.filter((p) => !existing.has(p.id)),
-    ];
+  const persistPeopleAddition = (id: string, added: Person[]) => {
+    markPeoplePending(added);
+
+    // `mergePeopleAdditions` dedupes within `added` as well as against current
+    // state. `added` can carry the same id twice now that additions are
+    // batched, and a duplicated person is a MONEY bug: split-evenly would
+    // divide each item one extra way and `calculatePersonTotals` would emit
+    // two rows for them.
+    const next = mergePeopleAdditions(peopleRef.current, added);
 
     // The FULL array is sent so billService.updateBill can derive participantIds
     // for the ledger/search.
-    billService.updateBill(id, { people: next }).catch((err) => {
+    return billService.updateBill(id, { people: next }).catch((err) => {
       for (const p of added) pendingPersonIdsRef.current.delete(p.id);
       console.error(err);
+      // Rethrow: the queue puts these people back and retries them with the
+      // next addition. Swallowing here is what let a failed write drop them.
+      throw err;
     });
   };
+
+  /**
+   * Routes every add through the queue so one made before the just-in-time
+   * draft exists is flushed when the id arrives, instead of being dropped.
+   */
+  const addOrQueuePeople = usePeopleAdditionQueue(
+    billId || activeSession?.id,
+    persistPeopleAddition,
+    markPeoplePending,
+  );
 
   const handleAtomicAddPerson = async (name?: string, venmoId?: string) => {
     const newPerson = await peopleManager.addPerson(name, venmoId);
     if (newPerson) {
-      const id = billId || activeSession?.id;
-      if (id) {
-        persistPeopleAddition(id, [newPerson]);
-      }
+      addOrQueuePeople([newPerson]);
     }
   };
 
@@ -423,10 +446,7 @@ export function BillWizard({
   }) => {
     const newPerson = peopleManager.addFromFriend(friend);
     if (newPerson) {
-      const id = billId || activeSession?.id;
-      if (id) {
-        persistPeopleAddition(id, [newPerson]);
-      }
+      addOrQueuePeople([newPerson]);
     }
   };
 
@@ -441,12 +461,13 @@ export function BillWizard({
     if (uniqueNewPeople.length === 0) return;
 
     // Optimistic local update
-    setPeople([...peopleRef.current, ...uniqueNewPeople]);
+    // Functional update: `peopleRef` is refreshed in an effect, so it holds the
+    // last COMMITTED array. A person added moments earlier may not be in it yet,
+    // and writing from it would drop them — the same defect this change fixes
+    // in usePeopleManager.
+    setPeople((current) => mergePeopleAdditions(current, uniqueNewPeople));
 
-    const id = billId || activeSession?.id;
-    if (id) {
-      persistPeopleAddition(id, uniqueNewPeople);
-    }
+    addOrQueuePeople(uniqueNewPeople);
   };
 
   // Event handlers

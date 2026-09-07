@@ -66,10 +66,14 @@ export function usePeopleManager(
         newPerson.venmoId = globalUser.venmoId;
       }
 
-      const alreadyExists = people.some(p => p.id === newPerson.id);
-      if (!alreadyExists) {
-        setPeople([...people, newPerson]);
-      }
+      // Functional update: `people` from the render closure is STALE here — a
+      // Firestore snapshot can land during the await above, and writing the
+      // pre-await array back would silently drop whoever the snapshot brought
+      // in. The dedupe check has to run against current state for the same
+      // reason.
+      setPeople(current =>
+        current.some(p => p.id === newPerson.id) ? current : [...current, newPerson],
+      );
 
       setNewPersonName('');
       setNewPersonVenmoId('');
@@ -108,10 +112,12 @@ export function usePeopleManager(
       ...personData,
     };
 
-    const alreadyExistsByName = people.some(p => p.id === newPerson.id);
-    if (!alreadyExistsByName) {
-      setPeople([...people, newPerson]);
-    }
+    // Functional update — see the note in the email branch above. This is the
+    // path that lost people in practice: `resolveShadowUserByName` is a network
+    // round trip, and the bill's Firestore listener fires freely during it.
+    setPeople(current =>
+      current.some(p => p.id === newPerson.id) ? current : [...current, newPerson],
+    );
 
     // Reset form
     setNewPersonName('');
@@ -134,7 +140,7 @@ export function usePeopleManager(
       }
     }
 
-    setPeople(people.filter(p => p.id !== personId));
+    setPeople(current => current.filter(p => p.id !== personId));
   };
 
   const addFromFriend = (friend: { id?: string; name: string; venmoId?: string }): Person | null => {
@@ -161,7 +167,9 @@ export function usePeopleManager(
       newPerson.venmoId = friend.venmoId;
     }
 
-    setPeople([...people, newPerson]);
+    setPeople(current =>
+      current.some(p => p.id === newPerson.id) ? current : [...current, newPerson],
+    );
 
     return newPerson;
   };
