@@ -112,22 +112,45 @@ right before it goes live, rather than shipping the moment review passes.
 
 **Sign-in required: YES** — the app gates everything behind auth.
 
-### Read this before submitting: two likely rejections
+⚠️ Ticking that box exposes **User Name** and **Password** fields in App Store
+Connect. Divit has no email/password provider, so there are no such credentials
+to give — both real providers are OAuth. Check whether ASC will accept the
+section with those fields blank plus an explanatory note, or whether it blocks
+submission. If it blocks, the choices are a Google demo account (which may be
+refused at login from Apple's network) or adding an email/password provider for
+review purposes. Settle this before you start the submission, not during it.
 
-**1. Guideline 4.8 — Login Services.** The app offers Google Sign-In and nothing
-else. Apple requires apps using a third-party login service to also offer a
-login option that limits data collection to name and email and hides the user's
-email if they choose — **Sign in with Apple** satisfies this. A consumer app with
-Google-only sign-in is frequently rejected under 4.8. Adding Sign in with Apple
-before submitting is the safest path.
+### Sign-in and deletion — both 4.8 and 5.1.1(v) are now satisfied
 
-**2. Reviewer sign-in.** Google accounts often refuse logins from unfamiliar
-locations or demand 2FA, which blocks the reviewer and gets the build rejected as
-"unable to sign in". Options, best first:
+**Guideline 4.8 — Login Services: RESOLVED.** Sign in with Apple shipped
+2026-09-06 (`c144ad2`) alongside Google. It is offered **on iOS only**
+(`shouldOfferApple`, `src/utils/authProviders.ts` — `platform === 'ios'`), which
+is where 4.8 applies; off iOS the sign-in screen shows a notice that an
+Apple-created account lives in the iOS app. The reviewer, on an iOS device, sees
+Sign in with Apple first.
 
-- Add Sign in with Apple (solves 4.8 and gives the reviewer a native path)
-- Add an email/password provider and supply a dedicated demo account
-- Supply a Google demo account with 2FA disabled — fragile, expect problems
+**Guideline 5.1.1(v) — account deletion: RESOLVED.** Deletion is initiated
+in-app from **Settings → Profile**, in plain sight, with no support contact. It
+cascades the ledger rather than only removing the auth user.
+
+**Reviewer sign-in is no longer fragile.** The old risk was Google refusing a
+login from an unfamiliar location and the build being rejected as "unable to sign
+in". A reviewer can now use Sign in with Apple with their own Apple ID, including
+Hide My Email.
+
+⚠️ **But a fresh Apple sign-in lands in an EMPTY account.** There is no
+email/password provider, so a pre-populated demo account can only be a Google one
+— exactly the fragile path Apple sign-in was meant to avoid. Decide one before
+submitting:
+
+- **Preferred:** let the reviewer sign in with Apple and follow the notes below,
+  which walk through creating a bill by hand in under a minute. Nothing in the
+  core flow needs pre-existing data.
+- Supply a Google demo account anyway, pre-populated, and accept that it may be
+  blocked at login. If you do, keep the Apple path in the notes as the fallback.
+
+Whichever you choose, the Notes field below must match it — the current text
+assumes the Apple path.
 
 ### Notes (paste into the Notes field, adjusted to whichever you choose)
 
@@ -135,18 +158,36 @@ locations or demand 2FA, which blocks the reviewer and gets the build rejected a
 Divit splits bills by line item and settles balances between friends.
 
 Signing in:
-Use the demo account provided above. The account is pre-populated with sample bills, an event, and outstanding balances so all features are visible immediately.
+Tap "Sign in with Apple" on the launch screen. Your own Apple ID works, including
+Hide My Email — no demo account is required. (Google sign-in is also offered.)
+Sign in with Apple is presented on iOS only.
 
-Testing the core flow:
-1. Home shows outstanding balances with each friend.
-2. Bills > any bill opens the 4-step splitter: items, people, per-item assignment, and a review screen showing each person's share with tax and tip distributed proportionally.
-3. Tapping Settle on a balance opens the settle sheet.
+Testing the core flow (a new account starts empty; this takes about a minute):
+1. From the dashboard, create a new bill and add two or three items with prices
+   by hand. A receipt photo is optional — the AI scan is a shortcut, not the only
+   path, and every extracted line item is editable before splitting.
+2. Add two people to the bill.
+3. Assign items: tap a person to attach them to a line item, or share one item
+   across several people.
+4. The review step shows each person's share, with tax and tip distributed
+   proportionally to what they ordered rather than split evenly.
+5. Tapping Settle on a balance opens the settle sheet.
+
+Deleting the account:
+Settings > Profile > Delete Account. Deletion is initiated entirely in-app and
+removes the account and its associated data.
 
 About Venmo:
-"Charge on Venmo" opens the Venmo app via its URL scheme with an itemized note pre-filled. If Venmo is not installed on the review device it falls back to venmo.com in the browser. Divit does not process payments and takes no commission; Venmo handles the transaction entirely.
+"Charge on Venmo" opens the Venmo app via its URL scheme with an itemized note
+pre-filled, falling back to venmo.com in the browser if Venmo is not installed on
+the review device. Divit does not process payments and takes no commission —
+this is real-world peer-to-peer money movement handled entirely by Venmo, so
+Guideline 3.1.1 does not apply.
 
-Camera:
-Camera access is used only to photograph receipts for AI item extraction. Receipt images are stored privately against the user's own account.
+Camera and AI:
+Camera access is used only to photograph receipts. Images are sent to Google
+Gemini for item extraction and stored privately against the user's own account.
+Extracted items are AI estimates and are editable before any split is made.
 ```
 
 ### Contact Information
