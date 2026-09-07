@@ -125,11 +125,24 @@ describe('events — only the owner may archive', () => {
     );
   });
 
-  it('ALLOWS the owner un-archiving', async () => {
+  // CONTRACT CHANGED IN CHUNK 3 — this test formerly asserted the opposite.
+  //
+  // Chunk 2 let the owner unarchive with a direct write, which was correct while
+  // nothing depended on the count of active events. Chunk 3 gates unarchiving by
+  // the free-tier group cap, and a cap needs an aggregation query that rules
+  // cannot run — so the write moved to the `unarchiveEvent` callable and the
+  // direct path is closed. Leaving it open would make the cap bypassable in
+  // three taps: archive A, create C, unarchive A.
+  //
+  // ARCHIVING is deliberately still allowed here (see the test above): it frees
+  // a slot and is the free escape hatch the paywall must offer, so it must never
+  // be gated. That asymmetry is the whole design, and is covered in detail by
+  // tests/rules/eventCreateUnarchive.rules.test.ts.
+  it('BLOCKS the owner un-archiving directly — it must go through the callable', async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), 'events', EVENT), { archived: true });
     });
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(asOwner(), 'events', EVENT), { archived: false, updatedAt: new Date() }),
     );
   });

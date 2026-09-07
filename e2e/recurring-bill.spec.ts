@@ -94,11 +94,18 @@ test.describe('Recurring Bill Wizard', () => {
     // Schedule → Review → Create
     await page.getByRole('button', { name: 'Next' }).click();
     await page.getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+    await page.waitForURL(/\/bills/, { timeout: 15000 });
 
     // It shows on the Bills page exactly once.
     await page.goto('/bills');
     await page.waitForURL(/\/bills/, { timeout: 15000 });
+    // Recurring TEMPLATES are deliberately excluded from the default "all"
+    // filter — billFilters.ts:34 `recurringMatchesFilter` returns
+    // `filter === 'recurring'`, and BillsView.tsx:309-313 says so outright
+    // ("Your recurring bills live in the Recurring tab."). Landing on /bills
+    // under "all" therefore shows ZERO templates, which is why four specs
+    // asserted on a title that resolved to 0 elements. Select the tab first.
+    await page.getByRole('tab', { name: 'Recurring' }).click();
     await expect(page.getByText('Gym Membership', { exact: true })).toHaveCount(1, { timeout: 15000 });
 
     // Open it (edit mode jumps to the Review step) — the action now reads "Save".
@@ -107,11 +114,18 @@ test.describe('Recurring Bill Wizard', () => {
     const saveBtn = page.getByRole('button', { name: 'Save', exact: true });
     await expect(saveBtn).toBeVisible({ timeout: 10000 });
     await saveBtn.click();
-    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+    await page.waitForURL(/\/bills/, { timeout: 15000 });
 
     // Still exactly one template — the edit updated in place rather than duplicating.
     await page.goto('/bills');
     await page.waitForURL(/\/bills/, { timeout: 15000 });
+    // Recurring TEMPLATES are deliberately excluded from the default "all"
+    // filter — billFilters.ts:34 `recurringMatchesFilter` returns
+    // `filter === 'recurring'`, and BillsView.tsx:309-313 says so outright
+    // ("Your recurring bills live in the Recurring tab."). Landing on /bills
+    // under "all" therefore shows ZERO templates, which is why four specs
+    // asserted on a title that resolved to 0 elements. Select the tab first.
+    await page.getByRole('tab', { name: 'Recurring' }).click();
     await expect(page.getByText('Gym Membership', { exact: true })).toHaveCount(1, { timeout: 15000 });
   });
 

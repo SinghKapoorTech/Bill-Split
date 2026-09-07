@@ -11,6 +11,8 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Layout } from "@/components/layout/Layout";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { usePlatform } from "@/hooks/usePlatform";
+import { useMinimumVersion } from "@/hooks/useMinimumVersion";
+import { UpdateRequiredScreen } from "@/components/shared/UpdateRequiredScreen";
 import { LoadingScreen } from "@/components/shared/LoadingScreen";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
@@ -103,7 +105,36 @@ function RootRoute() {
   return <LandingPage />;
 }
 
+/**
+ * Wraps the app in the minimum-supported-version wall.
+ *
+ * Placed OUTSIDE every provider and the router on purpose. A build below the
+ * floor cannot talk to the backend, so mounting auth, Firestore listeners and
+ * the bill session underneath it would only produce a burst of errors behind a
+ * screen nobody can act on.
+ *
+ * Waits only briefly (1.5s) rather than blocking on the network — see
+ * useMinimumVersion. The Remote Config value is cached for an hour, so a cold
+ * start within that window is free; a later one does a real round-trip and can
+ * spend the full budget on LoadingScreen before rendering anyway.
+ */
+function VersionGate({ children }: { children: React.ReactNode }) {
+  const { updateRequired, checking } = useMinimumVersion();
+
+  if (updateRequired) return <UpdateRequiredScreen />;
+
+  // A brief, BOUNDED wait (see useMinimumVersion) so a too-old build meets the
+  // wall on the first frame rather than being yanked into it mid-action. The
+  // budget is short and the value is cached locally after the first fetch, so
+  // this is a no-op on essentially every launch — and when it does expire, the
+  // app renders regardless.
+  if (checking) return <LoadingScreen />;
+
+  return <>{children}</>;
+}
+
 const App = () => (
+  <VersionGate>
   <ThemeProvider>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -156,6 +187,7 @@ const App = () => (
       </AuthProvider>
     </QueryClientProvider>
   </ThemeProvider>
+  </VersionGate>
 );
 
 export default App;

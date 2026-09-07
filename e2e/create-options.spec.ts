@@ -25,7 +25,7 @@ test.describe('CreateOptionsDialog', () => {
     // Verify all 4 options are visible
     await expect(page.getByText('New Bill')).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Quick Expense')).toBeVisible();
-    await expect(page.getByText('Airbnb / House')).toBeVisible();
+    await expect(page.getByText('Airbnb / Hotels')).toBeVisible();
     await expect(page.getByText('Recurring Bill')).toBeVisible();
   });
 

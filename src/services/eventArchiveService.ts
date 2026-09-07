@@ -1,5 +1,6 @@
-import { deleteField, doc, Timestamp, updateDoc } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { doc, Timestamp, updateDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '@/config/firebase';
 
 const EVENTS_COLLECTION = 'events';
 
@@ -38,14 +39,28 @@ export async function archiveEventDoc(eventId: string): Promise<void> {
 }
 
 /**
- * `archived: false` rather than deleteField() so the document is explicitly
- * active; archivedAt is REMOVED so a stale timestamp cannot linger and imply
- * the event is still archived. Never write `undefined` to Firestore.
+ * Unarchiving is a CALLABLE, while archiving above is a direct write. That
+ * asymmetry is deliberate and is the whole shape of the free-tier group cap:
+ *
+ *   archiving   frees a slot → never gated, never blocked, stays client-side.
+ *   unarchiving consumes a slot → gated by the same cap as creation, because
+ *               archive → create → unarchive would otherwise bypass it in
+ *               three taps (spec §4.2.1).
+ *
+ * A cap needs a COUNT of the owner's active events, and a Firestore rule cannot
+ * run an aggregation query — it only ever sees the document at hand. So the
+ * check lives in the `unarchiveEvent` Cloud Function, and firestore.rules now
+ * DENIES a client write that clears `archived` (by value or by field deletion),
+ * making the callable the only way in.
+ *
+ * The function still removes `archivedAt` rather than setting it false, for the
+ * original reason: a stale timestamp left behind would keep claiming the event
+ * is archived to anything that reads it.
  */
 export async function unarchiveEventDoc(eventId: string): Promise<void> {
-  await updateDoc(doc(db, EVENTS_COLLECTION, eventId), {
-    archived: false,
-    archivedAt: deleteField(),
-    updatedAt: Timestamp.now(),
-  });
+  const fn = httpsCallable<{ eventId: string }, { eventId: string; alreadyActive: boolean }>(
+    functions,
+    'unarchiveEvent',
+  );
+  await fn({ eventId });
 }

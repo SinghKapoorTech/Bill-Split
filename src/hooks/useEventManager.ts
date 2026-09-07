@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
 import {
   collection,
-  addDoc,
   deleteDoc,
   doc,
   query,
   where,
   onSnapshot,
-  Timestamp,
   orderBy,
 } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { TripEvent } from '@/types/event.types';
 import { archiveEventDoc, unarchiveEventDoc } from '@/services/eventArchiveService';
@@ -71,25 +70,36 @@ export function useEventManager() {
     return () => unsubscribe();
   }, [user]);
 
+  /**
+   * Creates an event through the `createEvent` Cloud Function.
+   *
+   * This was a direct `addDoc` until chunk 3. It moved server-side because
+   * creation counts against the free-tier owned-active-group cap, and enforcing
+   * that cap requires COUNTING the owner's active events — an aggregation query
+   * that a Firestore security rule cannot run. `events` now denies client
+   * creates outright, so this callable is the only way in, mirroring how
+   * `createBill` already worked.
+   *
+   * The function is authoritative for ownership and membership: it ignores any
+   * client-supplied ownerId and always adds the caller as owner and member.
+   */
   const createEvent = async (name: string, description?: string, memberIds: string[] = []) => {
     if (!user) {
       throw new Error('Must be logged in to create an event');
     }
 
-    const uniqueMemberIds = Array.from(new Set([user.uid, ...memberIds]));
+    const fn = httpsCallable<
+      { name: string; description: string; memberIds: string[] },
+      { eventId: string }
+    >(functions, 'createEvent');
 
-    const now = Timestamp.now();
-    const eventData = {
+    const result = await fn({
       name,
       description: description || '',
-      createdAt: now,
-      updatedAt: now,
-      ownerId: user.uid,
-      memberIds: uniqueMemberIds,
-    };
+      memberIds,
+    });
 
-    const docRef = await addDoc(collection(db, EVENTS_COLLECTION), eventData);
-    return docRef.id;
+    return result.data.eventId;
   };
 
   const deleteEvent = async (eventId: string) => {

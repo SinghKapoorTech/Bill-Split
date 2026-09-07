@@ -21,7 +21,10 @@
     "android": "npm run build:mobile && cap open android",
     "ci:ios": "CAPACITOR_BUILD=1 npm run build && npx cap sync ios && cd ios/App && pod install && cd .. && npm run cap:ios",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-bill-split-rules \"vitest run --config vitest.rules.config.ts\""
+    "test:rules": "firebase emulators:exec --only firestore --project demo-bill-split-rules \"vitest run --config vitest.rules.config.ts\"",
+    "rc:publish": "node scripts/publish-remote-config.mjs",
+    "test:e2e": "playwright test e2e/",
+    "test:e2e:fast": "playwright test e2e/ --retries=0 --max-failures=1 --timeout=25000 --reporter=line"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^7.3.1",

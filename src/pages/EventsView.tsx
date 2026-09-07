@@ -21,6 +21,7 @@ import { useEventInvites } from '@/hooks/useEventInvites';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { partitionEvents } from '@shared/eventArchive';
+import { messageForCallableError } from '@/utils/callableError';
 
 export default function EventsView() {
   const navigate = useNavigate();
@@ -91,9 +92,14 @@ export default function EventsView() {
       setDialogOpen(false);
       navigateWithOrigin(navigate, location, `/events/${newEventId}`);
     } catch (error) {
+      console.error('Failed to create event', error);
       toast({
         title: 'Error',
-        description: 'Failed to create event. Please try again.',
+        // Same reason as unarchive: when the group cap blocks creation the
+        // server message is the offer itself, and it leads with the free escape
+        // hatch. A generic "please try again" would send the user in a loop
+        // against a limit that will never clear on retry.
+        description: messageForCallableError(error, 'Failed to create event. Please try again.'),
         variant: 'destructive',
       });
     }
@@ -140,7 +146,11 @@ export default function EventsView() {
       console.error('Failed to unarchive event', error);
       toast({
         title: 'Error',
-        description: 'Failed to restore event. Please try again.',
+        // The group cap writes its message server-side to be read verbatim, and
+        // it must lead with the FREE way out ("Archive one you're finished
+        // with") before mentioning Pro — spec §4.3.1. Swallowing it into a
+        // generic retry message would hide the only actionable instruction.
+        description: messageForCallableError(error, 'Failed to restore event. Please try again.'),
         variant: 'destructive',
       });
     }

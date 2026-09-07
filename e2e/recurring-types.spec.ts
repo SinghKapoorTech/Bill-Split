@@ -95,11 +95,18 @@ test.describe("Recurring bill types", () => {
 
     // Review → Create
     await page.getByRole("button", { name: "Create", exact: true }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+    await page.waitForURL(/\/bills/, { timeout: 15000 });
 
     // Bills page shows it, tagged Detailed
     await page.goto("/bills");
     await page.waitForURL(/\/bills/, { timeout: 15000 });
+    // Recurring TEMPLATES are deliberately excluded from the default "all"
+    // filter — billFilters.ts:34 `recurringMatchesFilter` returns
+    // `filter === 'recurring'`, and BillsView.tsx:309-313 says so outright
+    // ("Your recurring bills live in the Recurring tab."). Landing on /bills
+    // under "all" therefore shows ZERO templates, which is why four specs
+    // asserted on a title that resolved to 0 elements. Select the tab first.
+    await page.getByRole('tab', { name: 'Recurring' }).click();
     const row = page.getByText("Monthly Supplies");
     await expect(row.first()).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/Detailed/).first()).toBeVisible();

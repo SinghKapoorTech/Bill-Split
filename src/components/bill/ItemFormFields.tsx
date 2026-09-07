@@ -62,6 +62,10 @@ export function ItemFormFields({
               type="number"
               inputMode="decimal"
               placeholder={FORM_LABELS.PRICE_PLACEHOLDER}
+              // Same logical field as the card layout below — BOTH variants
+              // carry the id, because which one renders depends on viewport
+              // (table = desktop, card = mobile) and e2e runs at desktop width.
+              data-testid="item-price-input"
               value={itemPrice}
               onChange={(e) => onPriceChange(e.target.value)}
               onKeyPress={(e) => handleKeyPress(e, !!canSubmit)}
@@ -78,6 +82,14 @@ export function ItemFormFields({
               size="sm"
               variant={mode === 'edit' ? 'ghost' : 'success'}
               onClick={onSave}
+              // Icon-only button: without an explicit name it has NO accessible
+              // name, which is both an a11y defect and why the e2e helper's
+              // `getByRole('button', { name: /add$/i })` matched nothing here
+              // and hung four specs until the 90s test timeout.
+              aria-label={mode === 'add' ? 'Add' : 'Save'}
+              // Stable hook, same rationale as `item-price-input` above: role+name
+              // is copy-coupled and has already rotted once.
+              data-testid="item-confirm-button"
             >
               <Check className={`w-4 h-4 ${mode === 'edit' ? 'text-success' : ''}`} />
             </Button>
@@ -85,6 +97,8 @@ export function ItemFormFields({
               size="sm"
               variant={mode === 'edit' ? 'ghost' : 'outline'}
               onClick={onCancel}
+              aria-label="Cancel"
+              data-testid="item-cancel-button"
             >
               <X className={`w-4 h-4 ${mode === 'edit' ? 'text-muted-foreground' : ''}`} />
             </Button>
@@ -123,6 +137,11 @@ export function ItemFormFields({
               type="number"
               inputMode="decimal"
               placeholder="0.00"
+              // Stable hook for e2e. `getByPlaceholder('0.00')` used to identify
+              // this field, but the bill page now has four such inputs (tax, tip
+              // and otherFees in BillSummary), so that selector broke with a
+              // strict-mode violation and took 8 tests down with it.
+              data-testid="item-price-input"
               value={itemPrice}
               onChange={(e) => onPriceChange(e.target.value)}
               onKeyPress={(e) => handleKeyPress(e, !!canSubmit)}
@@ -135,11 +154,23 @@ export function ItemFormFields({
       </div>
       {/* Compact action buttons */}
       <div className="flex gap-1.5">
-        <Button variant="success" size="sm" className="flex-1 h-8" onClick={onSave}>
+        <Button
+          variant="success"
+          size="sm"
+          className="flex-1 h-8"
+          onClick={onSave}
+          data-testid="item-confirm-button"
+        >
           <Check className="w-3.5 h-3.5 mr-1" />
           {mode === 'add' ? 'Add' : 'Save'}
         </Button>
-        <Button variant="outline" size="sm" className="flex-1 h-8" onClick={onCancel}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 h-8"
+          onClick={onCancel}
+          data-testid="item-cancel-button"
+        >
           <X className="w-3.5 h-3.5 mr-1" />
           Cancel
         </Button>

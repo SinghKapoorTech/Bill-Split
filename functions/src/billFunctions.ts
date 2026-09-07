@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { calculatePersonTotals } from '../../shared/calculations.js';
+import { isEventArchived, type ArchivableEvent } from '../../shared/eventArchive.js';
 import {
   getFriendBalanceId,
   calculateFriendFootprint,
@@ -10,6 +11,7 @@ import {
 } from '../../shared/ledgerCalculations.js';
 
 const BILLS_COLLECTION = 'bills';
+const EVENTS_COLLECTION = 'events';
 
 /**
  * Normalizes a bill-local person id (`user-<uid>`) to a raw Firebase UID.
@@ -49,6 +51,26 @@ export interface CreateBillCoreParams {
   /** Extra fields merged into the bill document (e.g. recurringBillId). */
   extraFields?: Record<string, unknown>;
   /**
+   * Set ONLY by a caller that has already applied its own archived-event policy.
+   *
+   * Exists because the two callers need genuinely different FAILURE semantics,
+   * not because the check is optional:
+   *
+   *  - The `createBill` callable is client-reachable and a human is present, so
+   *    an unknown fails CLOSED — an unreadable or missing event blocks the write
+   *    rather than risking a bill in a closed event.
+   *  - `recurringBillProcessor` runs unattended, where SILENCE IS THE WORST
+   *    OUTCOME. It pauses a template aimed at an archived event and records
+   *    `pausedReason`, but deliberately fails OPEN on a missing event or a
+   *    failed read: a rent split that vanishes without explanation is worse
+   *    than one that generates into a stale event. That policy is tested in
+   *    `recurringArchivedEvent.int.test.ts`.
+   *
+   * Defaults to enforcing, so any future caller inherits the safe behaviour and
+   * has to opt out on purpose.
+   */
+  eventArchiveAlreadyChecked?: boolean;
+  /**
    * Explicit document ID. When supplied the bill is written with `create()`,
    * so a concurrent caller attempting the same ID fails with ALREADY_EXISTS
    * instead of silently minting a duplicate. Used by recurring generation to
@@ -76,8 +98,45 @@ export async function createBillCore(db: Firestore, params: CreateBillCoreParams
     isSimpleTransaction = false,
     itemAssignments = {},
     extraFields = {},
+    eventArchiveAlreadyChecked = false,
     billId: explicitBillId,
   } = params;
+
+  // C-01: reject non-finite / negative / absurd money BEFORE it is persisted.
+  // The SERVER-SIDE half of the archive soft-lock (spec §4.2.1). Chunk 2 closed
+  // the client routes; this closes the write itself.
+  //
+  // It lives in the CORE, not in the `createBill` callable, because the core is
+  // the single funnel every server-side creation path goes through — the
+  // callable, the recurring processor, and anything added later. A check in the
+  // callable alone would be bypassed by the next caller someone writes.
+  //
+  // This is what makes the free-tier group cap mean anything: archiving is what
+  // frees a slot, so an archive that still accepts bills reduces the cap to
+  // "archive both events, keep using them, create two more".
+  //
+  // Scoped to CREATION only. Existing bills, their balances, and settling up are
+  // untouched — a person must never be blocked from paying someone back.
+  if (eventId && !eventArchiveAlreadyChecked) {
+    const eventSnap = await db.collection(EVENTS_COLLECTION).doc(eventId).get();
+    if (!eventSnap.exists) {
+      // Distinct from the archived case on purpose: a deleted event and a closed
+      // one are different problems, and reporting "archived" for a dangling id
+      // would send someone hunting for an Unarchive button that cannot exist.
+      throw new HttpsError('not-found', 'Event not found');
+    }
+    // `isEventArchived` is the single arbiter across client and server: ONLY a
+    // literal `true` archives. A MISSING field means ACTIVE — the state of every
+    // event nobody has archived — and a non-boolean truthy value from a bad
+    // write must not silently lock an event its owner never closed. Do not
+    // inline an `archived === true` check here or anywhere else.
+    if (isEventArchived(eventSnap.data() as ArchivableEvent)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'This event is archived and cannot accept new bills. Unarchive it to add bills again.',
+      );
+    }
+  }
 
   const billRef = explicitBillId
     ? db.collection(BILLS_COLLECTION).doc(explicitBillId)
@@ -174,6 +233,10 @@ export async function createBillCore(db: Firestore, params: CreateBillCoreParams
       updatedAt: now,
       lastActivity: now,
       processedBalances: newFootprint,
+      // The footprint MUST carry the anchor it was computed under. Without it
+      // the bill is born in the "legacy" state ledgerProcessor.ts:273 warns
+      // about: the pipeline recomputes an identical footprint, so
+      // applyFriendLedger early-returns on empty deltas (:314) before the stamp
       _ledgerVersion: 1,
       ...extraFields,
     };
@@ -654,9 +717,7 @@ export async function claimShadowUserCore(
 
     let unsettledParticipantIds = billData.unsettledParticipantIds || [];
     if (unsettledParticipantIds.includes(shadowUserId)) {
-      unsettledParticipantIds = unsettledParticipantIds.filter(
-        (id: string) => id !== shadowUserId,
-      );
+      unsettledParticipantIds = unsettledParticipantIds.filter((id: string) => id !== shadowUserId);
       if (!unsettledParticipantIds.includes(realUserId)) unsettledParticipantIds.push(realUserId);
     }
 

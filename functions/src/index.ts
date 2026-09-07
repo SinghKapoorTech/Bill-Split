@@ -19,6 +19,10 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { reserveScanSlot, recordScanOutcome } from './scanRateLimiter.js';
+import { checkScanQuota, commitScanQuotaUsage } from './scanQuotaLimiter.js';
+import { getMonetizationLimits } from './remoteConfigLimits.js';
+import { getEffectiveEntitlement } from './entitlementService.js';
+import type { ScanQuotaDecision } from '../../shared/scanQuota.js';
 import { describeDuration, describeWindow } from '../../shared/scanRateLimit.js';
 import {
   MAX_RECEIPT_AMOUNT,
@@ -199,6 +203,90 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
         'resource-exhausted',
         `Too many scans. You can scan up to ${rate.effectiveLimit} receipts per ${describeWindow(rate.effectiveWindowMs)}. Try again in ${describeDuration(rate.retryAfterMs)}.`,
       );
+    }
+
+    // ── Monthly free-tier scan quota (spec §4.2, §5.4) ────────────────────
+    //
+    // A DIFFERENT MECHANISM from the hourly limiter above, and the two must not
+    // be merged. That one is anti-abuse, applies to Pro too, and KEEPS the slot
+    // on failure so "deliberately error to scan for free" is closed. This one is
+    // the business cap: checked here, and consumed only after a scan actually
+    // succeeds, so a failed scan never costs the user one of their five.
+    //
+    // Checked BEFORE the Gemini call — never after. Blocking someone once the
+    // receipt has been framed, photographed and uploaded is infuriating, and
+    // paying for a Gemini call we then refuse is worse.
+    //
+    // This is ENFORCEMENT ONLY. Spec §4.3.1 also requires the scan entry point
+    // to be VISIBLY gated at zero so the user never frames a photo they cannot
+    // spend — that UI is chunk 6 and does not exist yet. Until it does, a free
+    // user at their limit meets this error at the moment they submit, which is
+    // exactly the experience §4.3.1 calls the worst conversion moment there is.
+    // That is survivable only because enforcement ships DARK.
+    //
+    // Order matters: the abuse limiter runs FIRST so that an attacker cannot use
+    // quota rejections as a free, unlimited oracle.
+    let quota: (ScanQuotaDecision & { degraded: boolean }) | null = null;
+    try {
+      // Parallel: independent reads, both on the hot path of a paid call.
+      const [limits, entitlement] = await Promise.all([
+        getMonetizationLimits(),
+        getEffectiveEntitlement(uid),
+      ]);
+
+      // Pro and Trip Pass have unlimited scans. Skip the read entirely — a
+      // paying user should never pay latency for a limit that cannot apply.
+      if (!entitlement.unlimited) {
+        const decision = await checkScanQuota(uid, limits.freeScansPerMonth);
+
+        if (!decision.allowed) {
+          if (limits.paywallEnabled) {
+            // `resource-exhausted` so the client mapper passes this message
+            // through VERBATIM. Under `internal` it would render as
+            // "Failed to analyze receipt: You've used all 5..." — framing an
+            // offer as a server bug.
+            throw new HttpsError(
+              'resource-exhausted',
+              `You've used all ${decision.limit} free scans this month. ` +
+                // Prose, not an ISO date. "resets on 2026-10-01" reads like a log
+              // line; spec §4.3.1 wants the reset date to make the cap feel like
+              // a rhythm rather than a wall. UTC because the period boundary is
+              // UTC — rendering it in the server's local zone could name the
+              // wrong day.
+              `Your scans reset on ${new Date(decision.resetsAtMs).toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                timeZone: 'UTC',
+              })}. ` +
+                `Upgrade to Pro for unlimited scanning.`,
+            );
+          }
+          // DARK: evaluate, log, allow. This line is how the cap gets tuned
+          // before it is ever enforced — it says how many real users would
+          // have been stopped, and at what count.
+          logger.info('analyzeBill: scan quota would block (enforcement dark)', {
+            uid,
+            used: decision.used,
+            limit: decision.limit,
+            plan: entitlement.plan,
+          });
+        }
+
+        // Held for the commit on the success path below. Committing here would
+        // charge the user for a scan that has not happened yet.
+        quota = decision;
+      }
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      // FAILS OPEN, unlike the abuse limiter above. This is a business cap, not
+      // a security control, and the abuse limiter has already bounded the blast
+      // radius at 30 scans/hour. Locking a user out of the product over a
+      // bookkeeping read is the strictly worse failure.
+      logger.error('analyzeBill: scan quota check failed, allowing scan', {
+        uid,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      quota = null;
     }
 
     try {
@@ -423,6 +511,14 @@ Rules:
       // One good scan clears the slate immediately — the guidance is about a run
       // of failures, not a lifetime tally.
       await recordScanOutcome(uid, 'success');
+
+      // Consume one monthly scan — ONLY here, on the success path. Every failure
+      // route below returns without reaching this line, which is precisely what
+      // makes a failed scan free (spec §4.3.1). `quota` is null for unlimited
+      // plans and when the check itself failed open; both correctly skip it.
+      if (quota) {
+        await commitScanQuotaUsage(uid, quota);
+      }
 
       return billData;
     } catch (error) {
@@ -718,6 +814,16 @@ export {
   updateGuestName,
   claimShadowUser,
 } from './billFunctions.js';
+
+/**
+ * Cloud Functions: Event creation and unarchiving
+ *
+ * Both moved server-side so the free-tier owned-active-group cap can be
+ * enforced — the cap requires COUNTING documents, which a Firestore security
+ * rule cannot do. Archiving deliberately stays a direct client write: it frees
+ * a slot and must never be blocked. See eventFunctions.ts.
+ */
+export { createEvent, unarchiveEvent } from './eventFunctions.js';
 
 /**
  * Cloud Function: Recurring Bill Processor

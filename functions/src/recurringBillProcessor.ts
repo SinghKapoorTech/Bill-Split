@@ -329,6 +329,14 @@ async function generateForTemplate(
           ownerName: template.ownerName,
           paidById: template.paidById,
           eventId: template.eventId,
+          // This processor has ALREADY applied the archive policy above — and a
+          // deliberately different one: it pauses on a confirmed archive but
+          // fails OPEN on a missing event or a failed read, because an
+          // unattended rent split that vanishes silently is worse than one that
+          // generates into a stale event. Letting the core re-check here would
+          // override that with its own fail-closed policy and reintroduce the
+          // silent stop. See CreateBillCoreParams.eventArchiveAlreadyChecked.
+          eventArchiveAlreadyChecked: true,
           status: 'active',
           splitEvenly: template.splitEvenly,
           isSimpleTransaction: generatedType === 'quick',

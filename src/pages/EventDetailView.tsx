@@ -28,6 +28,7 @@ import { User } from 'firebase/auth';
 import { isEventArchived } from '@shared/eventArchive';
 import { formatShortDate } from '@/utils/format';
 import { unarchiveEventDoc } from '@/services/eventArchiveService';
+import { messageForCallableError } from '@/utils/callableError';
 
 // Firestore collection name
 const EVENTS_COLLECTION = 'events';
@@ -428,7 +429,10 @@ export default function EventDetailView() {
       console.error('Failed to unarchive event', error);
       toast({
         title: 'Error',
-        description: 'Failed to restore event. Please try again.',
+        // The group cap's message IS the offer, and it leads with the free way
+        // out. Same reasoning as EventsView — see src/utils/callableError.ts.
+        // This is the SECOND unarchive entry point; both must surface it.
+        description: messageForCallableError(error, 'Failed to restore event. Please try again.'),
         variant: 'destructive',
       });
     } finally {

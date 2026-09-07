@@ -1,13 +1,25 @@
 import { execSync } from 'child_process';
 import { chromium } from '@playwright/test';
 
+/**
+ * Both emulators the suite needs must be up, not just Firestore.
+ *
+ * Probing 8081 alone meant a firestore-only emulator left running from another
+ * task counted as "ready", so the setup below was skipped and the FUNCTIONS
+ * emulator never started — reintroducing exactly the failure this check exists
+ * to prevent, and only when someone happened to have an emulator open.
+ */
 function isEmulatorRunning(): boolean {
-  try {
-    execSync('curl -s http://localhost:8081', { timeout: 2000 });
-    return true;
-  } catch {
-    return false;
-  }
+  const up = (url: string) => {
+    try {
+      execSync(`curl -s ${url}`, { timeout: 2000 });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  // 8081 = firestore, 5001 = functions (callables: createEvent, createBill, …)
+  return up('http://localhost:8081') && up('http://localhost:5001');
 }
 
 /**
@@ -36,8 +48,25 @@ async function globalSetup() {
   } else {
     console.log('Starting Firebase emulators...');
     const env = { ...process.env, PATH: `/opt/homebrew/opt/openjdk/bin:${process.env.PATH}` };
+
+    // FUNCTIONS IS REQUIRED, not optional. Event creation and unarchiving are
+    // Cloud Function callables (`createEvent` / `unarchiveEvent`) — firestore.rules
+    // denies the direct client writes they replaced — so without the functions
+    // emulator every event-creation test fails with an opaque
+    // `page.waitForURL` timeout rather than anything naming the real cause.
+    // `createBill` and `analyzeBill` are callables too.
+    //
+    // The emulator serves functions from functions/lib, so the build must be
+    // current; a stale lib silently runs yesterday's code.
+    execSync('npm --prefix functions run build', {
+      cwd: process.cwd(),
+      env,
+      stdio: 'ignore',
+      shell: '/bin/zsh',
+    });
+
     execSync(
-      'firebase emulators:start --only auth,firestore &',
+      'firebase emulators:start --only auth,firestore,functions &',
       { cwd: process.cwd(), env, stdio: 'ignore', shell: '/bin/zsh' }
     );
 

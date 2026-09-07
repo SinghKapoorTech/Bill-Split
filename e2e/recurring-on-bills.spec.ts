@@ -40,13 +40,23 @@ test.describe('Recurring bills on the Bills page', () => {
     await expect(page.getByText(/Schedule/)).toBeVisible({ timeout: 10000 });
     await page.getByRole('button', { name: 'Create', exact: true }).click();
 
-    // Creation is async and routes to /dashboard on success — wait for it so the
+    // Creation is async and routes to /bills on success — wait for it so the
     // recurring bill is actually persisted before we navigate away.
-    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+    // (It routed to /dashboard once; all three recurring wizards now navigate to
+    // '/bills' — RecurringQuickWizard.tsx:268, RecurringDetailedWizard.tsx:227,
+    // RecurringAirbnbWizard.tsx:215. Waiting on /dashboard hung four specs for 15s.)
+    await page.waitForURL(/\/bills/, { timeout: 15000 });
 
     // ── Now go to the Bills page and assert the recurring bill is shown ──
     await page.goto('/bills');
     await page.waitForURL(/\/bills/, { timeout: 15000 });
+    // Recurring TEMPLATES are deliberately excluded from the default "all"
+    // filter — billFilters.ts:34 `recurringMatchesFilter` returns
+    // `filter === 'recurring'`, and BillsView.tsx:309-313 says so outright
+    // ("Your recurring bills live in the Recurring tab."). Landing on /bills
+    // under "all" therefore shows ZERO templates, which is why four specs
+    // asserted on a title that resolved to 0 elements. Select the tab first.
+    await page.getByRole('tab', { name: 'Recurring' }).click();
 
     const recurringRow = page.getByText('Spotify Family');
     await expect(recurringRow.first()).toBeVisible({ timeout: 15000 });
@@ -76,14 +86,31 @@ test.describe('Recurring bills on the Bills page', () => {
     await page.getByRole('button', { name: 'Next' }).click();
     await page.getByRole('button', { name: 'Next' }).click();
     await page.getByRole('button', { name: 'Create', exact: true }).click();
-    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+    await page.waitForURL(/\/bills/, { timeout: 15000 });
 
     // On the Bills page it shows with a delete button.
     await page.goto('/bills');
     await page.waitForURL(/\/bills/, { timeout: 15000 });
+    // Recurring TEMPLATES are deliberately excluded from the default "all"
+    // filter — billFilters.ts:34 `recurringMatchesFilter` returns
+    // `filter === 'recurring'`, and BillsView.tsx:309-313 says so outright
+    // ("Your recurring bills live in the Recurring tab."). Landing on /bills
+    // under "all" therefore shows ZERO templates, which is why four specs
+    // asserted on a title that resolved to 0 elements. Select the tab first.
+    await page.getByRole('tab', { name: 'Recurring' }).click();
     await expect(page.getByText('Netflix Premium', { exact: true })).toHaveCount(1, { timeout: 15000 });
 
-    const deleteBtn = page.getByRole('button', { name: 'Delete recurring bill Netflix Premium' });
+    // `exact: true` is REQUIRED here. Playwright matches accessible names by
+    // substring by default, and MobileRecurringBillCard nests this delete button
+    // inside the card, which is ITSELF a button — so the card's computed name is
+    // "Netflix Premium Active $22.99 • Quick • Monthly Delete recurring bill
+    // Netflix Premium", which CONTAINS the label below. Without `exact` the
+    // locator resolves to 2 elements (card + button) and fails strict mode.
+    // Only one card is rendered; this was never a duplicate-render bug.
+    const deleteBtn = page.getByRole('button', {
+      name: 'Delete recurring bill Netflix Premium',
+      exact: true,
+    });
     await expect(deleteBtn).toBeVisible({ timeout: 10000 });
     await deleteBtn.click();
 
