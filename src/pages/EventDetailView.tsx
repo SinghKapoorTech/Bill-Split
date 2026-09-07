@@ -1,39 +1,36 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { navigateWithOrigin, useReturnTo } from "@/hooks/useReturnTo";
-import { ArrowLeft, Receipt, UserPlus, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { InviteMembersDialog } from "@/components/events/InviteMembersDialog";
-import { ManageEventMembersDialog } from "@/components/events/ManageEventMembersDialog";
-import { CreateOptionsDialog } from "@/components/layout/CreateOptionsDialog";
-import { doc, onSnapshot, updateDoc, arrayRemove } from "firebase/firestore";
-import { db } from "@/config/firebase";
-import { TripEvent } from "@/types/event.types";
-import { Bill } from "@/types";
-import { NAVIGATION } from "@/utils/uiConstants";
-import { Zap } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
-import { billService } from "@/services/billService";
-import { userService } from "@/services/userService";
-import MobileBillCard from "@/components/dashboard/MobileBillCard";
-import { useBillContext } from "@/contexts/BillSessionContext";
-import { useEventLedger } from "@/hooks/useEventLedger";
-import { OptimizedDebt } from "@/services/eventLedgerService";
-import {
-  SettleUpModal,
-  SettleTarget,
-} from "@/components/settlements/SettleUpModal";
-import {
-  BalanceListRow,
-  BalanceDirection,
-} from "@/components/shared/BalanceListRow";
-import { UserProfile } from "@/types/person.types";
-import { User } from "firebase/auth";
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { navigateWithOrigin, useReturnTo } from '@/hooks/useReturnTo';
+import { ArrowLeft, Archive, ArchiveRestore, Receipt, UserPlus, ChevronDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { InviteMembersDialog } from '@/components/events/InviteMembersDialog';
+import { ManageEventMembersDialog } from '@/components/events/ManageEventMembersDialog';
+import { CreateOptionsDialog } from '@/components/layout/CreateOptionsDialog';
+import { doc, onSnapshot, updateDoc, arrayRemove } from 'firebase/firestore';
+import { db } from '@/config/firebase';
+import { TripEvent } from '@/types/event.types';
+import { Bill } from '@/types';
+import { NAVIGATION } from '@/utils/uiConstants';
+import { Zap } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { billService } from '@/services/billService';
+import { userService } from '@/services/userService';
+import MobileBillCard from '@/components/dashboard/MobileBillCard';
+import { useBillContext } from '@/contexts/BillSessionContext';
+import { useEventLedger } from '@/hooks/useEventLedger';
+import { OptimizedDebt } from '@/services/eventLedgerService';
+import { SettleUpModal, SettleTarget } from '@/components/settlements/SettleUpModal';
+import { BalanceListRow, BalanceDirection } from '@/components/shared/BalanceListRow';
+import { UserProfile } from '@/types/person.types';
+import { User } from 'firebase/auth';
+import { isEventArchived } from '@shared/eventArchive';
+import { formatShortDate } from '@/utils/format';
+import { unarchiveEventDoc } from '@/services/eventArchiveService';
 
 // Firestore collection name
-const EVENTS_COLLECTION = "events";
+const EVENTS_COLLECTION = 'events';
 
 function formatShortName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -58,17 +55,13 @@ function resolveDebtNames(
     for (const bill of eventBills) {
       if (!fromName) {
         const p = bill.people?.find(
-          (person) =>
-            person.id === debt.fromUserId ||
-            person.id === `user-${debt.fromUserId}`,
+          (person) => person.id === debt.fromUserId || person.id === `user-${debt.fromUserId}`,
         );
         if (p) fromName = p.name;
       }
       if (!toName) {
         const p = bill.people?.find(
-          (person) =>
-            person.id === debt.toUserId ||
-            person.id === `user-${debt.toUserId}`,
+          (person) => person.id === debt.toUserId || person.id === `user-${debt.toUserId}`,
         );
         if (p) toName = p.name;
       }
@@ -76,7 +69,7 @@ function resolveDebtNames(
     }
   }
 
-  return { fromName: fromName || "Unknown", toName: toName || "Unknown" };
+  return { fromName: fromName || 'Unknown', toName: toName || 'Unknown' };
 }
 
 function EventBalancesSection({
@@ -99,21 +92,17 @@ function EventBalancesSection({
   const [showOtherBalances, setShowOtherBalances] = useState(false);
 
   const renderDebtRow = (debt: OptimizedDebt, idx: number) => {
-    const { fromName, toName } = resolveDebtNames(
-      debt,
-      memberProfiles,
-      eventBills,
-    );
+    const { fromName, toName } = resolveDebtNames(debt, memberProfiles, eventBills);
 
     const isCurrentUserPaying = user?.uid === debt.fromUserId;
     const isCurrentUserReceiving = user?.uid === debt.toUserId;
     const isCurrentUserInvolved = isCurrentUserPaying || isCurrentUserReceiving;
 
     const direction: BalanceDirection = isCurrentUserPaying
-      ? "you-owe"
+      ? 'you-owe'
       : isCurrentUserReceiving
-        ? "owes-you"
-        : "neutral";
+        ? 'owes-you'
+        : 'neutral';
 
     // Resolve friend photo from member profiles
     const friendUserId = isCurrentUserPaying
@@ -121,9 +110,7 @@ function EventBalancesSection({
       : isCurrentUserReceiving
         ? debt.fromUserId
         : undefined;
-    const friendPhoto = friendUserId
-      ? memberProfiles[friendUserId]?.photoURL
-      : undefined;
+    const friendPhoto = friendUserId ? memberProfiles[friendUserId]?.photoURL : undefined;
 
     return (
       <BalanceListRow
@@ -136,13 +123,11 @@ function EventBalancesSection({
         action={
           isCurrentUserInvolved
             ? {
-                label: isCurrentUserPaying ? "Pay" : "Settle",
-                variant: isCurrentUserPaying ? "default" : "secondary",
+                label: isCurrentUserPaying ? 'Pay' : 'Settle',
+                variant: isCurrentUserPaying ? 'default' : 'secondary',
                 onClick: () => {
                   setSettleTarget({
-                    userId: isCurrentUserPaying
-                      ? debt.toUserId
-                      : debt.fromUserId,
+                    userId: isCurrentUserPaying ? debt.toUserId : debt.fromUserId,
                     name: isCurrentUserPaying ? toName : fromName,
                     amount: debt.amount,
                     isPaying: isCurrentUserPaying,
@@ -153,9 +138,7 @@ function EventBalancesSection({
             : undefined
         }
         onClick={() => {
-          const targetUser = isCurrentUserPaying
-            ? debt.toUserId
-            : debt.fromUserId;
+          const targetUser = isCurrentUserPaying ? debt.toUserId : debt.fromUserId;
           if (user && targetUser) {
             navigate(`/events/${eventId}/balances/${targetUser}`, {
               state: {
@@ -212,13 +195,13 @@ function EventBalancesSection({
                 >
                   <ChevronDown
                     className={`w-4 h-4 transition-transform ${
-                      showOtherBalances ? "rotate-180" : ""
+                      showOtherBalances ? 'rotate-180' : ''
                     }`}
                   />
                   {showOtherBalances
-                    ? "Hide other balances"
+                    ? 'Hide other balances'
                     : `Show ${otherDebts.length} other balance${
-                        otherDebts.length === 1 ? "" : "s"
+                        otherDebts.length === 1 ? '' : 's'
                       }`}
                 </button>
 
@@ -248,29 +231,19 @@ export default function EventDetailView() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [manageMembersDialogOpen, setManageMembersDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [isUnarchiving, setIsUnarchiving] = useState(false);
   const [eventBills, setEventBills] = useState<Bill[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const { optimizedDebts, loading: ledgerLoading } = useEventLedger(
-    eventId || "",
-    eventBills,
-  );
-  const [memberProfiles, setMemberProfiles] = useState<
-    Record<string, UserProfile>
-  >({});
+  const { optimizedDebts, loading: ledgerLoading } = useEventLedger(eventId || '', eventBills);
+  const [memberProfiles, setMemberProfiles] = useState<Record<string, UserProfile>>({});
 
   // Settlement state
   const [settleTarget, setSettleTarget] = useState<SettleTarget | null>(null);
 
   // Need to bring in session methods to resume/delete from the list
-  const {
-    deleteSession,
-    resumeSession,
-    activeSession,
-    isDeleting,
-    isResuming,
-  } = useBillContext();
+  const { deleteSession, resumeSession, activeSession, isDeleting, isResuming } = useBillContext();
 
   const handleDeleteBill = async (bill: Bill) => {
     await deleteSession(bill.id, bill.receiptFileName);
@@ -334,6 +307,14 @@ export default function EventDetailView() {
             ownerId: data.ownerId,
             memberIds: data.memberIds || [],
             pendingInvites: data.pendingInvites || [],
+            // Carry the archive state through. Dropping it here is what let an
+            // archived event opened from the drawer look and behave completely
+            // normal — the list filtered it out, but this page never knew.
+            // Spread conditionally rather than defaulting to `false` so the
+            // object stays faithful to the stored document and
+            // isEventArchived() remains the single arbiter.
+            ...(data.archived === true ? { archived: true } : {}),
+            ...(data.archivedAt ? { archivedAt: data.archivedAt } : {}),
           });
         } else {
           setEvent(null);
@@ -341,21 +322,16 @@ export default function EventDetailView() {
         setLoading(false);
       },
       (error) => {
-        console.error("Error fetching event:", error);
+        console.error('Error fetching event:', error);
         setLoading(false);
       },
     );
 
     // Subscribe to bills
-    const unsubscribeBills = billService.subscribeBillsByEvent(
-      eventId,
-      (bills) => {
-        // user?.uid: if user is null (auth race), defaults to undefined which hides all drafts — safe fallback.
-        setEventBills(
-          bills.filter((b) => b.status !== "draft" || b.ownerId === user?.uid),
-        );
-      },
-    );
+    const unsubscribeBills = billService.subscribeBillsByEvent(eventId, (bills) => {
+      // user?.uid: if user is null (auth race), defaults to undefined which hides all drafts — safe fallback.
+      setEventBills(bills.filter((b) => b.status !== 'draft' || b.ownerId === user?.uid));
+    });
 
     return () => {
       unsubscribe();
@@ -412,30 +388,70 @@ export default function EventDetailView() {
       });
 
       toast({
-        title: "Success",
-        description: "Member removed from event.",
+        title: 'Success',
+        description: 'Member removed from event.',
       });
 
       // If the current user removed themselves, redirect out
       if (memberIdToRemove === user?.uid) {
-        navigate("/events");
+        navigate('/events');
       }
     } catch (error) {
-      console.error("Failed to remove member:", error);
+      console.error('Failed to remove member:', error);
       toast({
-        title: "Error",
-        description: "Failed to remove member. Please try again.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to remove member. Please try again.',
+        variant: 'destructive',
       });
+    }
+  };
+
+  /**
+   * Unarchive is owner-only, matching firestore.rules (members are confined to
+   * memberIds/pendingInvites/updatedAt, so a member's write would be denied).
+   * The control is hidden for non-owners rather than offered and failing.
+   *
+   * No local state update: the event's onSnapshot listener is already live, so
+   * the banner and the create affordances come back on their own.
+   */
+  const handleUnarchiveEvent = async () => {
+    if (!user || !eventId) return;
+
+    setIsUnarchiving(true);
+    try {
+      await unarchiveEventDoc(eventId);
+      toast({
+        title: 'Event restored',
+        description: `${event?.name ?? 'The event'} is active again.`,
+      });
+    } catch (error) {
+      console.error('Failed to unarchive event', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to restore event. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUnarchiving(false);
     }
   };
 
   const handleCreateEventBill = async () => {
     if (!user || !event) {
       toast({
-        title: "Error",
-        description: "You must be logged in to create a bill",
-        variant: "destructive",
+        title: 'Error',
+        description: 'You must be logged in to create a bill',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Belt and braces: the affordances are hidden while archived, but this
+    // handler must not become the way back in if one is ever re-exposed.
+    if (isEventArchived(event)) {
+      toast({
+        title: 'Event archived',
+        description: 'Restore this event before adding new bills to it.',
       });
       return;
     }
@@ -443,18 +459,14 @@ export default function EventDetailView() {
     // Instead of eager creation, we navigate to the draft view.
     // We pass the eventId in navigation state so the bill session knows
     // to attach this event context when it finally JIT creates the document.
-    navigateWithOrigin(navigate, location, "/bill/new", {
+    navigateWithOrigin(navigate, location, '/bill/new', {
       targetEventId: event.id,
       targetEventName: event.name,
     });
   };
 
   if (loading) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        Loading event...
-      </div>
-    );
+    return <div className="text-center py-12 text-muted-foreground">Loading event...</div>;
   }
 
   if (!event) {
@@ -463,12 +475,18 @@ export default function EventDetailView() {
         <p className="text-muted-foreground mb-4">Event not found.</p>
         {/* Label names an explicit destination, so it must not follow the
             recorded origin — keep it honest by going where it says. */}
-        <Button onClick={() => navigate("/events")}>
-          {NAVIGATION.BACK_TO_EVENTS}
-        </Button>
+        <Button onClick={() => navigate('/events')}>{NAVIGATION.BACK_TO_EVENTS}</Button>
       </div>
     );
   }
+
+  // Archive is a SOFT lock: it blocks new bills and nothing else. Viewing the
+  // event, viewing and editing existing bills, and above all SETTLING UP stay
+  // fully available and visibly unchanged — a person must never be blocked from
+  // paying someone back.
+  const archived = isEventArchived(event);
+  const isEventOwner = user?.uid === event.ownerId;
+  const archivedOn = archived ? formatShortDate(event.archivedAt) : null;
 
   return (
     <div className="h-full flex flex-col max-w-7xl mx-auto">
@@ -509,36 +527,48 @@ export default function EventDetailView() {
             >
               {(() => {
                 const rawNames = event.memberIds
-                  .map(
-                    (id) =>
-                      memberProfiles[id]?.displayName ||
-                      memberProfiles[id]?.username,
-                  )
+                  .map((id) => memberProfiles[id]?.displayName || memberProfiles[id]?.username)
                   .filter((name): name is string => Boolean(name));
 
                 const shortVersions = rawNames.map(formatShortName);
                 const counts = new Map<string, number>();
-                shortVersions.forEach((s) =>
-                  counts.set(s, (counts.get(s) || 0) + 1),
-                );
+                shortVersions.forEach((s) => counts.set(s, (counts.get(s) || 0) + 1));
 
                 return (
                   rawNames
-                    .map((full, i) =>
-                      counts.get(shortVersions[i])! > 1
-                        ? full
-                        : shortVersions[i],
-                    )
-                    .join(", ") || "..."
+                    .map((full, i) => (counts.get(shortVersions[i])! > 1 ? full : shortVersions[i]))
+                    .join(', ') || '...'
                 );
               })()}
             </button>
           )}
         </div>
         {event.description && (
-          <p className="text-sm text-muted-foreground mb-4 mt-2">
-            {event.description}
-          </p>
+          <p className="text-sm text-muted-foreground mb-4 mt-2">{event.description}</p>
+        )}
+
+        {archived && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/50 px-3 py-2 mt-2 mb-2">
+            <div className="flex items-start gap-2 text-sm text-muted-foreground min-w-0">
+              <Archive className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="min-w-0">
+                Archived{archivedOn ? ` ${archivedOn}` : ''}. New bills are paused — balances and
+                settling up still work.
+              </span>
+            </div>
+            {isEventOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-3 text-sm gap-2 rounded-full whitespace-nowrap shrink-0"
+                onClick={handleUnarchiveEvent}
+                disabled={isUnarchiving}
+              >
+                <ArchiveRestore className="w-4 h-4 shrink-0" />
+                {isUnarchiving ? 'Restoring...' : 'Unarchive'}
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -566,7 +596,14 @@ export default function EventDetailView() {
               </h2>
             </div>
             <div className="flex flex-col gap-4">
-              {eventBills.length === 0 ? (
+              {eventBills.length === 0 && archived ? (
+                /* The create affordances are the ONLY thing archiving removes.
+                   With no bills to list there is nothing else to show here, so
+                   say why the buttons are gone rather than leaving a blank. */
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No bills in this event. Unarchive it to add new ones.
+                </p>
+              ) : eventBills.length === 0 ? (
                 <div className="flex flex-col gap-3">
                   <button
                     className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-primary/[0.03] hover:border-primary/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
@@ -589,15 +626,10 @@ export default function EventDetailView() {
                   <button
                     className="group relative flex items-center gap-4 p-4 rounded-2xl border border-border/40 bg-card hover:bg-amber-500/[0.03] hover:border-amber-500/30 transition-all duration-300 text-left overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98]"
                     onClick={() =>
-                      navigateWithOrigin(
-                        navigate,
-                        location,
-                        "/transaction/new",
-                        {
-                          targetEventId: event.id,
-                          targetEventName: event.name,
-                        },
-                      )
+                      navigateWithOrigin(navigate, location, '/transaction/new', {
+                        targetEventId: event.id,
+                        targetEventName: event.name,
+                      })
                     }
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -643,20 +675,18 @@ export default function EventDetailView() {
                       isOwner={b.ownerId === user?.uid}
                       currentUserId={user?.uid}
                       formatDate={(timestamp: any) => {
-                        if (!timestamp) return "Unknown date";
+                        if (!timestamp) return 'Unknown date';
                         const date = timestamp.toDate
                           ? timestamp.toDate()
                           : new Date(timestamp as any);
-                        return date.toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
+                        return date.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
                         });
                       }}
                       getBillTitle={(bill) =>
-                        bill.title ||
-                        bill.billData?.restaurantName ||
-                        "Untitled Bill"
+                        bill.title || bill.billData?.restaurantName || 'Untitled Bill'
                       }
                     />
                   ))}
@@ -668,11 +698,16 @@ export default function EventDetailView() {
       </div>
 
       {/* Dialogs outside scroll */}
-      <CreateOptionsDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        eventContext={{ targetEventId: event.id, targetEventName: event.name }}
-      />
+      {/* Nothing opens this today, but it is a create-bill entry point carrying
+          this event's context — so it goes away with the rest of them when the
+          event is archived, rather than waiting to become the way back in. */}
+      {!archived && (
+        <CreateOptionsDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          eventContext={{ targetEventId: event.id, targetEventName: event.name }}
+        />
+      )}
 
       <InviteMembersDialog
         open={inviteDialogOpen}

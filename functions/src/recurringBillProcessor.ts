@@ -1,9 +1,11 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onRequest } from 'firebase-functions/v2/https';
+import { logger } from 'firebase-functions';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { createBillCore } from './billFunctions.js';
 import { firstRunDate, advanceRunDate } from '../../shared/recurringSchedule.js';
+import { isEventArchived } from '../../shared/eventArchive.js';
 import {
   resolveSplitAmounts,
   buildPerPersonShareItems,
@@ -42,6 +44,14 @@ interface RecurringBillDoc {
   lastRunDate: string | null;
   generatedBillIds: string[];
   eventId?: string;
+
+  /**
+   * Why generation is currently not producing bills, when the template is
+   * otherwise active. Written by the processor, read by the UI later. Absent
+   * on every template that is generating normally — never written as
+   * `undefined`, always removed with FieldValue.delete().
+   */
+  pausedReason?: 'event-archived';
 
   // Bill-type generalization (absent on legacy docs → 'quick')
   generatedType?: 'quick' | 'detailed' | 'airbnb';
@@ -115,6 +125,39 @@ function buildBillPayload(template: RecurringBillDoc) {
 }
 
 /**
+ * Is the event a template generates into archived?
+ *
+ * Read DEFENSIVELY, and fail OPEN. Three different kinds of absence all mean
+ * "not archived", so generation continues exactly as it does today:
+ *   - the event document does not exist (deleted, or never existed),
+ *   - the document exists but has no `archived` field (every event written
+ *     before the archive feature shipped),
+ *   - the read itself failed.
+ *
+ * The last one is a deliberate trade: a transient Firestore error must never
+ * silently stop somebody's rent split, and this check is a soft lock rather
+ * than a security boundary — nothing here is the thing standing between a user
+ * and an unauthorized write. It is logged at error level so a persistent
+ * failure is visible instead of quietly disabling the feature.
+ *
+ * `isEventArchived` is the single arbiter of "archived" across client and
+ * server; do not inline an `archived === true` check anywhere.
+ */
+async function isTargetEventArchived(db: Firestore, eventId: string): Promise<boolean> {
+  try {
+    const snap = await db.collection('events').doc(eventId).get();
+    if (!snap.exists) return false;
+    return isEventArchived((snap.data() ?? {}) as { archived?: boolean });
+  } catch (error) {
+    logger.error(
+      `Could not read event ${eventId} to check its archive state; treating it as active`,
+      error,
+    );
+    return false;
+  }
+}
+
+/**
  * Generate all due/missed bills for a SINGLE template and advance its schedule.
  * Shared by the hourly batch pass and the immediate generate-on-create/edit path.
  * Returns the number of bills created. Throws on failure (callers decide whether
@@ -129,12 +172,117 @@ async function generateForTemplate(
   const templateRef = docSnap.ref;
   let created = 0;
 
+  // A template that generates into an ARCHIVED event stops generating.
+  // Archiving is the user saying "this event is finished"; minting new bills
+  // into it forever walks straight around that.
+  //
+  // The schedule cursor is deliberately NOT advanced while archived — nothing
+  // ran, so nothing should claim to have run. It is fast-forwarded on RESUME
+  // instead (see the catch-up loop below), which is what keeps unarchiving
+  // from replaying a year of cycles at once. And the skip is NOT silent: a
+  // user whose rent split just stops appearing would not notice for months, so
+  // log it and record the reason on the template.
+  if (template.eventId && (await isTargetEventArchived(db, template.eventId))) {
+    // END DATE FIRST — a template whose window closed while its event was
+    // archived is FINISHED, not paused. Resume only ever moves the cursor
+    // forward, so once the end date is behind us there is no occurrence left
+    // that could ever generate. Returning early without this leaves it
+    // `status: 'active'` with a past nextRunDate, which the hourly due query
+    // matches on every pass forever, burning an events/{id} read each time.
+    if (template.schedule.endDate && template.schedule.endDate < todayStr) {
+      logger.info(
+        `Completing recurring bill ${docSnap.id}: end date ${template.schedule.endDate} passed while event ${template.eventId} was archived`,
+        { recurringBillId: docSnap.id, eventId: template.eventId },
+      );
+      await templateRef.update({
+        status: 'completed',
+        // Terminal, so "why is generation paused" no longer applies. Removed
+        // with delete(), never written back as undefined.
+        ...(template.pausedReason !== undefined ? { pausedReason: FieldValue.delete() } : {}),
+        updatedAt: Timestamp.now(),
+      });
+      return 0;
+    }
+
+    logger.warn(
+      `Skipping recurring bill ${docSnap.id}: its event ${template.eventId} is archived`,
+      { recurringBillId: docSnap.id, eventId: template.eventId },
+    );
+
+    // Only on the transition into the paused state: the hourly pass would
+    // otherwise rewrite the same value (and churn updatedAt) every hour.
+    if (template.pausedReason !== 'event-archived') {
+      await templateRef.update({
+        pausedReason: 'event-archived',
+        updatedAt: Timestamp.now(),
+      });
+    }
+    return 0;
+  }
+
   // Catch-up loop: create bills for all missed cycles. On the very first
   // run, anchor to the aligned firstRunDate (repairs legacy docs whose
   // nextRunDate was seeded to the raw, unaligned startDate).
   let currentRunDate = template.lastRunDate
     ? template.nextRunDate
     : firstRunDate(template.schedule);
+
+  // RESUMING AFTER AN ARCHIVED PAUSE: drop the cycles that ELAPSED while
+  // archived, do not replay them.
+  //
+  // The cursor was frozen for as long as the event stayed archived, so by the
+  // time we reach here it can sit arbitrarily far in the past. Feeding that to
+  // the catch-up loop backfills EVERY skipped cycle in one call — a weekly
+  // template on an event archived for a year mints ~52 bills in a single pass,
+  // each one firing ledgerProcessor and moving real balances, with nothing
+  // capping the loop.
+  //
+  // Archiving is a deliberate "this event is finished", so cycles that elapsed
+  // while it was archived are cycles the user chose not to have.
+  //
+  // TWO CONDITIONS, BOTH LOAD-BEARING:
+  //
+  // `currentRunDate < todayStr` — only a cursor that is genuinely BEHIND has
+  // lost anything. `pausedReason` records "the event was archived on some past
+  // pass", NOT "cycles were missed": generateRecurringBillNowCore runs this
+  // function on every template edit regardless of due-ness, so the flag can be
+  // stamped on a template whose cursor is still in the future and then sit
+  // there, stale, until the next due pass. Fast-forwarding unconditionally
+  // would move such a cursor BACKWARDS (the first occurrence on/after today is
+  // earlier than a future cursor) and mint a bill nobody asked for.
+  //
+  // Stop ON today, not after it. The cycle due TODAY has not elapsed — today
+  // is today — so it generates exactly as it would for a template that was
+  // never archived. Skipping it too would mean a 9-hour accidental archive
+  // over a cycle boundary silently eats that cycle, unrecoverably: resume only
+  // moves forward, and the deterministic bill id below makes the lost cycle
+  // unreachable by any retry.
+  //
+  // Still incapable of exploding: the loop below can then only match the one
+  // cycle equal to today, so resume creates at most ONE bill however long the
+  // event sat archived.
+  if (template.pausedReason === 'event-archived' && currentRunDate < todayStr) {
+    const frozenRunDate = currentRunDate;
+
+    // Bounded and stall-guarded, mirroring nextRunDateAfterEdit: the cap only
+    // exists so a malformed schedule can never spin forever.
+    const MAX_SKIPS = 10000;
+    for (let i = 0; i < MAX_SKIPS && currentRunDate < todayStr; i++) {
+      const next = advanceRunDate(
+        currentRunDate,
+        template.schedule.frequency,
+        template.schedule.dayOfMonth,
+      );
+      if (next <= currentRunDate) break; // defensive: never stall
+      currentRunDate = next;
+    }
+
+    logger.info(
+      `Recurring bill ${docSnap.id} resumed after its event was unarchived: dropping the cycles from ${frozenRunDate} up to ${todayStr}, resuming at ${currentRunDate}`,
+      { recurringBillId: docSnap.id, eventId: template.eventId },
+    );
+  }
+
   const newBillIds: string[] = [];
 
   while (currentRunDate <= todayStr) {
@@ -224,6 +372,13 @@ async function generateForTemplate(
 
   if (newBillIds.length > 0) {
     updates.generatedBillIds = FieldValue.arrayUnion(...newBillIds);
+  }
+
+  // We got past the archive check, so the template is generating again and any
+  // recorded pause reason is stale. Remove the field rather than writing
+  // `undefined`, which Firestore rejects.
+  if (template.pausedReason !== undefined) {
+    updates.pausedReason = FieldValue.delete();
   }
 
   // If next run is past end date, mark as completed
