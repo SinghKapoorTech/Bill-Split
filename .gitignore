@@ -52,3 +52,9 @@ blob-report/
 .claude/skills/playwright-skill/tmp-screenshots
 # ...but authored project skills are checked in, like CLAUDE.md
 !.claude/skills/
+
+# Session scratch from the superpowers brainstorm server (PID files, served HTML).
+.superpowers/
+
+# Cygwin/MSYS crash dump; regenerates on almost every bash invocation.
+bash.exe.stackdump
