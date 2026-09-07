@@ -37,9 +37,9 @@ Filled and saved — verified after a full page reload:
 - ~~**Guideline 4.8 risk**~~ — **closed 2026-09-06.** Sign in with Apple shipped in
   `c144ad2`; see the section below. `appstore/listing.md` still says Google-only and
   must be updated before submitting.
-- **Associated Domains capability** must be enabled on the App ID before the next
-  archive — the entitlement is committed but the portal side is not done, and
-  signing fails without it. See the section below.
+- ~~**Associated Domains capability**~~ — **enabled and verified 2026-09-06.** But
+  it invalidated every provisioning profile on the App ID: refresh Xcode Cloud /
+  manual profiles before the next archive. See the section below.
 - **iOS stays on 1.0; Android is on 1.3. That drift is accepted, not a defect.**
   iOS 1.0 genuinely is the first iOS release. `MARKETING_VERSION` was briefly
   aligned to 1.3 on 2026-09-06 and reverted the same day once build 176 turned
@@ -148,29 +148,51 @@ or signing fails. This applies again to Associated Domains, below.
 `listing.md` still describes Google-only sign-in. Update it before submitting — a
 listing that contradicts the binary is its own rejection.
 
-### Associated Domains — added, BLOCKED on a portal step (2026-09-06)
+### Associated Domains — DONE (2026-09-06)
 
-`App.entitlements` now also carries:
+`App.entitlements` carries:
 
 ```xml
 <key>com.apple.developer.associated-domains</key>
 <array><string>applinks:www.divit-bill.com</string></array>
 ```
 
-**Enable Associated Domains on the App ID in the developer portal before the next
-archive.** It was not enabled when this key was added. If it is still off, signing
-fails with a provisioning-profile mismatch at build time — loud, not silent.
-Deleting the key reverts cleanly.
+and the **Associated Domains capability is enabled on App ID `XLSVJ5V3B3`**.
+Verified by reloading the edit page and reading the checkbox back — not by the
+save banner, which on this page has appeared to succeed without sticking before:
 
-`www` **only**. `divit-bill.com` 307s to `www`, and Apple's AASA fetcher does not
+```
+associatedDomains : true    (was false)
+mdmManaged        : false   (untouched — different feature, leave it off)
+signInWithApple   : true    (untouched)
+```
+
+`www` **only**. `divit-bill.com` 307s to `www` and Apple's AASA fetcher does not
 follow redirects, so listing the apex silently fails validation.
 
-Verified 2026-09-06 that the two ends match: the entitlement names
-`www.divit-bill.com`; that host serves
-`/.well-known/apple-app-site-association` as `200 application/json` claiming
-`3LAJCPKLNV.com.singhkapoortech.divit` for `/join/*`; and `/join/:sessionId` is a
-real route in `src/App.tsx`. Once the portal capability is on, universal links
-should work end to end — **not yet confirmed on a device.**
+Both ends were checked against each other: the entitlement names
+`www.divit-bill.com`; that host serves `/.well-known/apple-app-site-association`
+as `200 application/json` claiming `3LAJCPKLNV.com.singhkapoortech.divit` for
+`/join/*`; and `/join/:sessionId` is a real route in `src/App.tsx`.
+
+⚠️ **Enabling the capability invalidated every provisioning profile on this App
+ID** — the same thing Sign In with Apple did. Xcode automatic signing regenerates
+on the next build; Xcode Cloud and any manual profile must be refreshed first
+(`ios/App/ci_scripts/ci_post_clone.sh`), or signing fails there while local builds
+pass.
+
+**Not yet confirmed on a device.** Test with a FRESH INSTALL of a build made after
+this change: iOS caches AASA results, so a link tapped before the new build is
+installed keeps opening Safari and reads as broken when it is not.
+
+#### Two traps hit while enabling it
+
+- **Save is not enough.** Clicking Save opens a confirmation modal (the
+  profile-invalidation warning). Left unconfirmed, nothing is applied even though
+  the click "succeeded". Always confirm, then reload and read the value back.
+- **Apple reuses the id `ASSOCIATED_DOMAINS`** on both the `<input>` and an
+  `<svg>` icon, so `#ASSOCIATED_DOMAINS` is ambiguous and throws a strict-mode
+  violation. Scope selectors to `input[type=checkbox]#ASSOCIATED_DOMAINS`.
 
 ## Screenshot slots — the part that wastes time
 
