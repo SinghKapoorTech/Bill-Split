@@ -24,6 +24,7 @@ import {
   type PairAgg,
 } from '../../../shared/reconcileBalances.js';
 import { computeBillPersonTotals } from '../../../shared/calculations.js';
+import { validateBillAmounts } from '../../../shared/billAmountValidation.js';
 import {
   personIdToFirebaseUid,
   calculateFriendFootprint,
@@ -76,9 +77,7 @@ function round(n: number): number {
  * already-fetched users list (no per-bill query). Adds shadow users whose
  * `isShadow === true` and `createdById` is the bill's owner or anchor.
  */
-function makeResolveFriendUids(
-  users: RawDoc[]
-): (bill: BillLike) => Set<string> {
+function makeResolveFriendUids(users: RawDoc[]): (bill: BillLike) => Set<string> {
   const shadowUsers = users.filter((u) => u.data.isShadow === true);
   return (bill: BillLike): Set<string> => {
     const ownerId = personIdToFirebaseUid(bill.ownerId);
@@ -118,7 +117,7 @@ function makeResolveFriendUids(
  */
 function makeResolveEventUids(
   events: RawDoc[],
-  resolveFriendUids: (bill: BillLike) => Set<string>
+  resolveFriendUids: (bill: BillLike) => Set<string>,
 ): (bill: BillLike) => Set<string> {
   const eventsById = new Map(events.map((e) => [e.id, e]));
   return (bill: BillLike): Set<string> => {
@@ -159,7 +158,7 @@ function docParticipants(doc: RawDoc, isEvent: boolean): string[] {
 function isJunk(participants: string[], knownUsers: Set<string>): boolean {
   if (participants.length === 2 && participants[0] === participants[1]) return true;
   return participants.some(
-    (p) => typeof p !== 'string' || p.startsWith('user-') || !knownUsers.has(p)
+    (p) => typeof p !== 'string' || p.startsWith('user-') || !knownUsers.has(p),
   );
 }
 
@@ -197,7 +196,7 @@ function buildPlan(
   rebuilt: Map<string, PairAgg>,
   isEvent: boolean,
   knownUsers: Set<string>,
-  uidFilter: Set<string> | undefined
+  uidFilter: Set<string> | undefined,
 ): PlanOp[] {
   const plan: PlanOp[] = [];
   const seen = new Set<string>();
@@ -221,9 +220,9 @@ function buildPlan(
       // Compare raw (full-precision) values so sub-cent drift is not masked by
       // rounding both sides before the diff. Rounded values are still used for
       // the human-facing report fields (from/to) below.
-      const balanceChanged = Math.abs(((doc.data.balance as number) || 0) - r!.balance) > BALANCE_THRESHOLD;
-      const billsChanged =
-        JSON.stringify([...curBills].sort()) !== JSON.stringify(nbills);
+      const balanceChanged =
+        Math.abs(((doc.data.balance as number) || 0) - r!.balance) > BALANCE_THRESHOLD;
+      const billsChanged = JSON.stringify([...curBills].sort()) !== JSON.stringify(nbills);
       if (balanceChanged || billsChanged) {
         plan.push({
           op: 'patch',
@@ -236,9 +235,21 @@ function buildPlan(
         });
       }
     } else if (junk) {
-      plan.push({ op: 'delete', collection, id: doc.id, participants, from: { balance: curBal, bills: curBills.length } });
+      plan.push({
+        op: 'delete',
+        collection,
+        id: doc.id,
+        participants,
+        from: { balance: curBal, bills: curBills.length },
+      });
     } else if (Math.abs(curBal) > BALANCE_THRESHOLD || curBills.length > 0) {
-      plan.push({ op: 'zero', collection, id: doc.id, participants, from: { balance: curBal, bills: curBills.length } });
+      plan.push({
+        op: 'zero',
+        collection,
+        id: doc.id,
+        participants,
+        from: { balance: curBal, bills: curBills.length },
+      });
     }
   }
 
@@ -253,7 +264,11 @@ function buildPlan(
         id,
         participants: r.participants,
         ...(r.eventId && { eventId: r.eventId }),
-        to: { balance: round(r.balance), rawBalance: r.balance, unsettledBillIds: [...r.unsettledBillIds].sort() },
+        to: {
+          balance: round(r.balance),
+          rawBalance: r.balance,
+          unsettledBillIds: [...r.unsettledBillIds].sort(),
+        },
       });
     }
   }
@@ -280,17 +295,15 @@ function stripZeros(footprint: Record<string, number>): Record<string, number> {
  * the identical key set. `stored` keys are normalized to Firebase UIDs (legacy
  * footprints may be keyed by raw person ids).
  */
-function footprintsEqual(
-  correct: Record<string, number>,
-  stored: Record<string, number>
-): boolean {
+function footprintsEqual(correct: Record<string, number>, stored: Record<string, number>): boolean {
   const normStored: Record<string, number> = {};
   for (const [k, v] of Object.entries(stored)) normStored[personIdToFirebaseUid(k)] = v;
   const ck = Object.keys(correct);
   const sk = Object.keys(normStored);
   if (ck.length !== sk.length) return false;
   return ck.every(
-    (k) => k in normStored && Math.abs((correct[k] || 0) - (normStored[k] || 0)) <= BALANCE_THRESHOLD
+    (k) =>
+      k in normStored && Math.abs((correct[k] || 0) - (normStored[k] || 0)) <= BALANCE_THRESHOLD,
   );
 }
 
@@ -315,7 +328,7 @@ function footprintsEqual(
 function computeBillStamps(
   bills: RawDoc[],
   resolveFriendUids: (bill: BillLike) => Set<string>,
-  resolveEventUids: (bill: BillLike) => Set<string>
+  resolveEventUids: (bill: BillLike) => Set<string>,
 ): Map<string, Record<string, unknown>> {
   const stamps = new Map<string, Record<string, unknown>>();
 
@@ -327,7 +340,13 @@ function computeBillStamps(
     const fields: Record<string, unknown> = {};
 
     // Mirror rebuildLedgerFromBills' skip: incomplete bills produce no footprint.
-    const computable = Boolean(d.billData?.items?.length) && Boolean(ownerId) && people.length > 0;
+    // C-01: that mirror now includes amount validation, so the reconciler never
+    // stamps a footprint the live pipeline would have refused to compute.
+    const computable =
+      Boolean(d.billData?.items?.length) &&
+      Boolean(ownerId) &&
+      people.length > 0 &&
+      !validateBillAmounts(d.billData);
 
     const billLike: BillLike = {
       id: bill.id,
@@ -357,21 +376,22 @@ function computeBillStamps(
               linkedFriendUids: resolveFriendUids(billLike),
               ownerId,
               creditorId: anchorId,
-            })
+            }),
           ),
-          anchorId
+          anchorId,
         )
       : {};
 
     const storedFriendFp: Record<string, number> = d.processedBalances || {};
     const friendValuesDiffer = !footprintsEqual(correctFriendFp, storedFriendFp);
     const friendHasFootprint = Object.keys(correctFriendFp).length > 0;
-    const friendAnchorDiffers =
-      friendHasFootprint && d.processedBalancesAnchorId !== anchorId;
+    const friendAnchorDiffers = friendHasFootprint && d.processedBalancesAnchorId !== anchorId;
     if (friendValuesDiffer || friendAnchorDiffers) {
       fields.processedBalances = correctFriendFp;
       // Anchor only carries meaning when there's a footprint to anchor.
-      fields.processedBalancesAnchorId = friendHasFootprint ? anchorId : (d.processedBalancesAnchorId ?? anchorId);
+      fields.processedBalancesAnchorId = friendHasFootprint
+        ? anchorId
+        : (d.processedBalancesAnchorId ?? anchorId);
     }
 
     // ── Event footprint (only for event bills) ──
@@ -386,21 +406,22 @@ function computeBillStamps(
                 linkedFriendUids: resolveEventUids(billLike),
                 ownerId,
                 creditorId: anchorId,
-              })
+              }),
             ),
-            anchorId
+            anchorId,
           )
         : {};
 
       const storedEventFp: Record<string, number> = d.processedEventBalances || {};
       const eventValuesDiffer = !footprintsEqual(correctEventFp, storedEventFp);
       const eventHasFootprint = Object.keys(correctEventFp).length > 0;
-      const eventAnchorDiffers =
-        eventHasFootprint && d.processedEventBalancesAnchorId !== anchorId;
+      const eventAnchorDiffers = eventHasFootprint && d.processedEventBalancesAnchorId !== anchorId;
       const eventIdDiffers = eventHasFootprint && d.processedEventId !== d.eventId;
       if (eventValuesDiffer || eventAnchorDiffers || eventIdDiffers) {
         fields.processedEventBalances = correctEventFp;
-        fields.processedEventBalancesAnchorId = eventHasFootprint ? anchorId : (d.processedEventBalancesAnchorId ?? anchorId);
+        fields.processedEventBalancesAnchorId = eventHasFootprint
+          ? anchorId
+          : (d.processedEventBalancesAnchorId ?? anchorId);
         fields.processedEventId = eventHasFootprint ? d.eventId : (d.processedEventId ?? d.eventId);
       }
     }
@@ -412,10 +433,11 @@ function computeBillStamps(
 
 export async function reconcileLedgerCore(
   db: Firestore,
-  opts: ReconcileOpts
+  opts: ReconcileOpts,
 ): Promise<ReconcileReport> {
   const { dryRun } = opts;
-  const uidFilter = opts.uidFilter && opts.uidFilter.length > 0 ? new Set(opts.uidFilter) : undefined;
+  const uidFilter =
+    opts.uidFilter && opts.uidFilter.length > 0 ? new Set(opts.uidFilter) : undefined;
 
   // ── 1. Read source-of-truth collections ──
   const [allBills, users, events, curFriend, curEvent] = await Promise.all([
@@ -434,19 +456,22 @@ export async function reconcileLedgerCore(
   const resolveEventUids = makeResolveEventUids(events, resolveFriendUids);
 
   // ── 3. Rebuild authoritative aggregates ──
-  const billLikes: BillLike[] = realBills.map((b) => ({
-    id: b.id,
-    ownerId: b.data.ownerId,
-    paidById: b.data.paidById,
-    billData: b.data.billData,
-    people: b.data.people || [],
-    itemAssignments: b.data.itemAssignments || {},
-    splitEvenly: Boolean(b.data.splitEvenly),
-    settledPersonIds: b.data.settledPersonIds || [],
-    eventId: b.data.eventId,
-    // participantIds is not part of BillLike; the resolver reads it off the object.
-    ...(b.data.participantIds && { participantIds: b.data.participantIds }),
-  } as BillLike));
+  const billLikes: BillLike[] = realBills.map(
+    (b) =>
+      ({
+        id: b.id,
+        ownerId: b.data.ownerId,
+        paidById: b.data.paidById,
+        billData: b.data.billData,
+        people: b.data.people || [],
+        itemAssignments: b.data.itemAssignments || {},
+        splitEvenly: Boolean(b.data.splitEvenly),
+        settledPersonIds: b.data.settledPersonIds || [],
+        eventId: b.data.eventId,
+        // participantIds is not part of BillLike; the resolver reads it off the object.
+        ...(b.data.participantIds && { participantIds: b.data.participantIds }),
+      }) as BillLike,
+  );
 
   const { friend, event } = rebuildLedgerFromBills({
     bills: billLikes,
@@ -455,8 +480,22 @@ export async function reconcileLedgerCore(
   });
 
   // ── 4. Diff → plan ──
-  const friendPlan = buildPlan(FRIEND_BALANCES_COLLECTION, curFriend, friend, false, knownUsers, uidFilter);
-  const eventPlan = buildPlan(EVENT_BALANCES_COLLECTION, curEvent, event, true, knownUsers, uidFilter);
+  const friendPlan = buildPlan(
+    FRIEND_BALANCES_COLLECTION,
+    curFriend,
+    friend,
+    false,
+    knownUsers,
+    uidFilter,
+  );
+  const eventPlan = buildPlan(
+    EVENT_BALANCES_COLLECTION,
+    curEvent,
+    event,
+    true,
+    knownUsers,
+    uidFilter,
+  );
   const plan = [...friendPlan, ...eventPlan];
 
   const billStamps = computeBillStamps(realBills, resolveFriendUids, resolveEventUids);
@@ -536,7 +575,7 @@ export async function reconcileLedgerCore(
             ...(op.eventId && { eventId: op.eventId }),
             lastUpdatedAt: now,
           },
-          { merge: true }
+          { merge: true },
         );
       }
       count++;
@@ -544,7 +583,10 @@ export async function reconcileLedgerCore(
     }
 
     for (const [billId, fields] of filteredStamps) {
-      batch.update(db.collection(BILLS_COLLECTION).doc(billId), fields as Record<string, FieldValue | unknown>);
+      batch.update(
+        db.collection(BILLS_COLLECTION).doc(billId),
+        fields as Record<string, FieldValue | unknown>,
+      );
       count++;
       await flushIfNeeded();
     }

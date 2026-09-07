@@ -58,8 +58,12 @@ describe('computeBillPersonTotals', () => {
 
   it('splitEvenly: matches the canonical calculation with full assignments', () => {
     const expected = calculatePersonTotals(
-      bill, people, buildEvenSplitAssignments(bill, people),
-      bill.tip, bill.tax, bill.otherFees
+      bill,
+      people,
+      buildEvenSplitAssignments(bill, people),
+      bill.tip,
+      bill.tax,
+      bill.otherFees,
     );
     const actual = computeBillPersonTotals(bill, people, {}, true);
     expect(actual).toEqual(expected);
@@ -87,23 +91,57 @@ describe('computeBillPersonTotals', () => {
     expect(totals[0].total + totals[1].total).toBeCloseTo(90, 10);
   });
 
-  it('splitEvenly with no items: splits the total into cent-exact shares', () => {
-    // 100.01 / 2 = 50.005 is not a payable amount — naive division would
-    // render as two $50.01 Venmo charges ($100.02, a cent over the bill).
+  // Phase 2.1 — a bill with NO items distributes NO money, regardless of
+  // splitEvenly. This used to return total/n cent-exact shares, which
+  // contradicted every other layer: the ledger (`computable` in
+  // ledgerProcessor / reconcileLedger.ts:330), reconcileBalances.ts:150 and
+  // eventBalanceCalculator.ts:36 all SKIP a no-items bill outright. The old
+  // behaviour meant the UI displayed amounts and built Venmo charges for money
+  // the ledger would never record. One rule now, everywhere: no items → no money.
+  // (Cent-exact distribution still applies where it is actually reachable — the
+  // discount branch above, where items exist but disagree with the total.)
+  it('splitEvenly with no items: distributes nothing', () => {
     const emptyBill: BillData = {
-      items: [], subtotal: 0, tax: 0, tip: 0, otherFees: 0, total: 100.01,
+      items: [],
+      subtotal: 0,
+      tax: 0,
+      tip: 0,
+      otherFees: 0,
+      total: 100.01,
     };
     const totals = computeBillPersonTotals(emptyBill, people.slice(0, 2), {}, true);
+    // Shape matches the itemized no-items path (people, all zero) so UI lists
+    // that map over the result still render every person.
     expect(totals).toHaveLength(2);
-    expect(totals[0].total + totals[1].total).toBeCloseTo(100.01, 10);
-    expect(totals[0].total).toBe(50.01);   // cent-exact
-    expect(totals[1].total).toBe(50);      // last share absorbs the remainder
+    expect(totals[0].total).toBe(0);
+    expect(totals[1].total).toBe(0);
+    expect(totals.reduce((s, t) => s + t.total, 0)).toBe(0);
+  });
+
+  it('splitEvenly with no items: agrees with the itemized path on the same bill', () => {
+    // The contradiction 2.1 resolves — both paths must answer identically.
+    const emptyBill: BillData = {
+      items: [],
+      subtotal: 0,
+      tax: 0,
+      tip: 0,
+      otherFees: 0,
+      total: 100.01,
+    };
+    const evenly = computeBillPersonTotals(emptyBill, people.slice(0, 2), {}, true);
+    const itemized = computeBillPersonTotals(emptyBill, people.slice(0, 2), {}, false);
+    expect(evenly).toEqual(itemized);
   });
 
   it('itemized: delegates to calculatePersonTotals with the given assignments', () => {
     const assignments = { a: ['p1'], b: ['p2', 'p3'] };
     const expected = calculatePersonTotals(
-      bill, people, assignments, bill.tip, bill.tax, bill.otherFees
+      bill,
+      people,
+      assignments,
+      bill.tip,
+      bill.tax,
+      bill.otherFees,
     );
     expect(computeBillPersonTotals(bill, people, assignments, false)).toEqual(expected);
   });

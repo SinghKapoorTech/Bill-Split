@@ -18,6 +18,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
 import { getFirestore, FieldValue, Timestamp, type DocumentData } from 'firebase-admin/firestore';
 import { computeBillPersonTotals } from '../../shared/calculations.js';
+import { validateBillAmounts } from '../../shared/billAmountValidation.js';
 import {
   getFriendBalanceId,
   getEventBalanceId,
@@ -248,6 +249,20 @@ async function applyFriendLedger(
     // footprint and silently decline to write the new one, erasing the debt.
     const anchorId: string = personIdToFirebaseUid(billData.paidById || ownerId);
     const people = (billData.people as Array<{ id: string; name: string }>) || [];
+
+    // C-01: re-validate against COMMITTED state. Stage 1 only saw the trigger
+    // payload; the amounts applied below come from this fresh read, so a write
+    // landing between the trigger firing and this transaction opening would
+    // otherwise be applied having never been validated.
+    const freshAmountError = validateBillAmounts(billData.billData);
+    if (freshAmountError) {
+      logger.error('applyFriendLedger: invalid committed amounts — refusing to write', {
+        billId,
+        reason: freshAmountError,
+      });
+      return;
+    }
+
     const personTotals = computeBillPersonTotals(
       billData.billData as BillData,
       people,
@@ -541,6 +556,18 @@ async function applyEventPairLedger(
     // A-08: normalize — see applyFriendLedger.
     const anchorId: string = personIdToFirebaseUid(billData.paidById || ownerId);
     const people = (billData.people as Array<{ id: string; name: string }>) || [];
+
+    // C-01: re-validate against COMMITTED state — see applyFriendLedger.
+    const freshAmountError = validateBillAmounts(billData.billData);
+    if (freshAmountError) {
+      logger.error('applyEventPairLedger: invalid committed amounts — refusing to write', {
+        billId,
+        eventId,
+        reason: freshAmountError,
+      });
+      return;
+    }
+
     const personTotals = computeBillPersonTotals(
       billData.billData as BillData,
       people,
@@ -957,6 +984,37 @@ export async function processLedgerWrite(
   const payloadPreviousEventId = before?.eventId;
 
   // ── Stage 1: VALIDATE & CALCULATE ───────────────────────────────────────
+
+  // C-01: refuse to do ledger arithmetic on non-finite / negative / absurd
+  // money. Firestore accepts NaN as a valid double, and once one reaches a
+  // balance doc the pair is bricked permanently — every threshold check fails
+  // (`Math.abs(NaN) < BALANCE_THRESHOLD` is false), so processSettlement never
+  // treats it as settled and every later delta is `NaN - NaN = NaN`.
+  //
+  // BAIL rather than tear down. A corrupt edit leaves the last-known-good
+  // footprint in place: stale, but finite and recoverable on the next valid
+  // edit, and visible to the scheduled reconciler as a value mismatch. Running
+  // the teardown instead would zero real debt because someone wrote a bad
+  // number — destroying value to punish a malformed write.
+  //
+  // DELETE is unaffected: it returns above and reverses from the stored
+  // footprint without touching billData arithmetic.
+  // Validate ONLY when billData is actually present. A missing/empty billData is
+  // not a corrupt write — it is an EMPTIED bill, and the teardown logic below
+  // exists precisely to reverse its stored footprint ("Returning early here
+  // would strand the balance forever"). Bailing here on a missing billData would
+  // re-introduce exactly that stranding, since the reconciler is report-only.
+  if (after.billData !== undefined && after.billData !== null) {
+    const amountError = validateBillAmounts(after.billData);
+    if (amountError) {
+      logger.error('Stage 1: invalid bill amounts — refusing to touch the ledger', {
+        billId,
+        reason: amountError,
+      });
+      return;
+    }
+  }
+
   const people = after.people || [];
 
   // A bill that was already applied to the ledger carries a footprint. If it is

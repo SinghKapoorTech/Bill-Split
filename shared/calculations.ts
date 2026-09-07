@@ -13,20 +13,20 @@ export function calculatePersonTotals(
   itemAssignments: ItemAssignment,
   effectiveTip: number,
   effectiveTax: number,
-  effectiveOtherFees: number = 0
+  effectiveOtherFees: number = 0,
 ): PersonTotal[] {
   if (!billData || people.length === 0) return [];
 
   const personSubtotals: Record<string, number> = {};
-  people.forEach(person => {
+  people.forEach((person) => {
     personSubtotals[person.id] = 0;
   });
 
-  billData.items.forEach(item => {
+  billData.items.forEach((item) => {
     const assignedPeople = itemAssignments[item.id] || [];
     if (assignedPeople.length > 0) {
       const splitPrice = item.price / assignedPeople.length;
-      assignedPeople.forEach(personId => {
+      assignedPeople.forEach((personId) => {
         if (personSubtotals[personId] !== undefined) {
           personSubtotals[personId] += splitPrice;
         }
@@ -40,7 +40,7 @@ export function calculatePersonTotals(
   // the tax/tip. Fully-assigned bills are unaffected (the sums are equal).
   const totalItemsSubtotal = billData.items.reduce((sum, item) => sum + item.price, 0);
 
-  const results: PersonTotal[] = people.map(person => {
+  const results: PersonTotal[] = people.map((person) => {
     const personSubtotal = personSubtotals[person.id];
     const proportion = totalItemsSubtotal > 0 ? personSubtotal / totalItemsSubtotal : 0;
     const personTax = effectiveTax * proportion;
@@ -69,13 +69,13 @@ export function calculatePersonTotals(
  */
 export function buildEvenSplitAssignments(
   billData: BillData | null,
-  people: Person[]
+  people: Person[],
 ): ItemAssignment {
   if (!billData?.items?.length || people.length === 0) return {};
 
   const assignments: ItemAssignment = {};
-  const everyone = people.map(person => person.id);
-  billData.items.forEach(item => {
+  const everyone = people.map((person) => person.id);
+  billData.items.forEach((item) => {
     assignments[item.id] = everyone;
   });
   return assignments;
@@ -91,7 +91,7 @@ export function computeBillPersonTotals(
   billData: BillData | null,
   people: Person[],
   itemAssignments: ItemAssignment,
-  splitEvenly: boolean
+  splitEvenly: boolean,
 ): PersonTotal[] {
   if (!billData || people.length === 0) return [];
 
@@ -105,10 +105,13 @@ export function computeBillPersonTotals(
       // expansion below would silently charge the component sum instead.
       const componentSum =
         billData.items.reduce((sum, item) => sum + item.price, 0) +
-        (billData.tax || 0) + (billData.tip || 0) + (billData.otherFees || 0);
+        (billData.tax || 0) +
+        (billData.tip || 0) +
+        (billData.otherFees || 0);
       const declaredTotal = billData.total;
       if (
-        typeof declaredTotal === 'number' && isFinite(declaredTotal) &&
+        typeof declaredTotal === 'number' &&
+        isFinite(declaredTotal) &&
         Math.abs(componentSum - declaredTotal) > 0.01
       ) {
         const shares = distributeEvenly(declaredTotal, people.length);
@@ -123,20 +126,18 @@ export function computeBillPersonTotals(
         }));
       }
       effectiveAssignments = buildEvenSplitAssignments(billData, people);
-    } else {
-      // No items to split (legacy/edge data): cent-exact even shares of the
-      // total (naive division yields unpayable fractions like 50.005).
-      const shares = distributeEvenly(billData.total, people.length);
-      return people.map((person, i) => ({
-        personId: person.id,
-        name: person.name,
-        itemsSubtotal: shares[i],
-        tax: 0,
-        tip: 0,
-        otherFees: 0,
-        total: shares[i],
-      }));
     }
+    // No items: fall through to the itemized path, which yields every person
+    // at zero. A bill with no items distributes NO money, regardless of
+    // splitEvenly — the same rule the ledger already enforces via `computable`
+    // (ledgerProcessor / reconcileLedger.ts:330), reconcileBalances.ts:150 and
+    // eventBalanceCalculator.ts:36, all of which skip such a bill outright.
+    //
+    // This previously returned cent-exact shares of billData.total, which made
+    // the UI display amounts and build Venmo charges for money the ledger would
+    // never record. Cent-exact distribution is still applied where it is
+    // actually reachable: the discount branch above, where items exist but
+    // their component sum disagrees with the declared total.
   }
 
   return calculatePersonTotals(
@@ -145,13 +146,16 @@ export function computeBillPersonTotals(
     effectiveAssignments,
     billData.tip || 0,
     billData.tax || 0,
-    billData.otherFees || 0
+    billData.otherFees || 0,
   );
 }
 
-export function areAllItemsAssigned(billData: BillData | null, itemAssignments: ItemAssignment): boolean {
+export function areAllItemsAssigned(
+  billData: BillData | null,
+  itemAssignments: ItemAssignment,
+): boolean {
   if (!billData || !billData.items) return false;
-  return billData.items.every(item => {
+  return billData.items.every((item) => {
     const assignments = itemAssignments[item.id] || [];
     return assignments.length > 0;
   });

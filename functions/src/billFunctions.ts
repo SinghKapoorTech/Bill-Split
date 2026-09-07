@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { calculatePersonTotals } from '../../shared/calculations.js';
+import { validateBillAmounts } from '../../shared/billAmountValidation.js';
 import { isEventArchived, type ArchivableEvent } from '../../shared/eventArchive.js';
 import {
   getFriendBalanceId,
@@ -103,6 +104,14 @@ export async function createBillCore(db: Firestore, params: CreateBillCoreParams
   } = params;
 
   // C-01: reject non-finite / negative / absurd money BEFORE it is persisted.
+  // createBillCore writes balance docs in the same transaction as the bill, so
+  // an unvalidated NaN here reaches a balance doc immediately and bricks the
+  // pair permanently (every later threshold check and delta becomes NaN).
+  const amountError = validateBillAmounts(billData);
+  if (amountError) {
+    throw new HttpsError('invalid-argument', `Invalid bill amounts: ${amountError}`);
+  }
+
   // The SERVER-SIDE half of the archive soft-lock (spec §4.2.1). Chunk 2 closed
   // the client routes; this closes the write itself.
   //
@@ -237,6 +246,11 @@ export async function createBillCore(db: Firestore, params: CreateBillCoreParams
       // the bill is born in the "legacy" state ledgerProcessor.ts:273 warns
       // about: the pipeline recomputes an identical footprint, so
       // applyFriendLedger early-returns on empty deltas (:314) before the stamp
+      // at :403-407, and the !stage2Wrote branch (:1023) bumps the version
+      // without writing the anchor. The bill then keeps a footprint with no
+      // reversal locator forever — flagged by the reconciler every day, and
+      // silently wrong if the payer is later changed.
+      processedBalancesAnchorId: creditorId,
       _ledgerVersion: 1,
       ...extraFields,
     };

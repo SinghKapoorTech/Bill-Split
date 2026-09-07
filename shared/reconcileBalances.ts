@@ -14,6 +14,7 @@
  */
 
 import { computeBillPersonTotals } from './calculations.js';
+import { validateBillAmounts } from './billAmountValidation.js';
 import {
   calculateFriendFootprint,
   getFriendBalanceId,
@@ -86,11 +87,17 @@ function accumulate(
   signedBalance: number,
   billId: string,
   amountOwedToAnchor: number,
-  eventId?: string
+  eventId?: string,
 ): void {
   let entry = map.get(id);
   if (!entry) {
-    entry = { id, participants, balance: 0, unsettledBillIds: new Set(), ...(eventId && { eventId }) };
+    entry = {
+      id,
+      participants,
+      balance: 0,
+      unsettledBillIds: new Set(),
+      ...(eventId && { eventId }),
+    };
     map.set(id, entry);
   }
   entry.balance += signedBalance;
@@ -149,11 +156,18 @@ export function rebuildLedgerFromBills(input: RebuildInput): RebuildResult {
     // Skip incomplete bills — nothing to attribute.
     if (!bill.billData?.items?.length || !ownerId || people.length === 0) continue;
 
+    // C-01: the reconciler is the repair tool with the widest blast radius —
+    // one `dryRun:false` pass can rewrite every balance doc. It MUST refuse the
+    // same documents the live pipeline refuses, or it re-applies exactly what
+    // the pipeline just declined to write. (D-03 makes this sharp: negatives are
+    // now recorded rather than dropped by the old `amountOwed >= 0` predicate.)
+    if (validateBillAmounts(bill.billData)) continue;
+
     const personTotals = computeBillPersonTotals(
       bill.billData,
       people,
       bill.itemAssignments || {},
-      Boolean(bill.splitEvenly)
+      Boolean(bill.splitEvenly),
     );
 
     // ── Friend footprint ──
@@ -176,7 +190,7 @@ export function rebuildLedgerFromBills(input: RebuildInput): RebuildResult {
         [anchorId, debtor].sort() as [string, string],
         toSingleBalance(anchorId, debtor, amount),
         bill.id,
-        amount
+        amount,
       );
     }
 
@@ -202,7 +216,7 @@ export function rebuildLedgerFromBills(input: RebuildInput): RebuildResult {
           toSingleBalance(anchorId, debtor, amount),
           bill.id,
           amount,
-          bill.eventId
+          bill.eventId,
         );
       }
     }

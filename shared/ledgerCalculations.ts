@@ -79,13 +79,23 @@ export function calculateFriendFootprint(input: FriendFootprintInput): Record<st
   for (const total of personTotals) {
     const firebaseUid = personIdToFirebaseUid(total.personId);
     const friendUserId = personIdToUserId[total.personId] ?? null;
-    
+
     if (!friendUserId) continue; // skip unlinked people
     if (firebaseUid === creditorFirebaseUid) continue; // creditor doesn't owe themselves
 
     const amountOwed = settledPersonIds.includes(total.personId) ? 0 : total.total;
-    // Only record if they owe money (amountOwed > 0 matches previous behavior for debtors)
-    if (amountOwed >= 0) {
+    // D-03: record on FINITENESS, not sign. The old `amountOwed >= 0` dropped a
+    // negative total from the footprint entirely; on the next edit computeDeltas
+    // sees the key vanish and reverses the prior amount, destroying value.
+    // toSingleBalance carries the sign correctly, so a negative is representable.
+    //
+    // That predicate was also, by accident, the only NaN filter in the ledger
+    // path (`NaN >= 0` is false) — but NOT an Infinity filter (`Infinity >= 0`
+    // is true). C-01 (`validateBillAmounts`, enforced in processLedgerWrite and
+    // createBillCore) is now the real gate; this check is the last line of
+    // defence keeping a non-finite value out of a balance doc, where it would
+    // brick the pair permanently.
+    if (Number.isFinite(amountOwed)) {
       footprint[friendUserId] = amountOwed;
     }
   }
@@ -137,7 +147,7 @@ export function isBalanceSettledConsistent(balance: number, unsettledBillIds: st
  */
 export function sanitizeFootprint(
   footprint: Record<string, number>,
-  anchorId: string
+  anchorId: string,
 ): Record<string, number> {
   const result: Record<string, number> = {};
   for (const [key, value] of Object.entries(footprint)) {
@@ -163,7 +173,7 @@ export function sanitizeFootprint(
 export function toSingleBalance(
   anchorId: string,
   otherId: string,
-  amountOwedToAnchor: number
+  amountOwedToAnchor: number,
 ): number {
   // If anchor sorts first, anchor being owed = positive balance
   // If anchor sorts second, anchor being owed = negative balance
