@@ -6,5 +6,24 @@
 	<array>
 		<string>Default</string>
 	</array>
+
+	<!--
+	  Universal links for share links (public/.well-known/apple-app-site-association,
+	  which claims /join/*). Without this key iOS never fetches the AASA and every
+	  divit-bill.com/join/... link opens in Safari instead of the app.
+
+	  `www` ONLY. divit-bill.com 307-redirects to www, and Apple's AASA fetcher does
+	  not follow redirects, so listing the apex silently fails validation and is worse
+	  than omitting it.
+
+	  Like Sign In with Apple, this requires the Associated Domains capability to be
+	  enabled on the App ID (XLSVJ5V3B3) in the developer portal. If it is not, signing
+	  fails with a provisioning-profile mismatch at build time — loud, not silent.
+	  Deleting this key reverts cleanly.
+	-->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:www.divit-bill.com</string>
+	</array>
 </dict>
 </plist>
