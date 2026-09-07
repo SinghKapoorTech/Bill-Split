@@ -1,4 +1,5 @@
 import type { UserProfile } from '@/types/person.types';
+import { hasTrustedEmail } from '@/utils/authProviders';
 
 /**
  * The subset of a Firebase `User` that profile syncing actually reads.
@@ -6,9 +7,30 @@ import type { UserProfile } from '@/types/person.types';
 export interface AuthUserLike {
   uid: string;
   email: string | null;
+  /** Firebase's own verification flag. Absent on some provider sessions. */
+  emailVerified?: boolean;
+  /** Provider entries, used to tell a provider-verified email from a typed one. */
+  providerData?: ReadonlyArray<{ providerId?: string; email?: string | null } | null | undefined>;
   displayName: string | null;
   photoURL: string | null;
   phoneNumber?: string | null;
+}
+
+/**
+ * The email to publish into `users/{uid}`, or '' when it must be withheld.
+ *
+ * This field is queried by `userService.getUserByContact` to resolve the person
+ * a friend is adding, so an unverified address here would let someone be found —
+ * and billed — as somebody else. Before email/password sign-in every address
+ * came from Google or Apple, who verify it; now anyone can type one.
+ *
+ * Client-side only, and not the enforcement point: `firestore.rules` constrains
+ * what `email` a user may write to their own document. This keeps the app from
+ * *trying* to write an untrusted address, so the rule never has to reject a
+ * write on the happy path.
+ */
+function publishableEmail(user: AuthUserLike): string {
+  return hasTrustedEmail(user) ? user.email || '' : '';
 }
 
 /**
@@ -32,7 +54,7 @@ export function buildNewProfileFields(
 ): Record<string, unknown> {
   return {
     uid: user.uid,
-    email: user.email || '',
+    email: publishableEmail(user),
     displayName: user.displayName || 'User',
     username,
     friends: [],
@@ -81,7 +103,11 @@ export function buildProfileUpdates(
     // Fall back through the provider, then the stored value, and only then to
     // the generic placeholder. Never downgrade a real value to a placeholder.
     displayName: user.displayName || existing.displayName || 'User',
-    email: user.email || existing.email || '',
+    // Falls through to the stored value on purpose: an untrusted session must
+    // withhold a NEW address, never erase one that was already verified. A user
+    // who links a password to their Google account keeps the Google address in
+    // their profile until the new one is verified.
+    email: publishableEmail(user) || existing.email || '',
   };
 
   // Only adopt the OAuth photo if the user has not uploaded their own.

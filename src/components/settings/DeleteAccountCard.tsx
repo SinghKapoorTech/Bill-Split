@@ -13,6 +13,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { auth } from '@/config/firebase';
+import { reauthNeedsPassword } from '@/services/reauthService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { accountService } from '@/services/accountService';
@@ -37,6 +41,15 @@ export const DeleteAccountCard = () => {
   const [finalOpen, setFinalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [outstanding, setOutstanding] = useState<Friend[]>([]);
+  const [password, setPassword] = useState('');
+
+  // A password-only account cannot re-prove itself through a provider sheet, so
+  // it has to type the password instead. Without this branch such a user hits
+  // the Google popup and fails with auth/user-mismatch — meaning they could
+  // never delete their account, which Guideline 5.1.1(v) does not allow.
+  const needsPassword = reauthNeedsPassword(
+    (auth.currentUser?.providerData ?? []).map((p) => p?.providerId)
+  );
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -63,7 +76,7 @@ export const DeleteAccountCard = () => {
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await accountService.deleteAccount();
+      await accountService.deleteAccount(password || undefined);
       toast({
         title: 'Account deleted',
         description: 'Your Divit account and personal information have been removed.',
@@ -90,6 +103,7 @@ export const DeleteAccountCard = () => {
       setDeleting(false);
       setFinalOpen(false);
       setConfirmOpen(false);
+      setPassword('');
     }
   };
 
@@ -174,10 +188,25 @@ export const DeleteAccountCard = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>This cannot be undone</AlertDialogTitle>
             <AlertDialogDescription>
-              You'll be asked to sign in once more to confirm it's you, and then your account will
-              be deleted immediately.
+              {needsPassword
+                ? "Enter your password to confirm it's you, and then your account will be deleted immediately."
+                : "You'll be asked to sign in once more to confirm it's you, and then your account will be deleted immediately."}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {needsPassword && (
+            <div className="space-y-1.5">
+              <Label htmlFor="delete-password">Password</Label>
+              <Input
+                id="delete-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                disabled={deleting}
+              />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction

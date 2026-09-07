@@ -1,14 +1,9 @@
-import {
-  GoogleAuthProvider,
-  OAuthProvider,
-  reauthenticateWithCredential,
-  reauthenticateWithPopup,
-  signOut,
-} from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
-import { auth, functions, googleProvider } from '@/config/firebase';
+import { auth, functions } from '@/config/firebase';
+import { reauthenticate } from '@/services/reauthService';
 
 export interface DeleteAccountResult {
   deleted: boolean;
@@ -22,59 +17,6 @@ export interface DeleteAccountResult {
   appleTokenRevoked: boolean;
 }
 
-/**
- * Re-authenticates the signed-in user and, for Apple accounts, returns the
- * fresh authorization code the server needs to revoke their Apple tokens.
- *
- * Two separate reasons this step is mandatory:
- *
- *  1. Firebase treats account deletion as security-sensitive and rejects it
- *     with `auth/requires-recent-login` unless the user signed in moments ago.
- *  2. Firebase does not persist Apple tokens, so the ONLY moment an Apple
- *     authorization code exists is immediately after an authorization. Apple
- *     requires apps offering Sign in with Apple to revoke tokens on deletion,
- *     and this is the one chance to capture what that needs.
- */
-async function reauthenticate(): Promise<{ appleAuthorizationCode?: string }> {
-  const user = auth.currentUser;
-  if (!user) throw new Error('Not signed in.');
-
-  // Scan for Apple rather than trusting position 0. Indexing the array happens
-  // to work only because the app never links providers; if that ever changes,
-  // an Apple user would be shown a Google sheet, fail with auth/user-mismatch,
-  // and — because skipNativeAuth is false — be left signed into the native SDK
-  // as somebody else.
-  const usesApple = user.providerData.some((p) => p?.providerId === 'apple.com');
-
-  if (usesApple) {
-    const result = await FirebaseAuthentication.signInWithApple();
-    const idToken = result.credential?.idToken;
-    const rawNonce = result.credential?.nonce;
-
-    if (!idToken || !rawNonce) {
-      throw new Error('Apple did not return a usable credential. Please try again.');
-    }
-
-    const credential = new OAuthProvider('apple.com').credential({ idToken, rawNonce });
-    await reauthenticateWithCredential(user, credential);
-
-    // iOS-only field, per the plugin's own documentation. Absent on other
-    // platforms, which is fine — Apple sign-in only ships on iOS.
-    return { appleAuthorizationCode: result.credential?.authorizationCode };
-  }
-
-  if (Capacitor.isNativePlatform()) {
-    const result = await FirebaseAuthentication.signInWithGoogle();
-    const idToken = result.credential?.idToken;
-    if (!idToken) throw new Error('Google did not return a usable credential. Please try again.');
-    await reauthenticateWithCredential(user, GoogleAuthProvider.credential(idToken));
-  } else {
-    await reauthenticateWithPopup(user, googleProvider);
-  }
-
-  return {};
-}
-
 export const accountService = {
   /**
    * Permanently deletes the signed-in user's account.
@@ -85,11 +27,11 @@ export const accountService = {
    * and because the auth account must be destroyed only after the data work
    * succeeds.
    */
-  async deleteAccount(): Promise<DeleteAccountResult> {
+  async deleteAccount(password?: string): Promise<DeleteAccountResult> {
     let appleAuthorizationCode: string | undefined;
 
     try {
-      ({ appleAuthorizationCode } = await reauthenticate());
+      ({ appleAuthorizationCode } = await reauthenticate(password));
     } catch (error) {
       // Tag it so the caller can tell "user backed out of the sign-in sheet"
       // from "the deletion itself failed". Without this distinction a cancelled

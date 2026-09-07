@@ -126,11 +126,18 @@ describe('buildProfileUpdates', () => {
 // moment a real name is available — Apple returns the full name on the initial
 // authorization and never again.
 describe('buildNewProfileFields', () => {
+  // These fixtures carry `providerData` because a real Firebase `User` always
+  // does, and the profile writer now consults it: an address is only published
+  // when a verifying provider vouched for it (see publishableEmail). Omitting
+  // the field here would make an Apple sign-in look like an unverified typed
+  // address and silently assert the wrong thing.
   it('captures the name Apple supplies on the very first authorization', () => {
     const fields = buildNewProfileFields(
       {
         uid: 'u2',
         email: 'sarah@icloud.com',
+        emailVerified: true,
+        providerData: [{ providerId: 'apple.com', email: 'sarah@icloud.com' }],
         displayName: 'Sarah Chen',
         photoURL: null,
       },
@@ -147,14 +154,40 @@ describe('buildNewProfileFields', () => {
       {
         uid: 'u3',
         email: 'xyz789@privaterelay.appleid.com',
+        emailVerified: true,
+        providerData: [
+          { providerId: 'apple.com', email: 'xyz789@privaterelay.appleid.com' },
+        ],
         displayName: null,
         photoURL: null,
       },
       'xyz789'
     );
 
+    // A relay address is still a real, routable address that Apple verified —
+    // it must be published, or the user becomes unfindable by the one contact
+    // detail they chose to share.
     expect(fields.email).toBe('xyz789@privaterelay.appleid.com');
     expect(fields.displayName).toBe('User');
+  });
+
+  // Belt and braces: an Apple session that arrives WITHOUT `emailVerified` must
+  // still publish, on the strength of the matching apple.com provider entry.
+  // This is the fallback that keeps existing Apple users working if Firebase
+  // ever omits the flag — see the open question in the design doc.
+  it('publishes an Apple address even when emailVerified is absent', () => {
+    const fields = buildNewProfileFields(
+      {
+        uid: 'u4',
+        email: 'sarah@icloud.com',
+        providerData: [{ providerId: 'apple.com', email: 'sarah@icloud.com' }],
+        displayName: 'Sarah Chen',
+        photoURL: null,
+      },
+      'sarah-chen'
+    );
+
+    expect(fields.email).toBe('sarah@icloud.com');
   });
 
   it('omits optional fields rather than writing undefined, which Firestore rejects', () => {
@@ -257,5 +290,68 @@ describe('buildProfileUpdates refuses to resurrect a tombstone', () => {
     );
 
     expect(Object.keys(updates).length).toBeGreaterThan(0);
+  });
+});
+
+// The reason `email` is conditional at all.
+//
+// `users/{uid}.email` is queried by userService.getUserByContact to decide WHO
+// a friend means when they add someone by email. Before email/password sign-in,
+// every address in the system was verified by Google or Apple, so publishing it
+// unconditionally was safe. It is not safe once anyone can type any address
+// into a signup form: a profile carrying a stranger's address makes the
+// attacker resolvable AS that person, routing their debts to the wrong uid.
+describe('email is only published once it is trusted', () => {
+  const untrusted = {
+    uid: 'attacker-uid',
+    email: 'victim@example.com',
+    emailVerified: false,
+    providerData: [{ providerId: 'password', email: 'victim@example.com' }],
+    displayName: 'Someone',
+    photoURL: null,
+  };
+
+  it('omits an unverified email from a brand-new profile', () => {
+    expect(buildNewProfileFields(untrusted, 'someone').email).toBe('');
+  });
+
+  it('omits an unverified email from an update', () => {
+    const { updates } = buildProfileUpdates(
+      untrusted,
+      existing({ uid: 'attacker-uid', email: '', displayName: 'Someone' })
+    );
+    expect(updates.email).toBe('');
+  });
+
+  it('publishes the email once verified', () => {
+    expect(
+      buildNewProfileFields({ ...untrusted, emailVerified: true }, 'someone').email
+    ).toBe('victim@example.com');
+  });
+
+  it('still publishes an OAuth email, which is the existing behaviour', () => {
+    const fields = buildNewProfileFields(
+      {
+        uid: 'g',
+        email: 'person@gmail.com',
+        providerData: [{ providerId: 'google.com', email: 'person@gmail.com' }],
+        displayName: 'Person',
+        photoURL: null,
+      },
+      'person'
+    );
+    expect(fields.email).toBe('person@gmail.com');
+  });
+
+  // Withholding must never become erasing. Someone who links a password to
+  // their Google account has an untrusted NEW address in the session while
+  // their profile still holds the verified Google one — blanking it would make
+  // them unfindable to every friend who knows them by that address.
+  it('never erases a stored email because the current session is untrusted', () => {
+    const { updates } = buildProfileUpdates(
+      untrusted,
+      existing({ uid: 'attacker-uid', email: 'previously@verified.com' })
+    );
+    expect(updates.email).toBe('previously@verified.com');
   });
 });

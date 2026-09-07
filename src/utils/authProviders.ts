@@ -114,7 +114,7 @@ export function shouldOfferApple(platform: Platform): boolean {
 }
 
 /**
- * Whether to tell a visitor that an Apple-created account lives in the iOS app.
+ * Whether to tell a visitor how to reach an Apple-created account from here.
  *
  * Shown unconditionally off iOS. An earlier design gated this on a stored
  * "last provider used" flag, which cannot work: that flag is only ever written
@@ -122,7 +122,111 @@ export function shouldOfferApple(platform: Platform): boolean {
  * separate store from the browser's on the deployed domain. The condition could
  * never be true in the one place the notice is needed, so the notice would
  * never render.
+ *
+ * The advice this drives changed when password linking shipped. It used to be a
+ * dead end — "that account only works in the iOS app" — and is now an
+ * instruction, because adding a password in the iOS app makes the same account,
+ * and the same ledger, reachable here.
  */
-export function shouldShowAppleOnlyNotice(platform: Platform): boolean {
+export function shouldShowAppleWebHelpNotice(platform: Platform): boolean {
   return platform !== 'ios';
+}
+
+/** The shape of a Firebase `User` that email-trust decisions actually read. */
+export interface TrustedEmailSubject {
+  email: string | null;
+  emailVerified?: boolean;
+  providerData?: ReadonlyArray<{ providerId?: string; email?: string | null } | null | undefined>;
+}
+
+/** Providers that verify an address before handing it to us. */
+const EMAIL_VERIFYING_PROVIDERS = new Set(['google.com', 'apple.com']);
+
+/**
+ * Whether this account's email may be treated as a proven identity claim.
+ *
+ * Two things in this app trust `user.email` as proof of who someone is:
+ * event invitations are auto-accepted by matching it against `pendingInvites`,
+ * and `userService.getUserByContact` resolves it to a uid when a friend adds
+ * someone by email. Before email/password sign-in existed, every address in the
+ * system came from Google or Apple, so that trust was free. It is not free
+ * anymore — anyone can type a stranger's address into a signup form.
+ *
+ * The provider-match condition is not redundant with `emailVerified`. A password
+ * credential can be linked to an OAuth account under a different address (the
+ * forthcoming account-linking UI does exactly this), which leaves `providerData`
+ * still holding a `google.com` entry for the ORIGINAL address while `user.email`
+ * points at the new, unverified one. Requiring the provider's own email to equal
+ * the account email stops that stale entry from vouching for an address its
+ * provider never saw.
+ */
+export function hasTrustedEmail(user: TrustedEmailSubject | null | undefined): boolean {
+  const email = user?.email;
+  if (!email) return false;
+  if (user?.emailVerified) return true;
+
+  const normalized = email.toLowerCase();
+  return (user?.providerData ?? []).some(
+    (entry) =>
+      !!entry?.providerId &&
+      EMAIL_VERIFYING_PROVIDERS.has(entry.providerId) &&
+      entry.email?.toLowerCase() === normalized
+  );
+}
+
+/** Which form the user was filling in. Signup earns more helpful copy. */
+export type PasswordAuthIntent = 'signin' | 'signup' | 'link' | 'reset';
+
+/**
+ * Human-readable copy for an email/password failure.
+ *
+ * Deliberately vague on sign-in. Firebase's email-enumeration protection is
+ * enabled, which collapses `wrong-password` and `user-not-found` into
+ * `invalid-credential` precisely so an attacker cannot use the login form to
+ * discover which addresses have accounts. Copy that says "no account found"
+ * hands that back, so both codes map to one indistinguishable sentence.
+ *
+ * Signup is the exception, and deliberately so. `email-already-in-use` tells
+ * someone something they are entitled to know about their own address, and it
+ * is the single most likely error for the case this feature exists to serve: an
+ * Apple user who cannot get in on the web and does not realise they already
+ * have an account.
+ */
+export function describePasswordAuthError(
+  error: unknown,
+  intent: PasswordAuthIntent
+): string {
+  const { code, message } = (error ?? {}) as AuthErrorLike;
+
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return 'That email already has a Divit account. Try signing in with Google or Apple, or reset your password.';
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'That email or password is incorrect.';
+    case 'auth/weak-password':
+      return 'Please use a password of at least 6 characters.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/missing-password':
+      return 'Please enter your password.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Please contact support.';
+    case 'auth/operation-not-allowed':
+      return 'Email and password sign-in is not available right now. Please try Google or Apple.';
+    case 'auth/network-request-failed':
+      return 'No connection. Check your network and try again.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Wait a moment and try again.';
+    case 'auth/requires-recent-login':
+      return 'For your security, please sign in again before making this change.';
+    case 'auth/credential-already-in-use':
+    case 'auth/provider-already-linked':
+      return intent === 'link'
+        ? 'That email is already linked to another Divit account.'
+        : 'That email is already in use.';
+    default:
+      return message || 'Something went wrong. Please try again.';
+  }
 }

@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ParallaxGradientBackground } from "@/components/landing/ParallaxGradientBackground";
 import { ProviderSignInButtons } from "@/components/auth/ProviderSignInButtons";
+import { EmailPasswordForm } from "@/components/auth/EmailPasswordForm";
 import type { SignInProvider } from "@/utils/authProviders";
 
 const MobileAuth = () => {
@@ -159,6 +160,10 @@ const MobileAuth = () => {
             buttonClassName="h-14 text-lg font-medium shadow-xl hover:shadow-2xl"
             iconSizeClassName="[&_svg]:size-6"
           />
+
+          <div className="mt-4">
+            <EmailPasswordForm disabled={isClaiming} />
+          </div>
         </motion.div>
 
         {/*

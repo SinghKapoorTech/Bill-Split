@@ -1,14 +1,28 @@
 import React, { createContext, useContext, ReactNode, useEffect, useState } from 'react';
-import { User, signInWithPopup, signInWithCredential, GoogleAuthProvider, OAuthProvider, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
-import { auth, googleProvider, db } from '@/config/firebase';
-import { collection, query, where, getDocs, updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import {
+  User,
+  signInWithPopup,
+  signInWithCredential,
+  GoogleAuthProvider,
+  OAuthProvider,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  updateProfile,
+} from 'firebase/auth';
+import { auth, googleProvider } from '@/config/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { userService } from '@/services/userService';
+import { acceptPendingInvitations } from '@/services/invitationService';
 import {
   SignInProvider,
   describeSignInError,
+  describePasswordAuthError,
   isSilentAuthCancellation,
 } from '@/utils/authProviders';
 
@@ -16,6 +30,9 @@ interface AuthContextType {
   user: User | null | undefined;
   loading: boolean;
   signIn: (provider: SignInProvider) => Promise<void>;
+  signUpWithPassword: (name: string, email: string, password: string) => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -41,58 +58,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-
-  // Function to check and accept pending group invitations
-  const checkAndAcceptInvitations = async (currentUser: User) => {
-    if (!currentUser.email) return;
-
-    try {
-      // Query for events where this user's email is in pendingInvites
-      const eventsRef = collection(db, 'events');
-      const q = query(eventsRef, where('pendingInvites', 'array-contains', currentUser.email));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
-        const eventsToJoin = querySnapshot.docs.length;
-
-        // Process each event invitation
-        for (const eventDoc of querySnapshot.docs) {
-          const eventRef = doc(db, 'events', eventDoc.id);
-
-          // Add user to memberIds and remove from pendingInvites
-          await updateDoc(eventRef, {
-            memberIds: arrayUnion(currentUser.uid),
-            pendingInvites: arrayRemove(currentUser.email),
-          });
-
-          // Update invitation status
-          const invitationsRef = collection(db, 'eventInvitations');
-          const inviteQuery = query(
-            invitationsRef,
-            where('email', '==', currentUser.email),
-            where('eventId', '==', eventDoc.id),
-            where('status', '==', 'pending')
-          );
-          const inviteSnapshot = await getDocs(inviteQuery);
-
-          for (const inviteDoc of inviteSnapshot.docs) {
-            await updateDoc(doc(db, 'eventInvitations', inviteDoc.id), {
-              status: 'accepted',
-            });
-          }
-        }
-
-        // Show success message
-        toast({
-          title: 'Welcome to your events!',
-          description: `You've been added to ${eventsToJoin} ${eventsToJoin === 1 ? 'event' : 'events'}.`,
-        });
-      }
-    } catch (error) {
-      console.error('Error accepting event invitations:', error);
-      // Don't show error to user - this is a background operation
-    }
-  };
 
   // Custom auth state implementation with timeout (replaces useAuthState hook)
   useEffect(() => {
@@ -130,7 +95,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           userService
             .syncUserProfile(currentUser)
             .catch((error) => console.error('Error syncing user profile:', error));
-          checkAndAcceptInvitations(currentUser);
+          // Failures stay silent: this is a background operation, and a toast
+          // about invitations the user never asked about would be noise.
+          acceptPendingInvitations(currentUser)
+            .then((joined) => {
+              if (joined > 0) {
+                toast({
+                  title: 'Welcome to your events!',
+                  description: `You've been added to ${joined} ${joined === 1 ? 'event' : 'events'}.`,
+                });
+              }
+            })
+            .catch((error) => console.error('Error accepting event invitations:', error));
         }
       },
       (error) => {
@@ -222,6 +198,103 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  /**
+   * Creates an account from an email and password.
+   *
+   * The ordering here is not incidental. `createUserWithEmailAndPassword`
+   * produces a user whose `displayName` is null and fires `onAuthStateChanged`
+   * immediately, so the profile sync in that listener would create the Firestore
+   * document with the placeholder name 'User' and an email-derived username —
+   * exactly the clobbering the Apple path was written to avoid. Setting the name
+   * and re-syncing repairs that, and `buildProfileUpdates` never downgrades a
+   * stored value, so the second sync cannot undo the first.
+   */
+  const signUpWithPassword = async (name: string, email: string, password: string) => {
+    try {
+      const { user: created } = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(created, { displayName: name });
+
+      // Verification is not cosmetic here: it gates event-invitation
+      // auto-accept and email-based discovery, both in the client and in
+      // firestore.rules. Send it immediately rather than on demand.
+      await sendEmailVerification(created).catch((error) =>
+        console.error('[Auth] Could not send verification email:', error)
+      );
+
+      // Built field by field rather than spread: a Firebase `User` exposes
+      // much of its state through prototype getters, so `{ ...created }` can
+      // silently produce an object missing uid/email and write a broken profile.
+      await userService
+        .syncUserProfile({
+          uid: created.uid,
+          email: created.email,
+          emailVerified: created.emailVerified,
+          providerData: created.providerData,
+          displayName: name,
+          photoURL: created.photoURL,
+        })
+        .catch((error) => console.error('[Auth] Profile sync after signup failed:', error));
+
+      toast({
+        title: 'Account created',
+        description: `Check ${email} to verify your address.`,
+      });
+    } catch (error: unknown) {
+      console.error('[Auth] Sign-up error:', error);
+      toast({
+        title: 'Could not create your account',
+        description: describePasswordAuthError(error, 'signup'),
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  const signInWithPassword = async (email: string, password: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      toast({ title: 'Welcome back!', description: 'Successfully signed in.' });
+    } catch (error: unknown) {
+      console.error('[Auth] Password sign-in error:', error);
+      toast({
+        title: 'Sign in failed',
+        description: describePasswordAuthError(error, 'signin'),
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  /**
+   * Sends a reset link, and reports success even when it did not send.
+   *
+   * Firebase throws `auth/user-not-found` for an unknown address. Surfacing
+   * that would make this form an account-existence oracle, which is the same
+   * leak the deliberately vague sign-in copy avoids. Only errors that say
+   * nothing about the account — a malformed address, rate limiting — are shown.
+   */
+  const sendPasswordReset = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error: unknown) {
+      console.error('[Auth] Password reset error:', error);
+      const { code } = (error ?? {}) as { code?: string };
+      if (code === 'auth/invalid-email' || code === 'auth/too-many-requests') {
+        toast({
+          title: 'Could not send the email',
+          description: describePasswordAuthError(error, 'reset'),
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    toast({
+      title: 'Check your inbox',
+      description: `If ${email} has a Divit account, a reset link is on its way.`,
+    });
+  };
+
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
@@ -243,6 +316,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     loading,
     signIn,
+    signUpWithPassword,
+    signInWithPassword,
+    sendPasswordReset,
     signOut,
   };
 

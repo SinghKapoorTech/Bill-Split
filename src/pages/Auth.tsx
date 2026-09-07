@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProviderSignInButtons } from '@/components/auth/ProviderSignInButtons';
+import { EmailPasswordForm } from '@/components/auth/EmailPasswordForm';
 import type { SignInProvider } from '@/utils/authProviders';
 
 const Auth = () => {
@@ -117,6 +118,8 @@ const Auth = () => {
             pendingProvider={pendingProvider}
             disabled={isClaiming}
           />
+
+          <EmailPasswordForm disabled={isClaiming} />
 
           <p className="text-xs text-center text-muted-foreground">
             By signing in, you agree to our Terms of Service and Privacy Policy

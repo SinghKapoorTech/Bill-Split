@@ -8,6 +8,7 @@ import { useActiveBalances } from '@/hooks/useActiveBalances';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { userService } from '@/services/userService';
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog';
+import { VerifyEmailBanner } from '@/components/auth/VerifyEmailBanner';
 import { chip } from '@/lib/styles';
 
 export default function Dashboard() {
@@ -73,6 +74,7 @@ export default function Dashboard() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-1">
+        <VerifyEmailBanner />
         <FriendBalancePreviewCard />
       </div>
 

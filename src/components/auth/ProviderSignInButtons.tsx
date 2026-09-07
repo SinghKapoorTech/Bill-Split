@@ -5,7 +5,7 @@ import {
   Platform,
   SignInProvider,
   shouldOfferApple,
-  shouldShowAppleOnlyNotice,
+  shouldShowAppleWebHelpNotice,
 } from '@/utils/authProviders';
 
 interface ProviderSignInButtonsProps {
@@ -118,9 +118,10 @@ export const ProviderSignInButtons = ({
         {content('google', <GoogleLogo className="mr-3" />, 'Sign in with Google')}
       </Button>
 
-      {shouldShowAppleOnlyNotice(platform) && (
+      {shouldShowAppleWebHelpNotice(platform) && (
         <p className="text-xs text-center text-muted-foreground">
-          Signed up with Apple? Sign in with Apple is only available in the Divit iOS app.
+          Signed up with Apple? In the Divit iOS app, go to Settings → Sign-in methods and add a
+          password — then sign in with it here.
         </p>
       )}
     </div>

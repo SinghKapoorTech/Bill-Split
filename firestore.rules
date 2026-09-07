@@ -37,8 +37,18 @@ service cloud.firestore {
       // for everyone — including the rightful creator — with no client-side
       // repair possible. Those documents need the backfill in
       // scripts/backfill-shadow-creators.mjs before this rule is deployed.
+      // `email` is not free text. userService.getUserByContact queries this
+      // field to decide WHO a friend means when they add someone by email, so
+      // an address written here routes real debts to whoever owns the document.
+      // A user may therefore only write their own verified address — but an
+      // update that does not touch the field at all is unconstrained, which is
+      // what keeps every profile written before this rule existed editable.
+      function emailSelfClaimIsHonest() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']) ||
+               (verifiedEmail() && request.resource.data.email == request.auth.token.email);
+      }
       allow update: if request.auth != null && (
-        request.auth.uid == userId ||
+        (request.auth.uid == userId && emailSelfClaimIsHonest()) ||
         (resource.data.isShadow == true &&
          resource.data.get('createdById', null) == request.auth.uid &&
          request.resource.data.isShadow == true &&
@@ -72,7 +82,8 @@ service cloud.firestore {
       allow read: if request.auth != null &&
                      (request.auth.uid == resource.data.ownerId ||
                       request.auth.uid in resource.data.memberIds ||
-                      request.auth.token.email in resource.data.pendingInvites);
+                      (verifiedEmail() &&
+                       request.auth.token.email in resource.data.pendingInvites));
 
       // CREATE IS SERVER-ONLY. Event creation counts against the free-tier
       // owned-active-group cap, which requires an aggregation query that rules
@@ -98,8 +109,11 @@ service cloud.firestore {
                         // Allow members to update memberIds and pendingInvites (for auto-accept)
                         (request.auth.uid in resource.data.memberIds &&
                          onlyUpdating(['memberIds', 'pendingInvites', 'updatedAt'])) ||
-                        // Allow invited users to accept their own invitation
-                        (request.auth.token.email in resource.data.pendingInvites &&
+                        // Allow invited users to accept their own invitation.
+                        // Verification required: an unverified claim on someone
+                        // else's address would otherwise join their events.
+                        (verifiedEmail() &&
+                         request.auth.token.email in resource.data.pendingInvites &&
                          onlyUpdating(['memberIds', 'pendingInvites', 'updatedAt'])));
       allow delete: if request.auth != null &&
                        request.auth.uid == resource.data.ownerId;
@@ -131,6 +145,24 @@ service cloud.firestore {
     function onlyUpdating(allowedFields) {
       let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
       return affectedKeys.hasOnly(allowedFields);
+    }
+
+    // An email claim is only an identity if a provider verified it.
+    //
+    // Every rule that authorizes on `request.auth.token.email` MUST require
+    // this. A password account can put ANY address in that claim: registering
+    // victim@example.com yields a genuine token carrying it with
+    // `email_verified: false`. Without this check, that token reads and joins
+    // every event the victim was invited to — and the client-side gate in
+    // acceptPendingInvitations is bypassed by calling updateDoc directly.
+    //
+    // Google and Apple both set email_verified on their tokens, including for
+    // Apple's Hide My Email relay addresses, so this costs existing users
+    // nothing. See tests/rules/emailVerification.rules.test.ts.
+    function verifiedEmail() {
+      return request.auth != null &&
+             request.auth.token.email_verified == true &&
+             request.auth.token.email != null;
     }
 
     // ========== Bills Collection Helper Functions ==========
@@ -474,11 +506,11 @@ service cloud.firestore {
     // Event invitations - users can read their own invitations
     match /eventInvitations/{invitationId} {
       allow read: if request.auth != null &&
-                     (request.auth.token.email == resource.data.email ||
+                     ((verifiedEmail() && request.auth.token.email == resource.data.email) ||
                       request.auth.uid == resource.data.invitedBy);
       allow write: if request.auth != null &&
                       request.auth.uid == resource.data.invitedBy;
-      allow update: if request.auth != null &&
+      allow update: if verifiedEmail() &&
                        request.auth.token.email == resource.data.email;
     }
 

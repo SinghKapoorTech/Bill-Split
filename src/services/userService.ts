@@ -20,6 +20,7 @@ import {
   buildProfileUpdates,
   buildNewProfileFields,
   buildNewProfileUsernameSeed,
+  type AuthUserLike,
 } from '@/utils/profileSync';
 
 const USERS_COLLECTION = 'users';
@@ -75,7 +76,10 @@ export const userService = {
   /**
    * Creates or updates a user profile on login
    */
-  async syncUserProfile(user: { uid: string; email: string | null; displayName: string | null; photoURL: string | null; phoneNumber?: string | null }): Promise<void> {
+  // Takes the shared AuthUserLike rather than an inline shape so that
+  // `emailVerified` and `providerData` reach the profile helpers — they decide
+  // whether this session's email is trustworthy enough to publish.
+  async syncUserProfile(user: AuthUserLike): Promise<void> {
     const userRef = doc(db, USERS_COLLECTION, user.uid);
     const userSnap = await getDoc(userRef);
 
@@ -128,6 +132,13 @@ export const userService = {
    * Gets a user by email or phone number
    */
   async getUserByContact(contact: string): Promise<UserProfile | null> {
+    // A blank contact must never match. Profiles store `email: ''` when there
+    // is no trustworthy address to publish (see profileSync.publishableEmail),
+    // so an equality query on '' would match an arbitrary one of them and
+    // resolve a stranger as the person being added.
+    const trimmed = contact.trim();
+    if (!trimmed) return null;
+
     const usersRef = collection(db, USERS_COLLECTION);
 
     // Try by email

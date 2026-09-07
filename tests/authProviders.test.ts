@@ -3,7 +3,8 @@ import {
   isSilentAuthCancellation,
   describeSignInError,
   shouldOfferApple,
-  shouldShowAppleOnlyNotice,
+  shouldShowAppleWebHelpNotice,
+  hasTrustedEmail,
 } from '@/utils/authProviders';
 
 // Sign in with Apple is required by App Store Review Guideline 4.8. These are
@@ -154,7 +155,7 @@ describe('shouldOfferApple', () => {
   });
 });
 
-describe('shouldShowAppleOnlyNotice', () => {
+describe('shouldShowAppleWebHelpNotice', () => {
   // An account created with Apple on iPhone has no credential that works
   // anywhere else. The notice cannot be conditioned on a stored "last provider"
   // flag: that flag is written inside the iOS WKWebView, whose localStorage
@@ -162,14 +163,86 @@ describe('shouldShowAppleOnlyNotice', () => {
   // condition could never be true where it matters. It has to show
   // unconditionally off iOS.
   it('shows on web, where an Apple account cannot sign in at all', () => {
-    expect(shouldShowAppleOnlyNotice('web')).toBe(true);
+    expect(shouldShowAppleWebHelpNotice('web')).toBe(true);
   });
 
   it('shows on Android for the same reason', () => {
-    expect(shouldShowAppleOnlyNotice('android')).toBe(true);
+    expect(shouldShowAppleWebHelpNotice('android')).toBe(true);
   });
 
   it('never shows on iOS, where the Apple button is right there', () => {
-    expect(shouldShowAppleOnlyNotice('ios')).toBe(false);
+    expect(shouldShowAppleWebHelpNotice('ios')).toBe(false);
+  });
+});
+
+describe('hasTrustedEmail', () => {
+  it('rejects a user with no email at all', () => {
+    expect(hasTrustedEmail({ email: null })).toBe(false);
+    expect(hasTrustedEmail(null)).toBe(false);
+    expect(hasTrustedEmail(undefined)).toBe(false);
+  });
+
+  it('rejects an unverified password account', () => {
+    expect(
+      hasTrustedEmail({
+        email: 'victim@example.com',
+        emailVerified: false,
+        providerData: [{ providerId: 'password', email: 'victim@example.com' }],
+      })
+    ).toBe(false);
+  });
+
+  it('accepts an explicitly verified email', () => {
+    expect(
+      hasTrustedEmail({
+        email: 'real@example.com',
+        emailVerified: true,
+        providerData: [{ providerId: 'password', email: 'real@example.com' }],
+      })
+    ).toBe(true);
+  });
+
+  it('accepts an OAuth email even when emailVerified is absent', () => {
+    // The fallback exists so trust does not hinge on a single field: the
+    // provider vouched for the address at authorization time, so a session that
+    // reaches us without the flag set is still trustworthy. Whether Apple
+    // sessions actually arrive that way has NOT been observed on a real device
+    // — treat this as belt-and-braces, not as a documented Apple behaviour.
+    expect(
+      hasTrustedEmail({
+        email: 'user@privaterelay.appleid.com',
+        providerData: [{ providerId: 'apple.com', email: 'user@privaterelay.appleid.com' }],
+      })
+    ).toBe(true);
+  });
+
+  // The hazard from the later linking task: a password credential linked to a
+  // Google account can move the account email to an address Google never verified.
+  it('does not let a stale OAuth entry vouch for a different account email', () => {
+    expect(
+      hasTrustedEmail({
+        email: 'attacker-chosen@example.com',
+        emailVerified: false,
+        providerData: [
+          { providerId: 'google.com', email: 'original@gmail.com' },
+          { providerId: 'password', email: 'attacker-chosen@example.com' },
+        ],
+      })
+    ).toBe(false);
+  });
+
+  it('compares provider emails case-insensitively', () => {
+    expect(
+      hasTrustedEmail({
+        email: 'Person@Example.com',
+        providerData: [{ providerId: 'google.com', email: 'person@example.com' }],
+      })
+    ).toBe(true);
+  });
+
+  it('ignores null entries in providerData', () => {
+    expect(
+      hasTrustedEmail({ email: 'a@b.com', providerData: [null, undefined] })
+    ).toBe(false);
   });
 });
