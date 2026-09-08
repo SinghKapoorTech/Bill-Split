@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import { chromium } from '@playwright/test';
+import { loginAsTestUser } from './helpers/auth';
 
 /**
  * Both emulators the suite needs must be up, not just Firestore.
@@ -20,25 +21,6 @@ function isEmulatorRunning(): boolean {
   };
   // 8081 = firestore, 5001 = functions (callables: createEvent, createBill, …)
   return up('http://localhost:8081') && up('http://localhost:5001');
-}
-
-/**
- * Completes the Firebase Auth Emulator popup flow.
- */
-async function completeEmulatorPopup(popup: import('@playwright/test').Page) {
-  await popup.waitForLoadState('domcontentloaded');
-
-  const addAccountBtn = popup.getByRole('button', { name: /add new account/i });
-  await addAccountBtn.waitFor({ state: 'visible', timeout: 15000 });
-  await addAccountBtn.click();
-
-  const autoGenBtn = popup.getByRole('button', { name: /auto-generate/i });
-  await autoGenBtn.waitFor({ state: 'visible', timeout: 10000 });
-  await autoGenBtn.click();
-
-  const signInBtn = popup.getByRole('button', { name: /sign in/i });
-  await signInBtn.waitFor({ state: 'visible', timeout: 10000 });
-  await signInBtn.click();
 }
 
 async function globalSetup() {
@@ -75,7 +57,7 @@ async function globalSetup() {
     execSync(
       'firebase emulators:start --only auth,firestore,functions &',
       // bash, not zsh — see the note above; absent on ubuntu-latest.
-      { cwd: process.cwd(), env, stdio: 'ignore', shell: '/bin/bash' }
+      { cwd: process.cwd(), env, stdio: 'ignore', shell: '/bin/bash' },
     );
 
     const startTime = Date.now();
@@ -93,31 +75,26 @@ async function globalSetup() {
   // the first actual test doesn't bear the full cold-start cost (~20-40s).
   console.log('Warming up emulator with a test login...');
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
+  // baseURL is REQUIRED here. globalSetup launches its own browser, so it does
+  // NOT inherit `use.baseURL` from playwright.config.ts the way tests do — and
+  // `loginAsTestUser` navigates to the relative '/auth'. Without this the
+  // warm-up dies on "Cannot navigate to invalid URL", and because the warm-up
+  // is deliberately non-fatal that failure is a WARNING, not a test failure:
+  // the suite still goes green while silently losing the warm-up entirely.
+  const context = await browser.newContext({ baseURL: 'http://localhost:8080' });
   const page = await context.newPage();
 
   try {
-    await page.goto('http://localhost:8080/auth');
-    const popup = await Promise.race([
-      page.waitForEvent('popup', { timeout: 15000 }),
-      page.getByRole('button', { name: 'Sign in with Google' }).click().then(() =>
-        page.waitForEvent('popup', { timeout: 15000 })
-      ),
-    ]).catch(() => null);
-
-    if (popup) {
-      await completeEmulatorPopup(popup);
-      try {
-        await page.waitForURL(/\/dashboard/, { timeout: 20000 });
-      } catch {
-        await page.goto('http://localhost:8080/dashboard');
-      }
-      console.log('Emulator warm-up complete. Tests will be faster.');
-    } else {
-      console.warn('Warm-up: popup did not appear (non-fatal, tests will cold-start).');
-    }
+    // Warm up through the SAME email/password path the specs use. This used to
+    // drive the Google popup, which pulls gapi from https://apis.google.com and
+    // put the public internet on the critical path — the exact dependency whose
+    // intermittent failure (net::ERR_ABORTED) was breaking logins in CI.
+    await loginAsTestUser(page);
+    console.log('Emulator warm-up complete. Tests will be faster.');
   } catch (e) {
-    console.warn('Warm-up login failed (non-fatal):', (e as Error).message);
+    // Non-fatal by design: this is a cold-start optimisation, not a gate. Each
+    // spec signs in for itself and will fail loudly on its own if auth is broken.
+    console.warn('Warm-up login failed (non-fatal, tests will cold-start):', (e as Error).message);
   } finally {
     await context.close();
     await browser.close();
