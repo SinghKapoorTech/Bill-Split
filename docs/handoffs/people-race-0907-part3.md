@@ -1,8 +1,9 @@
 # Divit — people-loss race: two real defects fixed, the e2e flake is NOT them
 
-**Status:** MILESTONE — 4 commits on `main`, GREEN, **NOT PUSHED** (4 ahead of origin)
+**Status:** SUPERSEDED — all of this is now PUSHED. See `docs/handoffs/ci-e2e-repair-0908.md`
+for current state; the detail and trap table below remain accurate.
 **Workspace:** `/Users/simran/Documents/GitHub/Bill-Split`
-**Branch:** `main` — HEAD `d586e00`, **4 ahead / 0 behind** `origin/main`
+**Branch:** `main` — superseded; HEAD is now `6042c25`, 0 ahead / 0 behind `origin/main`
 **Updated:** 2026-09-07 (session 3)
 **Predecessor:** `docs/handoffs/monetization-0907-part2.md` — still accurate except
 its "Not yet done #1" (the people-loss race), which this file supersedes.
