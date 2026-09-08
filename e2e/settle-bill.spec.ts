@@ -4,6 +4,24 @@ import { createEventWithMembers, createBillInEvent } from './helpers/event';
 
 test.describe('Bill-Level Settlement', () => {
   /**
+   * RESOLVED 2026-09-08 — UN-QUARANTINED. Everything below is kept as the
+   * investigation record; it is HISTORY, not current state.
+   *
+   * The remaining flake was never in this spec or in the settle step. It was
+   * the LOGIN: `signInWithPopup` loads gapi from https://apis.google.com to
+   * carry the popup result back, so the public internet sat on the critical
+   * path of every test. When that script aborted (net::ERR_ABORTED) no session
+   * was ever created and the spec failed downstream on a logged-out page.
+   * Correlation in CI run 34180371036 was 6/6. `e2e/helpers/auth.ts` now signs
+   * in with email/password against the Auth emulator — no popup, no gapi.
+   *
+   * Evidence for un-quarantining: 12/12 passes each at `--repeat-each=12`,
+   * `--retries=0`, at 1-min load 4-10. Against the previously measured ~25%
+   * failure rate that is a ~3% fluke, so this is a real fix, not a lucky run.
+   *
+   * ORIGINAL QUARANTINE RECORD FOLLOWS
+   * ----------------------------------
+   *
    * QUARANTINED (flaky) — 2026-09-07. NOT rotted. Read this before re-enabling.
    *
    * THIS TEST WAS RIGHT. It caught a REAL bug, and quarantining it earlier in the
@@ -79,7 +97,7 @@ test.describe('Bill-Level Settlement', () => {
    * Next step: instrument the SETTLE half — all three now fail at or after the
    * settle step, not at the add step — and get a clean idle measurement first.
    */
-  test.fixme('settling a person on a bill shows settled badge and updates event balances', async ({ page }) => {
+  test('settling a person on a bill shows settled badge and updates event balances', async ({ page }) => {
     // ── Setup: Login and create event ──
     await loginAsTestUser(page);
 
