@@ -39,4 +39,63 @@ export async function loginAsTestUser(page: Page) {
     await page.goto('/dashboard');
     await page.waitForURL(/\/dashboard/, { timeout: 15000 });
   }
+
+  await waitForAuthPersisted(page);
+}
+
+/**
+ * Blocks until Firebase has written the signed-in session to IndexedDB.
+ *
+ * Reaching /dashboard only proves auth exists IN MEMORY. Firebase flushes the
+ * session to IndexedDB asynchronously, and any test that then calls
+ * `page.goto(...)` does a FULL RELOAD — if the write has not landed, the
+ * restored session is empty, ProtectedRoute resolves to "no user" and bounces
+ * to the marketing page. The spec then waits its full timeout on a landing
+ * page that will never show the element.
+ *
+ * That is exactly how it failed in CI: `dashboard-bills`, `create-options` and
+ * `recurring-bill` are precisely the specs that `goto` after logging in, and
+ * every one of their failure snapshots is the landing page with a "Sign In"
+ * button still on it. Locally the write always won the race; on CI's slower
+ * disk it did not.
+ */
+async function waitForAuthPersisted(page: Page, timeout = 15000) {
+  await page.waitForFunction(
+    () =>
+      new Promise<boolean>((resolve) => {
+        let req: IDBOpenDBRequest;
+        try {
+          req = indexedDB.open('firebaseLocalStorageDb');
+        } catch {
+          resolve(false);
+          return;
+        }
+        req.onerror = () => resolve(false);
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('firebaseLocalStorage')) {
+            db.close();
+            resolve(false);
+            return;
+          }
+          const keysReq = db
+            .transaction('firebaseLocalStorage', 'readonly')
+            .objectStore('firebaseLocalStorage')
+            .getAllKeys();
+          keysReq.onerror = () => {
+            db.close();
+            resolve(false);
+          };
+          keysReq.onsuccess = () => {
+            const persisted = (keysReq.result as IDBValidKey[]).some((k) =>
+              String(k).startsWith('firebase:authUser:'),
+            );
+            db.close();
+            resolve(persisted);
+          };
+        };
+      }),
+    undefined,
+    { timeout, polling: 100 },
+  );
 }
