@@ -7,6 +7,7 @@ import {
   LIMIT_MIN,
   LIMIT_MAX,
 } from '@shared/monetizationLimits';
+import { FREE_SCANS_PER_MONTH } from '@shared/scanQuota';
 
 describe('resolveLimit', () => {
   it('passes a sane value through untouched', () => {
@@ -85,8 +86,16 @@ describe('resolveLimit', () => {
   });
 
   it('carries the launch defaults from the spec', () => {
-    expect(FREE_SCANS_PER_MONTH_DEFAULT).toBe(5);
+    expect(FREE_SCANS_PER_MONTH_DEFAULT).toBe(2);
     expect(FREE_ACTIVE_GROUPS_DEFAULT).toBe(2);
+  });
+
+  // The two scan-cap constants live in different modules for different reasons
+  // (`scanQuota` is the arithmetic default, `monetizationLimits` is the Remote
+  // Config fallback) and nothing in the type system keeps them in step. A
+  // release where they disagree enforces one number and shows the user another.
+  it('agrees with the scan-quota module on the free-tier cap', () => {
+    expect(FREE_SCANS_PER_MONTH_DEFAULT).toBe(FREE_SCANS_PER_MONTH);
   });
 });
 

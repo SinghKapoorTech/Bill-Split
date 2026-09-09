@@ -100,7 +100,30 @@ describe('evaluateScanQuota', () => {
 
   it('defaults to the documented free-tier limit', () => {
     expect(evaluateScanQuota(null, SEP_MID).limit).toBe(FREE_SCANS_PER_MONTH);
-    expect(FREE_SCANS_PER_MONTH).toBe(5);
+    expect(FREE_SCANS_PER_MONTH).toBe(2);
+  });
+
+  // The launch cap, exercised through the DEFAULT limit rather than an explicit
+  // argument — this is the path `analyzeBill` takes when Remote Config is
+  // unreachable, so the number a degraded server enforces is pinned here too.
+  it('free tier allows exactly 2 scans per UTC month', () => {
+    const first = evaluateScanQuota({ periodStartMs: SEP_START, count: 0 }, SEP_MID);
+    expect(first).toMatchObject({ allowed: true, used: 0, remaining: 2, limit: 2 });
+
+    const second = evaluateScanQuota({ periodStartMs: SEP_START, count: 1 }, SEP_MID);
+    expect(second).toMatchObject({ allowed: true, used: 1, remaining: 1, limit: 2 });
+
+    // The third scan in a month is refused.
+    const third = evaluateScanQuota({ periodStartMs: SEP_START, count: 2 }, SEP_MID);
+    expect(third).toMatchObject({ allowed: false, used: 2, remaining: 0, limit: 2 });
+    // ...and the user is told when it comes back.
+    expect(third.resetsAtMs).toBe(OCT_START);
+  });
+
+  // A user who was at the cap in September starts October with a full 2.
+  it('rolls the 2-scan allowance over at the UTC month boundary', () => {
+    const d = evaluateScanQuota({ periodStartMs: SEP_START, count: 2 }, OCT_START);
+    expect(d).toMatchObject({ allowed: true, used: 0, remaining: 2, periodRolled: true });
   });
 
   it('fractional stored counts are floored, not rounded up', () => {

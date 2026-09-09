@@ -25,7 +25,7 @@
       "description": "Max owned ACTIVE events on the free tier. Clamped to [1,1000] server-side."
     },
     "free_scans_per_month": {
-      "defaultValue": { "value": "5" },
+      "defaultValue": { "value": "2" },
       "valueType": "NUMBER",
       "description": "Max AI receipt scans per UTC month on the free tier. Clamped to [1,1000] server-side."
     },

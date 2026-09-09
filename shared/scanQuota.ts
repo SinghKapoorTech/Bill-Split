@@ -12,7 +12,7 @@
  *
  * The asymmetry is deliberate and load-bearing. Refunding an hourly slot
  * reopens the "deliberately error to scan for free" bypass, and by then the
- * Gemini call has usually already been paid for. But charging one of five
+ * Gemini call has usually already been paid for. But charging one of two
  * monthly scans for a scan that returned nothing is indefensible — so this
  * counter increments on success ONLY, which is why it is evaluated and
  * committed in two separate steps rather than reserved up front.
@@ -27,7 +27,7 @@
  */
 
 /** Launch default. Remote Config overrides it — see `shared/monetizationLimits.ts`. */
-export const FREE_SCANS_PER_MONTH = 5;
+export const FREE_SCANS_PER_MONTH = 2;
 
 /** Persisted state, read from `usage/{userId}` with timestamps already in millis. */
 export interface ScanQuotaState {

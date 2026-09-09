@@ -22,7 +22,7 @@
  */
 
 /** Launch defaults — spec §4.2. Both are Remote Config keys so they can move without a release. */
-export const FREE_SCANS_PER_MONTH_DEFAULT = 5;
+export const FREE_SCANS_PER_MONTH_DEFAULT = 2;
 export const FREE_ACTIVE_GROUPS_DEFAULT = 2;
 
 /** Remote Config key names. Centralised so enforcement and UI cannot drift apart. */
