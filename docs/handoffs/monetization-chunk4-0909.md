@@ -63,8 +63,9 @@ Architecture 4 · Performance 5 · Testing 4 · Clarity 5).
 - `expiration_at_ms: 1e18` → no entitlement write, ledger row still written,
   `ERROR` logged exactly once.
 - `doc('')` and `doc('a/b')` throw client-side; **`doc('.')`, `doc('__foo__')` and a
-  2000-byte id do NOT** — they die at COMMIT, which writes no ledger row and so
-  retries forever. That is why every clause of `isValidDocId` earns its place.
+  2000-byte id do NOT** — they die at COMMIT, which writes no ledger row, so the
+  delivery burns all 6 attempts and the purchase is then DISCARDED with no trace.
+  That is why every clause of `isValidDocId` earns its place.
 - Rules: loosening `webhook_events` to `if request.auth != null` turns 5 of 6 new
   assertions red — the tests can actually fail.
 
@@ -82,9 +83,10 @@ Architecture 4 · Performance 5 · Testing 4 · Clarity 5).
      reaches a write goes through here") is **literally false today**. Reproduced
      standalone: empty id throws; an array `type` throws
      `3 INVALID_ARGUMENT: Cannot convert an array value in an array value` at commit,
-     with **no ledger row**, so the retry never stops. Cheapest fix: move the
-     `id`/`type` shape check to the top of `applyRevenueCatEvent`, returning a
-     `{status:'rejected'}` outcome the shell maps to 400.
+     with **no ledger row**, so the purchase is silently lost after RevenueCat
+     exhausts its 6 attempts. Cheapest fix: move the `id`/`type` shape check to
+     the top of `applyRevenueCatEvent`, returning a `{status:'rejected'}` outcome
+     the shell maps to 400. **DONE 2026-09-09.**
    - **`ApplyOutcome` is computed then discarded.** `:213` defines a precise
      three-state outcome; `:220` returns `Promise<void>`. Chunk 5's reconciliation
      caller cannot distinguish applied / duplicate / ignored-and-why without
@@ -101,11 +103,13 @@ Architecture 4 · Performance 5 · Testing 4 · Clarity 5).
    _after_ the server consumed quota).
 6. **Task 2b (new, deferred deliberately)** — out-of-order `EXPIRATION` and `TRANSFER`.
    See "Key decisions".
-7. **Operational, before go-live:** a log-based alert on sustained 401s from the
-   webhook. A secret rotated on one side only means every delivery 401s, RevenueCat
-   retries for days then gives up, and every customer in that window paid and got
-   nothing — with zero user-visible signal. `revenueCatWebhook.ts:74` already emits
-   the `logger.warn` an alert policy would key on.
+7. **Operational, before go-live — MORE URGENT THAN PREVIOUSLY RECORDED.** A
+   log-based alert on sustained 401s from the webhook. A secret rotated on one side
+   only means every delivery 401s and every customer in that window paid and got
+   nothing, with zero user-visible signal. The window to catch it is **~2h35m, not
+   days** (see RETRY POLICY below), after which those events are gone permanently.
+   An alert that pages within the hour is the requirement.
+   `revenueCatWebhook.ts` already emits the `logger.warn` an alert policy keys on.
 8. **`toMillis` is duplicated** byte-identically at `revenueCatWebhook.ts:188` and
    `entitlementService.ts:44` — write side and read side of the same field, bound only
    by a comment. Both live in `functions/src/` and both already import `Timestamp`, so
@@ -122,6 +126,7 @@ Architecture 4 · Performance 5 · Testing 4 · Clarity 5).
 | **Spec §5.3: "webhook must set `plan: 'trip_pass'`"**                                             | Would DOWNGRADE a Pro subscriber who also buys a pass | `shared/entitlements.ts:81` resolves a pass from `tripPassExpiresAt` **independently of `plan`**, precisely so the two coexist. Corrected in the spec in `c95dcfe`. Write `tripPassExpiresAt`, never `plan`.                                                                                      |
 | **Spec §5.3: "key idempotency on `transaction_id`"**                                              | Would silently drop every renewal after the first     | `transaction_id` is stable across `RENEWAL` events for one subscription. Use **`event.id`** — unique per event, identical across retries of that event. Corrected in `c95dcfe`.                                                                                                                   |
 | **"A nested array in `product_id` makes `tx.set` throw"** (asserted by a reviewer, relayed by me) | The conclusion was right, the mechanism wrong         | `tx.set` accepts it and the client serializer encodes it fine; the **server** rejects at **commit** with `3 INVALID_ARGUMENT: Cannot convert an array value in an array value`. That is worse — no ledger row is written, so the retry loop is unbounded. **Test the mechanism, don't relay it.** |
+| **"RevenueCat retries a failed delivery for days"** (asserted across ~13 comments + this handoff, never checked) | Wrong, and it inverted the actual risk | RevenueCat treats EVERY non-200 identically (4xx = 5xx) and retries **only 5 times — 5/10/20/40/80 min — then stops permanently.** 6 attempts, **~2h35m**, then the event is GONE. So the hazard was never a "retry storm"; it is **silent permanent loss of a paid purchase**, and the 401 detection window is under 3 hours. Verified at https://www.revenuecat.com/docs/integrations/webhooks. Corrected 2026-09-09; the policy is now stated in `revenueCatWebhook.ts`'s header so it cannot drift again. **Third instance of relaying a mechanism instead of testing it.** |
 | **`page.waitForFunction` with an async predicate** (previous session, still relevant)             | Vacuous — passes on the first poll, always            | It does not await promises; a Promise object is truthy. Same class as the three vacuous tests found this session.                                                                                                                                                                                 |
 | **Monitoring an agent transcript for `APPROVED\|CHANGES REQUESTED`**                              | Fired immediately on a false positive                 | The prompt sent TO the agent contained both strings verbatim, so the grep matched my own instructions. Wait for the agent completion notification instead.                                                                                                                                        |
 
@@ -270,9 +275,10 @@ it writes in — `extend-trip-pass` is the only non-idempotent mutation (read-mo
   RevenueCat is pointed at it, and the shared secret is its only guard. Any future push
   touching `functions/**`, `shared/**` or `firestore.rules` auto-deploys to PROD.
 - **Before go-live, add a log-based alert on sustained 401s from this function.** A secret
-  rotated on one side only means every delivery 401s, RevenueCat retries for days then
-  gives up, and every customer in that window paid and got nothing — with no user-visible
-  signal. `revenueCatWebhook.ts:74` already emits the `logger.warn` to key on.
+  rotated on one side only means every delivery 401s and every customer in that window paid
+  and got nothing, with no user-visible signal. RevenueCat gives up after **~2h35m**, so
+  that is the whole detection window. `revenueCatWebhook.ts` already emits the
+  `logger.warn` to key on.
 - **This is the repo's first publicly-invokable HTTP function.** A shared secret in the
   `Authorization` header is its only protection.
 - **`PRODUCT_PLANS` ids must match the store EXACTLY** (`divit_pro_monthly`,
