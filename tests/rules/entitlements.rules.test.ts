@@ -1,7 +1,8 @@
 /**
- * Security-rules tests for /entitlements and /usage.
+ * Security-rules tests for /entitlements, /usage and /webhook_events.
  *
- * These collections hold plan state and consumption counters. They are written
+ * These collections hold plan state, consumption counters, and the RevenueCat
+ * webhook replay ledger that keeps one payment from granting twice. They are written
  * EXCLUSIVELY by the Admin SDK (the RevenueCat webhook and analyzeBill). A
  * client that could write them could grant itself Pro for free, so every client
  * write must be denied — including the owner's own.
@@ -65,6 +66,11 @@ beforeEach(async () => {
     await setDoc(doc(db, 'usage', OWNER), {
       scansThisPeriod: 0,
       rateCount: 0,
+    });
+    await setDoc(doc(db, 'webhook_events', 'evt_seen'), {
+      type: 'NON_RENEWING_PURCHASE',
+      uid: OWNER,
+      mutation: 'extend-trip-pass',
     });
   });
 });
@@ -133,5 +139,40 @@ describe('usage — consumption counters are Admin-SDK-only', () => {
   it('BLOCKS the owner deleting their usage doc', async () => {
     // The hole this closes: delete then recreate usage/{uid} to reset the quota.
     await assertFails(deleteDoc(doc(asOwner(), 'usage', OWNER)));
+  });
+});
+
+describe('webhook_events — the replay ledger is Admin-SDK-only', () => {
+  // The hole this closes: `webhook_events/{eventId}` is the ONLY thing standing
+  // between a RevenueCat retry (or a replayed payload) and a second grant. A
+  // client that could delete a row here could replay one NON_RENEWING_PURCHASE
+  // and stack a second 14-day Trip Pass onto one payment; a client that could
+  // write one could poison the ledger so a real purchase is dropped as a
+  // "duplicate". Unlike entitlements/usage, there is no owner-read case either
+  // — nothing in the app renders this, and its contents leak purchase history.
+  it('BLOCKS the owner reading a webhook event row', async () => {
+    await assertFails(getDoc(doc(asOwner(), 'webhook_events', 'evt_seen')));
+  });
+
+  it('BLOCKS an anonymous read', async () => {
+    await assertFails(getDoc(doc(asAnon(), 'webhook_events', 'evt_seen')));
+  });
+
+  it('BLOCKS deleting a row (the replay guard)', async () => {
+    await assertFails(deleteDoc(doc(asOwner(), 'webhook_events', 'evt_seen')));
+  });
+
+  it('BLOCKS creating a row (poisoning the guard so a real purchase is dropped)', async () => {
+    await assertFails(
+      setDoc(doc(asOwner(), 'webhook_events', 'evt_future'), { uid: OWNER, mutation: 'ignore' }),
+    );
+  });
+
+  it('BLOCKS updating an existing row', async () => {
+    await assertFails(updateDoc(doc(asOwner(), 'webhook_events', 'evt_seen'), { uid: ATTACKER }));
+  });
+
+  it("BLOCKS an attacker touching someone else's row", async () => {
+    await assertFails(deleteDoc(doc(asAttacker(), 'webhook_events', 'evt_seen')));
   });
 });

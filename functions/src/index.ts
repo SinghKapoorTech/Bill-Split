@@ -844,6 +844,12 @@ export { createSquad, updateSquad, deleteSquad } from './squadFunctions.js';
 // token, and deletes the auth account last. See accountDeletion.ts.
 export { deleteAccount } from './accountDeletion.js';
 
+// ========== Monetization ==========
+// RevenueCat posts purchase/renewal/expiry events here. The ONLY writer of
+// `entitlements/{userId}`. Authenticated by a shared secret, deduped on
+// event.id against `webhook_events/`. See revenueCatWebhook.ts.
+export { revenueCatWebhook } from './revenueCatWebhook.js';
+
 /**
  * Cloud Function: Generate a recurring bill's due occurrences immediately.
  *

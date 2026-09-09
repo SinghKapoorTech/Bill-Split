@@ -381,6 +381,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Webhook replay ledger. Admin SDK only — a client that could delete a row
+    // here could replay a purchase event and extend its own Trip Pass for free.
+    match /webhook_events/{eventId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
     // ========== Friend Balances Collection ==========
     match /balances/{balanceId} {
       // allow get: handles both existing docs and non-existent docs.
