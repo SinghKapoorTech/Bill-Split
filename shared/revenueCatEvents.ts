@@ -11,6 +11,28 @@
  * the webhook, reading the current doc, calling `planEntitlementMutation`,
  * and applying the resulting `EntitlementMutation` to Firestore.
  *
+ * THE CALLER MUST ALSO HANDLE (this module deliberately cannot):
+ *   - DEDUPE ON `event.id` BEFORE CALLING THIS. RevenueCat retries webhook
+ *     deliveries that don't return 2xx, for days. `set-pro`, `clear-pro`,
+ *     and `set-grace` are idempotent — writing the same value twice is
+ *     harmless — but `extend-trip-pass` is NOT: it is a read-modify-write
+ *     over `current.tripPassExpiresAt`, so replaying one
+ *     `NON_RENEWING_PURCHASE` event twice grants 28 days for one payment.
+ *     A pure function has no storage to check "have I seen this `id`
+ *     before", so this cannot be done here — it is the caller's job,
+ *     against durable storage, before `planEntitlementMutation` is ever
+ *     invoked. `event.id` is on `RevenueCatEvent` for exactly this purpose
+ *     even though nothing in this file reads it.
+ *   - READ `current` INSIDE THE SAME TRANSACTION THE RESULT IS WRITTEN IN.
+ *     For the same reason: `extend-trip-pass` computes its new value from
+ *     `current.tripPassExpiresAt`. If two deliveries (a legitimate retry, or
+ *     two purchases close together) both read the pre-extension `current`
+ *     outside a transaction, both compute the same "extend from X" result
+ *     and the second write silently loses the first extension. `set-pro`,
+ *     `clear-pro`, and `set-grace` don't depend on `current` at all, so they
+ *     aren't exposed to this — but the caller should transact uniformly
+ *     rather than special-case by mutation kind.
+ *
  * FAIL CLOSED, ALWAYS TOWARD `ignore`. Every branch that cannot fully prove
  * a grant is safe returns `{ kind: 'ignore' }` rather than guessing in the
  * user's favor. A missed grant costs one webhook retry or a support ticket;
@@ -110,13 +132,20 @@ export interface CurrentEntitlement {
  * What the caller should do to `entitlements/{userId}`. A closed union so
  * the Cloud Function (Task 2) must handle every case explicitly rather than
  * falling through a default branch.
+ *
+ * `reason` on `ignore` is REQUIRED, not optional: a dropped webhook is a
+ * customer who paid (or thinks they did) and got nothing, so the reason
+ * this event was ignored has to survive into the caller's log line, not
+ * disappear as an undefined field. Every `ignore` return below already
+ * supplies one — this is a type-level guarantee that a future branch can't
+ * accidentally omit it.
  */
 export type EntitlementMutation =
   | { kind: 'set-pro'; expiresAt: number; inGracePeriod: false }
   | { kind: 'clear-pro' }
   | { kind: 'set-grace' }
   | { kind: 'extend-trip-pass'; tripPassExpiresAt: number }
-  | { kind: 'ignore'; reason?: string };
+  | { kind: 'ignore'; reason: string };
 
 /**
  * Event types that grant/renew an active Pro subscription with a fresh

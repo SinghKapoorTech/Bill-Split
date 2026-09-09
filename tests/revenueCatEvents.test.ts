@@ -24,20 +24,6 @@ describe('TRIP_PASS_DURATION_MS', () => {
 });
 
 describe('planEntitlementMutation', () => {
-  it('grants pro on INITIAL_PURCHASE using the event expiry', () => {
-    const m = planEntitlementMutation(
-      {
-        ...base,
-        type: 'INITIAL_PURCHASE',
-        product_id: 'divit_pro_monthly',
-        expiration_at_ms: NOW + 1000,
-      },
-      null,
-      NOW,
-    );
-    expect(m).toEqual({ kind: 'set-pro', expiresAt: NOW + 1000, inGracePeriod: false });
-  });
-
   it.each([
     'INITIAL_PURCHASE',
     'RENEWAL',
@@ -81,7 +67,7 @@ describe('planEntitlementMutation', () => {
       null,
       NOW,
     );
-    expect(m.kind).toBe('ignore');
+    expect(m).toEqual({ kind: 'ignore', reason: 'pause-defers-to-expiration' });
   });
 
   it('ignores EXPIRATION on a trip-pass product — an expired pass needs no write', () => {
@@ -96,7 +82,7 @@ describe('planEntitlementMutation', () => {
       null,
       NOW,
     );
-    expect(m.kind).toBe('ignore');
+    expect(m).toEqual({ kind: 'ignore', reason: 'pass-product-on-subscription-event' });
   });
 
   it('ignores BILLING_ISSUE on a trip-pass product', () => {
@@ -107,7 +93,7 @@ describe('planEntitlementMutation', () => {
       null,
       NOW,
     );
-    expect(m.kind).toBe('ignore');
+    expect(m).toEqual({ kind: 'ignore', reason: 'pass-product-on-subscription-event' });
   });
 
   it('ignores NON_RENEWING_PURCHASE on a pro (subscription) product', () => {
@@ -121,7 +107,7 @@ describe('planEntitlementMutation', () => {
       null,
       NOW,
     );
-    expect(m.kind).toBe('ignore');
+    expect(m).toEqual({ kind: 'ignore', reason: 'non-renewing-non-pass' });
   });
 
   it.each([NaN, Infinity, '123' as unknown as number])(
@@ -132,13 +118,13 @@ describe('planEntitlementMutation', () => {
         null,
         NOW,
       );
-      expect(m.kind).toBe('ignore');
+      expect(m).toEqual({ kind: 'ignore', reason: 'pro-grant-without-expiry' });
     },
   );
 
   it('ignores an event with no product_id at all', () => {
     const m = planEntitlementMutation({ ...base, type: 'INITIAL_PURCHASE' }, null, NOW);
-    expect(m.kind).toBe('ignore');
+    expect(m).toEqual({ kind: 'ignore', reason: 'unknown-product' });
   });
 
   it('does NOT revoke on CANCELLATION — access runs to expiry', () => {
@@ -147,7 +133,7 @@ describe('planEntitlementMutation', () => {
       null,
       NOW,
     );
-    expect(m.kind).toBe('ignore');
+    expect(m).toEqual({ kind: 'ignore', reason: 'cancellation-defers-to-expiration' });
   });
 
   it('clears pro on EXPIRATION', () => {
@@ -239,7 +225,7 @@ describe('planEntitlementMutation', () => {
       null,
       NOW,
     );
-    expect(m.kind).toBe('ignore');
+    expect(m).toEqual({ kind: 'ignore', reason: 'unknown-product' });
   });
 
   it('ignores an unknown event type', () => {
@@ -248,7 +234,7 @@ describe('planEntitlementMutation', () => {
       null,
       NOW,
     );
-    expect(m.kind).toBe('ignore');
+    expect(m).toEqual({ kind: 'ignore', reason: 'unhandled-event-type' });
   });
 
   it('ignores a SANDBOX event when the server is production', () => {
@@ -264,7 +250,27 @@ describe('planEntitlementMutation', () => {
       NOW,
       false,
     );
-    expect(m.kind).toBe('ignore');
+    expect(m).toEqual({ kind: 'ignore', reason: 'sandbox-event-in-production' });
+  });
+
+  it('defaults to rejecting SANDBOX when acceptSandbox is omitted entirely', () => {
+    // Pins the DEFAULT VALUE of the 4th parameter, not just its explicit
+    // false case above. Called with only 3 arguments — if someone flipped
+    // `acceptSandbox = false` to `= true` at the function signature, this is
+    // the only test that would catch it; the two SANDBOX tests above both
+    // pass the argument explicitly and would keep passing either way.
+    const m = planEntitlementMutation(
+      {
+        ...base,
+        environment: 'SANDBOX',
+        type: 'INITIAL_PURCHASE',
+        product_id: 'divit_pro_monthly',
+        expiration_at_ms: NOW + 1,
+      },
+      null,
+      NOW,
+    );
+    expect(m).toEqual({ kind: 'ignore', reason: 'sandbox-event-in-production' });
   });
 
   it('accepts a SANDBOX event when sandbox is explicitly allowed', () => {
@@ -294,7 +300,7 @@ describe('planEntitlementMutation', () => {
       null,
       NOW,
     );
-    expect(m.kind).toBe('ignore');
+    expect(m).toEqual({ kind: 'ignore', reason: 'pro-grant-without-expiry' });
   });
 });
 
