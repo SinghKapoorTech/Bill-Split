@@ -1,17 +1,26 @@
 # Divit — Monetization chunk 4 (RevenueCat): Tasks 1–2 done and reviewed, Task 3 next
 
-**Status:** IN PROGRESS — tree CLEAN, all gates green, **7 commits UNPUSHED**
+**Status:** IN PROGRESS — tree CLEAN, all gates green, **everything PUSHED and DEPLOYED**
 **Workspace:** `/Users/simran/Documents/GitHub/Bill-Split`
-**Branch:** `main` — **7 ahead / 0 behind** `origin/main`
+**Branch:** `main` — **0 ahead / 0 behind** `origin/main` (HEAD `35c9f8e`)
 **Updated:** 2026-09-09
 **Predecessor:** `docs/handoffs/ci-e2e-repair-0908.md` (CI e2e — DONE, green, pushed)
 **Plan being executed:** `docs/superpowers/plans/2026-09-08-monetization-chunk-4-revenuecat.md`
 **Sequencing:** `docs/superpowers/plans/2026-09-08-launch-roadmap.md`
 
-> **DO NOT PUSH until `REVENUECAT_WEBHOOK_SECRET` exists in prod Secret Manager.**
-> Two of the unpushed commits touch `functions/**`, which is in `deploy-backend.yml`'s
-> path filter, so pushing auto-deploys to PROD — and a function referencing a
-> nonexistent secret **fails a non-interactive deploy**. See "Warnings".
+> **RESOLVED 2026-09-09 — pushed and deployed.** `REVENUECAT_WEBHOOK_SECRET` is set in
+> prod Secret Manager (version 1, ENABLED) and `revenueCatWebhook` is LIVE:
+> `https://us-central1-divit-6d217.cloudfunctions.net/revenueCatWebhook`
+> Deploy Backend ✅, CI ✅ (e2e + checks), Android ✅ on `35c9f8e`.
+>
+> The first deploy attempt DID fail exactly as predicted — `firebase deploy` tried to
+> prompt for the missing secret in a non-interactive runner and died with
+> `exit code 130`. Fixed by setting the secret, then `gh run rerun`.
+>
+> **The secret's value is not in any transcript.** Read it back with
+> `firebase functions:secrets:access REVENUECAT_WEBHOOK_SECRET --project prod`.
+> It must be pasted BYTE-FOR-BYTE into RevenueCat → Integrations → Webhooks as the
+> `Authorization` header value.
 
 ---
 
@@ -222,7 +231,7 @@ it writes in — `extend-trip-pass` is the only non-idempotent mutation (read-mo
 ## Resume instructions
 
 1. `git status --short` → expect **clean**;
-   `git rev-list --count origin/main..main` → expect **7**.
+   `git rev-list --count origin/main..main` → expect **0** (everything is pushed).
 2. `npm test` → expect **736 passed / 45 files**.
    `npm run --silent typecheck 2>&1 | grep -c 'error TS'` → expect **36** (do NOT "fix").
 3. **RevenueCat MCP server is registered but its tools were unavailable in the previous
@@ -238,9 +247,13 @@ it writes in — `extend-trip-pass` is the only non-idempotent mutation (read-mo
 
 ## Warnings
 
-- **DO NOT PUSH** until `firebase functions:secrets:set REVENUECAT_WEBHOOK_SECRET --project prod`
-  has been run. `56f38ac` and `1825d3d` touch `functions/**` → auto-deploy to PROD → a
-  function referencing a missing secret fails the deploy.
+- **`revenueCatWebhook` is LIVE in prod and publicly reachable.** It is inert until
+  RevenueCat is pointed at it, and the shared secret is its only guard. Any future push
+  touching `functions/**`, `shared/**` or `firestore.rules` auto-deploys to PROD.
+- **Before go-live, add a log-based alert on sustained 401s from this function.** A secret
+  rotated on one side only means every delivery 401s, RevenueCat retries for days then
+  gives up, and every customer in that window paid and got nothing — with no user-visible
+  signal. `revenueCatWebhook.ts:74` already emits the `logger.warn` to key on.
 - **This is the repo's first publicly-invokable HTTP function.** A shared secret in the
   `Authorization` header is its only protection.
 - **`PRODUCT_PLANS` ids must match the store EXACTLY** (`divit_pro_monthly`,
