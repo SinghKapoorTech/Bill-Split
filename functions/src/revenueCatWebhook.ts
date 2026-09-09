@@ -10,9 +10,9 @@
  *   1. AUTHENTICATION — a shared secret RevenueCat sends in the Authorization
  *      header, compared in constant time. Without this, anyone who learns the
  *      URL can mint Pro for any uid they name.
- *   2. DEDUPE ON `event.id` — RevenueCat retries any non-2xx delivery for
- *      days. `extend-trip-pass` is a read-modify-write, so a replayed
- *      NON_RENEWING_PURCHASE would grant 28 days for one payment. The
+ *   2. DEDUPE ON `event.id` — RevenueCat retries any non-200 delivery up to
+ *      5 times (5/10/20/40/80 min). `extend-trip-pass` is a read-modify-write,
+ *      so a replayed NON_RENEWING_PURCHASE would grant 28 days for one payment. The
  *      `webhook_events/{event.id}` row is the guard, and it is checked and
  *      written INSIDE the same transaction as the entitlement write — two
  *      concurrent deliveries would otherwise both read "absent" and both apply.
@@ -21,6 +21,22 @@
  *
  * The `webhook_events` collection denies all client access (firestore.rules) —
  * a client that could delete a row could replay its own purchase.
+ *
+ * RETRY POLICY — verified against RevenueCat's docs, not assumed. Anything but
+ * a 200 is a failure, and 4xx and 5xx are treated IDENTICALLY: RevenueCat
+ * retries up to 5 times with increasing delay (5, 10, 20, 40, 80 minutes) and
+ * then STOPS PERMANENTLY. Six attempts, ~2h35m, and the event is gone.
+ *
+ * Two consequences the comments below depend on, so do not "simplify" them:
+ *   - There is no such thing as a multi-day retry storm here. The danger is the
+ *     OPPOSITE — an event that keeps failing is silently ABANDONED, and a
+ *     customer who paid gets nothing with no trace but a log line.
+ *   - A non-200 status buys no behavioural difference; it only changes what
+ *     RevenueCat's own delivery dashboard shows. Choose it for observability,
+ *     never to control retries.
+ *
+ * That ~2h35m is also the ENTIRE window to notice a broken secret. See the
+ * 401 alert requirement in the handoff before go-live.
  *
  * THIS ENDPOINT ACCEPTS SANDBOX EVENTS, INCLUDING IN PRODUCTION, because App
  * Store reviewers purchase against prod using StoreKit sandbox. Granting
@@ -77,23 +93,49 @@ export const revenueCatWebhook = onRequest(
     }
 
     const event = req.body?.event;
-    // `id` must be a USABLE Firestore document id, not merely a string: it is
-    // used directly as the `webhook_events` doc id, and `.doc('')` throws. A
-    // throw here would land in the 500 branch below and RevenueCat would retry
-    // a payload that can never succeed, for days.
-    if (
-      !event ||
-      typeof event.id !== 'string' ||
-      !isValidDocId(event.id) ||
-      typeof event.type !== 'string'
-    ) {
-      // 400, not 500: RevenueCat must NOT retry a malformed body forever.
+    // Only the BODY SHAPE is the shell's business. Field-level validation of
+    // `id` and `type` lives in `applyRevenueCatEvent`, because those two fields
+    // reach a doc path and a write — putting the check there is what makes the
+    // core's standalone-safety claim true rather than aspirational.
+    if (!event || typeof event !== 'object') {
+      // 400 documents intent; it does NOT change RevenueCat's behaviour, which
+      // treats every non-200 identically (see RETRY POLICY in the header).
       res.status(400).send('Bad Request');
       return;
     }
 
     try {
-      await applyRevenueCatEvent(event as RevenueCatEvent);
+      const outcome = await applyRevenueCatEvent(event as RevenueCatEvent);
+      if (outcome.status === 'rejected') {
+        // 400 documents intent only — see RETRY POLICY. This payload can never
+        // succeed, but RevenueCat still re-delivers it 5 more times before
+        // discarding it. The `rejected` path writes nothing, so that is free.
+        logger.warn('revenueCatWebhook: rejected malformed event', { reason: outcome.reason });
+        res.status(400).send('Bad Request');
+        return;
+      }
+      if (outcome.status === 'unresolved-uid') {
+        // DELIBERATELY NOT 200 (owner's call, 2026-09-09). Two reasons, and the
+        // first is functional rather than cosmetic:
+        //
+        //   1. It self-heals the alias race. RevenueCat can deliver a purchase
+        //      before the client's `logIn` has associated the Firebase uid with
+        //      the RevenueCat customer. A non-200 re-delivers at 5/10/20/40/80
+        //      minutes, and a later attempt then RESOLVES. Returning 200 threw
+        //      the purchase away on the first miss.
+        //   2. It is visible where someone will actually look. If Task 4's
+        //      identity wiring regresses, EVERY purchase arrives unattachable —
+        //      customers pay and get nothing. Under 200 that is invisible in
+        //      RevenueCat's dashboard and surfaces only as a Cloud Logging
+        //      error. As a failed delivery it is obvious immediately.
+        //
+        // Nothing was written (see the core), so re-delivery is safe and cheap.
+        // 422: well-formed, but we cannot act on it. The exact code has NO
+        // effect on retry behaviour — it is chosen for whoever reads the
+        // dashboard.
+        res.status(422).send('Unprocessable Entity');
+        return;
+      }
       res.status(200).send('OK');
     } catch (error) {
       // 500 so RevenueCat RETRIES — the event ledger makes that safe.
@@ -112,10 +154,10 @@ export const revenueCatWebhook = onRequest(
  * Both ids this function uses come from an untrusted payload — `event.id`
  * (the replay-ledger key) and the resolved uid (the entitlement key). Firestore
  * THROWS on an empty id, one containing `/`, `.`/`..`, or the reserved
- * `__x__` form. A throw inside the handler is a 500, and a 500 makes
- * RevenueCat retry — so an unaddressable id would become a multi-day retry
- * storm over a payload that can never succeed. Checked up front instead, so
- * those payloads are rejected once and permanently.
+ * `__x__` form. A throw inside the handler is a 500, so the delivery burns all
+ * 6 attempts and is then DISCARDED PERMANENTLY — the purchase is lost, and
+ * because the commit never happened there is no ledger row saying why. Checked
+ * up front instead, so the event is recorded and diagnosable rather than gone.
  */
 function isValidDocId(id: string): boolean {
   return (
@@ -142,10 +184,20 @@ function isValidDocId(id: string): boolean {
  * `3 INVALID_ARGUMENT: Cannot convert an array value in an array value`
  * (verified against the emulator). That rejects the transaction promise, which
  * lands in the handler's 500 branch — and because the commit failed, the
- * `webhook_events` row that would stop the retry was never written either. So
- * RevenueCat retries a payload that can never succeed, for days: the same
- * retry-storm class `isValidDocId` and `boundExpiry` close. Every untrusted
- * field that reaches a write goes through here.
+ * `webhook_events` row that would have recorded the drop was never written
+ * either. RevenueCat then exhausts its 6 attempts and discards the event, so a
+ * paid purchase vanishes leaving nothing but a stack trace: the same
+ * silent-loss class `isValidDocId` and `boundExpiry` close.
+ *
+ * NOTE the mechanism precisely: a NESTED array (`[[1]]`) is what the server
+ * rejects at commit. A FLAT array (`['INITIAL_PURCHASE']`) commits fine, so an
+ * unnarrowed field of that shape yields a silently GARBLED row instead. Both
+ * are worth refusing; they fail differently.
+ *
+ * Every untrusted field that reaches a write is narrowed BEFORE the write —
+ * `product_id` and `environment` here, `id` and `type` by the entry checks in
+ * `applyRevenueCatEvent`. If you add a field to a `tx.set` below, it belongs in
+ * one of those two places; a raw payload value in a write is the bug.
  *
  * Note this only guards the WRITE. An unrecognized `product_id` is still
  * dropped as `unknown-product` by `planEntitlementMutation`, which is where
@@ -160,7 +212,7 @@ function asStringOrNull(value: unknown): string | null {
  *
  * `planEntitlementMutation` only checks `Number.isFinite`, so an
  * `expiration_at_ms` of `1e18` reaches us intact and makes
- * `Timestamp.fromMillis` throw (finding: a 500, therefore a retry storm).
+ * `Timestamp.fromMillis` throw (finding: a 500, therefore a lost purchase).
  * Bounding it also closes the worse outcome: a single malformed event writing
  * an expiry in the year 9999 is permanent free Pro that nothing would ever
  * notice or undo — exactly the failure `shared/revenueCatEvents.ts` refuses a
@@ -193,7 +245,7 @@ function toMillis(value: unknown): number | undefined {
 
 /**
  * Downgrades a timestamp-bearing mutation to `ignore` when its expiry is out of
- * range, so the write is refused rather than throwing (retry storm) or granting
+ * range, so the write is refused rather than throwing (lost purchase) or granting
  * a decade-plus of access. Every other mutation passes through untouched.
  *
  * Fail-closed, matching `planEntitlementMutation`'s own posture: an expiry we
@@ -209,19 +261,63 @@ function boundExpiry(mutation: EntitlementMutation, nowMs: number): EntitlementM
   return mutation;
 }
 
-/** What one transaction attempt concluded, so the caller can log it exactly once. */
-type ApplyOutcome = { status: 'duplicate' } | { status: 'applied'; mutation: EntitlementMutation };
+/**
+ * What one delivery concluded — RETURNED to the caller, not just logged.
+ *
+ * Chunk 5's reconciliation job needs to tell "we applied it", "we already had
+ * it", and "we dropped it, and here is why" apart WITHOUT re-reading
+ * `webhook_events`. Returning it now is free; widening a `Promise<void>` later
+ * would be a breaking change to every caller.
+ *
+ *   - `rejected`      — malformed beyond use; the HTTP shell maps this to 400.
+ *   - `unresolved-uid` — well-formed, but not attachable to an account YET. A
+ *                        retry CAN change this: the client's `logIn` may not
+ *                        have registered the alias when the event arrived, so
+ *                        the shell returns 422 to get it re-delivered.
+ *   - `duplicate`     — the replay ledger already had this `event.id`.
+ *   - `applied`       — a transaction committed; `mutation` says what it did,
+ *                        including `{kind:'ignore', reason}`.
+ */
+export type ApplyOutcome =
+  | { status: 'rejected'; reason: string }
+  | { status: 'unresolved-uid' }
+  | { status: 'duplicate' }
+  | { status: 'applied'; mutation: EntitlementMutation };
+
+/**
+ * The subset the TRANSACTION itself can conclude. `rejected` and
+ * `unresolved-uid` are both decided before the transaction opens, so narrowing
+ * here keeps the post-commit logging exhaustive without a fallback branch.
+ */
+type TransactionOutcome = Extract<ApplyOutcome, { status: 'duplicate' | 'applied' }>;
 
 /**
  * The transactional core, exported so integration tests drive it directly
  * without an HTTP shell — the same split as `processLedgerWrite`.
- * Safe to call on its own: it re-resolves the uid rather than trusting a caller.
+ *
+ * Genuinely safe to call on its own: it re-resolves the uid rather than
+ * trusting a caller, AND validates `event.id` / `event.type` itself. Both are
+ * untrusted strings that reach a write — `id` as the `webhook_events` document
+ * id, `type` as a stored field — so validating them only in the HTTP shell
+ * would leave a direct caller (a test, or chunk 5's reconciler) able to trigger
+ * the exact retry-storm failures documented on `isValidDocId` and
+ * `asStringOrNull`. An array `type`, for instance, is accepted by `tx.set` and
+ * rejected by the SERVER at commit, so no ledger row is written and the retry
+ * never stops.
  */
-export async function applyRevenueCatEvent(event: RevenueCatEvent): Promise<void> {
+export async function applyRevenueCatEvent(event: RevenueCatEvent): Promise<ApplyOutcome> {
+  // Field-level validation FIRST, before `event.id` is used as a doc path below.
+  if (typeof event.id !== 'string' || !isValidDocId(event.id)) {
+    return { status: 'rejected', reason: 'invalid-event-id' };
+  }
+  if (typeof event.type !== 'string') {
+    return { status: 'rejected', reason: 'invalid-event-type' };
+  }
+
   const uid = resolveFirebaseUid(event);
   // `isValidDocId` as well as truthiness: `resolveFirebaseUid` rejects empty and
   // anonymous ids but does not check document-id SHAPE, and a uid containing
-  // `/` would make `.doc(uid)` throw — a 500, and therefore a retry storm.
+  // `/` would make `.doc(uid)` throw — a 500, and therefore a lost purchase.
   if (!uid || !isValidDocId(uid)) {
     // A purchase we cannot attach to an account. NEVER fabricate a uid — writing
     // `entitlements/undefined` would be a shared entitlement for every anonymous
@@ -231,14 +327,14 @@ export async function applyRevenueCatEvent(event: RevenueCatEvent): Promise<void
       type: event.type,
       appUserId: event.app_user_id,
     });
-    return;
+    return { status: 'unresolved-uid' };
   }
 
   const db = getFirestore();
   const eventRef = db.collection('webhook_events').doc(event.id);
   const entRef = db.collection('entitlements').doc(uid);
 
-  const outcome = await db.runTransaction<ApplyOutcome>(async (tx) => {
+  const outcome = await db.runTransaction<TransactionOutcome>(async (tx) => {
     // ALL READS FIRST — Firestore rejects a transaction that reads after it
     // writes. Both gets must happen before the first `tx.set` below.
 
@@ -343,8 +439,8 @@ export async function applyRevenueCatEvent(event: RevenueCatEvent): Promise<void
         break;
       case 'ignore':
         // No entitlement write. The webhook_events row above is still written so
-        // the retry stops — an event we deliberately dropped must not come back
-        // forever. Logged outside the transaction, below.
+        // the redelivery stops early — an event we deliberately dropped should
+        // not consume all 6 attempts. Logged outside the transaction, below.
         //
         // OPERATIONAL TRAP: that row also makes the drop permanent. If events
         // were dropped as `unknown-product` because PRODUCT_PLANS didn't match
@@ -363,11 +459,12 @@ export async function applyRevenueCatEvent(event: RevenueCatEvent): Promise<void
   // delivery is a false duplicate in whatever pages on it.
   if (outcome.status === 'duplicate') {
     logger.info('revenueCatWebhook: duplicate delivery ignored', { eventId: event.id });
-    return;
+    return outcome;
   }
   if (outcome.mutation.kind === 'ignore') {
     logIgnoredEvent(event, outcome.mutation.reason);
   }
+  return outcome;
 }
 
 /**
