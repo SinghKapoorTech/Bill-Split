@@ -14,7 +14,12 @@
  * exist because getting them wrong costs either money (enforcement stuck off)
  * or an unbounded per-request RPC on the hot path.
  */
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const getServerTemplate = vi.fn();
 
@@ -30,14 +35,23 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 const FAILURE_BACKOFF_MS = 30 * 1000;
 const T0 = Date.UTC(2026, 8, 9, 12, 0, 0);
 
-/** A ServerTemplate whose evaluate() returns the supplied raw values. */
-function templateReturning(values: Record<string, number | boolean>) {
+/**
+ * A ServerTemplate whose evaluate() returns the supplied values RAW.
+ *
+ * getBoolean deliberately hands back whatever was seeded rather than coercing
+ * it. An earlier version returned `values[k] === true`, which meant the mock
+ * itself collapsed `'true'` to `false` before resolvePaywallEnabled was ever
+ * called — so the "only a literal true enables the paywall" case below passed
+ * even when the predicate was replaced with `Boolean(raw)`. Coercion in a mock
+ * is coverage in name only.
+ */
+function templateReturning(values: Record<string, unknown>) {
   const load = vi.fn().mockResolvedValue(undefined);
   return {
     load,
     evaluate: () => ({
       getNumber: (k: string) => (values[k] as number) ?? 0,
-      getBoolean: (k: string) => values[k] === true,
+      getBoolean: (k: string) => values[k] as boolean,
     }),
   };
 }
@@ -84,6 +98,21 @@ describe('getMonetizationLimits', () => {
     expect(limits.degraded).toBe(true);
   });
 
+  // FREE_SCANS_PER_MONTH_DEFAULT and FREE_ACTIVE_GROUPS_DEFAULT are both 2 as of
+  // the 5 -> 2 change, which makes a swapped-fallback copy-paste bug invisible
+  // to every runtime assertion in this file: the swap only manifests when a key
+  // is ABSENT, and with equal defaults both branches produce the same number.
+  // It is harmless today and a live trap the moment the two diverge again, so
+  // it is pinned at the source instead.
+  it('pairs each Remote Config key with its OWN default', () => {
+    const src = readFileSync(
+      path.resolve(__dirname, '..', '..', 'functions/src/remoteConfigLimits.ts'),
+      'utf8',
+    );
+    expect(src).toMatch(/RC_KEY_FREE_SCANS\), FREE_SCANS_PER_MONTH_DEFAULT\)/);
+    expect(src).toMatch(/RC_KEY_FREE_GROUPS\), FREE_ACTIVE_GROUPS_DEFAULT\)/);
+  });
+
   it('treats an absent key (getNumber -> 0) as "use the default", not "limit of 1"', async () => {
     // THE branch. Clamping 0 up to LIMIT_MIN would hand every user on earth a
     // limit of 1 — a catastrophic silent TIGHTENING caused by a key typo.
@@ -98,10 +127,15 @@ describe('getMonetizationLimits', () => {
   });
 
   it('enables the paywall only on a literal true', async () => {
-    getServerTemplate.mockResolvedValue(
-      templateReturning({ ...GOOD, paywall_enabled: 'true' as unknown as boolean }),
-    );
-    await expect(getMonetizationLimits()).resolves.toMatchObject({ paywallEnabled: false });
+    // The string 'true' is the realistic hazard: Remote Config values are typed
+    // per-parameter and a mistyped one arrives as a truthy string. Switching
+    // enforcement on for the entire user base off a config typo is the failure
+    // this guards.
+    for (const raw of ['true', 1, 'yes', {}]) {
+      __resetRemoteConfigCacheForTests();
+      getServerTemplate.mockResolvedValue(templateReturning({ ...GOOD, paywall_enabled: raw }));
+      await expect(getMonetizationLimits()).resolves.toMatchObject({ paywallEnabled: false });
+    }
   });
 
   // (b) never fetched successfully

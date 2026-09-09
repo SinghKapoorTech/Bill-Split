@@ -381,11 +381,27 @@ describe('a failed scan does not consume quota (spec §4.3.1)', () => {
 
   const LIMIT = 2;
 
+  // A FIXED clock, passed explicitly into every checkScanQuota call below.
+  //
+  // The seeded scanPeriodStart is September 2026. Without this, checkScanQuota
+  // would use the real Date.now(), and on 2026-10-01 the stored period becomes
+  // stale: the quota rolls over, commitScanQuotaUsage takes its reset branch and
+  // writes 1 rather than incrementing to 2, and four cases below start failing
+  // with nothing in the repo having changed. The pre-existing case earlier in
+  // this file already passes an explicit nowMs; this block was appended without
+  // one, and an adversarial review caught the fuse.
+  const NOW = Date.UTC(2026, 8, 6, 12, 0, 0);
+
   // Mirrors the callable's item gate: every item must have a usable price, and
   // the item sum must be coherent with the stated total.
   function receiptIsUsable(items: { name: string; price: unknown }[], total: number): boolean {
     if (items.length === 0) return false;
-    if (!items.every((i) => i.name && isPersistableItemPrice(i.price))) return false;
+    // Matches functions/src/index.ts exactly. Bare truthiness (`i.name &&`) was
+    // wrong in the user-unfavourable direction: a whitespace-only name like
+    // '   ' is truthy, so this helper called the receipt usable and consumed a
+    // scan, while the real callable throws ExtractionError and consumes none.
+    const nameOk = (n: unknown) => typeof n === 'string' && n.trim().length > 0;
+    if (!items.every((i) => nameOk(i.name) && isPersistableItemPrice(i.price))) return false;
     const sum = items.reduce((a, i) => a + (i.price as number), 0);
     return itemSumIsCoherent(sum, total);
   }
@@ -394,11 +410,13 @@ describe('a failed scan does not consume quota (spec §4.3.1)', () => {
     items: { name: string; price: unknown }[],
     total: number,
   ): Promise<'committed' | 'rejected'> {
-    const decision = await checkScanQuota(ALICE, LIMIT);
+    const decision = await checkScanQuota(ALICE, LIMIT, NOW);
     if (!decision.allowed) return 'rejected';
     // The callable validates HERE, between check and commit. That gap is the
     // entire mechanism.
     if (!receiptIsUsable(items, total)) return 'rejected';
+    // The decision carries its own periodStartMs, so pinning the check pins the
+    // commit too.
     await commitScanQuotaUsage(ALICE, decision);
     return 'committed';
   }
@@ -448,13 +466,13 @@ describe('a failed scan does not consume quota (spec §4.3.1)', () => {
     for (let i = 0; i < 6; i++) await attemptScan([{ name: 'Meal', price: NaN }], 12);
     expect(await scansUsed()).toBe(1);
     // ...and the user still has their second scan.
-    expect(await checkScanQuota(ALICE, LIMIT)).toMatchObject({ allowed: true, remaining: 1 });
+    expect(await checkScanQuota(ALICE, LIMIT, NOW)).toMatchObject({ allowed: true, remaining: 1 });
   });
 
   it('a usable receipt DOES consume one, taking the user to the cap', async () => {
     expect(await attemptScan([{ name: 'Meal', price: 24 }], 24)).toBe('committed');
     expect(await scansUsed()).toBe(2);
-    expect(await checkScanQuota(ALICE, LIMIT)).toMatchObject({ allowed: false, remaining: 0 });
+    expect(await checkScanQuota(ALICE, LIMIT, NOW)).toMatchObject({ allowed: false, remaining: 0 });
   });
 
   it('failures interleaved with a success advance the count exactly once', async () => {

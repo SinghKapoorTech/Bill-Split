@@ -253,50 +253,90 @@ describe('analyzeBill failure classification wiring', () => {
  * tested directly, and the group-cap equivalent is asserted for real (against a
  * thrown HttpsError) in `tests/integration/groupCapAndQuota.int.test.ts`.
  */
+/**
+ * Slices out the full argument list of each `new HttpsError('<code>'` call, by
+ * balancing parentheses from the opening one.
+ *
+ * WHY NOT A WHOLE-FILE REGEX: the first version of this block asserted
+ * `SOURCE).toMatch(/reason: 'scan-quota'/)` and counted `reason:` occurrences
+ * across the entire file. An adversarial review deleted the ENTIRE details
+ * argument from the monthly-quota throw, left the object literal behind as dead
+ * code, and all 31 tests still passed -- the product's single most important
+ * paywall trigger would have shipped with no payload. The same global count
+ * also broke CI when an unrelated `logger.debug(..., { reason: ... })` line was
+ * added, with a failure message that named the wrong subject entirely.
+ *
+ * Positional slicing fixes both: an assertion about a throw now reads only that
+ * throw.
+ */
+function httpsErrorCalls(code: string): string[] {
+  const out: string[] = [];
+  const marker = 'new HttpsError(';
+  let from = 0;
+  for (;;) {
+    const at = SOURCE.indexOf(marker, from);
+    if (at === -1) break;
+    from = at + marker.length;
+
+    const open = at + marker.length - 1;
+    let depth = 0;
+    for (let i = open; i < SOURCE.length; i++) {
+      if (SOURCE[i] === '(') depth++;
+      else if (SOURCE[i] === ')') {
+        depth--;
+        if (depth === 0) {
+          const call = SOURCE.slice(open, i + 1);
+          // The code is the first argument, so it sits at the head of the slice.
+          // No regex here: escaping a backslash through this file reliably is
+          // not worth it, and startsWith says exactly what is meant.
+          if (call.slice(1).trimStart().startsWith("'" + code + "'")) out.push(call);
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
 describe('cap error details wiring', () => {
+  it('finds both resource-exhausted throws', () => {
+    // A sanity check on the slicer itself: if this regex ever stops matching,
+    // every assertion below would pass vacuously over an empty array.
+    expect(httpsErrorCalls('resource-exhausted')).toHaveLength(2);
+  });
+
   it('the monthly quota throw carries scan-quota details built from the decision', () => {
-    expect(SOURCE).toMatch(/reason:\s*'scan-quota'/);
+    const call = httpsErrorCalls('resource-exhausted').find((c) => c.includes('scan-quota'));
+    expect(call).toBeDefined();
     // Built from the decision the gate actually made, never from module
-    // constants — the same class of bug the rate-limiter message had, where the
+    // constants -- the same class of bug the rate-limiter message had, where the
     // sentence promised 30 while the limit in force was 10.
-    expect(SOURCE).toMatch(/used:\s*decision\.used/);
-    expect(SOURCE).toMatch(/limit:\s*decision\.limit/);
-    expect(SOURCE).toMatch(/resetsAtMs:\s*decision\.resetsAtMs/);
+    expect(call).toMatch(/used:\s*decision\.used/);
+    expect(call).toMatch(/limit:\s*decision\.limit/);
+    expect(call).toMatch(/resetsAtMs:\s*decision\.resetsAtMs/);
   });
 
   it('the hourly limiter throw is tagged as a rate limit, NOT a quota', () => {
-    // These three conditions share the `resource-exhausted` code. If the
+    const call = httpsErrorCalls('resource-exhausted').find((c) => c.includes('scan-rate-limit'));
+    expect(call).toBeDefined();
+    expect(call).toMatch(/retryAfterMs:\s*rate\.retryAfterMs/);
+    // The distinction that matters: these two share an error code. If the
     // limiter ever borrowed the quota's reason, every "slow down" would render
-    // as an upgrade wall — shown to Pro subscribers, who are also rate limited.
-    expect(SOURCE).toMatch(/reason:\s*'scan-rate-limit'/);
-    expect(SOURCE).toMatch(/retryAfterMs:\s*rate\.retryAfterMs/);
+    // as an upgrade wall -- shown to Pro subscribers, who are also rate limited.
+    expect(call).not.toMatch(/scan-quota/);
   });
 
-  it('every resource-exhausted throw in the file carries a details argument', () => {
-    // Guards against a fourth cap being added later with no payload, which
-    // would silently fall back to prose-parsing on the client.
-    const throws = SOURCE.match(/new HttpsError\(\s*'resource-exhausted'/g) ?? [];
-    expect(throws.length).toBeGreaterThanOrEqual(2);
-    const reasons = SOURCE.match(/reason:\s*'[a-z-]+'/g) ?? [];
-    expect(reasons.length).toBe(throws.length);
+  it('EVERY resource-exhausted throw carries its own details argument', () => {
+    // Guards a fourth cap being added later with no payload, which would
+    // silently fall back to prose-parsing on the client. Asserted per call, so
+    // an unrelated `reason:` key elsewhere in the file cannot satisfy it.
+    for (const call of httpsErrorCalls('resource-exhausted')) {
+      expect(call).toMatch(/reason:\s*'[a-z-]+'/);
+      expect(call).toMatch(/satisfies CapErrorDetails/);
+    }
   });
 });
 
-/**
- * "A failed scan never consumes quota" (spec §4.3.1), pinned STRUCTURALLY.
- *
- * This is the property the two-step check/commit design exists to provide, and
- * it is entirely a matter of ORDERING inside `analyzeBill`: every route that
- * rejects a receipt must return or throw before `commitScanQuotaUsage` runs.
- * Nothing in the type system enforces that. A refactor that hoisted the commit
- * next to the check -- the obvious "tidy up" -- would charge users for failures
- * and no unit test would notice, because both halves would still work perfectly
- * in isolation.
- *
- * `tests/integration/groupCapAndQuota.int.test.ts` proves the MECHANISM against
- * a real Firestore (a checked-but-uncommitted scan costs nothing). This proves
- * the WIRING, which is the half that can rot.
- */
 describe('scan quota is consumed on the success path only', () => {
   const idx = (needle: string) => SOURCE.indexOf(needle);
 
@@ -313,7 +353,10 @@ describe('scan quota is consumed on the success path only', () => {
     // classifies. If any of these ever moved below the commit, the user would
     // pay a scan for a receipt the server itself judged unusable.
     const throws = [...SOURCE.matchAll(/throw new ExtractionError\(/g)].map((m) => m.index ?? -1);
-    expect(throws.length).toBeGreaterThanOrEqual(7);
+    // EXACT, not >=. A floor lets a validation gate be deleted outright without
+    // this test noticing. Update this number deliberately when adding or
+    // removing a gate — that edit is itself the review prompt.
+    expect(throws.length).toBe(8);
     for (const at of throws) {
       expect(at).toBeLessThan(commitAt);
     }
@@ -329,6 +372,15 @@ describe('scan quota is consumed on the success path only', () => {
 
     const between = SOURCE.slice(commitAt, returnAt);
     expect(between).not.toMatch(/\bawait\s+(?!commitScanQuotaUsage)/);
+
+    // ANY rejection here — not only an awaited one, and not only an
+    // ExtractionError. An adversarial review inserted a plain synchronous
+    // `throw new HttpsError('invalid-argument', ...)` immediately after the
+    // commit and every test in this file still passed. What that bug does to a
+    // user: on 1 of 2 scans they submit a receipt, Gemini succeeds,
+    // scansThisPeriod increments to 2, the new guard throws, and they are left
+    // with an error toast and no scans for the month, having received nothing.
+    expect(between).not.toMatch(/\bthrow\b/);
   });
 
   it('the quota is skipped rather than committed when it was never checked', () => {

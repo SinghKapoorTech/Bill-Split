@@ -18,7 +18,18 @@
  */
 
 export type CapErrorDetails =
-  /** Monthly free-tier scan cap. A paywall trigger. */
+  /**
+   * Monthly free-tier scan cap. A paywall trigger.
+   *
+   * `resetsAtMs` is the epoch millis of a UTC month boundary, and it MUST be
+   * rendered with `timeZone: 'UTC'`. The prose message that accompanies this
+   * error is formatted UTC server-side, so a client that formats the same
+   * instant in local time will contradict the sentence sitting next to it: in
+   * America/New_York, `new Date(resetsAtMs).toLocaleDateString()` reads
+   * "9/30/2026" while the message says "October 1". The period boundary really
+   * is UTC (see shared/scanQuota.ts) -- local time is not a nicety here, it
+   * names the wrong day.
+   */
   | { reason: 'scan-quota'; used: number; limit: number; resetsAtMs: number }
   /** Hourly anti-abuse limiter. Applies to EVERY plan — NOT a paywall trigger. */
   | { reason: 'scan-rate-limit'; retryAfterMs: number }
