@@ -2,7 +2,7 @@
 
 **Status:** IN PROGRESS — tree CLEAN, all gates green, **everything PUSHED and DEPLOYED**
 **Workspace:** `/Users/simran/Documents/GitHub/Bill-Split`
-**Branch:** `main` — **0 ahead / 0 behind** `origin/main` (HEAD `35c9f8e`)
+**Branch:** `main` — **0 ahead / 0 behind** `origin/main` (HEAD `1e1c8e5`)
 **Updated:** 2026-09-09
 **Predecessor:** `docs/handoffs/ci-e2e-repair-0908.md` (CI e2e — DONE, green, pushed)
 **Plan being executed:** `docs/superpowers/plans/2026-09-08-monetization-chunk-4-revenuecat.md`
@@ -48,6 +48,8 @@ review, then a code-quality review, before the task counts as done.
 | `56f38ac` | `functions/src/revenueCatWebhook.ts` + rules + rules tests   |
 | `1825d3d` | accept sandbox purchases, stamp `environment`                |
 | `c95dcfe` | corrected two spec bullets the shipped code contradicts      |
+| `35c9f8e` | this handoff                                                 |
+| `1e1c8e5` | handoff updated after the deploy landed                       |
 
 **Task 1 — pure mapping.** SPEC COMPLIANT + APPROVED. 34 unit tests.
 **Task 2 — webhook.** SPEC COMPLIANT + APPROVED (Correctness 5 · Security 5 ·
@@ -176,7 +178,15 @@ All three would have shipped green. **Prove a new check can fail before trusting
   (= CI ratchet). Lint **71 problems** (= baseline). `npm --prefix functions run build`
   exit 0. Rules **101 passed / 7 files**.
 - **Broken:** nothing.
-- **Uncommitted:** none.
+- **Uncommitted:** none. **Unpushed:** none.
+- **Deployed to PROD:** `revenueCatWebhook` (v2, https, us-central1, nodejs20, 256MB) at
+  `https://us-central1-divit-6d217.cloudfunctions.net/revenueCatWebhook`. Confirmed with
+  `firebase functions:list --project prod`, not just a green workflow badge.
+- **CI on `35c9f8e`:** Deploy Backend ✅ · CI ✅ (e2e + checks) · Android ✅.
+- **No user-visible change from any of this.** No `src/` file was touched, no existing
+  Cloud Function changed, nothing writes `entitlements/{userId}` yet, and the caps stay
+  dark behind `paywall_enabled: false`. The endpoint is a deliberate no-op until
+  RevenueCat is pointed at it.
 - **`npm run test:rules` cannot bind port 8081** — a `firebase emulators:start` session
   has held it for ~2 days. It was NOT killed (in-memory dev data, no export dir). The
   rules suite was verified twice on an isolated emulator instead. Re-run it yourself once
@@ -218,6 +228,7 @@ export function planEntitlementMutation(
 export function resolveFirebaseUid(event: RevenueCatEvent): string | undefined;
 
 // functions/src/revenueCatWebhook.ts
+// LIVE: https://us-central1-divit-6d217.cloudfunctions.net/revenueCatWebhook
 export const revenueCatWebhook; // onRequest, secret-guarded
 export async function applyRevenueCatEvent(e: RevenueCatEvent): Promise<void>;
 // ^ returns void today — finding #1 above wants ApplyOutcome returned instead
@@ -234,14 +245,22 @@ it writes in — `extend-trip-pass` is the only non-idempotent mutation (read-mo
    `git rev-list --count origin/main..main` → expect **0** (everything is pushed).
 2. `npm test` → expect **736 passed / 45 files**.
    `npm run --silent typecheck 2>&1 | grep -c 'error TS'` → expect **36** (do NOT "fix").
-3. **RevenueCat MCP server is registered but its tools were unavailable in the previous
-   session** because it was added mid-session. `claude mcp list` → expect
-   `revenuecat: https://mcp.revenuecat.ai/mcp (HTTP) - ✔ Connected`. In a fresh process the
-   tools should resolve — verify with a ToolSearch for `revenuecat` before relying on it.
-   First useful call is `list-products`, to pin `PRODUCT_PLANS` to real store identifiers.
-4. Fix the two OPTIONAL findings in "Not yet done" #1 → then Task 3 (integration tests),
+3. `firebase functions:list --project prod | grep -i revenuecat` → expect
+   `revenueCatWebhook │ v2 │ https │ us-central1`.
+4. **RevenueCat MCP server.** It was added mid-session last time, so its tools were not in
+   that session's tool index — a `/clear` does NOT fix that, only a full process restart
+   does. `claude mcp list` → expect
+   `revenuecat: https://mcp.revenuecat.ai/mcp (HTTP) - ✔ Connected`, then verify with a
+   ToolSearch for `revenuecat` BEFORE relying on it.
+   **On a different machine it will not be there at all** — it is per-machine config,
+   deliberately not in the repo because it carries an `sk_` secret key. Re-add with:
+   `claude mcp add --transport http --scope user revenuecat https://mcp.revenuecat.ai/mcp --header "Authorization: Bearer sk_..."`
+   (`--scope user`, never `project` — project scope writes `.mcp.json`, which is committed.)
+   First useful call is `list-products`, to pin `PRODUCT_PLANS` to the real store
+   identifiers. **It returns nothing until the owner has created the products.**
+5. Fix the two OPTIONAL findings in "Not yet done" #1 → then Task 3 (integration tests),
    whose full code is already written in the plan file.
-5. Continue subagent-driven: implementer → spec review → quality review, per task.
+6. Continue subagent-driven: implementer → spec review → quality review, per task.
 
 ---
 
