@@ -466,10 +466,24 @@ the client entitlement read is a rendering hint, never a gate.
 subscription entitlement, which it manages end to end. Non-renewing purchases give you back
 more responsibility, so budget for it explicitly:
 
-- The webhook must set `plan: 'trip_pass'` and compute `expiresAt = now + 14d` **server-side
-  from the purchase event**, not from anything the client sends.
+- The webhook must write **`tripPassExpiresAt`**, computed `= max(now, existing) + 14d`
+  **server-side from the purchase event**, never from anything the client sends.
+
+  > **CORRECTED 2026-09-08, during chunk 4.** This bullet originally said the webhook
+  > must set `plan: 'trip_pass'`. That is wrong, and the shipped code deliberately does
+  > not do it. `shared/entitlements.ts` resolves an active pass from `tripPassExpiresAt`
+  > **independently of `plan`**, precisely so a pass survives alongside a subscription
+  > (§5.1). Writing `plan: 'trip_pass'` would DOWNGRADE a Pro subscriber who also buys a
+  > pass. Using `now + 14d` rather than `max(now, existing) + 14d` would also rob a user
+  > who buys early of the days they paid for.
+
 - Purchases are **not idempotent by default.** Key the webhook handler on RevenueCat's
-  transaction ID and ignore replays, or a retried delivery grants two passes.
+  **`event.id`** and ignore replays, or a retried delivery grants two passes.
+
+  > **CORRECTED 2026-09-08, during chunk 4.** This bullet originally said `transaction_id`.
+  > That would silently drop every renewal after the first, because `transaction_id` is
+  > stable across `RENEWAL` events for one subscription. `event.id` is unique per event
+  > and identical across retries of that event, which is the property this bullet wanted.
 - Handle "purchase succeeded but the webhook didn't land." This is the single most common
   consumable failure and it produces a user who paid and got nothing. Reconcile on app
   foreground by querying RevenueCat for unprocessed purchases, and keep a manual grant path
