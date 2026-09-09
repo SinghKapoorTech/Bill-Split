@@ -281,3 +281,59 @@ describe('cap error details wiring', () => {
     expect(reasons.length).toBe(throws.length);
   });
 });
+
+/**
+ * "A failed scan never consumes quota" (spec §4.3.1), pinned STRUCTURALLY.
+ *
+ * This is the property the two-step check/commit design exists to provide, and
+ * it is entirely a matter of ORDERING inside `analyzeBill`: every route that
+ * rejects a receipt must return or throw before `commitScanQuotaUsage` runs.
+ * Nothing in the type system enforces that. A refactor that hoisted the commit
+ * next to the check -- the obvious "tidy up" -- would charge users for failures
+ * and no unit test would notice, because both halves would still work perfectly
+ * in isolation.
+ *
+ * `tests/integration/groupCapAndQuota.int.test.ts` proves the MECHANISM against
+ * a real Firestore (a checked-but-uncommitted scan costs nothing). This proves
+ * the WIRING, which is the half that can rot.
+ */
+describe('scan quota is consumed on the success path only', () => {
+  const idx = (needle: string) => SOURCE.indexOf(needle);
+
+  it('commits exactly once, and only on the success path', () => {
+    const commits = SOURCE.match(/await commitScanQuotaUsage\(/g) ?? [];
+    expect(commits.length).toBe(1);
+  });
+
+  it('every receipt-validation rejection happens BEFORE the commit', () => {
+    const commitAt = idx('await commitScanQuotaUsage(');
+    expect(commitAt).toBeGreaterThan(-1);
+
+    // Receipt validation rejects via ExtractionError, which the catch block
+    // classifies. If any of these ever moved below the commit, the user would
+    // pay a scan for a receipt the server itself judged unusable.
+    const throws = [...SOURCE.matchAll(/throw new ExtractionError\(/g)].map((m) => m.index ?? -1);
+    expect(throws.length).toBeGreaterThanOrEqual(7);
+    for (const at of throws) {
+      expect(at).toBeLessThan(commitAt);
+    }
+  });
+
+  it('the commit is the last statement before the success return', () => {
+    // Guards the other direction: work inserted between the commit and the
+    // return could throw AFTER the scan was charged, producing the exact
+    // "paid for nothing" outcome from the user's side.
+    const commitAt = idx('await commitScanQuotaUsage(');
+    const returnAt = SOURCE.indexOf('return billData;', commitAt);
+    expect(returnAt).toBeGreaterThan(commitAt);
+
+    const between = SOURCE.slice(commitAt, returnAt);
+    expect(between).not.toMatch(/\bawait\s+(?!commitScanQuotaUsage)/);
+  });
+
+  it('the quota is skipped rather than committed when it was never checked', () => {
+    // `quota` is null for unlimited plans and when the check failed open.
+    // Committing a null decision would either throw or invent a period.
+    expect(SOURCE).toMatch(/if \(quota\) \{\s*await commitScanQuotaUsage\(uid, quota\);/);
+  });
+});

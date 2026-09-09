@@ -50,6 +50,16 @@ export function useReceiptAnalyzer(
       // with no items distributes no money anywhere in the app, so persisting
       // one would strand the total: shown on screen, never recorded in the
       // ledger. Fail the scan instead.
+      //
+      // NOTE ON QUOTA: by the time this runs the server has already SUCCEEDED
+      // and already consumed one of the user's monthly scans. This guard is
+      // still correct -- persisting an item-less bill is the worse outcome, and
+      // there is deliberately no refund path (a server-successful scan costs a
+      // scan) -- but it means a user can pay a scan and be shown "Analysis
+      // Failed". That is rare, and it got twice as expensive when the free cap
+      // moved from 5 to 2. The copy is the part that is wrong, not the guard:
+      // the analysis did not fail, the receipt is unsplittable. Phase 3 owns
+      // this message.
       if (filteredData.items.length === 0) {
         throw new Error('No items found on the receipt');
       }

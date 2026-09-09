@@ -4,6 +4,7 @@ import { db, clearFirestore } from './helpers/env';
 import { countOwnedActiveEvents, decideGroupCap, capMessage } from '../../functions/src/eventFunctions';
 import { checkScanQuota, commitScanQuotaUsage } from '../../functions/src/scanQuotaLimiter';
 import { getEffectiveEntitlement } from '../../functions/src/entitlementService';
+import { isPersistableItemPrice, itemSumIsCoherent } from '../../shared/receiptAmounts';
 
 /**
  * Free-tier cap plumbing against a real Firestore.
@@ -362,5 +363,104 @@ describe('scan quota under concurrency', () => {
     const doc = (await db.doc(`usage/${ALICE}`).get()).data()!;
     expect(doc.scansThisPeriod).toBe(3);
     expect(doc.scanPeriodStart.toMillis()).toBe(decisions[0].periodStartMs);
+  });
+});
+
+/**
+ * The end-to-end shape of "a failed scan is free", driven by the REAL receipt
+ * validation helpers rather than a stand-in boolean.
+ *
+ * `analyzeBill` itself cannot be imported (it calls initializeApp at module
+ * load), so this reproduces its sequence with the genuine pieces: check the
+ * quota, run the same predicates the callable runs, and commit only if they
+ * pass. The ORDERING inside the real callable is pinned separately, by source
+ * analysis, in `tests/analyzeBillGates.test.ts`.
+ */
+describe('a failed scan does not consume quota (spec §4.3.1)', () => {
+  beforeEach(clearFirestore);
+
+  const LIMIT = 2;
+
+  // Mirrors the callable's item gate: every item must have a usable price, and
+  // the item sum must be coherent with the stated total.
+  function receiptIsUsable(items: { name: string; price: unknown }[], total: number): boolean {
+    if (items.length === 0) return false;
+    if (!items.every((i) => i.name && isPersistableItemPrice(i.price))) return false;
+    const sum = items.reduce((a, i) => a + (i.price as number), 0);
+    return itemSumIsCoherent(sum, total);
+  }
+
+  async function attemptScan(
+    items: { name: string; price: unknown }[],
+    total: number,
+  ): Promise<'committed' | 'rejected'> {
+    const decision = await checkScanQuota(ALICE, LIMIT);
+    if (!decision.allowed) return 'rejected';
+    // The callable validates HERE, between check and commit. That gap is the
+    // entire mechanism.
+    if (!receiptIsUsable(items, total)) return 'rejected';
+    await commitScanQuotaUsage(ALICE, decision);
+    return 'committed';
+  }
+
+  async function scansUsed(): Promise<number> {
+    const snap = await db.doc(`usage/${ALICE}`).get();
+    return (snap.data()?.scansThisPeriod as number | undefined) ?? 0;
+  }
+
+  beforeEach(async () => {
+    await db.doc(`usage/${ALICE}`).set({
+      scanPeriodStart: Timestamp.fromMillis(Date.UTC(2026, 8, 1)),
+      scansThisPeriod: 1,
+    });
+  });
+
+  it('a receipt with an unusable price leaves the count untouched', async () => {
+    expect(await attemptScan([{ name: 'Meal', price: 'twelve' }], 12)).toBe('rejected');
+    expect(await scansUsed()).toBe(1);
+  });
+
+  it('an empty item list leaves the count untouched', async () => {
+    expect(await attemptScan([], 40)).toBe('rejected');
+    expect(await scansUsed()).toBe(1);
+  });
+
+  it('a hallucinated item magnitude leaves the count untouched', async () => {
+    // itemSumIsCoherent bounds the sum from ABOVE only: itemsSum <= total*2+100.
+    // 900 against a printed total of 100 clears that by orders of magnitude,
+    // which is the hallucination it exists to catch. It matters because person
+    // totals are derived from the ITEM LIST, not from `total`, so a single bogus
+    // price is the number a user actually gets charged.
+    expect(await attemptScan([{ name: 'Steak', price: 900 }], 100)).toBe('rejected');
+    expect(await scansUsed()).toBe(1);
+  });
+
+  it('an UNDER-sum is coherent and still costs a scan', async () => {
+    // Deliberately loose in this direction: items normally sum to the subtotal,
+    // which sits below the total once tax, tip or a service charge is added, and
+    // a model that misses a line must not fail the whole receipt. Pinned so the
+    // gate is never "tightened" into rejecting ordinary receipts.
+    expect(await attemptScan([{ name: 'Soda', price: 5 }], 900)).toBe('committed');
+    expect(await scansUsed()).toBe(2);
+  });
+
+  it('repeated failures never accumulate, however many are attempted', async () => {
+    for (let i = 0; i < 6; i++) await attemptScan([{ name: 'Meal', price: NaN }], 12);
+    expect(await scansUsed()).toBe(1);
+    // ...and the user still has their second scan.
+    expect(await checkScanQuota(ALICE, LIMIT)).toMatchObject({ allowed: true, remaining: 1 });
+  });
+
+  it('a usable receipt DOES consume one, taking the user to the cap', async () => {
+    expect(await attemptScan([{ name: 'Meal', price: 24 }], 24)).toBe('committed');
+    expect(await scansUsed()).toBe(2);
+    expect(await checkScanQuota(ALICE, LIMIT)).toMatchObject({ allowed: false, remaining: 0 });
+  });
+
+  it('failures interleaved with a success advance the count exactly once', async () => {
+    await attemptScan([{ name: 'Meal', price: 'nope' }], 12);
+    await attemptScan([{ name: 'Meal', price: 24 }], 24);
+    await attemptScan([], 0);
+    expect(await scansUsed()).toBe(2);
   });
 });
