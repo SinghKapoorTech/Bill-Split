@@ -505,7 +505,12 @@ describe('revenueCatWebhook — applyRevenueCatEvent', () => {
     });
 
     // 1. The grant COMMITTED rather than being rejected by the server.
-    expect.soft(applied(outcome).mutation.kind).toBe('extend-trip-pass');
+    // HARD, not soft: `applied()` throws before `expect.soft` could defer
+    // anything, and in the exact failure this test names (un-narrowed
+    // `environment` -> the server rejects the commit) the call above rejects
+    // and these durable assertions never run regardless. A soft assertion here
+    // buys nothing, which by this file's own rule means it should be hard.
+    expect(applied(outcome).mutation.kind).toBe('extend-trip-pass');
 
     // 2. The durable point: the pass was actually granted, and the unreadable
     //    field was narrowed to null instead of poisoning the doc.

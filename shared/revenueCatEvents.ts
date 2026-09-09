@@ -268,7 +268,18 @@ export function planEntitlementMutation(
  * the caller must not write to `entitlements/{undefined}`.
  */
 export function resolveFirebaseUid(event: RevenueCatEvent): string | undefined {
-  const candidates = [event.app_user_id, ...(event.aliases ?? []), event.original_app_user_id];
+  // `aliases` is typed `string[] | undefined`, but that is a compile-time claim
+  // about a JSON body we do not control. `?? []` only guards null/undefined, so
+  // a STRING would spread into its characters: with an anonymous
+  // `app_user_id`, `aliases: 'user_1234'` resolved to `'u'` — length 1, no `/`,
+  // not `__x__`, so `isValidDocId` passes and Pro is granted to
+  // `entitlements/u`, a doc belonging to nobody. A number threw on spread,
+  // which is a 500 and therefore a lost purchase.
+  //
+  // This feeds a document ID, so it is narrowed here rather than at the write:
+  // by the time the caller has a uid it can no longer tell where it came from.
+  const aliases = Array.isArray(event.aliases) ? event.aliases : [];
+  const candidates = [event.app_user_id, ...aliases, event.original_app_user_id];
   return candidates.find(
     (c): c is string => typeof c === 'string' && c.length > 0 && !c.startsWith('$RCAnonymousID:'),
   );

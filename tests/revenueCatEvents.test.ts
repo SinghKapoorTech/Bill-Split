@@ -305,6 +305,32 @@ describe('planEntitlementMutation', () => {
 });
 
 describe('resolveFirebaseUid', () => {
+  // `aliases` feeds a Firestore DOCUMENT ID, so a malformed value is not a
+  // cosmetic problem. These two pin the narrowing; without it the first grants
+  // a paid entitlement to a one-character doc belonging to nobody, and the
+  // second throws (a 500, so the purchase is lost after 6 delivery attempts).
+  it('ignores a STRING aliases instead of spreading it into characters', () => {
+    expect(
+      resolveFirebaseUid({
+        id: 'e',
+        type: 'x',
+        app_user_id: '$RCAnonymousID:abc',
+        aliases: 'user_1234' as unknown as string[],
+      }),
+    ).toBeUndefined();
+  });
+
+  it('ignores a non-array aliases instead of throwing on spread', () => {
+    expect(() =>
+      resolveFirebaseUid({
+        id: 'e',
+        type: 'x',
+        app_user_id: 'uid-1',
+        aliases: 42 as unknown as string[],
+      }),
+    ).not.toThrow();
+  });
+
   it('prefers a real app_user_id', () => {
     expect(resolveFirebaseUid({ id: 'e', type: 'x', app_user_id: 'uid-1' })).toBe('uid-1');
   });

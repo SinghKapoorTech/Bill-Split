@@ -115,15 +115,22 @@ export const revenueCatWebhook = onRequest(
         return;
       }
       if (outcome.status === 'unresolved-uid') {
-        // DELIBERATELY NOT 200 (owner's call, 2026-09-09). Two reasons, and the
-        // first is functional rather than cosmetic:
+        // DELIBERATELY NOT 200 (owner's call, 2026-09-09). One established
+        // reason, and one that is NOT established and must not be leaned on:
         //
-        //   1. It self-heals the alias race. RevenueCat can deliver a purchase
-        //      before the client's `logIn` has associated the Firebase uid with
-        //      the RevenueCat customer. A non-200 re-delivers at 5/10/20/40/80
-        //      minutes, and a later attempt then RESOLVES. Returning 200 threw
-        //      the purchase away on the first miss.
-        //   2. It is visible where someone will actually look. If Task 4's
+        //   1. UNVERIFIED — it MIGHT self-heal the alias race, where RevenueCat
+        //      delivers a purchase before the client's `logIn` has associated
+        //      the Firebase uid with the RevenueCat customer. That only holds
+        //      if a retry RE-RENDERS the payload with a fresh `aliases` array.
+        //      If retries replay the stored body, all six attempts resolve to
+        //      the same anonymous id and nothing heals. The docs say only that
+        //      retries "reuse the payload id and event_timestamp_ms" and are
+        //      silent on the rest. DO NOT cite this until someone has observed
+        //      it: force a 422 on a first sandbox delivery, then diff the two
+        //      bodies. This claim was asserted as fact once already and was
+        //      wrong to assert.
+        //   2. THE REASON THIS IS 422, and it stands alone. It is visible where
+        //      someone will actually look. If Task 4's
         //      identity wiring regresses, EVERY purchase arrives unattachable —
         //      customers pay and get nothing. Under 200 that is invisible in
         //      RevenueCat's dashboard and surfaces only as a Cloud Logging
@@ -157,7 +164,13 @@ export const revenueCatWebhook = onRequest(
  * `__x__` form. A throw inside the handler is a 500, so the delivery burns all
  * 6 attempts and is then DISCARDED PERMANENTLY — the purchase is lost, and
  * because the commit never happened there is no ledger row saying why. Checked
- * up front instead, so the event is recorded and diagnosable rather than gone.
+ * up front instead, so the event is refused cheaply rather than throwing.
+ *
+ * Note what this does NOT buy: nothing is RECORDED. This path and
+ * `unresolved-uid` both return before the transaction opens, so no
+ * `webhook_events` row is written on either, and the core logs nothing on
+ * `rejected` — the only warn is in the HTTP shell. A direct caller (chunk 5's
+ * reconciler) gets the same refusal, but silently, and must log it itself.
  */
 function isValidDocId(id: string): boolean {
   return (
