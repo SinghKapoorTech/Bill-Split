@@ -155,6 +155,12 @@ export function planEntitlementMutation(
   nowMs: number,
   acceptSandbox = false,
 ): EntitlementMutation {
+  // Case-sensitive on purpose — RevenueCat always sends this field uppercase
+  // ('SANDBOX' / 'PRODUCTION'). Do NOT normalize or .toLowerCase() this
+  // comparison (here or upstream, e.g. in the webhook handler before this is
+  // called): lowercasing would make 'sandbox' compare unequal to 'SANDBOX'
+  // and fall through as if it were production, defeating the entire check
+  // and letting a developer's test purchase grant real access.
   if (event.environment === 'SANDBOX' && !acceptSandbox) {
     return { kind: 'ignore', reason: 'sandbox-event-in-production' };
   }
@@ -181,6 +187,17 @@ export function planEntitlementMutation(
   if (plan !== 'pro') {
     // A Trip Pass product_id sent as a subscription-lifecycle event (e.g.
     // RENEWAL) would also be a configuration mismatch.
+    //
+    // KEEP THIS GUARD — do not "simplify" it away. Without it, EXPIRATION or
+    // BILLING_ISSUE on a trip-pass product_id would fall through to
+    // clear-pro / set-grace below, which are subscription-only mutations. A
+    // Trip Pass has no persistent "active" flag to clear in the first
+    // place — resolveEffectivePlan (entitlements.ts) simply stops honouring
+    // tripPassExpiresAt once that timestamp passes, so no write is needed
+    // when a pass expires. Writing clear-pro here would be a no-op at best
+    // and, worse, could downgrade a user who is simultaneously an ACTIVE
+    // Pro subscriber and happens to also hold an unrelated, now-expired
+    // Trip Pass — an event about one plan must never mutate the other.
     return { kind: 'ignore', reason: 'pass-product-on-subscription-event' };
   }
 
