@@ -241,3 +241,43 @@ describe('analyzeBill failure classification wiring', () => {
     );
   });
 });
+
+/**
+ * The `details` payload on the two `resource-exhausted` throws in `index.ts`.
+ *
+ * Source-text assertions for the same reason as every other `wiring` block in
+ * this file: `index.ts` calls `initializeApp()` at module load and cannot be
+ * imported from any suite. What this proves is narrow but real — that both
+ * throws pass a `details` argument and that the two carry DIFFERENT reasons.
+ * What it cannot prove is the runtime shape; `shared/capErrors.ts` is unit
+ * tested directly, and the group-cap equivalent is asserted for real (against a
+ * thrown HttpsError) in `tests/integration/groupCapAndQuota.int.test.ts`.
+ */
+describe('cap error details wiring', () => {
+  it('the monthly quota throw carries scan-quota details built from the decision', () => {
+    expect(SOURCE).toMatch(/reason:\s*'scan-quota'/);
+    // Built from the decision the gate actually made, never from module
+    // constants — the same class of bug the rate-limiter message had, where the
+    // sentence promised 30 while the limit in force was 10.
+    expect(SOURCE).toMatch(/used:\s*decision\.used/);
+    expect(SOURCE).toMatch(/limit:\s*decision\.limit/);
+    expect(SOURCE).toMatch(/resetsAtMs:\s*decision\.resetsAtMs/);
+  });
+
+  it('the hourly limiter throw is tagged as a rate limit, NOT a quota', () => {
+    // These three conditions share the `resource-exhausted` code. If the
+    // limiter ever borrowed the quota's reason, every "slow down" would render
+    // as an upgrade wall — shown to Pro subscribers, who are also rate limited.
+    expect(SOURCE).toMatch(/reason:\s*'scan-rate-limit'/);
+    expect(SOURCE).toMatch(/retryAfterMs:\s*rate\.retryAfterMs/);
+  });
+
+  it('every resource-exhausted throw in the file carries a details argument', () => {
+    // Guards against a fourth cap being added later with no payload, which
+    // would silently fall back to prose-parsing on the client.
+    const throws = SOURCE.match(/new HttpsError\(\s*'resource-exhausted'/g) ?? [];
+    expect(throws.length).toBeGreaterThanOrEqual(2);
+    const reasons = SOURCE.match(/reason:\s*'[a-z-]+'/g) ?? [];
+    expect(reasons.length).toBe(throws.length);
+  });
+});

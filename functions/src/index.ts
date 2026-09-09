@@ -23,6 +23,7 @@ import { checkScanQuota, commitScanQuotaUsage } from './scanQuotaLimiter.js';
 import { getMonetizationLimits } from './remoteConfigLimits.js';
 import { getEffectiveEntitlement } from './entitlementService.js';
 import type { ScanQuotaDecision } from '../../shared/scanQuota.js';
+import type { CapErrorDetails } from '../../shared/capErrors.js';
 import { describeDuration, describeWindow } from '../../shared/scanRateLimit.js';
 import {
   MAX_RECEIPT_AMOUNT,
@@ -202,6 +203,10 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
       throw new HttpsError(
         'resource-exhausted',
         `Too many scans. You can scan up to ${rate.effectiveLimit} receipts per ${describeWindow(rate.effectiveWindowMs)}. Try again in ${describeDuration(rate.retryAfterMs)}.`,
+        // NOT a paywall trigger. This limiter is anti-abuse and applies to Pro
+        // too; the client uses `reason` to show "slow down" rather than an
+        // upgrade offer it would be a lie to show a paying user.
+        { reason: 'scan-rate-limit', retryAfterMs: rate.retryAfterMs } satisfies CapErrorDetails,
       );
     }
 
@@ -211,7 +216,7 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
     // be merged. That one is anti-abuse, applies to Pro too, and KEEPS the slot
     // on failure so "deliberately error to scan for free" is closed. This one is
     // the business cap: checked here, and consumed only after a scan actually
-    // succeeds, so a failed scan never costs the user one of their five.
+    // succeeds, so a failed scan never costs the user one of their monthly scans.
     //
     // Checked BEFORE the Gemini call — never after. Blocking someone once the
     // receipt has been framed, photographed and uploaded is infuriating, and
@@ -259,6 +264,14 @@ export const analyzeBill = onCall<AnalyzeBillRequest>(
                 timeZone: 'UTC',
               })}. ` +
                 `Upgrade to Pro for unlimited scanning.`,
+              // The client renders a typed wall from these numbers; the prose
+              // above stays as the fallback copy.
+              {
+                reason: 'scan-quota',
+                used: decision.used,
+                limit: decision.limit,
+                resetsAtMs: decision.resetsAtMs,
+              } satisfies CapErrorDetails,
             );
           }
           // DARK: evaluate, log, allow. This line is how the cap gets tuned

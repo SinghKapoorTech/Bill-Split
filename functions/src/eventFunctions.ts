@@ -3,6 +3,7 @@ import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { isEventArchived, type ArchivableEvent } from '../../shared/eventArchive.js';
+import type { CapErrorDetails } from '../../shared/capErrors.js';
 import { getMonetizationLimits } from './remoteConfigLimits.js';
 import { getEffectiveEntitlement } from './entitlementService.js';
 
@@ -202,10 +203,22 @@ export function capMessage(activeCount: number, limit: number): string {
   return `You have ${limit} active groups. ${escape}`;
 }
 
-async function assertGroupSlotAvailable(db: Firestore, uid: string): Promise<void> {
+// Exported for `tests/integration/capErrorDetails.int.test.ts`, which asserts
+// the `details` payload directly. Not part of the callable surface.
+export async function assertGroupSlotAvailable(db: Firestore, uid: string): Promise<void> {
   const decision = await evaluateGroupCap(db, uid);
   if (decision.allowed) return;
-  throw new HttpsError('resource-exhausted', capMessage(decision.activeCount, decision.limit));
+  throw new HttpsError(
+    'resource-exhausted',
+    capMessage(decision.activeCount, decision.limit),
+    // `activeCount` can legitimately EXCEED `limit` — see capMessage above. The
+    // client must render the real count, not assume activeCount === limit.
+    {
+      reason: 'group-cap',
+      activeCount: decision.activeCount,
+      limit: decision.limit,
+    } satisfies CapErrorDetails,
+  );
 }
 
 /**
