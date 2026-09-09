@@ -64,6 +64,19 @@ jobs:
             exit 1
           fi
 
+      # MUST come before `npm test`. The unit suite covers the RevenueCat
+      # webhook's HTTP shell, and that test resolves `firebase-admin/*` out of
+      # functions/node_modules (the shell imports firebase-functions, which
+      # needs a single admin instance). Those deps used to be installed only by
+      # the "Functions typecheck/build" step further down, so `npm test` ran
+      # before they existed and the whole file failed to load with
+      # `Cannot find module 'firebase-admin/app'` — 23 tests reported as
+      # SKIPPED, not failed. It passed locally because a developer who has
+      # built functions once already has the directory.
+      - name: Install functions dependencies
+        working-directory: functions
+        run: npm ci
+
       - name: Unit tests (shared/backend logic)
         run: npm test
 
@@ -86,11 +99,10 @@ jobs:
         run: npm run test:rules
 
       # Compiles functions/src AND ../shared — catches backend type errors before deploy.
+      # Dependencies are installed above, before the unit tests that need them.
       - name: Functions typecheck/build
         working-directory: functions
-        run: |
-          npm ci
-          npm run build
+        run: npm run build
 
   # ── End-to-end browser tests ────────────────────────────────────────────────
   # WHY THIS JOB EXISTS: the suite already existed but ran nowhere, and that cost
