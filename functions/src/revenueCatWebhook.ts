@@ -22,6 +22,11 @@
  * The `webhook_events` collection denies all client access (firestore.rules) —
  * a client that could delete a row could replay its own purchase.
  *
+ * THIS ENDPOINT ACCEPTS SANDBOX EVENTS, INCLUDING IN PRODUCTION, because App
+ * Store reviewers purchase against prod using StoreKit sandbox. Granting
+ * mutations stamp `environment` on the entitlement doc so those grants stay
+ * auditable. Full rationale at the `planEntitlementMutation` call site.
+ *
  * Every relative import ends in `.js` — required by the functions ESM build.
  */
 
@@ -124,6 +129,33 @@ function isValidDocId(id: string): boolean {
 }
 
 /**
+ * Narrows an untrusted payload field to a string, or null.
+ *
+ * `RevenueCatEvent` types `product_id` and `environment` as `string | undefined`,
+ * but that is a compile-time claim about a JSON body we do not control — at
+ * runtime either can be a number, an object, or a nested array. `?? null` only
+ * catches null/undefined, so `"product_id": [[1]]` would pass straight through.
+ *
+ * Note where that actually fails, because it is not where you would guess:
+ * `tx.set` accepts a nested array without complaint and the client-side
+ * serializer encodes it happily. The SERVER rejects it at COMMIT with
+ * `3 INVALID_ARGUMENT: Cannot convert an array value in an array value`
+ * (verified against the emulator). That rejects the transaction promise, which
+ * lands in the handler's 500 branch — and because the commit failed, the
+ * `webhook_events` row that would stop the retry was never written either. So
+ * RevenueCat retries a payload that can never succeed, for days: the same
+ * retry-storm class `isValidDocId` and `boundExpiry` close. Every untrusted
+ * field that reaches a write goes through here.
+ *
+ * Note this only guards the WRITE. An unrecognized `product_id` is still
+ * dropped as `unknown-product` by `planEntitlementMutation`, which is where
+ * that decision belongs.
+ */
+function asStringOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+/**
  * Widest expiry this function will write, as a distance from now.
  *
  * `planEntitlementMutation` only checks `Number.isFinite`, so an
@@ -222,8 +254,29 @@ export async function applyRevenueCatEvent(event: RevenueCatEvent): Promise<void
     // Date.now() on the SERVER — never a timestamp off the payload, so a device
     // with its clock rolled back cannot extend paid access.
     const nowMs = Date.now();
+    // acceptSandbox: TRUE, deliberately, even in production.
+    //
+    // App Store reviewers exercise the StoreKit SANDBOX against the PRODUCTION
+    // app, so a prod endpoint that refuses SANDBOX events means the reviewer
+    // buys Pro, receives nothing, hits the free-tier scan cap, and rejects the
+    // submission. Routing sandbox traffic to the beta project does not help —
+    // the reviewer's purchase is made against prod regardless of where we point
+    // a second webhook.
+    //
+    // The abuse surface is small: a sandbox purchase requires an Apple sandbox
+    // tester account or an email on the Play license-tester list, neither of
+    // which an ordinary user can create for themselves. The granting mutations
+    // below stamp `environment` on the entitlement doc so a sandbox grant stays
+    // distinguishable from a paid one — auditable, excludable from revenue
+    // reporting, and purgeable later.
+    //
+    // This makes `planEntitlementMutation`'s `sandbox-event-in-production`
+    // ignore reason unreachable FROM THIS CALLER. It is deliberately retained
+    // in the pure module: the `acceptSandbox` parameter still exists, and a
+    // future caller (or a revisit of this decision) needs the fail-closed
+    // branch to still be there.
     const mutation = boundExpiry(
-      planEntitlementMutation(event, { tripPassExpiresAt }, nowMs),
+      planEntitlementMutation(event, { tripPassExpiresAt }, nowMs, true),
       nowMs,
     );
 
@@ -232,8 +285,8 @@ export async function applyRevenueCatEvent(event: RevenueCatEvent): Promise<void
     tx.set(eventRef, {
       type: event.type,
       uid,
-      productId: event.product_id ?? null,
-      environment: event.environment ?? null,
+      productId: asStringOrNull(event.product_id),
+      environment: asStringOrNull(event.environment),
       mutation: mutation.kind,
       reason: mutation.kind === 'ignore' ? mutation.reason : null,
       receivedAt: FieldValue.serverTimestamp(),
@@ -246,7 +299,10 @@ export async function applyRevenueCatEvent(event: RevenueCatEvent): Promise<void
           {
             plan: 'pro',
             source: 'revenuecat',
-            productId: event.product_id ?? null,
+            productId: asStringOrNull(event.product_id),
+            // Stamped so a SANDBOX grant (see acceptSandbox above) stays
+            // distinguishable from a real purchase after the fact.
+            environment: asStringOrNull(event.environment),
             expiresAt: Timestamp.fromMillis(mutation.expiresAt),
             inGracePeriod: false,
             updatedAt: FieldValue.serverTimestamp(),
@@ -277,6 +333,8 @@ export async function applyRevenueCatEvent(event: RevenueCatEvent): Promise<void
           entRef,
           {
             source: 'revenuecat',
+            // Same rationale as set-pro: mark sandbox-issued passes.
+            environment: asStringOrNull(event.environment),
             tripPassExpiresAt: Timestamp.fromMillis(mutation.tripPassExpiresAt),
             updatedAt: FieldValue.serverTimestamp(),
           },
@@ -350,7 +408,7 @@ function logIgnoredEvent(event: RevenueCatEvent, reason: string): void {
   const payload = {
     eventId: event.id,
     type: event.type,
-    productId: event.product_id ?? null,
+    productId: asStringOrNull(event.product_id),
     reason,
   };
   if (IGNORE_IS_ERROR.has(reason)) {
