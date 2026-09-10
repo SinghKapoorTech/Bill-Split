@@ -122,9 +122,27 @@ if (dryRun) {
 
 let token;
 try {
-  token = execFileSync('gcloud', ['auth', 'print-access-token'], { encoding: 'utf8' }).trim();
-} catch {
-  die('No gcloud access token. Run: gcloud auth login');
+  // WINDOWS: `gcloud` is a .cmd shim, and execFileSync cannot spawn it directly.
+  // Without the extension it fails ENOENT; as `gcloud.cmd` it fails EINVAL,
+  // because Node >= 20 refuses to exec .cmd/.bat outside a shell (the
+  // CVE-2024-27980 batch-argument-injection mitigation). So a shell is required
+  // on win32 -- and is safe here specifically because every argument is a fixed
+  // literal with no interpolated input. Do NOT extend this call with a variable.
+  //
+  // This was a real outage of this script, not a hypothetical: on Windows it
+  // reported "No gcloud access token. Run: gcloud auth login" while gcloud was
+  // perfectly authenticated, because ENOENT and "logged out" land in the same
+  // catch. The message below is still worth keeping, but it is not the only
+  // reason this can fail.
+  token = execFileSync('gcloud', ['auth', 'print-access-token'], {
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  }).trim();
+} catch (error) {
+  die(
+    `Could not get a gcloud access token (${error.code || error.message}). ` +
+      'If you are logged out, run: gcloud auth login',
+  );
 }
 if (!token) die('Empty gcloud access token. Run: gcloud auth login');
 
