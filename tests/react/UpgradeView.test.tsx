@@ -4,7 +4,7 @@
  *   - both plans with PRICE and DURATION visible
  *   - what the subscription actually unlocks
  *   - a Restore purchases control
- *   - Terms of Use and Privacy Policy links (Terms is a KNOWN GAP — see below)
+ *   - Terms of Use and Privacy Policy links
  *
  * Prices are placeholders until Phase 4 swaps them for RevenueCat `Offerings`,
  * so these assertions pin the SHAPE (a price and a period are on screen), and
@@ -71,15 +71,34 @@ describe('UpgradeView — Guideline 3.1.2 required content', () => {
     );
   });
 
-  it('ships NO Terms of Use link until there is a Terms page', () => {
-    // ⚠️ This is a Phase 4 LAUNCH BLOCKER, pinned deliberately rather than
-    // left silent: Guideline 3.1.2 requires a functional Terms of Use link on
-    // the subscription screen. A link to a 404 is worse than none, so the
-    // screen omits it — and this test fails the moment someone adds one back
-    // without a real destination, which is exactly when a reviewer should look.
+  it('links Terms of Use at Apple\u2019s standard EULA', () => {
+    // Guideline 3.1.2 requires a FUNCTIONAL Terms of Use link on a subscription
+    // screen. Divit has no Terms page of its own, and the earlier absolute URL
+    // (divit-bill.com/terms) was dead: that site is a client-routed SPA, so
+    // every path returns HTTP 200 with the same shell while App.tsx has no
+    // /terms route -- it rendered the app's own 404, and the test that asserted
+    // the URL string blessed it.
+    //
+    // Apple's standard EULA is the documented default for apps that do not
+    // supply custom terms, and it is a real page on a host we do not operate,
+    // so it cannot rot with our router.
     renderView();
-    expect(screen.queryByRole('link', { name: /Terms of Use/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Terms of Use/ })).toHaveAttribute(
+      'href',
+      'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
+    );
   });
+
+  it('opens the external EULA without handing it a window handle', () => {
+    // target=_blank without rel=noreferrer lets the opened page reach back via
+    // window.opener. It matters more than usual here: this link is tapped from
+    // inside a Capacitor webview.
+    renderView();
+    const terms = screen.getByRole('link', { name: /Terms of Use/ });
+    expect(terms).toHaveAttribute('target', '_blank');
+    expect(terms).toHaveAttribute('rel', expect.stringContaining('noreferrer'));
+  });
+
 });
 
 describe('UpgradeView — nothing here pretends to sell yet', () => {

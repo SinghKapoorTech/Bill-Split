@@ -17,10 +17,9 @@ import { layout } from '@/lib/styles';
  * Guideline 3.1.2 sets the required content and every item is a rejection if
  * missing: both plans with price AND duration, what the subscription unlocks,
  * a Restore purchases control, and links to Terms of Use and Privacy Policy.
- * Everything except the Terms link is here and inert, which is the honest state
- * — a purchase button that takes a tap and does nothing would leave a user
- * believing they had bought something. The missing Terms link is a Phase 4
- * launch blocker and is documented at the link block below.
+ * They are all here and all inert, which is the honest state — a purchase
+ * button that takes a tap and does nothing would leave a user believing they
+ * had bought something.
  */
 
 // TODO(phase4): replace with real `Offerings` from the RevenueCat SDK. These
@@ -97,24 +96,34 @@ export default function UpgradeView() {
             Restore purchases
           </Button>
           {/*
-            ⚠️ PHASE 4 LAUNCH BLOCKER — Guideline 3.1.2 requires a functional
-            Terms of Use (EULA) link on the subscription screen, and there is
-            no Terms page to link to. `https://www.divit-bill.com/terms` returns
-            HTTP 200 because the site is a client-routed SPA that serves the
-            same shell for every path — but App.tsx has no `/terms` route, so it
-            renders the app's own 404. A link to a 404 on a paywall is worse
-            than no link, so it is omitted rather than shipped broken.
+            TERMS OF USE — Guideline 3.1.2 requires a functional one on a
+            subscription screen, and Divit has no Terms page of its own.
 
-            Two ways to close it before the paywall goes live, both a product
-            decision rather than a code one: publish a real Terms page, or point
-            at Apple's standard EULA
-            (https://www.apple.com/legal/internet-services/itunes/dev/stdeula/),
-            which is the default for apps without custom terms.
+            This deliberately does NOT point at divit-bill.com/terms. That URL
+            returns HTTP 200 and looks fine to any status check, because the
+            site is a client-routed SPA that serves the same shell for every
+            path — but App.tsx has no /terms route, so it rendered the app's own
+            404. Apple's standard EULA is the documented default for apps that
+            do not supply custom terms, and it lives on a host we do not
+            operate, so it cannot rot when our router changes.
+
+            NOTE FOR PLAY: this is the APP STORE's licence. If Google Play
+            review asks for terms covering the Android subscription, that needs
+            its own answer — Apple's EULA does not cover it.
 
             Privacy points at the IN-APP route, which genuinely exists
             (App.tsx `/privacy` -> PrivacyPolicy).
           */}
           <p className="text-caption-responsive text-muted-foreground text-center">
+            <a
+              href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              Terms of Use
+            </a>
+            {' · '}
             <Link to="/privacy" className="underline underline-offset-2">
               Privacy Policy
             </Link>
