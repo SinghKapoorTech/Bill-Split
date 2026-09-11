@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { mapAnalyzeBillError } from '@/utils/analyzeBillError';
+import { mapAnalyzeBillError, analyzeBillErrorFrom } from '@/utils/analyzeBillError';
+import { capDetailsFromError } from '@/utils/capError';
+import { isPaywallTrigger } from '@shared/capErrors';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 describe('mapAnalyzeBillError', () => {
   it('passes the server message through verbatim for functions/resource-exhausted', () => {
@@ -108,5 +112,119 @@ describe('mapAnalyzeBillError', () => {
     expect(mapAnalyzeBillError('just a string')).toBe(
       'Failed to analyze receipt. Please try again.',
     );
+  });
+});
+
+/**
+ * `analyzeBillErrorFrom` exists because `src/services/gemini.ts` used to throw
+ * `new Error(mapAnalyzeBillError(error))`, which flattened the callable error
+ * and DESTROYED `.details`. Every scan-quota rejection therefore reached the UI
+ * as a bare string, and `capDetailsFromError` returned null 100% of the time —
+ * making the scan-quota wall (Phase 3 Task 3.1) impossible to build.
+ *
+ * The mapped message is still the whole user-facing story; the payload rides
+ * alongside it.
+ */
+describe('analyzeBillErrorFrom — preserves the cap payload', () => {
+  const SCAN_QUOTA = {
+    reason: 'scan-quota',
+    used: 2,
+    limit: 2,
+    resetsAtMs: Date.UTC(2026, 9, 1),
+  };
+
+  function callableError(details: unknown, message: string) {
+    return Object.assign(new Error(message), {
+      code: 'functions/resource-exhausted',
+      message,
+      details,
+    });
+  }
+
+  it('carries scan-quota details through to the client', () => {
+    const err = analyzeBillErrorFrom(
+      callableError(SCAN_QUOTA, "You've used all 2 free scans this month."),
+    );
+    expect(err.details).toEqual(SCAN_QUOTA);
+    expect(capDetailsFromError(err)).toEqual(SCAN_QUOTA);
+  });
+
+  it('still maps the user-facing message exactly as before', () => {
+    // The toast reads `error.message`. Preserving details must not change a
+    // single character of the copy the user sees.
+    const raw = callableError(SCAN_QUOTA, "You've used all 2 free scans this month.");
+    expect(analyzeBillErrorFrom(raw).message).toBe(mapAnalyzeBillError(raw));
+    expect(analyzeBillErrorFrom(raw).message).toBe("You've used all 2 free scans this month.");
+  });
+
+  it('is an Error, so every existing `instanceof Error` consumer keeps working', () => {
+    // useReceiptAnalyzer's toast does `error instanceof Error ? error.message : ...`
+    expect(analyzeBillErrorFrom(new Error('boom'))).toBeInstanceOf(Error);
+  });
+
+  it('leaves details undefined when the payload is unusable', () => {
+    // An older deployed function, or a platform 503 with no envelope at all.
+    expect(analyzeBillErrorFrom(callableError(undefined, 'nope')).details).toBeUndefined();
+    expect(analyzeBillErrorFrom(callableError({ reason: 'bogus' }, 'nope')).details).toBeUndefined();
+    expect(analyzeBillErrorFrom('just a string').details).toBeUndefined();
+    expect(analyzeBillErrorFrom(null).details).toBeUndefined();
+  });
+
+  it('does not mistake the hourly rate limiter for a quota payload', () => {
+    // Both are resource-exhausted. Only one is a paywall trigger.
+    const err = analyzeBillErrorFrom(
+      callableError({ reason: 'scan-rate-limit', retryAfterMs: 60_000 }, 'Slow down.'),
+    );
+    expect(err.details).toEqual({ reason: 'scan-rate-limit', retryAfterMs: 60_000 });
+    expect(isPaywallTrigger(err.details)).toBe(false);
+  });
+});
+
+/**
+ * WIRING assertion over `src/services/gemini.ts`.
+ *
+ * That module cannot be imported from a unit suite: it calls `getFunctions(app)`
+ * at module load, which initializes the Firebase client SDK. Same constraint as
+ * `tests/analyzeBillGates.test.ts` and `tests/callableNames.test.ts`, and the
+ * same stopgap — read the source.
+ *
+ * This is here because the factory above is fully covered while the CALL SITE
+ * was not: reverting the throw to `new Error(analyzeBillErrorFrom(error).message)`
+ * left the entire suite green, which is precisely how the original bug survived.
+ * The regression this guards is one keystroke away and completely invisible.
+ */
+describe('gemini.ts wiring', () => {
+  /**
+   * Comments are STRIPPED before matching, and the assertion is SCOPED to the
+   * catch block. The first version of this did neither, and was broken in both
+   * directions — both verified by mutation:
+   *
+   *   false PASS — leave `// throw analyzeBillErrorFrom(error);` as a comment
+   *     and throw something details-discarding underneath: green. The regex was
+   *     matching the comment, so the guard blessed the exact regression it
+   *     exists to catch.
+   *   false FAIL — add an unrelated `throw new Error('no image')` guard at the
+   *     top of the function: red. A whole-file ban on a normal construct is not
+   *     a statement about `.details`.
+   */
+  const raw = readFileSync(resolve(__dirname, '../src/services/gemini.ts'), 'utf8');
+  const source = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+  /** The body of `analyzeBillImage`'s catch block, comments already removed. */
+  const catchBody = source.match(/catch\s*\(\s*error[^)]*\)\s*\{([\s\S]*?)\n {2}\}/)?.[1] ?? '';
+
+  it('has a catch block this test can actually see', () => {
+    // Guards the guard: a refactor that renamed the binding or reshaped the
+    // block would otherwise make both assertions below vacuously true.
+    expect(catchBody.trim()).not.toBe('');
+  });
+
+  it('throws the cap-preserving error from the catch', () => {
+    expect(catchBody).toMatch(/throw\s+analyzeBillErrorFrom\(error\);/);
+  });
+
+  it('throws nothing else from the catch, so .details cannot be discarded', () => {
+    const throws = catchBody.match(/throw\s+[^;]+;/g) ?? [];
+    expect(throws).toEqual(['throw analyzeBillErrorFrom(error);']);
   });
 });

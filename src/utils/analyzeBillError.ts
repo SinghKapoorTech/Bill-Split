@@ -1,3 +1,6 @@
+import { capDetailsFromError } from '@/utils/capError';
+import type { CapErrorDetails } from '@shared/capErrors';
+
 /**
  * Error mapping for the `analyzeBill` Cloud Function callable. Kept separate
  * from `src/services/gemini.ts` so it can be unit tested without pulling in
@@ -71,4 +74,48 @@ export function mapAnalyzeBillError(error: unknown): string {
   }
 
   return 'Failed to analyze receipt. Please try again.';
+}
+
+/**
+ * An `analyzeBill` failure that keeps its structured cap payload.
+ *
+ * WHY THIS IS NOT JUST `new Error(message)`: the callable rejects with an
+ * `HttpsError` whose `details` distinguishes three conditions that all share
+ * the `resource-exhausted` code — the hourly abuse limiter, the monthly
+ * free-tier quota, and (on other callables) the group cap. Rewrapping into a
+ * plain `Error` discarded that payload, so the client could only tell them
+ * apart by reading the prose, and the scan-quota wall could not be built at
+ * all.
+ *
+ * `message` is unchanged from `mapAnalyzeBillError` — it remains the whole
+ * user-facing story, and `details` rides alongside for code that needs to
+ * decide WHICH wall to draw. Subclassing `Error` (rather than attaching a
+ * property to one) keeps `instanceof Error` true for existing consumers such as
+ * `useReceiptAnalyzer`'s toast.
+ */
+export class AnalyzeBillError extends Error {
+  readonly details?: CapErrorDetails;
+
+  constructor(message: string, details?: CapErrorDetails) {
+    super(message);
+    this.name = 'AnalyzeBillError';
+    this.details = details;
+  }
+}
+
+/**
+ * Builds the error `analyzeBillImage` should throw from whatever the callable
+ * rejected with.
+ *
+ * The payload is VALIDATED, never asserted — `capDetailsFromError` drops
+ * anything malformed to `undefined` so a field lost in transit, or a response
+ * from an older deployed function, degrades to the prose message rather than
+ * rendering "You've used undefined of undefined scans".
+ *
+ * Callers deciding whether to show an upgrade wall must pass `details` through
+ * `isPaywallTrigger`: the hourly rate limiter produces a valid payload here and
+ * is emphatically NOT a paywall trigger.
+ */
+export function analyzeBillErrorFrom(error: unknown): AnalyzeBillError {
+  return new AnalyzeBillError(mapAnalyzeBillError(error), capDetailsFromError(error) ?? undefined);
 }

@@ -281,9 +281,9 @@ export function groupDisclosure(args: {
 
 **Note the deliberate deviation from spec §4.3.1:** with a limit of 2 there is no "silent" band — the user sees the count from their first scan. That is the correct reading of "5 or 4 remaining = silent" scaled to 2.
 
-- [ ] Task 2.1 (Sonnet): `tests/quotaDisclosure.test.ts` — table test over `remaining ∈ {2,1,0}` × `unlimited` × `paywallEnabled`; assert level AND that the text contains the reset date ("Always show the reset date alongside the count"). Write first, watch fail, implement.
-- [ ] Task 2.2 (Sonnet): `tests/react/useEntitlement.test.tsx`, `tests/react/useScanQuota.test.tsx`, `tests/react/useGroupCap.test.tsx` — model on `tests/react/usePeopleManager.race.test.tsx`; mock `firebase/firestore` `onSnapshot` to push (a) no doc, (b) a Pro doc with future `expiresAt`, (c) an expired Pro doc, and for usage (a) absent, (b) `{scansThisPeriod:2, scanPeriodStart: this month}` → `remaining 0`, (c) last month's period → `remaining 2` (rolled). For groups: 3 owned events, one `archived:true`, one missing the field → `activeCount 2`.
-- [ ] Task 2.3 (Sonnet): `monetizationConfigService` + `useMonetizationConfig`; test that a fetch failure yields `{false, 2, 2}` (fail-safe = dark).
+- [x] Task 2.1: `tests/quotaDisclosure.test.ts` — table test over `remaining ∈ {2,1,0}` × `unlimited` × `paywallEnabled`; assert level AND that the text contains the reset date ("Always show the reset date alongside the count"). Write first, watch fail, implement.
+- [x] Task 2.2: `tests/react/useEntitlement.test.tsx`, `tests/react/useScanQuota.test.tsx`, `tests/react/useGroupCap.test.tsx` — model on `tests/react/usePeopleManager.race.test.tsx`; mock `firebase/firestore` `onSnapshot` to push (a) no doc, (b) a Pro doc with future `expiresAt`, (c) an expired Pro doc, and for usage (a) absent, (b) `{scansThisPeriod:2, scanPeriodStart: this month}` → `remaining 0`, (c) last month's period → `remaining 2` (rolled). For groups: 3 owned events, one `archived:true`, one missing the field → `activeCount 2`.
+- [x] Task 2.3: `monetizationConfigService` + `useMonetizationConfig`; test that a fetch failure yields `{false, 2, 2}` (fail-safe = dark).
 - [ ] `npm test`, typecheck ≤ 36, build exit 0. Commit per task.
 
 **Phase 2 exit:** green gates. No owner action (nothing visible yet).

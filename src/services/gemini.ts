@@ -11,7 +11,7 @@
 
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/config/firebase';
-import { mapAnalyzeBillError } from '@/utils/analyzeBillError';
+import { analyzeBillErrorFrom } from '@/utils/analyzeBillError';
 
 /**
  * Represents a single line item on the bill
@@ -47,6 +47,11 @@ export async function analyzeBillImage(base64Image: string): Promise<BillData> {
     return result.data;
   } catch (error: unknown) {
     console.error('Error analyzing bill:', error);
-    throw new Error(mapAnalyzeBillError(error));
+    // NOT `new Error(mapAnalyzeBillError(error))` — that flattened the callable
+    // and discarded `.details`, so every scan-quota rejection reached the UI as
+    // a bare string and the free-tier wall could not tell itself apart from the
+    // hourly rate limiter. The user-facing message is identical; the structured
+    // payload now survives the rewrap.
+    throw analyzeBillErrorFrom(error);
   }
 }
