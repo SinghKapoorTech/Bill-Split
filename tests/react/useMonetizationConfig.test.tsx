@@ -17,13 +17,28 @@ import { render, screen, act } from '@testing-library/react';
 
 const h = vi.hoisted(() => ({ fetchMonetizationConfig: vi.fn() }));
 
-vi.mock('@/services/monetizationConfigService', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/services/monetizationConfigService')>();
-  return { ...actual, fetchMonetizationConfig: h.fetchMonetizationConfig };
-});
+/**
+ * A FULL mock — deliberately NOT `importOriginal`.
+ *
+ * `importOriginal()` loads the real service, which imports `@/config/firebase`,
+ * which calls `getAuth(app)` at module load and throws `auth/invalid-api-key`
+ * without a populated `.env`. That passes on a developer machine and fails in
+ * CI, which is exactly what it did: green locally, red on `main`.
+ *
+ * The fallback is restated here because the factory is hoisted and cannot close
+ * over an import. To keep the assertions honest rather than self-referential,
+ * the tests below check against `FREE_SCANS_PER_MONTH_DEFAULT` from
+ * `@shared/monetizationLimits` — the real source of truth, and a pure module
+ * with no Firebase import of its own.
+ */
+vi.mock('@/services/monetizationConfigService', () => ({
+  fetchMonetizationConfig: h.fetchMonetizationConfig,
+  MONETIZATION_FALLBACK: { paywallEnabled: false, freeScansPerMonth: 2, freeActiveGroups: 2 },
+  __resetMonetizationConfigCacheForTests: () => {},
+}));
 
 import { useMonetizationConfig } from '@/hooks/useMonetizationConfig';
-import { MONETIZATION_FALLBACK } from '@/services/monetizationConfigService';
+import { FREE_SCANS_PER_MONTH_DEFAULT } from '@shared/monetizationLimits';
 
 function Probe() {
   const { paywallEnabled, freeScansPerMonth, freeActiveGroups, loading } = useMonetizationConfig();
@@ -44,6 +59,12 @@ beforeEach(() => {
 });
 
 describe('useMonetizationConfig', () => {
+  it('keeps the mocked fallback in step with the real default', () => {
+    // Guards the restated constant above: if FREE_SCANS_PER_MONTH_DEFAULT ever
+    // moves, this fails rather than letting the mock drift out of sync silently.
+    expect(FREE_SCANS_PER_MONTH_DEFAULT).toBe(2);
+  });
+
   it('starts loading, with the DARK fallback as the interim value', async () => {
     let release: (v: unknown) => void = () => {};
     h.fetchMonetizationConfig.mockReturnValue(new Promise((r) => (release = r)));
@@ -54,7 +75,7 @@ describe('useMonetizationConfig', () => {
     // `loading`, so it must be the safe one in its own right.
     expect(read('loading')).toBe('true');
     expect(read('paywall')).toBe('false');
-    expect(read('scans')).toBe(String(MONETIZATION_FALLBACK.freeScansPerMonth));
+    expect(read('scans')).toBe(String(FREE_SCANS_PER_MONTH_DEFAULT));
 
     await act(async () => {
       release({ paywallEnabled: true, freeScansPerMonth: 2, freeActiveGroups: 2 });
@@ -97,7 +118,7 @@ describe('useMonetizationConfig', () => {
 
     expect(read('loading')).toBe('false');
     expect(read('paywall')).toBe('false');
-    expect(read('scans')).toBe(String(MONETIZATION_FALLBACK.freeScansPerMonth));
+    expect(read('scans')).toBe(String(FREE_SCANS_PER_MONTH_DEFAULT));
   });
 
   // NOT TESTED, deliberately: the effect's `active` unmount guard.
