@@ -25,6 +25,8 @@ import {
 import { usePeopleManager } from "@/hooks/usePeopleManager";
 import { useBillSplitter } from "@/hooks/useBillSplitter";
 import { useReceiptAnalyzer } from "@/hooks/useReceiptAnalyzer";
+import { ScanQuotaWall } from "@/components/monetization/ScanQuotaWall";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Person, BillData, ItemAssignment } from "@/types";
@@ -925,6 +927,46 @@ export function BillWizard({
           isMobile={isMobile}
         />
       )}
+
+      {/*
+        The SERVER's scan refusal, for the race the pre-action wall cannot win:
+        a second device spent the last scan, the limit tightened mid-session, or
+        the 5-minute config TTL had not yet expired. `quotaWall` is null unless
+        the rejection was specifically `reason: 'scan-quota'` — the hourly rate
+        limiter still takes the toast path, because it is anti-abuse and applies
+        to subscribers too.
+      */}
+      <Dialog
+        open={analyzer.quotaWall !== null}
+        onOpenChange={(open) => !open && analyzer.dismissQuotaWall()}
+      >
+        <DialogContent className="sm:max-w-md">
+          {/* `sr-only` rather than Radix's VisuallyHidden: that package is not
+              a declared dependency (it only resolves as a hoisted transitive of
+              react-dialog), and `sr-only` is the established pattern here —
+              see OnboardingDialog. */}
+          <DialogTitle className="sr-only">Free scans used</DialogTitle>
+          {analyzer.quotaWall && (
+            <ScanQuotaWall
+              level="wall"
+              limit={analyzer.quotaWall.limit}
+              resetsAtMs={analyzer.quotaWall.resetsAtMs}
+              /*
+                NO onAddManually. `activeTab` is local state inside
+                BillEntryStep and is not lifted, so the wizard cannot switch to
+                the Manual tab — a handler here would only close the dialog and
+                drop a mobile user back on the AI tab with nothing changed.
+                ScanQuotaWall omits the button entirely when the prop is absent,
+                which is the point of it being optional.
+              */
+              onSeePro={() => {
+                analyzer.dismissQuotaWall();
+                navigate("/upgrade");
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Clear Items Dialog */}
       <AlertDialog

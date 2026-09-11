@@ -15,9 +15,9 @@
   ],
   "parameters": {
     "paywall_enabled": {
-      "defaultValue": { "value": "false" },
+      "defaultValue": { "value": "true" },
       "valueType": "BOOLEAN",
-      "description": "Master switch for free-tier cap ENFORCEMENT. false = evaluate and log only (dark launch). Ships false."
+      "description": "Master switch for free-tier cap ENFORCEMENT. false = evaluate and log only (dark launch). TRUE on beta so the free-tier UI can be tested; prod ships false."
     },
     "free_active_groups": {
       "defaultValue": { "value": "2" },

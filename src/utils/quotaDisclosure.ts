@@ -86,8 +86,13 @@ function usableLimit(n: number): number | null {
  * Zero and negatives are rejected along with NaN: `resetsAtMs: 0` is precisely
  * what a loading hook's "safe default" emits, and it used to render "Jan 1",
  * meaning 1970.
+ *
+ * EXPORTED because the wall renders the date on its own line ("Scans reset
+ * {Month D}.") rather than glued to the count. Re-deriving it in the component
+ * is how the chip and the wall end up naming different days the first time
+ * someone reaches for `toLocaleDateString` without the `timeZone` option.
  */
-function formatReset(resetsAtMs: number): string | null {
+export function formatResetDate(resetsAtMs: number): string | null {
   if (typeof resetsAtMs !== 'number' || !Number.isFinite(resetsAtMs) || resetsAtMs <= 0) {
     return null;
   }
@@ -127,32 +132,38 @@ export function scanDisclosure(args: {
   const safeRemaining = usableCount(remaining);
   if (safeLimit === null || safeRemaining === null) return HIDDEN;
 
-  const reset = formatReset(resetsAtMs);
+  const reset = formatResetDate(resetsAtMs);
+
+  // ONE SENTENCE FOR EVERY BAND, and it always carries the number.
+  //
+  // The ladder used to change its phrasing per band ("Last free scan this
+  // month", "You've used your 2 free scans this month"). That was written for a
+  // chip that appeared and escalated. This line now sits permanently on the AI
+  // scan tab as the answer to "how many do I have left", so the count has to be
+  // readable at a glance in every state — including zero, which the old wall
+  // copy stated only as a negative.
+  //
+  // The noun agrees with REMAINING, not with the limit: at a limit of 2 a user
+  // spends a third of the month at exactly one left, and "1 free AI scans left"
+  // would be on screen for all of it. Zero takes the plural, as English does.
+  // CLAMPED FOR DISPLAY, while the band test below stays `<= 0`. `remaining`
+  // also arrives from a cap-error payload that has crossed a process boundary,
+  // and now that every band interpolates it rather than the limit, an
+  // unclamped negative would render "-1 free AI scans left this month".
+  const shown = Math.max(0, safeRemaining);
+  const noun = shown === 1 ? 'scan' : 'scans';
+  const text = withReset(`${shown} free AI ${noun} left this month`, reset);
 
   // `<= 0`, not `=== 0`: `remaining` also arrives from a cap-error payload that
   // has crossed a process boundary, and a negative must read as the wall rather
   // than falling through to "ambient" and inviting a scan that will be refused.
-  if (safeRemaining <= 0) {
-    // `resolveLimit` permits a limit of 1, which "free scans" mis-numbers.
-    const noun = safeLimit === 1 ? 'scan' : 'scans';
-    return {
-      level: 'wall',
-      text: withReset(`You've used your ${safeLimit} free ${noun} this month`, reset),
-    };
-  }
+  if (safeRemaining <= 0) return { level: 'wall', text };
+  if (safeRemaining === 1) return { level: 'last', text };
 
-  if (safeRemaining === 1) {
-    return { level: 'last', text: withReset('Last free scan this month', reset) };
-  }
-
-  // Everything above 1 is ambient — always plural, since 1 is handled above.
-  // Written as the fall-through so that a limit raised by Remote Config
-  // (free_scans_per_month is a live key) still lands in a real band instead of
-  // an unhandled one.
-  return {
-    level: 'ambient',
-    text: withReset(`${safeRemaining} scans left this month`, reset),
-  };
+  // Everything above 1 is ambient. Written as the fall-through so that a limit
+  // raised by Remote Config (free_scans_per_month is a live key) still lands in
+  // a real band instead of an unhandled one.
+  return { level: 'ambient', text };
 }
 
 /**

@@ -58,7 +58,7 @@ export default function Dashboard() {
   return (
     <div className="h-full flex flex-col animate-fade-in max-w-7xl mx-auto">
       <div className="shrink-0 flex items-center justify-between pt-5 mb-3 px-1">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold">Balances</h1>
           <p className="text-muted-foreground">{balanceSubtitle}</p>
         </div>

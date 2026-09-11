@@ -90,7 +90,7 @@ describe('useScanDisclosure — a settled free user still gets the truth', () =>
     h.quota = { ...h.quota, remaining: 0 };
     render(<Probe />);
     expect(read('level')).toBe('wall');
-    expect(read('text')).toBe("You've used your 2 free scans this month · resets Oct 1");
+    expect(read('text')).toBe('0 free AI scans left this month · resets Oct 1');
     expect(read('loading')).toBe('false');
   });
 

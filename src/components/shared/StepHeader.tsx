@@ -1,4 +1,5 @@
 import { LucideIcon } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
 
 interface StepHeaderProps {
@@ -43,6 +44,8 @@ export function StepHeader({
     onRemoveImage,
     actions
 }: StepHeaderProps) {
+    const navigate = useNavigate();
+
     return (
         <div className="section-header flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -74,6 +77,7 @@ export function StepHeader({
                         onAnalyze={onAnalyze || (() => { })}
                         onImageSelected={onImageSelected}
                         fileInputRef={upload.fileInputRef}
+                        onSeePro={() => navigate('/upgrade')}
                     />
                 )}
             </div>

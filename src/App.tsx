@@ -25,6 +25,7 @@ import MobileAuth from "./pages/MobileAuth";
 import JoinSession from "./pages/JoinSession";
 import CollaborativeSessionView from "./pages/CollaborativeSessionView";
 import NotFound from "./pages/NotFound";
+import UpgradeView from "./pages/UpgradeView";
 import SquadsView from "./pages/SquadsView";
 import SquadDetailView from "./pages/SquadDetailView";
 import SimpleTransactionView from "./pages/SimpleTransactionView";
@@ -164,6 +165,7 @@ const App = () => (
                   <Route path="balances/:targetUserId" element={<BalanceDetailView />} />
                   <Route path="events/:eventId/balances/:targetUserId" element={<BalanceDetailView />} />
                   <Route path="settings" element={<SettingsView />} />
+                  <Route path="upgrade" element={<UpgradeView />} />
                   <Route path="bills" element={<BillsView />} />
                   <Route path="shared/:sessionId" element={<CollaborativeSessionView />} />
                 </Route>

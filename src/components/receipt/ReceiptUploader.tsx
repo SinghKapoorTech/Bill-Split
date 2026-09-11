@@ -7,6 +7,10 @@ import { usePlatform } from '@/hooks/usePlatform';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { ReceiptPreviewModal } from './ReceiptPreviewModal';
 import { ScanningOverlay } from './ScanningOverlay';
+import { useScanDisclosure } from '@/hooks/useScanDisclosure';
+import { ScanQuotaNotice } from '@/components/monetization/ScanQuotaNotice';
+import { ScanQuotaWall } from '@/components/monetization/ScanQuotaWall';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 interface Props {
   selectedFile: File | null;
@@ -24,6 +28,14 @@ interface Props {
   onAnalyze: () => void;
   onImageSelected?: (base64Image: string) => void;
   fileInputRef: React.RefObject<HTMLInputElement>;
+  /**
+   * Where the free-tier wall sends a user who wants to keep going without a
+   * scan. Optional: call sites with no manual-entry affordance omit it and the
+   * wall drops that button rather than offering a dead one.
+   */
+  onAddManually?: () => void;
+  /** Opens the upgrade path. Optional so the wall can still explain itself. */
+  onSeePro?: () => void;
 }
 
 export function ReceiptUploader({
@@ -42,13 +54,39 @@ export function ReceiptUploader({
   onAnalyze,
   onImageSelected,
   fileInputRef,
+  onAddManually,
+  onSeePro,
 }: Props) {
   const { isNative } = usePlatform();
   const { pickImage } = useImagePicker();
+  const scan = useScanDisclosure();
   const [imageError, setImageError] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * THE free-tier gate for scanning, derived once and applied to BOTH surfaces
+   * below.
+   *
+   * `level === 'wall'` rather than `remaining <= 0`: the level already folds in
+   * every mute (Pro, the Remote Config kill switch, and the window while
+   * entitlement is still in flight), so this cannot wall a subscriber. Testing
+   * `remaining` here would — buying Pro does not reset `scansThisPeriod`.
+   *
+   * This is a PRE-ACTION COURTESY, not the gate. The server enforces, and the
+   * `details` payload on a `resource-exhausted` rejection covers the race where
+   * this let a scan through.
+   */
+  /** True once the free monthly scan allowance is spent. See `blockedByQuota`. */
+  const atWall = scan.level === 'wall';
+
+  const blockedByQuota = () => {
+    if (!atWall) return false;
+    setShowQuotaModal(true);
+    return true;
+  };
 
   // Android mobile web needs a source picker since Chrome doesn't offer camera option natively
   const isAndroidWeb = !isNative && /Android/i.test(navigator.userAgent);
@@ -58,6 +96,10 @@ export function ReceiptUploader({
   }, [imagePreview]);
 
   const handleSelectImage = async () => {
+    // The camera must never open at zero. This is the single place that opens
+    // the native picker, so gating it here covers every call site at once.
+    if (blockedByQuota()) return;
+
     if (isNative && onImageSelected) {
       // Native app: Use Capacitor camera picker
       const image = await pickImage();
@@ -74,6 +116,10 @@ export function ReceiptUploader({
   };
 
   const handleUseDemoImage = async () => {
+    // The SECOND place that stages an image, and it bypasses the picker
+    // entirely. Same gate, or the demo shortcut becomes the bypass.
+    if (blockedByQuota()) return;
+
     try {
       // Fetch the demo receipt image from public folder
       const response = await fetch('/demo-receipt.png');
@@ -133,7 +179,24 @@ export function ReceiptUploader({
         }`}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
-      onDrop={onDrop}
+      /*
+        A drop at the wall raises the modal rather than silently vanishing. The
+        file is NOT forwarded: call sites pass it straight to `onImageSelected`,
+        which kicks off a background `uploadReceiptImage` — a billable Cloud
+        Storage write for a user who cannot analyze the result.
+      */
+      onDrop={(e) => {
+        e.preventDefault();
+        if (blockedByQuota()) {
+          // `dragleave` does NOT fire on the drop target when a drop occurs, and
+          // the call sites' `handleDrop` — which owns `setIsDragging(false)` —
+          // is exactly what this guard skips. Without an explicit clear the card
+          // stays highlighted until the user drags something over it and away.
+          onDragLeave(e);
+          return;
+        }
+        onDrop(e);
+      }}
     >
       {!imagePreview ? (
         <div className="flex flex-col items-center justify-center stack-md py-8 md:py-12">
@@ -169,6 +232,8 @@ export function ReceiptUploader({
               )}
             </>
           )}
+
+          <ScanQuotaNotice level={scan.level} text={scan.text} />
 
           <Button
             size="lg"
@@ -224,10 +289,20 @@ export function ReceiptUploader({
             )}
           </div>
 
+
+          <ScanQuotaNotice level={scan.level} text={scan.text} className="text-center" />
+
+          {/* THE control that actually spends the scan. An image reaches this
+              state without ever touching the CTA above — a bill that already
+              carries a `receiptImageUrl`, or a drop that happened before the
+              quota ran out — so gating only the picker leaves this live. */}
           <Button
             size="lg"
             className="w-full bg-gradient-to-r from-primary to-primary-glow hover:opacity-90 shadow-lg hover:shadow-xl transition-smooth disabled:opacity-50"
-            onClick={onAnalyze}
+            onClick={() => {
+              if (blockedByQuota()) return;
+              onAnalyze();
+            }}
             disabled={isUploading || isAnalyzing}
           >
             {isUploading ? (
@@ -255,6 +330,42 @@ export function ReceiptUploader({
         </div>
       )}
     </Card>
+
+      {/*
+        The out-of-scans modal. Raised by a TAP, never on mount: landing on the
+        AI tab and being interrupted before doing anything reads as nagging, and
+        the standing `ScanQuotaNotice` above already answers "how many are
+        left". This fires only once the user actually reaches for a scan.
+      */}
+      <Dialog open={showQuotaModal} onOpenChange={setShowQuotaModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle className="sr-only">Out of free AI scans</DialogTitle>
+          <ScanQuotaWall
+            // The LIVE level, not a hardcoded 'wall'. The dialog's `open` is
+            // local state, so an entitlement snapshot that resolves to Pro — or
+            // a kill-switch flip — while the modal is up would otherwise leave a
+            // paying subscriber reading "Upgrade to Pro". Passing it through
+            // lets the component's own self-gating empty the dialog.
+            level={scan.level}
+            limit={scan.limit}
+            resetsAtMs={scan.resetsAtMs}
+            onAddManually={
+              onAddManually &&
+              (() => {
+                setShowQuotaModal(false);
+                onAddManually();
+              })
+            }
+            onSeePro={
+              onSeePro &&
+              (() => {
+                setShowQuotaModal(false);
+                onSeePro();
+              })
+            }
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Android web: bottom sheet to choose camera vs gallery */}
       {isAndroidWeb && (

@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { scanDisclosure, groupDisclosure, type DisclosureLevel } from '@/utils/quotaDisclosure';
+import {
+  scanDisclosure,
+  groupDisclosure,
+  formatResetDate,
+  type DisclosureLevel,
+} from '@/utils/quotaDisclosure';
 
 /**
  * The reset date is the whole reason these tests pin a timezone.
@@ -102,31 +107,31 @@ describe('scanDisclosure — the reset date travels with the count', () => {
   // the copy left all 24 tests green. `free_scans_per_month` is a live Remote
   // Config key, and this is the only place it is rendered. Assert the whole
   // string, at a limit that is NOT the launch default.
-  it('renders the configured limit at the wall, not a hardcoded one', () => {
+  it('states the count at the wall, not a hardcoded one', () => {
     expect(scanDisclosure({ ...base, remaining: 0, limit: 5 }).text).toBe(
-      "You've used your 5 free scans this month · resets Oct 1",
+      '0 free AI scans left this month · resets Oct 1',
     );
   });
 
-  it('renders the configured limit in the ambient band', () => {
+  it('states the count in the ambient band', () => {
     expect(scanDisclosure({ ...base, remaining: 4, limit: 5 }).text).toBe(
-      '4 scans left this month · resets Oct 1',
+      '4 free AI scans left this month · resets Oct 1',
     );
   });
 
-  // resolveLimit permits LIMIT_MIN = 1, so `free_scans_per_month: 1` is a
-  // publishable value. "You've used your 1 free scans" would ship to every free
-  // user on one console edit.
-  it('says "scan", not "scans", when the limit is 1', () => {
+  // The noun now agrees with REMAINING, not with the limit: the line is read
+  // every time the user opens the AI scan tab, so "1 free AI scans left" would
+  // be on screen for a third of every free user's month.
+  it('says "scan", not "scans", at exactly one remaining', () => {
+    expect(scanDisclosure({ ...base, remaining: 1 }).text).toBe(
+      '1 free AI scan left this month · resets Oct 1',
+    );
+  });
+
+  it('says "scans" at zero — zero is plural in English', () => {
     expect(scanDisclosure({ ...base, remaining: 0, limit: 1 }).text).toBe(
-      "You've used your 1 free scan this month · resets Oct 1",
+      '0 free AI scans left this month · resets Oct 1',
     );
-  });
-
-  it('does not claim a plural last scan', () => {
-    const text = scanDisclosure({ ...base, remaining: 1 }).text;
-    expect(text).toContain('Last free scan');
-    expect(text).not.toContain('scans left');
   });
 });
 
@@ -137,12 +142,22 @@ describe('scanDisclosure — defensive inputs', () => {
     expect(scanDisclosure({ ...base, remaining: -1 }).level).toBe('wall');
   });
 
+  it('never PRINTS a negative count', () => {
+    // The band test is `<= 0` because `remaining` also arrives from a cap-error
+    // payload that has crossed a process boundary. Now that every band
+    // interpolates `remaining` rather than the limit, that same input would
+    // render "-1 free AI scans left this month" straight at the user.
+    expect(scanDisclosure({ ...base, remaining: -3 }).text).toBe(
+      '0 free AI scans left this month · resets Oct 1',
+    );
+  });
+
   it('stays ambient above the launch limit if Remote Config raises it', () => {
     // free_scans_per_month is Remote Config driven; a limit of 5 must not fall
     // through to some unhandled band.
     const d = scanDisclosure({ ...base, remaining: 5, limit: 5 });
     expect(d.level).toBe('ambient');
-    expect(d.text).toContain('5 scans left');
+    expect(d.text).toContain('5 free AI scans left');
   });
 
   // Every one of these rendered literal "NaN"/"Invalid Date"/"Jan 1" (1970) to
@@ -175,7 +190,7 @@ describe('scanDisclosure — defensive inputs', () => {
     // it used to render "resets Jan 1" — 1970.
     for (const resetsAtMs of [0, NaN, -1, Infinity]) {
       const text = scanDisclosure({ ...base, remaining: 0, resetsAtMs }).text;
-      expect(text).toBe("You've used your 2 free scans this month");
+      expect(text).toBe('0 free AI scans left this month');
       expect(text).not.toContain('Invalid Date');
       expect(text).not.toContain('Jan 1');
     }
@@ -255,5 +270,30 @@ describe('groupDisclosure', () => {
 
   it('is open while still loading, even at the cap', () => {
     expect(groupDisclosure({ ...g, loading: true }).atCap).toBe(false);
+  });
+});
+
+describe('formatResetDate — exported so the WALL does not re-derive the date', () => {
+  // The wall copy ("Scans reset {Month D}.") needs the date on its own line,
+  // not glued to the count the way `scanDisclosure` returns it. Exporting the
+  // formatter rather than re-deriving it in the component is what keeps the
+  // chip and the wall from ever naming different days -- and `timeZone: 'UTC'`
+  // is the whole reason that matters (see the note on `formatReset`).
+  it('names the UTC day even though this file runs behind UTC', () => {
+    // This whole file runs under America/New_York (the `beforeAll` at the top),
+    // where this instant is Sep 30, 8pm. Formatting it locally would make the
+    // wall say "Scans reset Sep 30" while the server's own message beside it
+    // says October 1. That file-level pin is the proof — setting TZ again in
+    // here would be a no-op that merely LOOKED like one, and a second test
+    // asserting the identical expression would be padding.
+    expect(formatResetDate(Date.UTC(2026, 9, 1))).toBe('Oct 1');
+  });
+
+  it('returns null for a boundary it cannot stand behind', () => {
+    // 0 is exactly what a still-loading hook emits, and it used to render
+    // "Jan 1" -- meaning 1970.
+    expect(formatResetDate(0)).toBeNull();
+    expect(formatResetDate(Number.NaN)).toBeNull();
+    expect(formatResetDate(-1)).toBeNull();
   });
 });

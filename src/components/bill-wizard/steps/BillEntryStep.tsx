@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Receipt, Sparkles } from 'lucide-react';
 import { ReceiptUploader } from '@/components/receipt/ReceiptUploader';
@@ -87,6 +88,7 @@ export function BillEntryStep({
     );
 
     // Tab state for mobile view
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<'ai' | 'manual'>('ai');
 
     const billItemsProps = {
@@ -208,6 +210,15 @@ export function BillEntryStep({
                                 onAnalyze={onAnalyze}
                                 onImageSelected={onImageSelected}
                                 fileInputRef={upload.fileInputRef}
+                                // The free-tier wall's escape hatch. On mobile the
+                                // uploader is the ONLY thing on this tab, so without
+                                // this a capped user gets a red box and no route
+                                // forward. Desktop deliberately omits it: the manual
+                                // items table is already on screen in the right
+                                // column, so the button would have nowhere to go and
+                                // ScanQuotaWall drops it.
+                                onAddManually={() => setActiveTab('manual')}
+                                onSeePro={() => navigate('/upgrade')}
                             />
                         </div>
                     )}
@@ -289,6 +300,10 @@ export function BillEntryStep({
                             onAnalyze={onAnalyze}
                             onImageSelected={onImageSelected}
                             fileInputRef={upload.fileInputRef}
+                            // No onAddManually: the desktop layout already has
+                            // the items table on screen in the right column, so
+                            // the button would have nowhere to go.
+                            onSeePro={() => navigate('/upgrade')}
                         />
                     </Card>
                 }

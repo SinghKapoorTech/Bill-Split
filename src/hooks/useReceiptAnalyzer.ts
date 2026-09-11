@@ -5,6 +5,8 @@ import { MOCK_BILL_DATA, MOCK_PEOPLE } from '@/utils/constants';
 import { Person } from '@/types';
 import { useToast } from './use-toast';
 import { mergeBillData } from '@/utils/billCalculations';
+import { capDetailsFromError } from '@/utils/capError';
+import type { CapErrorDetails } from '@shared/capErrors';
 
 /**
  * Hook for analyzing receipts using AI and loading mock data
@@ -19,6 +21,20 @@ export function useReceiptAnalyzer(
   currentBillData?: BillData | null,
 ) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  /**
+   * The server's own scan-quota refusal, when the pre-action wall did not catch
+   * it. Null unless `analyzeBill` rejected with `reason: 'scan-quota'`.
+   *
+   * Carries the SERVER's numbers deliberately. This path only runs because the
+   * client's view of the quota was wrong (a second device spent the last scan,
+   * the limit tightened mid-session, or the config TTL had not yet expired), so
+   * re-rendering the client's own `limit` would reprint the stale number that
+   * let the scan through.
+   */
+  const [quotaWall, setQuotaWall] = useState<Extract<
+    CapErrorDetails,
+    { reason: 'scan-quota' }
+  > | null>(null);
   const { toast } = useToast();
 
   const analyzeReceipt = async (
@@ -28,6 +44,11 @@ export function useReceiptAnalyzer(
     if (!imageFile || !imagePreview) return null;
 
     setIsAnalyzing(true);
+    // A wall left standing over a scan that then SUCCEEDS (an upgrade mid-
+    // session, a month boundary crossed) is a dead modal the user cannot
+    // explain. Clear it on every attempt; the catch below re-raises it if the
+    // refusal still stands.
+    setQuotaWall(null);
     try {
       const data = await analyzeBillImage(imagePreview);
 
@@ -75,6 +96,20 @@ export function useReceiptAnalyzer(
       return finalData;
     } catch (error) {
       console.error('useReceiptAnalyzer error:', error);
+
+      // `reason === 'scan-quota'` EXPLICITLY, not `isPaywallTrigger` and
+      // emphatically not "the code was resource-exhausted". Three unrelated
+      // conditions share that code, and the hourly anti-abuse limiter is one of
+      // them — it applies to Pro subscribers and clears itself in minutes.
+      // Raising an upgrade wall for it sells Pro to someone who already pays.
+      // (`group-cap` cannot arrive on this callable, so naming the one reason
+      // that can is both narrower and truer than the shared helper here.)
+      const details = capDetailsFromError(error);
+      if (details?.reason === 'scan-quota') {
+        setQuotaWall(details);
+        return null;
+      }
+
       toast({
         title: 'Analysis Failed',
         description:
@@ -100,5 +135,7 @@ export function useReceiptAnalyzer(
     isAnalyzing,
     analyzeReceipt,
     loadMockData,
+    quotaWall,
+    dismissQuotaWall: () => setQuotaWall(null),
   };
 }
