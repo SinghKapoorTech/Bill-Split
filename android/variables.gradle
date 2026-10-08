@@ -1,5 +1,9 @@
 ext {
-    minSdkVersion = 23
+    // 24, not 23: Play's automatic protection refuses an App Bundle with a
+    // minSdk below 24 at UPLOAD time -- the AAB builds fine and then the Play
+    // upload step fails. Raising this drops Android 6.0 (Marshmallow).
+    // Capacitor 7's own floor is 23, so 24 is above it.
+    minSdkVersion = 24
     compileSdkVersion = 36
     targetSdkVersion = 36
     androidxActivityVersion = '1.9.2'
