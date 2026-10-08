@@ -29,6 +29,10 @@ import { isEventArchived } from '@shared/eventArchive';
 import { formatShortDate } from '@/utils/format';
 import { unarchiveEventDoc } from '@/services/eventArchiveService';
 import { messageForCallableError } from '@/utils/callableError';
+import { capDetailsFromError } from '@/utils/capError';
+import type { CapErrorDetails } from '@shared/capErrors';
+import { GroupCapWall } from '@/components/monetization/GroupCapWall';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 // Firestore collection name
 const EVENTS_COLLECTION = 'events';
@@ -232,6 +236,16 @@ export default function EventDetailView() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [manageMembersDialogOpen, setManageMembersDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  /**
+   * The server's group-cap refusal on unarchive. This is the SECOND unarchive
+   * entry point (EventsView has the other) and the only one where the user is
+   * looking at a single group with no list to archive from — hence the button
+   * here navigates rather than dismissing.
+   */
+  const [groupCap, setGroupCap] = useState<Extract<
+    CapErrorDetails,
+    { reason: 'group-cap' }
+  > | null>(null);
   const [isUnarchiving, setIsUnarchiving] = useState(false);
   const [eventBills, setEventBills] = useState<Bill[]>([]);
   const { user } = useAuth();
@@ -427,6 +441,14 @@ export default function EventDetailView() {
       });
     } catch (error) {
       console.error('Failed to unarchive event', error);
+      // `reason === 'group-cap'` explicitly, not the error code:
+      // `resource-exhausted` is shared with the hourly scan limiter, which
+      // applies to Pro subscribers and is not a paywall trigger.
+      const details = capDetailsFromError(error);
+      if (details?.reason === 'group-cap') {
+        setGroupCap(details);
+        return;
+      }
       toast({
         title: 'Error',
         // The group cap's message IS the offer, and it leads with the free way
@@ -712,6 +734,37 @@ export default function EventDetailView() {
           eventContext={{ targetEventId: event.id, targetEventName: event.name }}
         />
       )}
+
+      {/*
+        Raised only by a SERVER refusal — there is no pre-action gate here,
+        because unarchiving is the one action whose cap status the client cannot
+        pre-compute for a single event page (it holds one event, not the owner's
+        whole list). The typed payload is what draws this.
+      */}
+      <Dialog open={groupCap !== null} onOpenChange={(open) => !open && setGroupCap(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle className="sr-only">Active group limit reached</DialogTitle>
+          {groupCap && (
+            <GroupCapWall
+              atCap
+              activeCount={groupCap.activeCount}
+              limit={groupCap.limit}
+              onArchive={() => {
+                // NAVIGATES, rather than dismissing. This page shows ONE group;
+                // the list they need to archive from is on /events. Closing the
+                // modal here would leave them exactly where they started, which
+                // is the no-op-button trap.
+                setGroupCap(null);
+                navigate('/events');
+              }}
+              onSeePro={() => {
+                setGroupCap(null);
+                navigate('/upgrade');
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <InviteMembersDialog
         open={inviteDialogOpen}

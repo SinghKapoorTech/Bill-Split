@@ -22,6 +22,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { partitionEvents } from '@shared/eventArchive';
 import { messageForCallableError } from '@/utils/callableError';
+import { capDetailsFromError } from '@/utils/capError';
+import { useGroupCap } from '@/hooks/useGroupCap';
+import { GroupCapWall } from '@/components/monetization/GroupCapWall';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 export default function EventsView() {
   const navigate = useNavigate();
@@ -31,8 +35,78 @@ export default function EventsView() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<{ id: string; name: string } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  /**
+   * The group-cap modal, and WHICH of the two things raised it.
+   *
+   * One modal serves two paths that disagree about their own state, so the
+   * source has to travel with it:
+   *
+   *   'client' — the pre-action gate. `cap.atCap` is true, and it stays live so
+   *     the modal empties itself if an entitlement snapshot lands Pro (a
+   *     purchase on another device) or the kill switch goes dark while it is
+   *     open. Counts come from the client's own list.
+   *   'server' — a refusal that already happened. `cap.atCap` is necessarily
+   *     FALSE here (the client believing there was room is exactly why the
+   *     request was sent), so driving this modal off it would mean the
+   *     server-race wall never appeared at all. Counts come from the server
+   *     payload, which is the authoritative pair and may differ from ours.
+   */
+  const [capModal, setCapModal] = useState<
+    | { source: 'client' }
+    | { source: 'server'; activeCount: number; limit: number }
+    | null
+  >(null);
   const { events, loading, createEvent, deleteEvent, archiveEvent, unarchiveEvent } =
     useEventManager();
+
+  /**
+   * `events`, NOT `activeEvents`. The hook does its own
+   * `ownerId === uid && !isEventArchived(e)` filter, and it needs the whole
+   * list to do it: `activeEvents` has already dropped the archived ones AND
+   * still contains groups owned by other people, so neither half is a
+   * substitute. Passing the pre-filtered list would silently under-count and
+   * let a user past the cap.
+   */
+  const cap = useGroupCap(events, loading);
+
+  /**
+   * Every route to group creation goes through here.
+   *
+   * There are TWO buttons — the header `Plus` and the empty-state "Create
+   * Event", the latter rendering whenever no ACTIVE group is on screen,
+   * including the "everything is archived" branch. Gating them separately is
+   * how the second one rots.
+   *
+   * A pre-action courtesy, not the gate: `cap.atCap` is false while anything is
+   * still loading, and the server refuses over-cap creation regardless.
+   */
+  const openCreate = () => {
+    if (cap.atCap) {
+      setCapModal({ source: 'client' });
+      return;
+    }
+    setDialogOpen(true);
+  };
+
+  /**
+   * The server's own group-cap refusal, for the race the pre-action gate cannot
+   * win — a second device took the last slot, or the 5-minute config TTL had
+   * not expired. Returns true when it HANDLED the error.
+   *
+   * `reason === 'group-cap'` explicitly, never "the code was
+   * resource-exhausted": that code is shared with the hourly scan limiter,
+   * which applies to Pro subscribers and is not a paywall trigger.
+   */
+  const handledAsGroupCap = (error: unknown) => {
+    const details = capDetailsFromError(error);
+    if (details?.reason !== 'group-cap') return false;
+    setCapModal({
+      source: 'server',
+      activeCount: details.activeCount,
+      limit: details.limit,
+    });
+    return true;
+  };
   const { toast } = useToast();
 
   // Partitioned in memory, never in the query: `where('archived','==',false)`
@@ -93,6 +167,7 @@ export default function EventsView() {
       navigateWithOrigin(navigate, location, `/events/${newEventId}`);
     } catch (error) {
       console.error('Failed to create event', error);
+      if (handledAsGroupCap(error)) return;
       toast({
         title: 'Error',
         // Same reason as unarchive: when the group cap blocks creation the
@@ -144,6 +219,7 @@ export default function EventsView() {
       });
     } catch (error) {
       console.error('Failed to unarchive event', error);
+      if (handledAsGroupCap(error)) return;
       toast({
         title: 'Error',
         // The group cap writes its message server-side to be read verbatim, and
@@ -183,10 +259,16 @@ export default function EventsView() {
         <div>
           <h1 className="text-3xl font-bold">Your Events</h1>
           <p className="text-muted-foreground">Organize trips and group events</p>
+          {/* Only speaks at the cap — `groupDisclosure` returns '' otherwise,
+              and there is no "one left" moment worth a different tone the way
+              there is for scans. Plain status text, not a chip. */}
+          {cap.text && (
+            <p className="text-caption-responsive text-destructive mt-1.5">{cap.text}</p>
+          )}
         </div>
         <Button
-          onClick={() => setDialogOpen(true)}
-          size="icon"
+          onClick={openCreate}
+          size="icon" aria-label="Create event"
           className="rounded-full h-10 w-10 shrink-0"
         >
           <Plus className="w-6 h-6" />
@@ -222,7 +304,7 @@ export default function EventsView() {
                     </p>
                   </>
                 )}
-                <Button onClick={() => setDialogOpen(true)}>Create Event</Button>
+                <Button onClick={openCreate}>Create Event</Button>
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -276,6 +358,39 @@ export default function EventsView() {
           </div>
         )}
       </div>
+
+      <Dialog open={capModal !== null} onOpenChange={(open) => !open && setCapModal(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogTitle className="sr-only">Active group limit reached</DialogTitle>
+          {capModal && (
+            <GroupCapWall
+              // Live for the client gate so the modal can empty itself if the
+              // user turns out to be Pro; pinned true for a server refusal,
+              // which already happened and is not ours to second-guess.
+              atCap={capModal.source === 'server' ? true : cap.atCap}
+              activeCount={
+                capModal.source === 'server' ? capModal.activeCount : cap.activeCount
+              }
+              limit={capModal.source === 'server' ? capModal.limit : cap.limit}
+              onArchive={() => {
+                // Collapses the archived section so the ACTIVE list — the one
+                // they need to archive from — is what is behind the modal. A
+                // real state change when this came from the archived-list
+                // unarchive refusal; from `openCreate` it is mostly the
+                // dismiss, but it still lands them somewhere they can act:
+                // being at the cap means at least one owned active group is
+                // listed, and every card carries an archive control.
+                setShowArchived(false);
+                setCapModal(null);
+              }}
+              onSeePro={() => {
+                setCapModal(null);
+                navigate('/upgrade');
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <CreateEventDialog
         open={dialogOpen}
