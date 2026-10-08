@@ -80,7 +80,7 @@ describe('EventsView — below the cap nothing changes', () => {
     // gate blocks everybody is the unrecoverable direction, and asserting only
     // "no modal" would sail straight through it.
     renderView();
-    await userEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New event' }));
     expect(screen.getByRole('heading', { name: 'Create New Event' })).toBeInTheDocument();
     expect(capModal()).not.toBeInTheDocument();
   });
@@ -119,7 +119,7 @@ describe('EventsView — at the cap', () => {
       { id: 'e2', name: 'Ski', ownerId: 'u1', memberIds: ['u1'] },
     ];
     renderView();
-    await userEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New event' }));
     expect(capModal()).toBeInTheDocument();
   });
 
@@ -184,7 +184,7 @@ describe('EventsView — the server still gets the last word', () => {
       }),
     );
     renderView();
-    await userEvent.click(screen.getByRole('button', { name: 'Create event' }));
+    await userEvent.click(screen.getByRole('button', { name: 'New event' }));
     await userEvent.type(screen.getByLabelText(/Event Name/i), 'Third trip');
     // Drive the REAL dialog rather than stubbing it: Create stays disabled
     // until a member is selected, and the email-invite path is the one branch

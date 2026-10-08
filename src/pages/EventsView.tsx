@@ -268,7 +268,14 @@ export default function EventsView() {
         </div>
         <Button
           onClick={openCreate}
-          size="icon" aria-label="Create event"
+          size="icon"
+          // NOT "Create event": the empty-state button below is labelled
+          // "Create Event", and an accessible name that differs only by case
+          // is one name to both a screen reader and to Playwright, whose
+          // getByRole name match is case-insensitive and substring-based.
+          // Sharing it made getByRole('button', {name: 'Create Event'})
+          // resolve to two elements and broke e2e/events.spec.ts in CI.
+          aria-label="New event"
           className="rounded-full h-10 w-10 shrink-0"
         >
           <Plus className="w-6 h-6" />
