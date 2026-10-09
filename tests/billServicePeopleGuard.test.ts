@@ -40,7 +40,14 @@ let written: Record<string, unknown> | null;
 vi.mock('@/config/firebase', () => ({ db: {}, functions: {} }));
 vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
 
-vi.mock('firebase/firestore', () => ({
+vi.mock('firebase/firestore', () => {
+  class FieldValueMock {
+    constructor(
+      public op: string,
+      public els: unknown[],
+    ) {}
+  }
+  return {
   collection: vi.fn(),
   doc: vi.fn(() => ({ id: 'bill-1' })),
   getDoc: vi.fn(),
@@ -54,26 +61,148 @@ vi.mock('firebase/firestore', () => ({
   onSnapshot: vi.fn(),
   Timestamp: { now: vi.fn() },
   serverTimestamp: vi.fn(() => '__ts__'),
-  arrayUnion: vi.fn((x: unknown) => x),
-  arrayRemove: vi.fn((x: unknown) => x),
+  // FAITHFUL sentinels. The previous mock was `vi.fn((x) => x)`, which made
+  // `arrayUnion('id')` look like a plain value — so 1115 unit tests could not
+  // see that routing a sentinel into the invariant check crashes it. Real
+  // Firestore returns an opaque FieldValue. CI's e2e caught what these did not.
+  arrayUnion: vi.fn((...els: unknown[]) => new FieldValueMock('union', els)),
+  arrayRemove: vi.fn((...els: unknown[]) => new FieldValueMock('remove', els)),
   orderBy: vi.fn(),
   // `removeUndefinedFields` does `item instanceof FieldValue`, so the mock
   // has to expose a real constructor or every write path throws.
-  FieldValue: class FieldValue {},
+  FieldValue: FieldValueMock,
   deleteField: vi.fn(() => '__delete__'),
   // Runs the body for real against `stored`, so the guard is genuinely exercised.
   runTransaction: vi.fn(async (_db: unknown, body: (t: unknown) => Promise<void>) =>
-    body({
-      get: async () => ({ exists: () => true, data: () => stored }),
-      update: (_ref: unknown, data: Record<string, unknown>) => {
-        written = data;
-      },
-    }),
-  ),
-}));
+      body({
+        get: async () => ({ exists: () => true, data: () => stored }),
+        update: (_ref: unknown, data: Record<string, unknown>) => {
+          written = data;
+        },
+      }),
+    ),
+  };
+});
 
-import { runTransaction, updateDoc } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, runTransaction, updateDoc } from 'firebase/firestore';
 import { billService } from '@/services/billService';
+
+describe('atomic writes must not reach the invariant check', () => {
+  it('SETTLING does not throw — settledPersonIds arrives as a SENTINEL', async () => {
+    // Production regression. `settledPersonIds` was listed in MONEY_FIELDS, so
+    // every settle took the transactional path, and the merged candidate got
+    // the opaque `arrayUnion` sentinel instead of an array. The check died on
+    // `settled.filter is not a function` and the whole write failed, so
+    // marking someone settled silently did nothing. Caught by CI e2e
+    // ("Settled" badge never appeared), invisible to the unit suite because
+    // the mock made sentinels look like plain values.
+    stored = {
+      ownerId: 'owner-uid',
+      people: [owner, charlie],
+      participantIds: ['owner-uid', 'charlie-uid'],
+      members: [],
+      settledPersonIds: [],
+    };
+
+    await expect(
+      billService.updateBill('bill-1', {
+        settledPersonIds: arrayUnion('user-charlie-uid') as unknown as string[],
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('LAYER 1: a settle takes the NON-transactional path', async () => {
+    // Pins `settledPersonIds` being absent from MONEY_FIELDS, independently of
+    // the sentinel strip. The three layers of this fix mask each other — each
+    // mutant alone survived because another layer caught it — so each needs
+    // its own assertion.
+    stored = {
+      ownerId: 'owner-uid',
+      people: [owner, charlie],
+      participantIds: ['owner-uid', 'charlie-uid'],
+      members: [],
+      settledPersonIds: [],
+    };
+
+    await billService.updateBill('bill-1', {
+      settledPersonIds: arrayUnion('user-charlie-uid') as unknown as string[],
+    });
+
+    expect(updateDoc).toHaveBeenCalled();
+    expect(runTransaction).not.toHaveBeenCalled();
+  });
+
+  it('an UNSETTLE does not throw either', async () => {
+    stored = {
+      ownerId: 'owner-uid',
+      people: [owner, charlie],
+      participantIds: ['owner-uid', 'charlie-uid'],
+      members: [],
+      settledPersonIds: ['user-charlie-uid'],
+    };
+
+    await expect(
+      billService.updateBill('bill-1', {
+        settledPersonIds: arrayRemove('user-charlie-uid') as unknown as string[],
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('a sentinel-valued MONEY field is not validated against the sentinel', async () => {
+    // `joinBill` writes `people: arrayUnion(person)`. The candidate must fall
+    // back to the STORED people rather than treating the sentinel as a roster.
+    stored = {
+      ownerId: 'owner-uid',
+      people: [owner, charlie],
+      participantIds: ['owner-uid', 'charlie-uid'],
+      members: [],
+      settledPersonIds: [],
+      itemAssignments: { i1: [owner.id, charlie.id] },
+      billData: {
+        items: [{ id: 'i1', name: 'x', price: 30 }],
+        subtotal: 30,
+        tax: 0,
+        tip: 0,
+        otherFees: 0,
+        total: 30,
+      },
+    };
+
+    const res = await billService.updateBill('bill-1', {
+      people: arrayUnion({ id: 'user-dave', name: 'Dave' }) as unknown as never,
+    });
+
+    expect(res.repaired).toEqual([]);
+    expect(res.peopleStripped).toBe(false);
+  });
+
+  it('LAYER 2: a sentinel field falls back to STORED, it does not blind the check', () => {
+    // Pins the sentinel STRIP specifically. Without it, `candidate.people` is
+    // the sentinel, `asArray` turns it into `[]`, and `checkBillInvariants`
+    // returns early with NO violations — so one atomic field would silently
+    // disable validation of every other field in the same write.
+    //
+    // With the strip, `people` falls back to the stored roster and the bad
+    // `paidById` is still caught and repaired.
+    return (async () => {
+      stored = {
+        ownerId: 'owner-uid',
+        people: [owner, charlie],
+        participantIds: ['owner-uid', 'charlie-uid'],
+        members: [],
+        settledPersonIds: [],
+      };
+
+      const res = await billService.updateBill('bill-1', {
+        people: arrayUnion({ id: 'user-dave', name: 'Dave' }) as unknown as never,
+        paidById: 'a-total-stranger',
+      });
+
+      expect(res.repaired.map((v) => v.code)).toContain('I3');
+      expect(written!.paidById).toBe('owner-uid');
+    })();
+  });
+});
 
 /**
  * The invariant pass (docs/plans/bill-money-invariants.md I1..I8), enforced on

@@ -280,6 +280,31 @@ describe('checkBillInvariants', () => {
     });
   });
 
+  it('LAYER 3: tolerates a FieldValue SENTINEL in place of an array', () => {
+    // `arrayUnion(...)` is an opaque object, not an array. This module runs
+    // inside a Firestore transaction on the client and inside the ledger
+    // trigger on the server, so throwing fails the whole operation — settling
+    // broke outright on `settled.filter is not a function`. Callers strip
+    // sentinels, but this must not depend on them doing so.
+    class Sentinel {
+      constructor(public op = 'union') {}
+    }
+    const sentinel = new Sentinel() as unknown as string[];
+
+    expect(() =>
+      checkBillInvariants(bill({ settledPersonIds: sentinel })),
+    ).not.toThrow();
+    expect(codes(bill({ settledPersonIds: sentinel }))).not.toContain('I4');
+
+    expect(() =>
+      checkBillInvariants(bill({ unsettledParticipantIds: sentinel })),
+    ).not.toThrow();
+
+    expect(() =>
+      checkBillInvariants(bill({ people: sentinel as unknown as never })),
+    ).not.toThrow();
+  });
+
   it('never throws on malformed input', () => {
     const nasty: BillInvariantSubject[] = [
       { people: [P('a')], itemAssignments: null, billData: null },

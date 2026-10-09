@@ -63,8 +63,19 @@ export interface BillInvariantSubject {
 
 const uid = (id: string): string => personIdToFirebaseUid(id);
 
+/**
+ * Array fields can arrive as a Firestore FieldValue SENTINEL
+ * (`arrayUnion(...)`) — an opaque object, not an array. Callers should strip
+ * sentinels first, but this module must NEVER THROW: it runs inside a
+ * Firestore transaction on the client and inside the ledger trigger on the
+ * server, and an exception in either fails the whole operation. Settling
+ * broke outright once on `settled.filter is not a function`. So anything
+ * non-array means "nothing to check here".
+ */
+const asArray = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
 const sumItemPrices = (billData: BillData | null | undefined): number =>
-  (billData?.items ?? []).reduce(
+  asArray<BillData['items'][number]>(billData?.items).reduce(
     (sum, item) => sum + (Number.isFinite(item?.price) ? item.price : 0),
     0,
   );
@@ -79,7 +90,7 @@ const sumItemPrices = (billData: BillData | null | undefined): number =>
 export function checkBillInvariants(bill: BillInvariantSubject): InvariantViolation[] {
   const violations: InvariantViolation[] = [];
 
-  const people = bill.people ?? [];
+  const people = asArray<Person>(bill.people);
   if (people.length === 0) return violations;
 
   const peopleUids = people.map((p) => uid(p.id));
@@ -159,7 +170,7 @@ export function checkBillInvariants(bill: BillInvariantSubject): InvariantViolat
   }
 
   // ── I4: settled ids, and the second settledness record, are participants ──
-  const settled = bill.settledPersonIds ?? [];
+  const settled = asArray<string>(bill.settledPersonIds);
   const strayers = settled.filter((s) => !peopleUidSet.has(uid(s)));
   if (strayers.length > 0) {
     violations.push({
@@ -172,7 +183,7 @@ export function checkBillInvariants(bill: BillInvariantSubject): InvariantViolat
       ids: strayers,
     });
   }
-  if (bill.unsettledParticipantIds) {
+  if (Array.isArray(bill.unsettledParticipantIds)) {
     const settledUids = new Set(settled.map(uid));
     const contradictory = bill.unsettledParticipantIds.filter((u) => settledUids.has(uid(u)));
     if (contradictory.length > 0) {

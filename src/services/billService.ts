@@ -1,4 +1,5 @@
 import {
+  FieldValue,
   collection,
   doc,
   getDoc,
@@ -43,8 +44,25 @@ const MONEY_FIELDS = [
   'billData',
   'paidById',
   'splitEvenly',
-  'settledPersonIds',
 ] as const;
+
+// `settledPersonIds` is DELIBERATELY ABSENT, and that is load-bearing.
+//
+// It is only ever written atomically — `arrayUnion`/`arrayRemove` from the
+// three Review steps and GuestClaimView — so the value in the payload is an
+// opaque FieldValue SENTINEL, not an array. Listing it here routed every
+// settle through the transactional path, where the invariant check received
+// the sentinel and died on `settled.filter is not a function`, failing the
+// whole write. Settling broke outright.
+//
+// The client cannot validate it in any case: it has no way to know the
+// post-union value without re-reading. I4 is non-fatal and is checked by the
+// server backstop, which sees the committed array.
+//
+// Caught by CI e2e, NOT by 1115 unit tests, because the test mock had
+// `arrayUnion: vi.fn((x) => x)` — returning the value makes a sentinel look
+// like a plain array. See tests/billServicePeopleGuard.test.ts for the
+// faithful mock that now covers this.
 
 function touchesMoney(updates: Partial<Bill>): boolean {
   return MONEY_FIELDS.some((f) => f in updates);
@@ -302,8 +320,16 @@ export const billService = {
           // A DELIBERATE shrink (`handleRemovePerson`, event conversion) opts
           // in via `allowPeopleRemoval` and replaces the array as asked.
           const storedPeople = (billData?.people || []) as Person[];
+          // `hasPeopleUpdate` is `Array.isArray`, NOT truthiness: `people` can
+          // arrive as a FieldValue sentinel (`joinBill` uses
+          // `arrayUnion(person)`), and mapping over one throws — the same class
+          // of bug that broke settling. A sentinel means "we cannot know the
+          // resulting roster here", so there is nothing to compare and nothing
+          // to strip; the server backstop sees the committed array.
           const incomingUids = new Set(
-            (updates.people ?? []).map((p) => personIdToFirebaseUid(p.id)),
+            hasPeopleUpdate
+              ? (updates.people as Person[]).map((p) => personIdToFirebaseUid(p.id))
+              : [],
           );
           const dropped = !hasPeopleUpdate
             ? []
@@ -397,7 +423,18 @@ export const billService = {
           // the server backstop (`ledgerProcessor`), because silently
           // rewriting a field the caller never mentioned is a surprise, and
           // surprises in money code are how this class of bug started.
-          const candidate = { ...billData, ...finalUpdates } as Parameters<
+          // Drop FieldValue SENTINELS before merging: `arrayUnion(...)` and
+          // friends are opaque, so their post-write value is unknowable
+          // client-side. Validating one would crash (it is not an array) or,
+          // worse, silently compare against a sentinel object. Falling back to
+          // the STORED value is the only sound choice; the server backstop
+          // sees the committed result.
+          const plainUpdates = Object.fromEntries(
+            Object.entries(finalUpdates).filter(
+              ([, v]) => !(v instanceof FieldValue),
+            ),
+          );
+          const candidate = { ...billData, ...plainUpdates } as Parameters<
             typeof checkBillInvariants
           >[0];
           const violations = checkBillInvariants(candidate);
