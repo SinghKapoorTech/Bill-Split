@@ -28,6 +28,33 @@ the current code, proving the hole is real; only then fix it. A test that assert
 the current behaviour is correct will happily bless a vulnerability — this has
 already happened once in this repo.
 
+**2a. A test that asserts ABSENCE is usually vacuous. Prove it can fail.**
+`expect(x).toBeNull()` / `toEqual({})` / `not.toHaveBeenCalled()` pass for the
+right reason *and* for the wrong one, so they certify nothing. This bit this
+repo repeatedly on 2026-10-09: integration tests asserting "no balance doc
+exists" after an invalid write were green **with the fix disabled**, because a
+non-participant payer, a zero total and a zero-price basis all compute to zero
+and write no document anyway.
+
+The fix is to assert that a **specific prior value survived**: seed a VALID
+bill, confirm the real balance (e.g. `$12`), apply the bad write, then require
+the balance to still be `$12`. That can only hold if the code is right.
+
+So, for any test guarding money or a security property:
+
+- **Mutation-test it.** Break the line the test defends and watch a NAMED test
+  fail. "The suite passes" is not evidence; "the suite fails when I break the
+  code" is. Record which mutant kills which test.
+- A surviving mutant means the test is wrong, not that the code is extra-safe.
+  Three real holes were found this way in one session, including a check whose
+  removal left **every** other test green (`['a','b','a']` vs people `[a,b]` —
+  a duplicate at the right distinct-count).
+- Watch for the mirror failure too: make the check OVER-strict and a test must
+  also fail, or the policy's lenient half is unpinned.
+- Beware structural/source-matching tests that `indexOf(...)` a marker: a
+  missing marker returns `-1` and the slice silently covers the whole file.
+  Assert the marker was found.
+
 **3. Get an adversarial review before handing back.** Dispatch a subagent to try
 to BREAK the change — find a bypass of the new check, a legitimate flow it
 breaks, or a migration it silently requires. Reviewing your own work is not
