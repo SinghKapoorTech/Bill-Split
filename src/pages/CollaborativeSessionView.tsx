@@ -37,8 +37,15 @@ export default function CollaborativeSessionView() {
 
   const [splitEvenly, setSplitEvenly] = useState<boolean>(false);
 
+  // `updateSession` is debounced fire-and-forget, so it returns void, not
+  // Promise<void>. The ref used to claim Promise<void>, which was one of the
+  // repo's 36 pre-existing type errors; nothing here awaits it.
   const updateSessionRef = useRef<
-    ((updates: Partial<Bill>) => Promise<void>) | null
+    | ((
+        updates: Partial<Bill>,
+        options?: { allowPeopleRemoval?: boolean },
+      ) => void)
+    | null
   >(null);
 
   const peopleManager = usePeopleManager(people, setPeople);
@@ -100,7 +107,11 @@ export default function CollaborativeSessionView() {
     peopleManager.removePerson(personId);
     bill.removePersonFromAssignments(personId);
     const updatedPeople = people.filter((p) => p.id !== personId);
-    updateSessionRef.current?.({ people: updatedPeople });
+    // Deliberate removal: the user tapped remove on this person.
+    updateSessionRef.current?.(
+      { people: updatedPeople },
+      { allowPeopleRemoval: true },
+    );
   };
 
   const handleUpdatePerson = async (

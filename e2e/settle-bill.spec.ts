@@ -96,6 +96,72 @@ test.describe('Bill-Level Settlement', () => {
    *
    * Next step: instrument the SETTLE half — all three now fail at or after the
    * settle step, not at the add step — and get a clean idle measurement first.
+   *
+   * 2026-10-08 — THE PEOPLE-LOSS BUG IS CONFIRMED AND DETERMINISTIC HERE (5/5).
+   * This spec is NOT flaky on this machine; it is correct and the product is
+   * wrong. Do not quarantine it and do not raise its timeouts.
+   *
+   * The failure point MOVED, which is why it reads as a new flake: line 130
+   * `getByText('Charlie')` PASSES, then line 131 `text=$45.00` fails. The
+   * historical starvation signature was the opposite (failing ON 'Charlie').
+   * Starvation delays everything; it does not drop one string while the
+   * assertion above it resolves.
+   *
+   * PROOF it is people-loss and not assignment-loss, from the captured
+   * `test-results/settle-bill-<run>/error-context.md` page snapshot: the Split
+   * Summary holds exactly ONE row — owner "Test (Created, Paid) Me — $90.00".
+   * Charlie is absent entirely. He cannot be merely unassigned, because
+   * `calculatePersonTotals` (shared/calculations.ts:42) maps over `people` and
+   * emits a row for EVERY person including unassigned ones at 0, and
+   * SplitSummary.tsx:143 renders all of them with no zero-total filter. An
+   * assignment-only loss would show Charlie at $0.00. So `people` itself lacks
+   * him — matching the earlier emulator observation of `people: 1` server-side.
+   *
+   * A 20s timeout was tried on the three ADD-half assertions (the Split Summary
+   * checks above) and REVERTED: they failed identically at 20s. Waiting longer
+   * for a guest who was deleted is not a fix, and shipping it would have buried
+   * this bug behind a slower test. NOTE: the SETTLE-half assertions near the end
+   * of this test do carry `timeout: 20_000`, which is not the same thing and not
+   * a contradiction -- those wait on the ledger pipeline actually quiescing,
+   * which is genuinely slow rather than never-arriving.
+   *
+   * RULED OUT as the trigger (do not re-check): `persistPeopleAddition`
+   * (BillWizard.tsx:398) builds from `peopleRef.current` via
+   * `mergePeopleAdditions`, so it INCLUDES Charlie; `handleRemovePerson`
+   * (BillWizard.tsx:491) is the only other `people:` write and this test never
+   * removes anyone; the sync effect (BillWizard.tsx:185-199) is sound.
+   *
+   * STRUCTURAL WEAKNESS worth knowing: `reconcilePeopleWithServer`
+   * (src/utils/peopleMerge.ts) protects an id only until the server FIRST
+   * confirms it — `stillInFlight` drops confirmed ids — so any LATER snapshot
+   * missing that person is adopted verbatim with no defence. That is the
+   * mechanism by which a bad write becomes visible loss. Do not harden it
+   * before the write bug is found, or it will mask wrong server state.
+   *
+   * ROOT CAUSE FOUND AND FIXED 2026-10-08 (the hypothesis that stood here --
+   * an "initialization write" -- was WRONG; do not chase it again).
+   *
+   * It was `useBillSession.executeSave`
+   * (src/components/bill-wizard/hooks/useBillSession.ts). The auto-save payload
+   * included `people` and `status` under `isDraft`, which is evaluated when the
+   * payload is CAPTURED. `performSaveAndSwap` then awaits
+   * `pendingDraftCreation.current` and writes arbitrarily later, and `people`
+   * is a whole-array REPLACE -- so a payload captured while the bill was still
+   * a draft committed ~1.3s later, after Charlie had been added, and erased
+   * him. `ledgerProcessor` then reversed his $45.
+   *
+   * It never showed up in a grep for `people:` in BillWizard.tsx because the
+   * write reaches Firestore via saveSession -> useBills.ts -> updateBill, which
+   * is why four prior sessions missed it.
+   *
+   * Fixed in two layers, each with its own killing test:
+   *   1. the payload re-decides `people`/`status` at WRITE time from
+   *      `actualTargetId`  -> tests/react/useBillSession.peopleLoss.test.tsx
+   *   2. `billService.updateBill` refuses a `people` write that drops a person
+   *      without `allowPeopleRemoval` -> tests/billServicePeopleGuard.test.ts
+   *
+   * Those two run in CI in ~1s. THIS spec is corroboration, not the regression
+   * test -- a 90s browser run cannot pin which write lost the guest.
    */
   test('settling a person on a bill shows settled badge and updates event balances', async ({ page }) => {
     // ── Setup: Login and create event ──
@@ -147,11 +213,30 @@ test.describe('Bill-Level Settlement', () => {
       page.getByRole('heading', { name: 'Balances' }),
     ).toBeVisible({ timeout: 10000 });
 
-    // After settling Charlie, the balance should reflect the settlement
-    // Wait for the pipeline to process (give it time)
-    await page.waitForTimeout(3000);
-
-    // The bills section should show the bill we created
-    await expect(page.getByText('Bills')).toBeVisible();
+    // ── The point of THIS spec: the settlement reached the event ledger ──
+    // What was here before was `waitForTimeout(3000)` followed by
+    // `expect(getByText('Bills')).toBeVisible()` -- a hard sleep and then an
+    // assertion that cannot fail, on a test whose name promises it checks
+    // event balances. It never checked them.
+    //
+    // Charlie is a SHADOW USER with a real uid (usePeopleManager ->
+    // userService.resolveShadowUserByName), not a `person-`/`guest-` id, so he
+    // survives the prefix filters in extractParticipantIds and in
+    // ledgerProcessor's resolveEligibleFriends -- which is why an
+    // event_balances pair doc exists for owner<->Charlie at all. Settling him
+    // zeroes it (shared/ledgerCalculations.ts: settledPersonIds -> 0), and
+    // useEventLedger drops pairs under |0.01|.
+    //
+    // The $90 assertion is a PRECONDITION, not decoration: `ledgerLoading`
+    // clears as soon as the event_balances snapshot returns, but `eventBills`
+    // is a separate subscription. On a half-loaded page optimizedDebts is []
+    // and the "all settled up" copy renders even if nothing was settled.
+    // Pinning the bill total first closes that window, so the assertion below
+    // is about the settlement rather than about load order.
+    await expect(page.getByText('$90.00')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('balance-list-row')).toHaveCount(0, { timeout: 20_000 });
+    await expect(
+      page.getByText('All settled up! No outstanding balances.'),
+    ).toBeVisible();
   });
 });

@@ -28,6 +28,9 @@ export function useBillSession(billId: string | null) {
    * toggleAssignment is NOT debounced (uses atomic arrayUnion/arrayRemove).
    */
   const pendingUpdatesRef = useRef<Partial<Bill>>({});
+  // Rides the BATCH, not a single call: updates are coalesced behind a 400ms
+  // debounce, so deliberate-shrink intent has to survive until the flush.
+  const allowPeopleRemovalRef = useRef(false);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Real-time listener for the bill
@@ -105,10 +108,12 @@ export function useBillSession(billId: string | null) {
   const flushPendingUpdates = useCallback(
     async () => {
       const toSend = pendingUpdatesRef.current;
+      const allowPeopleRemoval = allowPeopleRemovalRef.current;
       pendingUpdatesRef.current = {};
+      allowPeopleRemovalRef.current = false;
       if (!billId || Object.keys(toSend).length === 0) return;
       try {
-        await billService.updateBill(billId, toSend);
+        await billService.updateBill(billId, toSend, { allowPeopleRemoval });
       } catch (error) {
         console.error('Error updating session:', error);
         toast({
@@ -133,9 +138,10 @@ export function useBillSession(billId: string | null) {
   }, [flushPendingUpdates]);
 
   const updateSession = useCallback(
-    (updates: Partial<Bill>) => {
+    (updates: Partial<Bill>, options?: { allowPeopleRemoval?: boolean }) => {
       if (!billId) return;
       pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...updates };
+      if (options?.allowPeopleRemoval) allowPeopleRemovalRef.current = true;
       // Optimistically echo the edit into local state so the UI reflects it
       // immediately, before any snapshot or the debounced write fires.
       setSession(prev => (prev ? { ...prev, ...updates } : prev));

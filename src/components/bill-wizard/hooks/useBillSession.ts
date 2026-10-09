@@ -96,15 +96,19 @@ export function useBillSession({
         const isDraft = !targetBillId && !targetActiveId;
         const hasMeaningfulData = props.billData?.items?.length || props.receiptImageUrl || props.receiptFileName || props.title;
 
-        const currentData = JSON.stringify({
-            billData: props.billData,
-            splitEvenly: props.splitEvenly,
-            currentStep: props.currentStep,
-            title: props.title,
-            paidById: props.paidById,
-            airbnbData: props.airbnbData,
-            ...(props.splitEvenly ? { itemAssignments: props.itemAssignments } : {})
+        // Shared by the capture-time dirty check and the write-time bookkeeping,
+        // so `lastSavedData` always describes what was ACTUALLY written.
+        const serialize = (p: typeof props) => JSON.stringify({
+            billData: p.billData,
+            splitEvenly: p.splitEvenly,
+            currentStep: p.currentStep,
+            title: p.title,
+            paidById: p.paidById,
+            airbnbData: p.airbnbData,
+            ...(p.splitEvenly ? { itemAssignments: p.itemAssignments } : {})
         });
+
+        const currentData = serialize(props);
 
         // If it's a draft and we don't have meaningul data yet, skip saving
         if (isDraft && !hasMeaningfulData) {
@@ -114,36 +118,6 @@ export function useBillSession({
         const isDifferent = currentData !== lastSavedData.current;
 
         if (isDifferent || options?.isUnmounting || options?.forceSave) {
-            const savePayload: Partial<Bill> & { status?: string } = {
-                billData: props.billData,
-                splitEvenly: props.splitEvenly,
-                currentStep: props.currentStep,
-            };
-
-            // Only set status when creating a brand-new draft.
-            // For existing bills, never include status in auto-save —
-            // the draft→active transition is handled exclusively by handleDone().
-            if (isDraft) {
-                savePayload.status = 'draft';
-            }
-
-            // If we are creating a draft for the first time, we must include the people array
-            // otherwise the bill will be uniquely created with 0 people.
-            if (isDraft) {
-                savePayload.people = props.people;
-            }
-
-            if (props.splitEvenly) {
-                savePayload.itemAssignments = props.itemAssignments;
-            }
-
-            if (props.receiptImageUrl) savePayload.receiptImageUrl = props.receiptImageUrl;
-            if (props.receiptFileName) savePayload.receiptFileName = props.receiptFileName;
-            if (props.title) savePayload.title = props.title;
-            if (props.paidById) savePayload.paidById = props.paidById;
-            if (props.isAirbnb) savePayload.isAirbnb = props.isAirbnb;
-            if (props.airbnbData) savePayload.airbnbData = props.airbnbData;
-
             const targetId = targetBillId || targetActiveId;
 
             const performSaveAndSwap = async () => {
@@ -163,7 +137,62 @@ export function useBillSession({
                     }
                 }
 
-                const saveOperation = props.saveSession(savePayload, actualTargetId);
+                // ── Build the payload HERE, at write time, not at capture ──
+                //
+                // This function may have just awaited `pendingDraftCreation`,
+                // so an arbitrary amount of time can have passed since
+                // `executeSave` was entered. Every field below is a whole-value
+                // REPLACE, so a payload captured earlier overwrites anything
+                // that changed while we were parked.
+                //
+                // That is exactly the production data-loss bug: a payload
+                // captured while the bill was still a draft committed ~1.3s
+                // later and erased a guest added in between. `people` was the
+                // field that got noticed because `ledgerProcessor` reversed the
+                // guest's share, but `itemAssignments` and `paidById` carry the
+                // same money risk — stale assignments give a real participant
+                // $0, and a stale `paidById` flips the creditor anchor and so
+                // the DIRECTION of every debt on the bill.
+                //
+                // `BillWizard`'s split-evenly self-heal masks the assignments
+                // case while the wizard stays mounted, but not if the parked
+                // write lands after unmount. So re-read everything.
+                const fresh = { ...latestProps.current, ...(options?.overrideData || {}) };
+
+                const savePayload: Partial<Bill> & { status?: string } = {
+                    billData: fresh.billData,
+                    splitEvenly: fresh.splitEvenly,
+                    currentStep: fresh.currentStep,
+                };
+
+                // `status` and `people` may ONLY ride a creation. Decided from
+                // `actualTargetId` (what we know NOW), never from the
+                // capture-time `isDraft`: for an existing bill `people` is a
+                // whole-array replace that would delete whoever is missing, and
+                // `status` would push a completed bill back to 'draft'. The
+                // draft→active transition belongs to handleDone() alone.
+                if (!actualTargetId) {
+                    savePayload.status = 'draft';
+                    // A creation must carry people or the bill is created empty.
+                    savePayload.people = fresh.people;
+                }
+
+                if (fresh.splitEvenly) {
+                    savePayload.itemAssignments = fresh.itemAssignments;
+                }
+
+                if (fresh.receiptImageUrl) savePayload.receiptImageUrl = fresh.receiptImageUrl;
+                if (fresh.receiptFileName) savePayload.receiptFileName = fresh.receiptFileName;
+                if (fresh.title) savePayload.title = fresh.title;
+                if (fresh.paidById) savePayload.paidById = fresh.paidById;
+                if (fresh.isAirbnb) savePayload.isAirbnb = fresh.isAirbnb;
+                if (fresh.airbnbData) savePayload.airbnbData = fresh.airbnbData;
+
+                // Re-point the dirty marker at what we are actually writing, so
+                // a later identical state is not mistaken for a pending change.
+                lastSavedData.current = serialize(fresh);
+
+                const saveOperation = fresh.saveSession(savePayload, actualTargetId);
 
                 // Track this promise if it's a creation
                 if (!actualTargetId) {
@@ -187,6 +216,12 @@ export function useBillSession({
             };
 
             performSaveAndSwap();
+            // Synchronous dedup only: this suppresses a second executeSave for
+            // an unchanged state while the one above is parked. The marker is
+            // re-pointed at the payload actually sent inside
+            // performSaveAndSwap (see `lastSavedData.current = serialize(fresh)`),
+            // which runs before this line on the no-await path and after it on
+            // the await path — so the newest write always wins.
             lastSavedData.current = currentData;
         }
     };

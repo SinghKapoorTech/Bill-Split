@@ -399,7 +399,33 @@ export function SimpleTransactionWizard({
 
       try {
         if (activeBillId.current) {
-          await billService.updateBill(activeBillId.current, payload);
+          // `allowPeopleRemoval` because this debounced autosave is the ONLY
+          // path that persists `people` for a simple transaction, and three
+          // local-only paths legitimately shrink the array first:
+          // `peopleManager.removePerson` (wired at steps/PeopleStep.tsx:70),
+          // `handleEventChange` replacing people with the event roster, and
+          // the raw `setPeople` handed to PeopleStep. Without the flag,
+          // removing a person here would never persist.
+          //
+          // The trade is deliberate, and it is a KNOWN HOLE rather than a
+          // safe exemption: this wizard opts OUT of the people guard, and its
+          // `people` is loaded ONCE (`applyBillData`, behind
+          // `hasLoadedBillId.current`) and never re-hydrated from a snapshot.
+          // So a stale array here CAN clobber a concurrent change. Concretely:
+          // a shadow person signs up, `claimShadowUser` rewrites their
+          // `people[].id` to `user-<realUid>`, the owner — wizard still open —
+          // edits the title, and this autosave writes the pre-claim array with
+          // `allowPeopleRemoval: true`, reverting the claim. Two tabs do the
+          // same thing, older load wins.
+          //
+          // Closing it means moving removal onto its own explicit flagged
+          // write (as `BillWizard.handleRemovePerson` does) and leaving the
+          // autosave additive-only, so the guard regains authority here.
+          // Deliberately out of scope for the data-loss fix; tracked in
+          // docs/handoffs/monetization-phase3-1008.md.
+          await billService.updateBill(activeBillId.current, payload, {
+            allowPeopleRemoval: true,
+          });
         } else {
           // Create draft
           const newId = await saveSession(payload);
@@ -485,6 +511,8 @@ export function SimpleTransactionWizard({
       const { billData, itemAssignments, splitEvenly } = buildSplitPayload(numAmount);
 
       if (activeBillId.current) {
+        // Same opt-out as the autosave above: a removal done on the People
+        // step is local until one of these two writes lands.
         await billService.updateBill(activeBillId.current, {
           title,
           paidById,
@@ -496,7 +524,7 @@ export function SimpleTransactionWizard({
           ...(targetSquadId && { squadId: targetSquadId }),
           billData,
           itemAssignments,
-        });
+        }, { allowPeopleRemoval: true });
       } else {
         await billService.createSimpleTransaction(
           user.uid,

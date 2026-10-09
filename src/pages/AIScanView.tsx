@@ -277,6 +277,8 @@ export default function AIScanView() {
       setItemAssignments({});
 
       // Persist the change
+      // Converting a private bill to an event bill REPLACES people with the
+      // event members, which legitimately drops private-bill guests.
       const newBillId = await saveSession(
         {
           eventId: newEventId,
@@ -285,6 +287,7 @@ export default function AIScanView() {
           itemAssignments: {},
         },
         billId || activeSession?.id,
+        { allowPeopleRemoval: true },
       );
 
       if (!billId && newBillId) {
@@ -307,14 +310,19 @@ export default function AIScanView() {
   };
 
   // Enhance saveSession for JIT event creation and state injection
-  const handleSaveSession = async (sessionData: Partial<Bill>, id?: string) => {
+  const handleSaveSession = async (
+    sessionData: Partial<Bill>,
+    id?: string,
+    options?: { allowPeopleRemoval?: boolean },
+  ) => {
     // Inject the event metadata if it's set in state
     if (eventId && !sessionData.eventId) {
       sessionData.eventId = eventId;
       sessionData.billType = "event";
     }
 
-    return saveSession(sessionData, id);
+    // Forward `options` or the people guard would silently lose intent here.
+    return saveSession(sessionData, id, options);
   };
 
   return (

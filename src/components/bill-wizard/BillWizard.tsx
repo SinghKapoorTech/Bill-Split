@@ -395,13 +395,27 @@ export function BillWizard({
 
     // The FULL array is sent so billService.updateBill can derive participantIds
     // for the ledger/search.
-    return billService.updateBill(id, { people: next }).catch((err) => {
-      for (const p of added) pendingPersonIdsRef.current.delete(p.id);
-      console.error(err);
-      // Rethrow: the queue puts these people back and retries them with the
-      // next addition. Swallowing here is what let a failed write drop them.
-      throw err;
-    });
+    // A STRIP is not a rejection: `updateBill` resolves after refusing a
+    // stale `people` array. The queue only re-queues on a rejected promise,
+    // so turn a strip into one — otherwise this add is never persisted and
+    // never retried, while `reconcilePeopleWithServer` keeps re-attaching it
+    // locally and the UI shows someone the server does not have.
+    return billService
+      .updateBill(id, { people: next })
+      .then((result) => {
+        if (result.peopleStripped) {
+          throw new Error(
+            `people write stripped for bill ${id} (stale array); re-queueing`,
+          );
+        }
+      })
+      .catch((err) => {
+        for (const p of added) pendingPersonIdsRef.current.delete(p.id);
+        console.error(err);
+        // Rethrow: the queue puts these people back and retries them with the
+        // next addition. Swallowing here is what let a failed write drop them.
+        throw err;
+      });
   };
 
   /**
@@ -488,7 +502,12 @@ export function BillWizard({
       if (personToRemove) {
         try {
           const updatedPeople = people.filter((p) => p.id !== personId);
-          await billService.updateBill(id, { people: updatedPeople });
+          // Deliberate removal: the user tapped remove on this person.
+          await billService.updateBill(
+            id,
+            { people: updatedPeople },
+            { allowPeopleRemoval: true },
+          );
         } catch (e) {
           console.error("Failed to remove person", e);
         }

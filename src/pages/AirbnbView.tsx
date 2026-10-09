@@ -222,12 +222,14 @@ export default function AirbnbView() {
             setPeople(newPeople);
             setItemAssignments({});
 
+            // Converting to an event bill REPLACES people with the event
+            // members, which legitimately drops private-bill guests.
             const newBillId = await saveSession({
                 eventId: newEventId,
                 billType: 'event',
                 people: newPeople,
                 itemAssignments: {},
-            }, billId || activeSession?.id);
+            }, billId || activeSession?.id, { allowPeopleRemoval: true });
 
             if (!billId && newBillId) {
                 navigate(`/airbnb/${newBillId}`, { replace: true });
@@ -244,14 +246,19 @@ export default function AirbnbView() {
         }
     };
 
-    const handleSaveSession = async (sessionData: Partial<Bill>, id?: string) => {
+    const handleSaveSession = async (
+        sessionData: Partial<Bill>,
+        id?: string,
+        options?: { allowPeopleRemoval?: boolean },
+    ) => {
         if (eventId && !sessionData.eventId) {
             sessionData.eventId = eventId;
             sessionData.billType = 'event';
         }
         // Make sure it saves with isAirbnb flag
         sessionData.isAirbnb = true;
-        return saveSession(sessionData, id);
+        // Forward `options` or the people guard would silently lose intent.
+        return saveSession(sessionData, id, options);
     };
 
     return (

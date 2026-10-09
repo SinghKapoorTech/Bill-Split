@@ -209,8 +209,21 @@ export const billService = {
   /**
    * Updates a bill
    */
-  async updateBill(billId: string, updates: Partial<Bill>): Promise<void> {
+  async updateBill(
+    billId: string,
+    updates: Partial<Bill>,
+    options?: { allowPeopleRemoval?: boolean },
+  ): Promise<{ peopleStripped: boolean }> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
+
+    // Reported back to the caller because a strip RESOLVES rather than
+    // rejecting. `persistPeopleAddition` and the addition queue
+    // (`usePeopleAdditionQueue.runPersist`) re-queue only on a rejected
+    // promise, so a silent strip would drop an add forever while
+    // `reconcilePeopleWithServer` kept re-attaching it locally — the UI would
+    // show a person the server does not have. Callers that retry MUST check
+    // this. Declared outside the transaction because the body can re-run.
+    let peopleStripped = false;
 
     // A-08 (defence in depth): this is the single choke point for every client
     // write to a bill, and unlike `createBill` it is a DIRECT Firestore write
@@ -235,7 +248,61 @@ export const billService = {
 
           let finalUpdates = { ...updates };
 
-          if (ownerId) {
+          // ── Defence in depth for the people-loss class of bug ──
+          //
+          // `participantIds` below is UNIONED, but `people` is a whole-array
+          // REPLACE, so any caller holding a stale array silently deletes
+          // whoever is missing from it — and `ledgerProcessor` then reverses
+          // their share. That is real money disappearing with no error.
+          //
+          // Compare ids NORMALIZED. `people[].id` is a mix of `user-<uid>`
+          // and bare `<uid>`, and `ensureUserInPeople`
+          // (src/utils/billCalculations.ts) rewrites whoever is currently
+          // loading from the bare form to the prefixed one IN PLACE. 59% of
+          // production bills carry at least one bare id, so comparing raw
+          // strings would read that harmless normalization as a deletion and
+          // refuse every subsequent write to those bills, for everyone.
+          //
+          // On an accidental shrink we STRIP the `people` key and write
+          // everything else, rather than failing the whole write. Callers
+          // swallow errors (`useBills.saveSession` toasts and returns null),
+          // so throwing here would discard the rest of the payload — for
+          // `handleAnalyze` that is the entire receipt scan. Losing a scan to
+          // protect an array is a worse trade than the bug being prevented,
+          // so this fails SAFE: the stored `people` simply stands.
+          //
+          // A DELIBERATE shrink (`handleRemovePerson`, event conversion) opts
+          // in via `allowPeopleRemoval` and replaces the array as asked.
+          const storedPeople = (billData?.people || []) as Person[];
+          const incomingUids = new Set(
+            updates.people!.map((p) => personIdToFirebaseUid(p.id)),
+          );
+          const dropped = storedPeople.filter(
+            (p) => !incomingUids.has(personIdToFirebaseUid(p.id)),
+          );
+
+          const peopleAccepted =
+            dropped.length === 0 || options?.allowPeopleRemoval === true;
+
+          // Reset first: Firestore may re-run this body on contention.
+          peopleStripped = false;
+
+          if (!peopleAccepted) {
+            peopleStripped = true;
+            console.error(
+              `[billService] dropping a stale people key for bill ${billId}: ` +
+                `the incoming array omits ${dropped.length} stored person(s) ` +
+                `(${dropped.map((p) => p.id).join(', ')}) and the caller did ` +
+                `not pass allowPeopleRemoval. Everything else in this write ` +
+                `was applied; stored people left untouched.`,
+            );
+            delete finalUpdates.people;
+          }
+
+          // Only re-derive participant ids when the people array is actually
+          // being written — otherwise they would be computed from the array we
+          // just rejected.
+          if (ownerId && peopleAccepted) {
             const derived = extractParticipantIds(ownerId, updates.people!);
 
             // Merge with existing participantIds (includes guests who joined via arrayUnion)
@@ -280,6 +347,8 @@ export const billService = {
         console.error('Update Payload Keys:', Object.keys(updates));
         throw error;
       }
+
+      return { peopleStripped };
     } else {
       // No people update — simple updateDoc (no race risk for participantIds)
       const cleanedUpdates = removeUndefinedFields({
@@ -296,6 +365,9 @@ export const billService = {
         console.error('Update Payload Keys:', Object.keys(cleanedUpdates));
         throw error;
       }
+
+      // This branch never touches `people`, so nothing can be stripped.
+      return { peopleStripped: false };
     }
   },
 

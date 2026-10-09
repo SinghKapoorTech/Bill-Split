@@ -95,7 +95,14 @@ export function useBills() {
     return () => unsubscribe();
   }, [user, toast]);
 
-  const saveSession = useCallback(async (sessionData: Partial<Bill>, billId?: string) => {
+  // `options` forwards deliberate-shrink intent to billService.updateBill's
+  // people guard. Only callers that MEAN to replace the people array wholesale
+  // (event conversion) pass it; everything else must stay additive.
+  const saveSession = useCallback(async (
+    sessionData: Partial<Bill>,
+    billId?: string,
+    options?: { allowPeopleRemoval?: boolean }
+  ) => {
     if (!user) return null;
 
     try {
@@ -104,7 +111,7 @@ export function useBills() {
 
       if (billId) {
         // Update existing bill with cleaned data
-        await billService.updateBill(billId, cleanedData as Partial<Bill>);
+        await billService.updateBill(billId, cleanedData as Partial<Bill>, options);
         return billId;
       } else {
         // Create new bill
