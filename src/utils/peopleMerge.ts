@@ -1,4 +1,4 @@
-import { Person } from "@/types";
+import { ItemAssignment, Person } from "@/types";
 
 /**
  * Appends newly-added people to the current array, skipping anyone already
@@ -70,4 +70,38 @@ export function reconcilePeopleWithServer(
     people: reattach.length > 0 ? [...server, ...reattach] : server,
     pendingIds: stillInFlight,
   };
+}
+
+/**
+ * Strips a person out of every item's assignee list.
+ *
+ * MUST be persisted in the SAME write as the `people` shrink. `people` and
+ * `itemAssignments` are independent whole-value fields, and
+ * `calculatePersonTotals` divides each item by the RAW assignee-list length
+ * (`shared/calculations.ts:28`) before discarding shares belonging to anyone
+ * absent from `people`. So a person left behind in `itemAssignments` after
+ * being removed from `people` is a GHOST: a $30 item assigned to
+ * [alice, bob, ghost] charges alice and bob $10 each and the remaining $10 is
+ * charged to NOBODY, with tax/tip under-collecting against the full-bill
+ * denominator. The payer silently absorbs the difference, and the wizard's
+ * local state looks correct the whole time.
+ *
+ * The split-evenly self-heal does NOT rescue this: it is gated on
+ * `splitEvenly`, so a manually-assigned bill is never repaired.
+ *
+ * Returns a new object; empty assignee lists are preserved rather than
+ * deleted, because an item key that disappears is indistinguishable from an
+ * item nobody has claimed yet.
+ */
+export function purgePersonFromAssignments(
+  itemAssignments: ItemAssignment,
+  personId: string,
+): ItemAssignment {
+  const next: ItemAssignment = {};
+
+  for (const [itemId, assignees] of Object.entries(itemAssignments)) {
+    next[itemId] = (assignees ?? []).filter((id) => id !== personId);
+  }
+
+  return next;
 }

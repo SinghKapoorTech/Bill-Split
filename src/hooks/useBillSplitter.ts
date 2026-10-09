@@ -101,11 +101,17 @@ export function useBillSplitter({
   // Use a stable key derived from item IDs so replacements (same count,
   // different IDs — e.g. changing Airbnb dates) also trigger a re-sync.
   const itemIdKey = billData?.items?.map(i => i.id).join(',') ?? '';
+  // Keyed on the id LIST, not `people.length`: an id rewrite that preserves
+  // the count (`ensureUserInPeople` normalizing a bare uid to `user-<uid>`,
+  // `claimShadowUser` claiming a shadow account) would otherwise never
+  // re-trigger this, leaving the renormalized person unassigned and the old id
+  // dangling as a ghost whose share is charged to nobody.
+  const peopleIdKey = people.map(p => p.id).join(',');
   useEffect(() => {
     if (splitEvenly && billData && people.length > 0) {
       assignEveryoneToAllItems();
     }
-  }, [splitEvenly, itemIdKey, people.length]);
+  }, [splitEvenly, itemIdKey, peopleIdKey]);
 
 
 

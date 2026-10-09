@@ -6,6 +6,14 @@ interface PeopleStepProps {
   people: Person[];
   setPeople: (people: Person[]) => void;
   peopleManager: ReturnType<typeof import('@/hooks/usePeopleManager').usePeopleManager>;
+  /**
+   * Removal must be PERSISTED explicitly, not left to the debounced autosave:
+   * the autosave is guarded against dropping people (it sends a whole-array
+   * replace that may be stale), so a local-only removal would be stripped and
+   * never stick. The wizard supplies a handler that removes AND writes with
+   * `allowPeopleRemoval`. Falls back to the local-only manager if absent.
+   */
+  onRemovePerson?: (personId: string) => void;
   isMobile: boolean;
   paidById: string;
   setPaidById: (val: string) => void;
@@ -31,6 +39,7 @@ export function PeopleStep({
   people,
   setPeople,
   peopleManager,
+  onRemovePerson,
   isMobile,
   paidById,
   setPaidById,
@@ -67,7 +76,7 @@ export function PeopleStep({
         onVenmoIdChange={peopleManager.setNewPersonVenmoId}
         onAdd={peopleManager.addPerson}
         onAddFromFriend={peopleManager.addFromFriend}
-        onRemove={peopleManager.removePerson}
+        onRemove={onRemovePerson ?? peopleManager.removePerson}
         onUpdate={handleUpdatePerson}
         onSaveAsFriend={peopleManager.savePersonAsFriend}
         paidById={paidById}

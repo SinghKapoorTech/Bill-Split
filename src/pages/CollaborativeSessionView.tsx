@@ -104,14 +104,54 @@ export default function CollaborativeSessionView() {
   };
 
   const handleRemovePerson = (personId: string) => {
+    const assignmentsBefore = bill.itemAssignments;
+
     peopleManager.removePerson(personId);
     bill.removePersonFromAssignments(personId);
     const updatedPeople = people.filter((p) => p.id !== personId);
+
     // Deliberate removal: the user tapped remove on this person.
     updateSessionRef.current?.(
       { people: updatedPeople },
       { allowPeopleRemoval: true },
     );
+
+    // The assignment purge goes out as ATOMIC per-item removals, NOT as part
+    // of the payload above.
+    //
+    // `updateSession` coalesces behind a 400ms debounce and writes whole
+    // values, whereas item claims on this screen are atomic
+    // (`handleClaimItem` -> `toggleAssignment` -> arrayUnion/arrayRemove)
+    // precisely so concurrent claimers cannot clobber each other. Folding a
+    // whole-value `itemAssignments` into the debounced write would erase any
+    // claim that landed inside that window — the guest's UI would still show
+    // it claimed, and on an itemised bill the cost would silently redistribute
+    // to whoever remained. `arrayRemove` touches only this person's entry.
+    const billIdForClaims = sessionId;
+    if (billIdForClaims) {
+      const itemsHeld = Object.entries(assignmentsBefore)
+        .filter(([, assignees]) => assignees?.includes(personId))
+        .map(([itemId]) => itemId);
+
+      if (itemsHeld.length > 0) {
+        // Dynamic import to match this file's existing convention (see
+        // handleUpdatePerson below) — the service is not module-scoped here.
+        void (async () => {
+          const { billService } = await import("@/services/billService");
+          for (const itemId of itemsHeld) {
+            await billService
+              .toggleItemAssignment(billIdForClaims, itemId, personId, false)
+              .catch((err) =>
+                console.error(
+                  "Failed to purge assignment on removal",
+                  itemId,
+                  err,
+                ),
+              );
+          }
+        })();
+      }
+    }
   };
 
   const handleUpdatePerson = async (

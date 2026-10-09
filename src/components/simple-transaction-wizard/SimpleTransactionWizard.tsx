@@ -8,6 +8,8 @@ import { usePlatform } from '@/hooks/usePlatform';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
 import { Person, BillData, ItemAssignment } from '@/types';
 import { billService } from '@/services/billService';
+import { personIdToFirebaseUid } from '@shared/ledgerCalculations';
+import { needsAssignmentResync } from '@/utils/assignmentSync';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { SplitMethod } from './SplitMethodSelector';
 import { Stepper, StepContent } from '@/components/ui/stepper';
@@ -21,7 +23,7 @@ import { ReviewStep } from './steps/ReviewStep';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { ensureUserInPeople, generateUserId } from '@/utils/billCalculations';
 import {
-  distributeEvenly,
+  redistributeSharesAcross,
   resolveSplitAmounts,
   isSplitConfigValid,
   buildPerPersonShareItems,
@@ -202,7 +204,110 @@ export function SimpleTransactionWizard({
 
     // Fetch members and override people
     const eventMembers = await fetchEventMembers(newEventId);
-    setPeople(ensureUserInPeople(eventMembers, user, profile));
+    const rosterPeople = ensureUserInPeople(eventMembers, user, profile);
+    setPeople(rosterPeople);
+
+    // Persist the replace HERE, with explicit intent. Swapping a private
+    // bill's people for the event roster legitimately drops anyone who was on
+    // the bill but is not an event member, and the debounced autosave is
+    // (correctly) guarded against dropping people — so left to the autosave
+    // this replace would be stripped and silently never stick.
+    // Non-empty floor. `fetchEventMembers` swallows every error and returns
+    // `[]`, and `ensureUserInPeople` is a no-op when `user.displayName` is
+    // null (password / Hide-My-Email accounts) — so a network blip while
+    // picking an event could otherwise write an EMPTY roster, with explicit
+    // permission to delete everyone.
+    if (activeBillId.current && rosterPeople.length > 0) {
+      await billService
+        .updateBill(
+          activeBillId.current,
+          { people: rosterPeople },
+          { allowPeopleRemoval: true },
+        )
+        .catch((err) => console.error('Failed to persist event roster', err));
+    }
+  };
+
+  /**
+   * Removes a person AND persists it immediately with explicit intent.
+   *
+   * The autosave cannot carry this: it sends a whole-array replace built from
+   * a `setTimeout` closure, and `people` here is loaded once (`applyBillData`,
+   * behind `hasLoadedBillId.current`) and never re-hydrated from a snapshot,
+   * so that array can be arbitrarily stale. Letting it shrink the array with
+   * blanket `allowPeopleRemoval` is what would let a stale load silently
+   * revert a concurrent change — e.g. `claimShadowUser` rewriting a person's
+   * id to `user-<realUid>` after this wizard loaded the pre-claim array.
+   */
+  const handleRemovePerson = (personId: string) => {
+    peopleManager.removePerson(personId);
+
+    if (!activeBillId.current) return;
+
+    const remaining = people.filter((p) => p.id !== personId);
+
+    // `remaining` can be empty only if the signed-in user removed themselves,
+    // which `peopleManager.removePerson` refuses — but never persist an empty
+    // roster regardless: it would strand the bill with no participants.
+    if (remaining.length === 0) return;
+
+    // Write `people` TOGETHER WITH the rebuilt split, never `people` alone.
+    //
+    // This wizard's `billData.items` and `itemAssignments` are DERIVED from
+    // the roster (`buildSplitPayload`: one item per person for exact and
+    // percentage splits). Persisting the shrink on its own leaves the removed
+    // person's item and assignment behind as a GHOST — the ledger divides by
+    // the raw assignee count and then discards their share, so that money is
+    // charged to nobody. The autosave that would otherwise reconcile this is
+    // `clearTimeout`ed on unmount with no flush, so tapping back within ~1s
+    // commits the inconsistent state permanently.
+    const numAmount = Number(amount);
+    if (!Number.isFinite(numAmount) || numAmount <= 0) {
+      // No money at stake yet and no valid split to rebuild; the autosave will
+      // persist a consistent payload once an amount exists.
+      return;
+    }
+
+    // Re-split across the REMAINING roster before building. The effect that
+    // normally does this runs after render, i.e. after this write — so the
+    // amount maps must be recomputed here or the payload is inconsistent.
+    const nextPercentages = redistributeSharesAcross(remaining, 100);
+    const nextExactAmounts = redistributeSharesAcross(remaining, numAmount);
+
+    // Keep local state in step with what is being written, so the UI agrees
+    // and the later autosave does not re-assert the stale maps.
+    setPercentages(nextPercentages);
+    setExactAmounts(nextExactAmounts);
+
+    const { billData, itemAssignments, splitEvenly } = buildSplitPayload(numAmount, {
+      people: remaining,
+      percentages: nextPercentages,
+      exactAmounts: nextExactAmounts,
+    });
+
+    // If the removed person was the payer, hand the anchor back to the OWNER.
+    // Compare normalized: `paidById` is a bare uid while `personId` is usually
+    // `user-<uid>`, so a raw `===` is false exactly when it matters and would
+    // leave `paidById` pointing at a non-participant — invisible in
+    // PaidByBanner while `canProceed` still returns true.
+    const removedThePayer =
+      personIdToFirebaseUid(paidById) === personIdToFirebaseUid(personId);
+    const nextPaidById = removedThePayer ? (user?.uid ?? paidById) : paidById;
+    if (removedThePayer) setPaidById(nextPaidById);
+
+    void billService
+      .updateBill(
+        activeBillId.current,
+        {
+          people: remaining,
+          billData,
+          itemAssignments,
+          splitEvenly,
+          paidById: nextPaidById,
+        },
+        { allowPeopleRemoval: true },
+      )
+      .catch((err) => console.error('Failed to persist person removal', err));
   };
 
   useEffect(() => {
@@ -285,35 +390,43 @@ export function SimpleTransactionWizard({
     };
 
     // If people changed (added/removed), redistribute equally
+    // Shared with handleRemovePerson — see redistributeSharesAcross.
     setPercentages((prev) => {
       if (!peopleChanged(prev) && Object.keys(prev).length > 0) return prev;
-      const shares = distributeEvenly(100, people.length);
-      const next: Record<string, number> = {};
-      people.forEach((p, i) => {
-        next[p.id] = shares[i];
-      });
-      return next;
+      return redistributeSharesAcross(people, 100);
     });
 
     setExactAmounts((prev) => {
       if (!peopleChanged(prev) && Object.keys(prev).length > 0) return prev;
-      const shares = distributeEvenly(Number(amount), people.length);
-      const next: Record<string, number> = {};
-      people.forEach((p, i) => {
-        next[p.id] = shares[i];
-      });
-      return next;
+      return redistributeSharesAcross(people, Number(amount));
     });
   }, [people.map((p) => p.id).join(','), amount]);
 
   // Build the billData + itemAssignments payload based on split method
   const buildSplitPayload = (
     numAmount: number,
+    /**
+     * Overrides for callers that must describe a roster OTHER than current
+     * state. `handleRemovePerson` persists the post-removal split
+     * SYNCHRONOUSLY, before the redistribute effect has run — so it must
+     * override the amount maps TOO, not just the roster. Overriding `people`
+     * alone leaves `exact`/`percentage` amounts keyed to the old roster, which
+     * silently charges the removed person's share to nobody (exact) or to the
+     * last person (percentage).
+     */
+    overrides?: {
+      people?: Person[];
+      percentages?: Record<string, number>;
+      exactAmounts?: Record<string, number>;
+    },
   ): {
     billData: BillData;
     itemAssignments: Record<string, string[]>;
     splitEvenly: boolean;
   } => {
+    const roster = overrides?.people ?? people;
+    const pct = overrides?.percentages ?? percentages;
+    const exact = overrides?.exactAmounts ?? exactAmounts;
     if (splitMethod === 'equal') {
       const dummyItemId = existingItemId || `item-${Date.now()}`;
       return {
@@ -325,14 +438,14 @@ export function SimpleTransactionWizard({
           total: numAmount,
           restaurantName: title,
         },
-        itemAssignments: { [dummyItemId]: people.map((p) => p.id) },
+        itemAssignments: { [dummyItemId]: roster.map((p) => p.id) },
         splitEvenly: true,
       };
     }
 
     // Percentage or exact: create per-person items (last person absorbs rounding)
-    const amounts = resolveSplitAmounts(numAmount, people, splitMethod, percentages, exactAmounts);
-    const { items, itemAssignments } = buildPerPersonShareItems(people, amounts);
+    const amounts = resolveSplitAmounts(numAmount, roster, splitMethod, pct, exact);
+    const { items, itemAssignments } = buildPerPersonShareItems(roster, amounts);
 
     return {
       billData: {
@@ -399,33 +512,19 @@ export function SimpleTransactionWizard({
 
       try {
         if (activeBillId.current) {
-          // `allowPeopleRemoval` because this debounced autosave is the ONLY
-          // path that persists `people` for a simple transaction, and three
-          // local-only paths legitimately shrink the array first:
-          // `peopleManager.removePerson` (wired at steps/PeopleStep.tsx:70),
-          // `handleEventChange` replacing people with the event roster, and
-          // the raw `setPeople` handed to PeopleStep. Without the flag,
-          // removing a person here would never persist.
+          // NO `allowPeopleRemoval` here, deliberately. This autosave builds
+          // its payload in a `setTimeout` closure, and this wizard's `people`
+          // is loaded once (`applyBillData`, behind `hasLoadedBillId.current`)
+          // and never re-hydrated from a snapshot — so the array it sends can
+          // be arbitrarily stale. The guard must be free to strip it.
           //
-          // The trade is deliberate, and it is a KNOWN HOLE rather than a
-          // safe exemption: this wizard opts OUT of the people guard, and its
-          // `people` is loaded ONCE (`applyBillData`, behind
-          // `hasLoadedBillId.current`) and never re-hydrated from a snapshot.
-          // So a stale array here CAN clobber a concurrent change. Concretely:
-          // a shadow person signs up, `claimShadowUser` rewrites their
-          // `people[].id` to `user-<realUid>`, the owner — wizard still open —
-          // edits the title, and this autosave writes the pre-claim array with
-          // `allowPeopleRemoval: true`, reverting the claim. Two tabs do the
-          // same thing, older load wins.
-          //
-          // Closing it means moving removal onto its own explicit flagged
-          // write (as `BillWizard.handleRemovePerson` does) and leaving the
-          // autosave additive-only, so the guard regains authority here.
-          // Deliberately out of scope for the data-loss fix; tracked in
-          // docs/handoffs/monetization-phase3-1008.md.
-          await billService.updateBill(activeBillId.current, payload, {
-            allowPeopleRemoval: true,
-          });
+          // That is what stops a stale load from reverting a concurrent
+          // change: `claimShadowUser` rewrites a person's id to
+          // `user-<realUid>`, this wizard still holds the pre-claim array, and
+          // an unflagged write is stripped rather than reverting the claim.
+          // Deliberate shrinks go through `handleRemovePerson` and
+          // `handleEventChange`, which persist with explicit intent.
+          await billService.updateBill(activeBillId.current, payload);
         } else {
           // Create draft
           const newId = await saveSession(payload);
@@ -469,7 +568,16 @@ export function SimpleTransactionWizard({
     const dummyItemId = existingItemId || relevantSession?.billData?.items?.[0]?.id || 'dummy-item';
     const currentAssignments = relevantSession?.itemAssignments?.[dummyItemId] || [];
 
-    if (currentAssignments.length !== people.length) {
+    // SAME predicate as the other two self-heals — see
+    // src/utils/assignmentSync.ts. This was the copy that had already diverged
+    // (length-only), which is why it is now shared rather than reimplemented.
+    if (
+      needsAssignmentResync(
+        [{ id: dummyItemId, name: title, price: Number(amount) || 0 }],
+        { [dummyItemId]: currentAssignments },
+        people,
+      )
+    ) {
       const newAssignments = {
         [dummyItemId]: people.map((p) => p.id),
       };
@@ -511,8 +619,10 @@ export function SimpleTransactionWizard({
       const { billData, itemAssignments, splitEvenly } = buildSplitPayload(numAmount);
 
       if (activeBillId.current) {
-        // Same opt-out as the autosave above: a removal done on the People
-        // step is local until one of these two writes lands.
+        // Also unflagged: removals and roster swaps are persisted by their
+        // own explicit writes, so by the time Save runs the stored array
+        // already matches and nothing is dropped. If this array IS short of
+        // stored, it is stale and the guard should strip it.
         await billService.updateBill(activeBillId.current, {
           title,
           paidById,
@@ -524,7 +634,7 @@ export function SimpleTransactionWizard({
           ...(targetSquadId && { squadId: targetSquadId }),
           billData,
           itemAssignments,
-        }, { allowPeopleRemoval: true });
+        });
       } else {
         await billService.createSimpleTransaction(
           user.uid,
@@ -603,6 +713,7 @@ export function SimpleTransactionWizard({
             <PeopleStep
               people={people}
               setPeople={setPeople}
+              onRemovePerson={handleRemovePerson}
               peopleManager={peopleManager}
               isMobile={isMobile}
               paidById={paidById}

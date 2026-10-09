@@ -20,8 +20,10 @@ import { useBillSession } from "./hooks/useBillSession";
 import { usePeopleAdditionQueue } from "./hooks/usePeopleAdditionQueue";
 import {
   mergePeopleAdditions,
+  purgePersonFromAssignments,
   reconcilePeopleWithServer,
 } from "@/utils/peopleMerge";
+import { needsAssignmentResync } from "@/utils/assignmentSync";
 import { usePeopleManager } from "@/hooks/usePeopleManager";
 import { useBillSplitter } from "@/hooks/useBillSplitter";
 import { useReceiptAnalyzer } from "@/hooks/useReceiptAnalyzer";
@@ -235,16 +237,13 @@ export function BillWizard({
   useEffect(() => {
     if (splitEvenly && billData && billData.items && people.length > 0) {
       const allPeopleIds = people.map((p) => p.id);
-      let needsUpdate = false;
-
-      // Check if any item is missing an assignment or has wrong number of people
-      for (const item of billData.items) {
-        const assigned = itemAssignments[item.id];
-        if (!assigned || assigned.length !== allPeopleIds.length) {
-          needsUpdate = true;
-          break;
-        }
-      }
+      // Single shared predicate — see src/utils/assignmentSync.ts for why it
+      // MUST be identical in all three wizards (two-client write storm).
+      const needsUpdate = needsAssignmentResync(
+        billData.items,
+        itemAssignments,
+        people,
+      );
 
       if (needsUpdate) {
         const newAssignments: ItemAssignment = {};
@@ -502,10 +501,24 @@ export function BillWizard({
       if (personToRemove) {
         try {
           const updatedPeople = people.filter((p) => p.id !== personId);
+          // `itemAssignments` MUST ride the SAME write as the `people` shrink.
+          // `bill.removePersonFromAssignments` above is LOCAL ONLY, and the
+          // split-evenly self-heal is gated on `splitEvenly` — so on a
+          // manually-assigned bill nothing ever persists the purge. A person
+          // left in `itemAssignments` but absent from `people` is a GHOST:
+          // `calculatePersonTotals` divides each item by the RAW assignee
+          // count and then drops the ghost's share, so that money is charged
+          // to nobody and the payer absorbs it, invisibly.
           // Deliberate removal: the user tapped remove on this person.
           await billService.updateBill(
             id,
-            { people: updatedPeople },
+            {
+              people: updatedPeople,
+              itemAssignments: purgePersonFromAssignments(
+                bill.itemAssignments,
+                personId,
+              ),
+            },
             { allowPeopleRemoval: true },
           );
         } catch (e) {

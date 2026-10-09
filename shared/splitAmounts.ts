@@ -48,6 +48,39 @@ export function distributeEvenly(total: number, count: number): number[] {
  * numbers ARE the agreement and are never silently altered;
  * isSplitConfigValid guarantees they sum to `amount`.
  */
+/**
+ * Spreads `total` evenly across a roster, keyed by `person.id`.
+ *
+ * SINGLE SOURCE OF TRUTH for "the roster changed, re-split evenly". It has two
+ * callers in `SimpleTransactionWizard` and they MUST agree:
+ *
+ *   1. the effect that redistributes when `people` changes, and
+ *   2. `handleRemovePerson`, which persists the post-removal split
+ *      SYNCHRONOUSLY — before that effect has run.
+ *
+ * Duplicating the logic is what broke this once already: `handleRemovePerson`
+ * rebuilt the payload from the new roster but the OLD amount map, so for an
+ * `exact` split the items no longer summed to `billData.total` and the
+ * difference was charged to nobody; for `percentage` the last person silently
+ * absorbed the removed share. Keep exactly one implementation.
+ *
+ * Uses `distributeEvenly`, so shares sum EXACTLY to `total` (last person
+ * absorbs the rounding remainder). Returns `{}` for an empty roster.
+ */
+export function redistributeSharesAcross(
+  roster: { id: string }[],
+  total: number,
+): Record<string, number> {
+  if (roster.length === 0) return {};
+
+  const shares = distributeEvenly(total, roster.length);
+  const next: Record<string, number> = {};
+  roster.forEach((person, i) => {
+    next[person.id] = shares[i];
+  });
+  return next;
+}
+
 export function resolveSplitAmounts(
   amount: number,
   people: { id: string }[],
