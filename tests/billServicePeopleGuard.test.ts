@@ -72,7 +72,224 @@ vi.mock('firebase/firestore', () => ({
   ),
 }));
 
+import { runTransaction, updateDoc } from 'firebase/firestore';
 import { billService } from '@/services/billService';
+
+/**
+ * The invariant pass (docs/plans/bill-money-invariants.md I1..I8), enforced on
+ * the MERGED candidate inside the transaction. Repairs only ever touch keys
+ * the write already carries; a violation living purely in stored data is
+ * logged and left to the server backstop.
+ */
+describe('billService.updateBill — money invariant enforcement', () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    written = null;
+    stored = {
+      ownerId: 'owner-uid',
+      people: [owner, charlie],
+      participantIds: ['owner-uid', 'charlie-uid'],
+      members: [],
+      settledPersonIds: [],
+      billData: {
+        items: [{ id: 'i1', name: 'x', price: 30 }],
+        subtotal: 30,
+        tax: 0,
+        tip: 0,
+        otherFees: 0,
+        total: 30,
+      },
+      itemAssignments: { i1: [owner.id, charlie.id] },
+    };
+    vi.clearAllMocks();
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => errorSpy.mockRestore());
+
+  it('I1: drops a ghost assignee from an incoming itemAssignments', async () => {
+    const res = await billService.updateBill('bill-1', {
+      itemAssignments: { i1: [owner.id, 'user-ghost'] },
+    });
+
+    expect((written!.itemAssignments as Record<string, string[]>).i1).toEqual([owner.id]);
+    expect(res.repaired.map((v) => v.code)).toContain('I1');
+  });
+
+  it('I1 is judged against STORED people, not just the patch', async () => {
+    // An itemAssignments-only write carries no `people`, so checking the patch
+    // alone would be vacuous. This is why the candidate must be merged.
+    await billService.updateBill('bill-1', {
+      itemAssignments: { i1: ['user-not-on-this-bill'] },
+    });
+
+    expect((written!.itemAssignments as Record<string, string[]>).i1).toEqual([]);
+  });
+
+  it('I2: de-duplicates assignees within an item', async () => {
+    await billService.updateBill('bill-1', {
+      itemAssignments: { i1: [owner.id, owner.id, charlie.id] },
+    });
+
+    expect((written!.itemAssignments as Record<string, string[]>).i1).toEqual([
+      owner.id,
+      charlie.id,
+    ]);
+  });
+
+  it('I2: treats the two id FORMS of one person as a duplicate', async () => {
+    await billService.updateBill('bill-1', {
+      itemAssignments: { i1: ['owner-uid', 'user-owner-uid'] },
+    });
+
+    expect((written!.itemAssignments as Record<string, string[]>).i1).toHaveLength(1);
+  });
+
+  it('I3: re-anchors a non-participant payer to the OWNER, not the stored value', async () => {
+    const res = await billService.updateBill('bill-1', { paidById: 'a-stranger' });
+
+    expect(written!.paidById).toBe('owner-uid');
+    expect(res.repaired.map((v) => v.code)).toContain('I3');
+  });
+
+  it('I3: leaves a legitimate payer alone', async () => {
+    await billService.updateBill('bill-1', { paidById: charlie.id });
+
+    expect(written!.paidById).toBe('charlie-uid'); // normalized, not repaired
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('I7: persists the edit but LOGS it — the ledger refuses, not the save', async () => {
+    // splitEvenly treats total as authoritative, so this would collect nothing
+    // and the ledger would reverse the whole footprint.
+    const res = await billService.updateBill('bill-1', {
+      splitEvenly: true,
+      billData: {
+        items: [{ id: 'i1', name: 'x', price: 30 }],
+        subtotal: 30,
+        tax: 0,
+        tip: 0,
+        otherFees: 0,
+        total: 0,
+      },
+    });
+
+    // The user's edit is PERSISTED. Dropping it would resolve successfully
+    // while silently discarding their data, and `useBillSession` would mark
+    // the state saved and never retry. The LEDGER is what must not move:
+    // the server backstop refuses the footprint instead.
+    expect(written!.billData).toBeDefined();
+    expect(written!.splitEvenly).toBe(true);
+    // NOT reported as repaired — nothing was repaired. It is logged.
+    expect(res.repaired.map((v) => v.code)).not.toContain('I7');
+    expect(String(errorSpy.mock.calls[0][0])).toContain('I7');
+  });
+
+  it('I8: persists the edit but LOGS it — the ledger refuses, not the save', async () => {
+    const res = await billService.updateBill('bill-1', {
+      billData: {
+        items: [
+          { id: 'i1', name: 'a', price: 20 },
+          { id: 'i2', name: 'b', price: -20 },
+        ],
+        subtotal: 0,
+        tax: 3,
+        tip: 2,
+        otherFees: 0,
+        total: 5,
+      },
+      itemAssignments: { i1: [owner.id], i2: [owner.id] },
+    });
+
+    expect(written!.billData).toBeDefined();
+    expect(res.repaired.map((v) => v.code)).not.toContain('I8');
+    expect(String(errorSpy.mock.calls[0][0])).toContain('I8');
+  });
+
+  it('a stripped people also drops roster-DERIVED fields, so the result converges', async () => {
+    // Defect found in final review. When `people` is stripped, `billData` and
+    // `itemAssignments` in the SAME payload were derived from the short roster
+    // — one item per person. Keeping them persisted N people with N-1 items,
+    // which the SERVER treats as fatal and freezes the ledger. Worse, it did
+    // not converge: replaying the identical write reproduced it, so only a
+    // page reload broke the loop.
+    stored = {
+      ownerId: 'owner-uid',
+      isSimpleTransaction: true,
+      splitEvenly: false,
+      people: [owner, charlie, { id: 'user-dave-uid', name: 'Dave' }],
+      participantIds: ['owner-uid', 'charlie-uid', 'dave-uid'],
+      members: [],
+      settledPersonIds: [],
+      billData: {
+        items: [
+          { id: 'i-owner', name: 'o', price: 10 },
+          { id: 'i-charlie', name: 'c', price: 10 },
+          { id: 'i-dave', name: 'd', price: 10 },
+        ],
+        subtotal: 30,
+        tax: 0,
+        tip: 0,
+        otherFees: 0,
+        total: 30,
+      },
+      itemAssignments: {
+        'i-owner': [owner.id],
+        'i-charlie': [charlie.id],
+        'i-dave': ['user-dave-uid'],
+      },
+    };
+
+    // A stale autosave: roster short by one, with derived fields to match.
+    const res = await billService.updateBill('bill-1', {
+      people: [owner, charlie],
+      billData: {
+        items: [
+          { id: 'i-owner', name: 'o', price: 15 },
+          { id: 'i-charlie', name: 'c', price: 15 },
+        ],
+        subtotal: 30,
+        tax: 0,
+        tip: 0,
+        otherFees: 0,
+        total: 30,
+      },
+      itemAssignments: { 'i-owner': [owner.id], 'i-charlie': [charlie.id] },
+    });
+
+    expect(res.peopleStripped).toBe(true);
+    // The derived keys must NOT land — they describe a roster we refused.
+    expect(written!.people).toBeUndefined();
+    expect(written!.billData).toBeUndefined();
+    expect(written!.itemAssignments).toBeUndefined();
+  });
+
+  it('a clean money write is untouched and reports nothing repaired', async () => {
+    const res = await billService.updateBill('bill-1', {
+      itemAssignments: { i1: [owner.id] },
+    });
+
+    expect((written!.itemAssignments as Record<string, string[]>).i1).toEqual([owner.id]);
+    expect(res.repaired).toEqual([]);
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('a money write goes through a TRANSACTION (so the candidate can be merged)', async () => {
+    await billService.updateBill('bill-1', { itemAssignments: { i1: [owner.id] } });
+
+    expect(runTransaction).toHaveBeenCalled();
+    expect(updateDoc).not.toHaveBeenCalled();
+  });
+
+  it('a NON-money write skips the transaction — an extra read per autosave is not free', async () => {
+    await billService.updateBill('bill-1', { shareCode: 'XY3K9P' });
+
+    expect(updateDoc).toHaveBeenCalled();
+    expect(runTransaction).not.toHaveBeenCalled();
+    expect(written!.shareCode).toBe('XY3K9P');
+  });
+});
 
 describe('billService.updateBill — people shrink guard', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
@@ -147,7 +364,7 @@ describe('billService.updateBill — people shrink guard', () => {
       // while the server never has them.
       const result = await billService.updateBill('bill-1', { people: [owner] });
 
-      expect(result).toEqual({ peopleStripped: true });
+      expect(result).toMatchObject({ peopleStripped: true });
     });
 
     it('logs the dropped person so the loss is diagnosable', async () => {
@@ -260,7 +477,7 @@ describe('billService.updateBill — people shrink guard', () => {
         people: [owner, charlie, dave],
       });
 
-      expect(result).toEqual({ peopleStripped: false });
+      expect(result).toMatchObject({ peopleStripped: false });
     });
 
     it('reports peopleStripped: false for a deliberate removal', async () => {
@@ -270,7 +487,7 @@ describe('billService.updateBill — people shrink guard', () => {
         { allowPeopleRemoval: true },
       );
 
-      expect(result).toEqual({ peopleStripped: false });
+      expect(result).toMatchObject({ peopleStripped: false });
     });
 
     it('leaves writes that do not touch people alone', async () => {

@@ -20,6 +20,10 @@ import { getFirestore, FieldValue, Timestamp, type DocumentData } from 'firebase
 import { computeBillPersonTotals } from '../../shared/calculations.js';
 import { validateBillAmounts } from '../../shared/billAmountValidation.js';
 import {
+  checkBillInvariants,
+  summarizeViolations,
+} from '../../shared/billInvariants.js';
+import {
   getFriendBalanceId,
   getEventBalanceId,
   calculateFriendFootprint,
@@ -1039,6 +1043,71 @@ export async function processLedgerWrite(
     logger.info('Stage 1: bill emptied — tearing down its stored footprint', {
       billId,
     });
+  }
+
+  // ── MONEY INVARIANT BACKSTOP (docs/plans/bill-money-invariants.md) ──
+  //
+  // This is the AUTHORITATIVE enforcement point, and the only one that exists.
+  // `billService.updateBill` validates too, but it cannot see:
+  //   - Admin SDK writes (`claimShadowUser`, `reassignOwnedBills`, the
+  //     recurring generator),
+  //   - writes from an UNAUTHENTICATED holder of a 6-char share code, who per
+  //     firestore.rules:342 + :178-181 may replace `people` and
+  //     `itemAssignments` and flip `splitEvenly` with a direct updateDoc,
+  //   - any future caller that forgets to go through the service.
+  // Every one of those lands here, because this trigger fires on every write.
+  //
+  // BAIL rather than compute, following the same reasoning as the
+  // `validateBillAmounts` gate above: an inconsistent bill leaves its
+  // last-known-good footprint in place — stale, but finite, recoverable on the
+  // next valid edit, and visible to the scheduled reconciler as a mismatch.
+  // Computing anyway is what leaks money: `shared/calculations.ts:26-34`
+  // divides each item by the RAW assignee count and then discards shares
+  // belonging to anyone absent from `people`, so a single ghost assignee
+  // silently charges part of the bill to nobody.
+  //
+  // SKIPPED for a teardown (`isIncomplete`). An emptied bill still owes the
+  // ledger a reversal of its stored footprint, and refusing to process it
+  // would strand real debt forever — the reconciler is report-only. DELETE is
+  // likewise unaffected: it returns above and reverses from the stored
+  // footprint without touching billData arithmetic.
+  //
+  // I4 is logged but NOT fatal: a settled-id form mismatch (the known
+  // `claimShadowUser` bug) mis-records settledness but does not make this
+  // computation wrong, and bailing would block legitimate processing.
+  if (!isIncomplete) {
+    const violations = checkBillInvariants({
+      people: after.people as Parameters<typeof checkBillInvariants>[0]['people'],
+      itemAssignments: after.itemAssignments as Parameters<
+        typeof checkBillInvariants
+      >[0]['itemAssignments'],
+      billData: after.billData as BillData | null,
+      paidById: after.paidById as string | null,
+      ownerId,
+      settledPersonIds: after.settledPersonIds as string[] | null,
+      unsettledParticipantIds: after.unsettledParticipantIds as string[] | null,
+      isSimpleTransaction: after.isSimpleTransaction as boolean | null,
+      splitEvenly: after.splitEvenly as boolean | null,
+    });
+
+    const fatal = violations.filter((v) => v.code !== 'I4');
+
+    if (violations.length > 0) {
+      logger.error('Stage 1: bill violates money invariants', {
+        billId,
+        codes: violations.map((v) => v.code),
+        detail: summarizeViolations(violations),
+        fatal: fatal.length > 0,
+      });
+    }
+
+    if (fatal.length > 0) {
+      logger.error(
+        'Stage 1: refusing to touch the ledger — last-known-good footprint retained',
+        { billId, codes: fatal.map((v) => v.code) },
+      );
+      return;
+    }
   }
 
   // Payload-based totals gate Stage 1 only; the authoritative footprint is

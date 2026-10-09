@@ -21,8 +21,34 @@ import { Bill, BillData, BillType, BillMember, BillStatus } from '@/types/bill.t
 import { Person } from '@/types/person.types';
 import { removeUndefinedFields } from '@/utils/firestoreHelpers';
 import { personIdToFirebaseUid } from '@shared/ledgerCalculations';
+import {
+  checkBillInvariants,
+  summarizeViolations,
+  type InvariantViolation,
+} from '@shared/billInvariants';
 
 const BILLS_COLLECTION = 'bills';
+
+/**
+ * Fields that determine how much money the bill moves, and to whom. A write
+ * carrying any of these is validated against the invariants
+ * (docs/plans/bill-money-invariants.md) inside a transaction; anything else
+ * (shareCode, title, status, timestamps) takes the cheap non-transactional
+ * path, because an extra read per autosave is real latency and cost and buys
+ * nothing where no money is at stake.
+ */
+const MONEY_FIELDS = [
+  'people',
+  'itemAssignments',
+  'billData',
+  'paidById',
+  'splitEvenly',
+  'settledPersonIds',
+] as const;
+
+function touchesMoney(updates: Partial<Bill>): boolean {
+  return MONEY_FIELDS.some((f) => f in updates);
+}
 
 /**
  * Derives a flat array of Firebase UIDs from a bill's people array + owner.
@@ -213,7 +239,7 @@ export const billService = {
     billId: string,
     updates: Partial<Bill>,
     options?: { allowPeopleRemoval?: boolean },
-  ): Promise<{ peopleStripped: boolean }> {
+  ): Promise<{ peopleStripped: boolean; repaired: InvariantViolation[] }> {
     const billRef = doc(db, BILLS_COLLECTION, billId);
 
     // Reported back to the caller because a strip RESOLVES rather than
@@ -224,6 +250,7 @@ export const billService = {
     // show a person the server does not have. Callers that retry MUST check
     // this. Declared outside the transaction because the body can re-run.
     let peopleStripped = false;
+    let repaired: InvariantViolation[] = [];
 
     // A-08 (defence in depth): this is the single choke point for every client
     // write to a bill, and unlike `createBill` it is a DIRECT Firestore write
@@ -239,12 +266,13 @@ export const billService = {
     // If people is being updated, use a transaction to atomically read
     // existing participantIds and merge with derived ones. This prevents
     // race conditions where a guest joining via arrayUnion gets overwritten.
-    if (updates.people && Array.isArray(updates.people)) {
+    if (touchesMoney(updates)) {
       try {
         await runTransaction(db, async (transaction) => {
           const billSnap = await transaction.get(billRef);
           const billData = billSnap.data();
           const ownerId = updates.ownerId ?? billData?.ownerId;
+          const hasPeopleUpdate = Array.isArray(updates.people);
 
           let finalUpdates = { ...updates };
 
@@ -275,17 +303,22 @@ export const billService = {
           // in via `allowPeopleRemoval` and replaces the array as asked.
           const storedPeople = (billData?.people || []) as Person[];
           const incomingUids = new Set(
-            updates.people!.map((p) => personIdToFirebaseUid(p.id)),
+            (updates.people ?? []).map((p) => personIdToFirebaseUid(p.id)),
           );
-          const dropped = storedPeople.filter(
-            (p) => !incomingUids.has(personIdToFirebaseUid(p.id)),
-          );
+          const dropped = !hasPeopleUpdate
+            ? []
+            : storedPeople.filter(
+                (p) => !incomingUids.has(personIdToFirebaseUid(p.id)),
+              );
 
           const peopleAccepted =
-            dropped.length === 0 || options?.allowPeopleRemoval === true;
+            !hasPeopleUpdate ||
+            dropped.length === 0 ||
+            options?.allowPeopleRemoval === true;
 
           // Reset first: Firestore may re-run this body on contention.
           peopleStripped = false;
+          repaired = [];
 
           if (!peopleAccepted) {
             peopleStripped = true;
@@ -302,7 +335,7 @@ export const billService = {
           // Only re-derive participant ids when the people array is actually
           // being written — otherwise they would be computed from the array we
           // just rejected.
-          if (ownerId && peopleAccepted) {
+          if (ownerId && hasPeopleUpdate && peopleAccepted) {
             const derived = extractParticipantIds(ownerId, updates.people!);
 
             // Merge with existing participantIds (includes guests who joined via arrayUnion)
@@ -333,6 +366,141 @@ export const billService = {
             };
           }
 
+          // A stripped `people` invalidates anything DERIVED from the roster
+          // in the same payload. `billData.items` and `itemAssignments` for a
+          // simple transaction are one-per-person, so keeping them after
+          // refusing the shrink persists a bill with N people and N-1 items —
+          // which the server backstop then treats as fatal, freezing the
+          // ledger. Worse, it does not converge: replaying the same write
+          // reproduces it, so only a reload (which re-hydrates `people`)
+          // breaks the loop. Drop the derived keys and let the next write,
+          // built from a correct roster, carry them.
+          if (peopleStripped) {
+            const storedIsSimple =
+              (finalUpdates as Partial<Bill>).isSimpleTransaction ??
+              billData?.isSimpleTransaction;
+            if (storedIsSimple) {
+              delete (finalUpdates as Partial<Bill>).billData;
+              delete (finalUpdates as Partial<Bill>).itemAssignments;
+            }
+          }
+
+          // ── Invariant pass (docs/plans/bill-money-invariants.md) ──
+          //
+          // Validate the MERGED candidate, not the incoming patch: most writes
+          // carry one or two fields, so checking the patch alone would be
+          // vacuous — an `itemAssignments`-only write has to be judged against
+          // the STORED `people`.
+          //
+          // Repairs only ever touch keys this write is ALREADY sending. A
+          // violation that lives purely in stored data is logged and left to
+          // the server backstop (`ledgerProcessor`), because silently
+          // rewriting a field the caller never mentioned is a surprise, and
+          // surprises in money code are how this class of bug started.
+          const candidate = { ...billData, ...finalUpdates } as Parameters<
+            typeof checkBillInvariants
+          >[0];
+          const violations = checkBillInvariants(candidate);
+
+          if (violations.length > 0) {
+            const applied: InvariantViolation[] = [];
+
+            for (const v of violations) {
+              // I1 — drop ghost assignees, but only from an assignments map we
+              // are already writing.
+              if (v.code === 'I1' && finalUpdates.itemAssignments) {
+                const ghosts = new Set(v.ids ?? []);
+                const cleaned: Record<string, string[]> = {};
+                for (const [itemId, assignees] of Object.entries(
+                  finalUpdates.itemAssignments,
+                )) {
+                  cleaned[itemId] = (assignees ?? []).filter((a) => !ghosts.has(a));
+                }
+                finalUpdates = { ...finalUpdates, itemAssignments: cleaned };
+                applied.push(v);
+                continue;
+              }
+
+              // I2 — de-duplicate assignees inside an item.
+              //
+              // ONLY the assignee half (I2b). A duplicate PARTICIPANT (I2a) is
+              // deliberately NOT repaired: dropping one id-form from `people`
+              // while both remain in `itemAssignments` IS the ghost bug, so
+              // the repair would have to rewrite assignments in the same
+              // write. Left to the server.
+              //
+              // `v.ids` distinguishes them: I2b reports the ITEM id it found
+              // the duplicate in, I2a reports the duplicated uid(s). Matching
+              // on the bare code reported a repair that never happened, while
+              // the participant duplicate survived to be server-fatal.
+              const isAssigneeDuplicate =
+                v.code === 'I2' &&
+                (v.ids ?? []).some((id) => id in (finalUpdates.itemAssignments ?? {}));
+
+              if (isAssigneeDuplicate && finalUpdates.itemAssignments) {
+                const deduped: Record<string, string[]> = {};
+                for (const [itemId, assignees] of Object.entries(
+                  finalUpdates.itemAssignments,
+                )) {
+                  const seen = new Set<string>();
+                  deduped[itemId] = (assignees ?? []).filter((a) => {
+                    const u = personIdToFirebaseUid(a);
+                    if (seen.has(u)) return false;
+                    seen.add(u);
+                    return true;
+                  });
+                }
+                finalUpdates = { ...finalUpdates, itemAssignments: deduped };
+                applied.push(v);
+                continue;
+              }
+
+              // I3 — hand the anchor back to the owner. NOT keep-stored: the
+              // stored anchor may itself be the person just removed.
+              //
+              // NOTE this is the ONE repair that writes a key the caller did
+              // not send, which contradicts the "repairs only touch keys the
+              // write already carries" rule stated above. It is deliberate and
+              // LOAD-BEARING: `BillWizard.handleRemovePerson` and the Airbnb
+              // equivalent do NOT re-anchor when the removed person was the
+              // payer (only SimpleTransactionWizard does), so they rely on this
+              // to keep the ledger's anchor on a real participant. A dangling
+              // anchor inverts the direction of every debt on the bill.
+              if (v.code === 'I3' && ownerId) {
+                finalUpdates = { ...finalUpdates, paidById: personIdToFirebaseUid(ownerId) };
+                applied.push(v);
+                continue;
+              }
+
+              // I5..I8 — LOG ONLY on the client. Deliberately not repaired.
+              //
+              // The spec's first draft said "reject the incoming billData and
+              // keep the stored one". That is wrong, by the same argument this
+              // file already makes about `people`: dropping the key makes
+              // `updateBill` RESOLVE while silently discarding the user's edit,
+              // `useBillSession` then records the state as saved and never
+              // retries, and the UI shows items the server does not have. For a
+              // refund line (`[+20, -20]` -> I8) or an AI-extracted comped
+              // total (-> I7) that is real data loss to prevent a ledger error.
+              //
+              // The bill is the user's record; the LEDGER is what must not move
+              // on bad arithmetic. So persist what they entered and let the
+              // server backstop (ledgerProcessor Stage 1) refuse to compute,
+              // holding the last-known-good footprint and logging. Nothing is
+              // lost and no money is wrong.
+              if (['I5', 'I6', 'I7', 'I8'].includes(v.code)) {
+                continue;
+              }
+            }
+
+            repaired = applied;
+            console.error(
+              `[billService] bill ${billId} violates money invariants — ` +
+                `${summarizeViolations(violations)}. Repaired: ` +
+                `${applied.map((v) => v.code).join(', ') || 'none (logged only)'}.`,
+            );
+          }
+
           const cleanedUpdates = removeUndefinedFields({
             ...finalUpdates,
             updatedAt: serverTimestamp(),
@@ -348,7 +516,7 @@ export const billService = {
         throw error;
       }
 
-      return { peopleStripped };
+      return { peopleStripped, repaired };
     } else {
       // No people update — simple updateDoc (no race risk for participantIds)
       const cleanedUpdates = removeUndefinedFields({
@@ -366,8 +534,9 @@ export const billService = {
         throw error;
       }
 
-      // This branch never touches `people`, so nothing can be stripped.
-      return { peopleStripped: false };
+      // This branch touches no money field, so nothing can be stripped and
+      // no invariant can be violated by it.
+      return { peopleStripped: false, repaired: [] };
     }
   },
 
