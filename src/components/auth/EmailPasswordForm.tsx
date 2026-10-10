@@ -110,6 +110,18 @@ export const EmailPasswordForm = ({ disabled = false }: EmailPasswordFormProps) 
             minLength={6}
             disabled={locked}
           />
+          {mode === 'signin' && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                onClick={handleReset}
+                disabled={locked || !email.trim()}
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
         </div>
 
         <Button type="submit" className="w-full min-h-[44px]" disabled={locked}>
@@ -126,27 +138,19 @@ export const EmailPasswordForm = ({ disabled = false }: EmailPasswordFormProps) 
         </Button>
       </form>
 
-      <div className="flex items-center justify-between text-xs">
+      {/* The toggle's accessible name stays exactly "Create an account" —
+          e2e/helpers/auth.ts selects it by that exact name. */}
+      <p className="text-sm text-center text-muted-foreground">
+        {mode === 'signin' ? 'New to Divit?' : 'Already have an account?'}{' '}
         <button
           type="button"
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex items-center min-h-[44px] px-1 font-semibold text-primary hover:underline underline-offset-4 disabled:opacity-50"
           onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
           disabled={locked}
         >
-          {mode === 'signin' ? 'Create an account' : 'I already have an account'}
+          {mode === 'signin' ? 'Create an account' : 'Sign in'}
         </button>
-
-        {mode === 'signin' && (
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-            onClick={handleReset}
-            disabled={locked || !email.trim()}
-          >
-            Forgot password?
-          </button>
-        )}
-      </div>
+      </p>
     </div>
   );
 };
