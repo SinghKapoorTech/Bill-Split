@@ -6,12 +6,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ProviderSignInButtons } from '@/components/auth/ProviderSignInButtons';
 import { EmailPasswordForm } from '@/components/auth/EmailPasswordForm';
 import type { SignInProvider } from '@/utils/authProviders';
+import { useGuestClaim } from '@/hooks/useGuestClaim';
+import { PENDING_CLAIM_KEY } from '@/utils/guestClaim';
 
 const Auth = () => {
   const { user, loading, signIn } = useAuth();
   const navigate = useNavigate();
   const [pendingProvider, setPendingProvider] = useState<SignInProvider | null>(null);
   const [isClaiming, setIsClaiming] = useState(false);
+  const { runPendingClaim } = useGuestClaim();
 
   // Use sessionStorage to persist across potential app remounts on iOS
   const getInitialLoadState = () => {
@@ -26,7 +29,7 @@ const Auth = () => {
     const claimGuestId = params.get('claimGuestId');
     const returnTo = params.get('returnTo');
     if (claimGuestId) {
-      localStorage.setItem('pending_claim_guest_id', claimGuestId);
+      localStorage.setItem(PENDING_CLAIM_KEY, claimGuestId);
     }
     if (returnTo) {
       localStorage.setItem('pending_auth_return_to', returnTo);
@@ -37,29 +40,21 @@ const Auth = () => {
   useEffect(() => {
     const processUserAndRedirect = async () => {
       if (user) {
-        const pendingClaimId = localStorage.getItem('pending_claim_guest_id');
-        
-        if (pendingClaimId) {
-          try {
-            setIsClaiming(true);
-            const { billService } = await import('@/services/billService');
-            await billService.claimShadowUser(pendingClaimId);
-            localStorage.removeItem('pending_claim_guest_id');
-          } catch (error) {
-            console.error('Error claiming shadow user:', error);
-          } finally {
-            setIsClaiming(false);
-          }
-        }
+        setIsClaiming(true);
+        const claim = await runPendingClaim();
+        setIsClaiming(false);
 
         const returnTo = localStorage.getItem('pending_auth_return_to');
         localStorage.removeItem('pending_auth_return_to');
-        navigate(returnTo || '/dashboard');
+        // After a failed claim the returnTo is the shared bill the new account
+        // is not on yet ("We couldn't find your profile"), so go home instead;
+        // the error toast explains why.
+        navigate(claim === 'failed' ? '/dashboard' : returnTo || '/dashboard');
       }
     };
 
     processUserAndRedirect();
-  }, [user, navigate]);
+  }, [user, navigate, runPendingClaim]);
 
   // Mark initial load as complete after first render
   useEffect(() => {

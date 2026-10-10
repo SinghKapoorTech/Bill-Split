@@ -7,19 +7,22 @@ import { ParallaxGradientBackground } from "@/components/landing/ParallaxGradien
 import { ProviderSignInButtons } from "@/components/auth/ProviderSignInButtons";
 import { EmailPasswordForm } from "@/components/auth/EmailPasswordForm";
 import type { SignInProvider } from "@/utils/authProviders";
+import { useGuestClaim } from "@/hooks/useGuestClaim";
+import { PENDING_CLAIM_KEY } from "@/utils/guestClaim";
 
 const MobileAuth = () => {
   const { user, loading, signIn } = useAuth();
   const navigate = useNavigate();
   const [pendingProvider, setPendingProvider] = useState<SignInProvider | null>(null);
   const [isClaiming, setIsClaiming] = useState(false);
+  const { runPendingClaim } = useGuestClaim();
 
   // Use localStorage to persist guest claim ID across OAuth redirects
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const claimGuestId = params.get("claimGuestId");
     if (claimGuestId) {
-      localStorage.setItem("pending_claim_guest_id", claimGuestId);
+      localStorage.setItem(PENDING_CLAIM_KEY, claimGuestId);
     }
   }, []);
 
@@ -27,27 +30,15 @@ const MobileAuth = () => {
   useEffect(() => {
     const processUserAndRedirect = async () => {
       if (user) {
-        const pendingClaimId = localStorage.getItem("pending_claim_guest_id");
-
-        if (pendingClaimId) {
-          try {
-            setIsClaiming(true);
-            const { billService } = await import("@/services/billService");
-            await billService.claimShadowUser(pendingClaimId);
-            localStorage.removeItem("pending_claim_guest_id");
-          } catch (error) {
-            console.error("Error claiming shadow user:", error);
-          } finally {
-            setIsClaiming(false);
-          }
-        }
-
+        setIsClaiming(true);
+        await runPendingClaim(); // surfaces its own error toast
+        setIsClaiming(false);
         navigate("/dashboard");
       }
     };
 
     processUserAndRedirect();
-  }, [user, navigate]);
+  }, [user, navigate, runPendingClaim]);
 
   // Handle sign-in
   const handleSignIn = async (provider: SignInProvider) => {
