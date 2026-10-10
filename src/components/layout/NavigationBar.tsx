@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, Users, Settings, Plus } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, Plus, Receipt } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { CreateOptionsDialog } from './CreateOptionsDialog';
@@ -11,6 +11,7 @@ export function NavigationBar() {
   const tabs = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/events', label: 'Events', icon: Users },
+    { path: '/bills', label: 'Bills', icon: Receipt },
     { path: '/squads', label: 'Squads', icon: Users },
     { path: '/settings', label: 'Settings', icon: Settings },
   ];
