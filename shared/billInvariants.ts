@@ -177,7 +177,7 @@ export function checkBillInvariants(bill: BillInvariantSubject): InvariantViolat
       code: 'I4',
       detail:
         `settledPersonIds references ${strayers.length} non-participant(s): ` +
-        `${strayers.join(', ')}. Usually an id-FORM mismatch (claimShadowUser ` +
+        `${strayers.join(', ')}. Usually an id-FORM mismatch (legacy claimShadowUser ` +
         `writes a bare uid into settledPersonIds but user-<uid> into people), ` +
         `which un-settles a paid debt and lets the pipeline re-create it.`,
       ids: strayers,

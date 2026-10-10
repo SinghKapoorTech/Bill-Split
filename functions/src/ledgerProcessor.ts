@@ -1072,8 +1072,8 @@ export async function processLedgerWrite(
   // likewise unaffected: it returns above and reverses from the stored
   // footprint without touching billData arithmetic.
   //
-  // I4 is logged but NOT fatal: a settled-id form mismatch (the known
-  // `claimShadowUser` bug) mis-records settledness but does not make this
+  // I4 is logged but NOT fatal: a settled-id form mismatch (left on bills
+  // claimed by `claimShadowUser` before 2026-10-09) mis-records settledness but does not make this
   // computation wrong, and bailing would block legitimate processing.
   if (!isIncomplete) {
     const violations = checkBillInvariants({

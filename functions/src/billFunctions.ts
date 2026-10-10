@@ -1,7 +1,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { logger } from 'firebase-functions';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type { Firestore } from 'firebase-admin/firestore';
-import { calculatePersonTotals } from '../../shared/calculations.js';
+import { calculatePersonTotals, computeBillPersonTotals } from '../../shared/calculations.js';
 import { validateBillAmounts } from '../../shared/billAmountValidation.js';
 import { isEventArchived, type ArchivableEvent } from '../../shared/eventArchive.js';
 import {
@@ -667,6 +668,152 @@ export const updateGuestName = onCall(
 );
 
 /**
+ * Folds every bill-local form of the claimed guest AND the claiming user into
+ * ONE surviving person, rewriting `people`, `itemAssignments` and
+ * `settledPersonIds` together.
+ *
+ * The ledger keys settledness on the EXACT bill-local id
+ * (`settledPersonIds.includes(total.personId)`) and accumulates per uid by
+ * assignment, not addition. So:
+ *   - a settled entry must be rewritten to the very id written to `people`, or
+ *     a guest who already paid is charged again on the next pass;
+ *   - the same human may never appear twice in `people` (bare `<uid>` next to
+ *     `user-<uid>`), or one of the two shares is silently dropped.
+ *
+ * The surviving id is ALWAYS `user-<realUid>` — the form the client converges
+ * to (`ensureUserInPeople` rewrites a viewer's bare id in place without
+ * touching settledPersonIds, so a bare survivor would lose its settled mark the
+ * first time the real user opens the bill). The real user's existing entry
+ * supplies the fields; the guest's entry fills any gaps (e.g. venmoId).
+ *
+ * Settledness of the merged person: settled only if every merged entry that
+ * OWES money was settled. A zero-share entry is never marked settled (the
+ * settle flow only marks debtors), so counting it would re-open a paid debt. A mixed state cannot be represented (settlement is per person, not
+ * per amount); keeping the debt open is the recoverable error — an over-charge
+ * can be settled again, a forgiven debt is gone — so it is logged loudly.
+ */
+interface ClaimPerson {
+  id: string;
+  [key: string]: unknown;
+}
+
+interface ClaimableBill {
+  people?: ClaimPerson[];
+  itemAssignments?: Record<string, string[]>;
+  settledPersonIds?: string[];
+  billData?: unknown;
+  splitEvenly?: boolean;
+}
+
+export function mergeClaimedIdentity(
+  billData: ClaimableBill,
+  shadowUserId: string,
+  realUserId: string,
+  billId = '',
+): {
+  people: ClaimPerson[];
+  itemAssignments: Record<string, string[]>;
+  assignmentsChanged: boolean;
+  settledPersonIds: string[];
+} {
+  const isHuman = (id: unknown): boolean =>
+    typeof id === 'string' && (toUid(id) === shadowUserId || toUid(id) === realUserId);
+
+  const people: ClaimPerson[] = billData.people || [];
+  const humanEntries = people.filter((p) => isHuman(p?.id));
+  const realEntry = humanEntries.find((p) => toUid(p.id) === realUserId);
+  const survivorId = `user-${realUserId}`;
+  const humanIds: string[] = humanEntries.map((p) => p.id);
+
+  // people: the first human occurrence becomes the survivor; later ones drop.
+  // Everyone else is deduplicated by exact id, as before.
+  const seen = new Set<string>();
+  let survivorPlaced = false;
+  const finalPeople: ClaimPerson[] = [];
+  for (const p of people) {
+    if (isHuman(p?.id)) {
+      if (survivorPlaced) continue;
+      survivorPlaced = true;
+      // Real user's fields win; every other merged entry fills gaps.
+      const merged = Object.assign({}, ...[...humanEntries].reverse(), realEntry ?? {});
+      finalPeople.push({ ...merged, id: survivorId });
+      seen.add(survivorId);
+    } else if (typeof p?.id !== 'string') {
+      finalPeople.push(p); // malformed legacy entry: pass through, never throw
+    } else if (!seen.has(p.id)) {
+      seen.add(p.id);
+      finalPeople.push(p);
+    }
+  }
+
+  // itemAssignments: map every human form to the survivor, dedupe per item.
+  const itemAssignments: Record<string, string[]> = { ...(billData.itemAssignments || {}) };
+  let assignmentsChanged = false;
+  for (const [itemId, assignees] of Object.entries(itemAssignments)) {
+    if (!Array.isArray(assignees)) continue;
+    const next: string[] = [];
+    for (const id of assignees) {
+      const mapped = isHuman(id) ? survivorId : id;
+      if (!next.includes(mapped)) next.push(mapped);
+    }
+    if (next.length !== assignees.length || next.some((id, i) => id !== assignees[i])) {
+      itemAssignments[itemId] = next;
+      assignmentsChanged = true;
+    }
+  }
+
+  // settledPersonIds: exact-id semantics, matching the ledger.
+  const settled: string[] = billData.settledPersonIds || [];
+  const settledHumans = humanIds.filter((id) => settled.includes(id));
+  // Which merged entries actually owe money — computed exactly as the ledger
+  // does. If the totals can't be computed, fall back to counting every entry.
+  let owingHumans = humanIds;
+  try {
+    const totals = computeBillPersonTotals(
+      (billData.billData ?? null) as Parameters<typeof computeBillPersonTotals>[0],
+      people.filter((p) => typeof p?.id === 'string') as unknown as Parameters<typeof computeBillPersonTotals>[1],
+      billData.itemAssignments || {},
+      Boolean(billData.splitEvenly),
+    );
+    owingHumans = humanIds.filter((id) =>
+      totals.some((t) => t.personId === id && Math.abs(t.total) > BALANCE_THRESHOLD),
+    );
+  } catch {
+    // keep the conservative fallback
+  }
+  const mergedSettled =
+    owingHumans.length > 0
+      ? owingHumans.every((id) => settled.includes(id))
+      : settledHumans.length > 0; // no money at stake: keep any settled marker
+  if (settledHumans.length > 0 && !mergedSettled) {
+    logger.warn('claimShadowUser: merged person was partly settled; leaving debt open', {
+      billId,
+      shadowUserId,
+      realUserId,
+      humanIds,
+      owingHumans,
+      settledHumans,
+    });
+  }
+  // Human forms that are settled but are NOT a people id (e.g. a bare uid left
+  // by a pre-2026-10-09 claim). The ledger already ignores them; log so a
+  // repair can still find the only record that this person paid.
+  const droppedSettled = settled.filter((id) => isHuman(id) && !humanIds.includes(id));
+  if (droppedSettled.length > 0) {
+    logger.warn('claimShadowUser: dropping settled ids that match no person', {
+      billId,
+      shadowUserId,
+      realUserId,
+      droppedSettled,
+    });
+  }
+  const settledPersonIds = settled.filter((id) => !isHuman(id));
+  if (mergedSettled) settledPersonIds.push(survivorId);
+
+  return { people: finalPeople, itemAssignments, assignmentsChanged, settledPersonIds };
+}
+
+/**
  * Core of `claimShadowUser`, extracted so the authorization boundary is
  * reachable from integration tests — see
  * `tests/integration/claimShadowUser.int.test.ts`. Mirrors the `createBillCore`
@@ -735,12 +882,6 @@ export async function claimShadowUserCore(
       if (!unsettledParticipantIds.includes(realUserId)) unsettledParticipantIds.push(realUserId);
     }
 
-    let settledPersonIds = billData.settledPersonIds || [];
-    if (settledPersonIds.includes(shadowUserId)) {
-      settledPersonIds = settledPersonIds.filter((id: string) => id !== shadowUserId);
-      if (!settledPersonIds.includes(realUserId)) settledPersonIds.push(realUserId);
-    }
-
     // Update members
     const members = billData.members || [];
     const updatedMembers = members.map((m: any) => {
@@ -749,25 +890,6 @@ export async function claimShadowUserCore(
       }
       return m;
     });
-
-    // Update people
-    const people = billData.people || [];
-    const updatedPeople = people.map((p: any) => {
-      if (p.id === shadowUserId || p.id === `user-${shadowUserId}`) {
-        // Migrate shadow ID to real user's prefixed ID
-        return { ...p, id: `user-${realUserId}` };
-      }
-      return p;
-    });
-
-    // Deduplicate people matching by exact ID
-    const uniquePeopleMap = new Map();
-    updatedPeople.forEach((p: any) => {
-      if (!uniquePeopleMap.has(p.id)) {
-        uniquePeopleMap.set(p.id, p);
-      }
-    });
-    const finalPeople = Array.from(uniquePeopleMap.values());
 
     // Deduplicate members matching by exact userId
     const uniqueMembersMap = new Map();
@@ -778,21 +900,9 @@ export async function claimShadowUserCore(
     });
     const finalMembers = Array.from(uniqueMembersMap.values());
 
-    // Update itemAssignments
-    const itemAssignments = { ...(billData.itemAssignments || {}) };
-    let assignmentsChanged = false;
-    for (const [itemId, assignees] of Object.entries(itemAssignments)) {
-      const arr = assignees as string[];
-      if (arr.includes(shadowUserId) || arr.includes(`user-${shadowUserId}`)) {
-        // Remove shadow id, add real id (avoiding duplicates)
-        const newArr = arr.filter((id) => id !== shadowUserId && id !== `user-${shadowUserId}`);
-        if (!newArr.includes(realUserId) && !newArr.includes(`user-${realUserId}`)) {
-          newArr.push(`user-${realUserId}`); // Use user- prefix for item assignments consistently
-        }
-        itemAssignments[itemId] = newArr;
-        assignmentsChanged = true;
-      }
-    }
+    // People, assignments and settledness: fold the guest into the real user.
+    const { people: finalPeople, itemAssignments, assignmentsChanged, settledPersonIds } =
+      mergeClaimedIdentity(billData, shadowUserId, realUserId, docSnap.id);
 
     const updates: any = {
       participantIds,

@@ -122,9 +122,10 @@ export async function processSettlementReversalCore(
     // Only retire the settlement record if we actually undid something.
     // Deleting it after un-settling nothing would destroy the sole record of
     // the payment while leaving every bill marked settled — the exact failure
-    // this function exists to prevent. This is reachable: claimShadowUser
-    // rewrites people/itemAssignments/paidById but NOT settledPersonIds, so a
-    // claimed guest leaves stale person ids that match neither party.
+    // this function exists to prevent. This is reachable: bills claimed by
+    // claimShadowUser before 2026-10-09 carry a bare uid in settledPersonIds
+    // next to `user-<uid>` in people, and a guest's own settlement record keeps
+    // fromUserId = the deleted shadow uid, so neither party matches.
     // (An orphaned record whose bills were all deleted still gets cleaned up.)
     const anyBillStillExists = billSnaps.some((snap) => snap.exists);
     if (reversedThisAttempt === 0 && anyBillStillExists) {
