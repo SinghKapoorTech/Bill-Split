@@ -52,6 +52,30 @@
 4. **Only scans + active groups are gated.** Recurring bills, Airbnb mode, Squads, export stay free. (Spec §4.3 lists them as Pro — that is deferred, not rejected.)
 5. Prices per spec unless you change them in the stores: **$4.99/mo, $34.99/yr.** Product ids are fixed by code and must match the stores **exactly**: `divit_pro_monthly`, `divit_pro_annual` (`shared/revenueCatEvents.ts` `PRODUCT_PLANS`).
 
+### Decision 2026-10-10 (owner) — paywall model: freemium + opt-in annual trial ("option C")
+
+Chosen after the pricing research (`reports/Bill splitting app pricing model.md`) and a
+hard-paywall vs reverse-trial vs first-event-free comparison.
+
+- **Organizers start on the free tier.** Manual splits are never gated; AI scans and owned
+  active events are capped (caps per decision 1 until changed).
+- **One dismissible full-screen Pro offer on day 0, right after the first completed split.**
+  It leads with the **annual plan + a 14-day store free trial** (opt-in, card captured by the
+  store, auto-renews unless cancelled) shown as a "we'll remind you before you're charged"
+  timeline. No trial on/off toggle (Apple rejects those since Jan 2026). After that, paywalls
+  appear only in context (scan cap, event cap).
+- **Rejected: hard paywall** (free incumbents one tap away, Splitwise-style backlash, episodic
+  use → trial-and-cancel, invitee→organizer loop starts at a payment screen). **Rejected: reverse
+  trial** (no mobile evidence; a 14-day clock can expire between trips).
+- **Invariant: invitees are never paywalled, and opening/settling an EXISTING bill or event is
+  free forever regardless of the creator's plan, trial or lapse.** Gates apply only to creating
+  new events and to AI scans.
+- **Open, not yet decided:** raising free scans 2 → 5 (or A/B 3 vs 5), counting only owned
+  unsettled events toward the cap, Trip Pass, lifetime. A `paywall_mode` Remote Config flag to
+  A/B hard vs C later is optional.
+- **Store setup implication (Phase A):** the 14-day introductory free trial is configured on
+  `divit_pro_annual` only (App Store Connect introductory offer; Play base-plan free-trial offer).
+
 ### Model assignment policy
 
 | Model      | Use for                                                                                                                                                                                         |
