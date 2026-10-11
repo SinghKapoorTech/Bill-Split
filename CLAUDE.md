@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commit Rules
 
 - **Never** include a `Co-Authored-By` line in commit messages.
+- **One small, focused change per CR.** Work one task at a time; split anything larger into sub-steps first. Each commit/push covers exactly one thing — no bundled unrelated edits or drive-by refactors.
 
 ## Production Readiness Gate (MANDATORY before handing work back)
 
