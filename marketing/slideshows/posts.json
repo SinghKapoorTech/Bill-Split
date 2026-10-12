@@ -1,0 +1,63 @@
+[
+  {
+    "slug": "01-guess-the-split",
+    "type": "Type 3: Guess the split (quiz)",
+    "theme": "cream",
+    "exampleBill": true,
+    "caption": "Be honest, what did you guess? 👇 Example bill.\nDownload Divit free — link in bio 📲\n#splitthebill #dinnerwithfriends #fairsplit #moneytok",
+    "slides": [
+      { "kind": "hook", "kicker": "4 friends · $229.40 bill", "text": "Guess what the **salad person** owes", "emoji": "🥗👇" },
+      { "kind": "receipt", "title": "Here's the receipt" },
+      { "kind": "statement", "text": "Even split says **$57.35** each.", "stamp": "WRONG" },
+      { "kind": "statement", "text": "Tax and tip should follow **what you ordered.**", "sub": "The $14 salad is 7.9% of the food, so it pays 7.9% of tax & tip." },
+      { "kind": "split", "title": "The fair split", "sub": "split by Divit" },
+      { "kind": "cta", "line": "Divit does this from one photo of the receipt." }
+    ]
+  },
+  {
+    "slug": "02-unwritten-rules",
+    "type": "Type 5: Unwritten rules of splitting the bill (listicle)",
+    "theme": "night",
+    "exampleBill": false,
+    "caption": "Which rule does your group break? 😅\nDownload Divit free — link in bio 📲\n#splitthebill #friendgroup #dinnerrules #fairsplit",
+    "slides": [
+      { "kind": "hook", "kicker": "nobody says these out loud", "text": "Unwritten rules of **splitting the bill**", "emoji": "🧾" },
+      { "kind": "rule", "n": 1, "text": "Whoever orders the bottle doesn't get to say **\"split evenly.\"**" },
+      { "kind": "rule", "n": 2, "text": "Tax and tip get split by **what you ordered**, not by headcount." },
+      { "kind": "rule", "n": 3, "text": "Whoever fronted it gets paid back **before the Uber arrives.**" },
+      { "kind": "rule", "n": 4, "text": "Nobody argues with an **itemized request.**" },
+      { "kind": "rule", "n": 5, "text": "Your friend without the app **still has to pay.**", "sub": "(they can pay from a link)" },
+      { "kind": "cta", "line": "Divit follows rules 2–5 for you." }
+    ]
+  },
+  {
+    "slug": "03-friend-types",
+    "type": "Type 4: Types of friends when the check comes (relatable)",
+    "theme": "pop",
+    "exampleBill": false,
+    "caption": "Tag the friend who's #2 👀\nDownload Divit free — link in bio 📲\n#friendgroup #splitthebill #relatable #dinnerwithfriends",
+    "slides": [
+      { "kind": "hook", "kicker": "be honest", "text": "Types of friends **when the check comes**", "emoji": "🍽️" },
+      { "kind": "archetype", "n": 1, "text": "The \"I'll Venmo you tonight\"", "sub": "it's been 3 weeks", "emoji": "📱" },
+      { "kind": "archetype", "n": 2, "text": "The \"let's just split it evenly\"", "sub": "ordered 3 cocktails", "emoji": "🍸" },
+      { "kind": "archetype", "n": 3, "text": "The calculator friend", "sub": "it's been 11 minutes", "emoji": "🧮" },
+      { "kind": "archetype", "n": 4, "text": "The one who \"forgot their wallet\"", "sub": "again", "emoji": "👛" },
+      { "kind": "archetype", "n": 5, "text": "The one who fronts the bill", "sub": "and quietly suffers", "emoji": "😮‍💨" },
+      { "kind": "cta", "line": "Be the friend with Divit. Snap, tap, everyone's paid." }
+    ]
+  },
+  {
+    "slug": "04-hot-take-even-split",
+    "type": "Type 10: Hot take (debate)",
+    "theme": "hot",
+    "exampleBill": true,
+    "caption": "Agree or disagree? 👇 Example bill.\nDownload Divit free — link in bio 📲\n#hottake #splitthebill #unpopularopinion #friendgroup",
+    "slides": [
+      { "kind": "hook", "kicker": "hot take", "text": "Splitting the bill evenly is the **most unfair thing** friends do.", "emoji": "🔥" },
+      { "kind": "versus", "left": { "label": "One friend", "item": "$14 salad", "emoji": "🥗" }, "right": { "label": "Another friend", "item": "$68 wagyu + a cocktail", "emoji": "🥩" } },
+      { "kind": "statement", "text": "Even split? **Both pay $57.35.**" },
+      { "kind": "statement", "text": "Fair split: **$18.04** vs **$108.26.**", "sub": "The salad friend was covering $39.31 of someone else's dinner." },
+      { "kind": "cta", "line": "Settle it fairly." }
+    ]
+  }
+]
