@@ -563,6 +563,32 @@ Video end cards follow the same rule: one line matching the ad's angle, the badg
 - [ ] There's exactly one hard download CTA (last slide or final 2–3 s), it points to the tagged smart link, and the badges are official and unaltered.
 - [ ] The app screens match the current build: same prices, same "Split by Night" screen, no stale UI.
 
+### Learnings from the first Remotion ad (Oct 11, 2026)
+
+The first video, a motion-graphics cut of "The salad tax" (Type 2 / Script 1), was built with Claude Code and Remotion in `marketing/salad-tax/`. It went through five versions in one session, driven by the owner's feedback. The final cut is 18.5 s, 1080×1920, and every numbered lesson below came from a version that didn't work.
+
+**Final structure (keep as the template for other angles).**
+
+| Scene | Narration | On screen |
+| --- | --- | --- |
+| Hook (~6 s) | "You ordered a fourteen dollar salad, you split the bill evenly, and somehow you paid fifty-seven thirty-five." | "You ordered a $14 salad. You 'split evenly.' You paid $57.35." (red, shakes) |
+| Receipt (~3.5 s) | "But your friends got the wagyu and three cocktails, and you just had the salad." | Receipt prints; wagyu and cocktails circled red, salad green, each on the spoken word |
+| Reveal (~2.7 s) | "So what did you actually owe? Just eighteen oh four." | $57.35 struck through, counter rolls to **$18.04** as it is said |
+| Split (~3.3 s) | "That's because Divit splits the tax and tip by what each person ordered." | Bars for all four people; "Not by headcount" as text only |
+| End card (~3 s) | "So stop paying the salad tax, and download Divit." | Icon, "Stop paying the salad tax", "Download free · iOS & Android", "Link in bio" |
+
+**What we learned.**
+
+1. **Narrate it.** The silent text-only version felt incomplete. A voice reading the on-screen lines makes it feel like an ad rather than a slideshow, and it sets the pacing for you.
+2. **Write in second person ("you ordered"), not first person ("I ordered").** The owner preferred it as copy, and it solves compliance too: second-person product facts can be read by an AI voice with no presenter label, while "I ordered…" in an AI voice is a fake testimonial (see the AI rules above). First person is only for the owner's own voice.
+3. **Aim for about 15–20 s and keep it moving.** 16.5 s with no voice felt rushed (about 3 s per scene, too short to read the receipt). 25 s with a slow voice felt long and slow. 16–18.5 s with a brisk voice (about 20–25% above normal speed) felt right. The only hard rule is still the hook in the first ~3 s.
+4. **Narrate in flowing sentences, not clipped phrases.** Short separate clips ("Wagyu. Three cocktails. Your salad.") sounded robotic, and text-to-speech engines insert odd pauses mid-line ("Divit splits tax… and tip"). One sentence per scene, with connecting words (*and somehow*, *but*, *so*, *just*, *that's because*), fixed both. Rewording alone did not remove the mid-line pause; generating the whole scene in one sentence did.
+5. **Sync visuals to word timestamps, not guesses.** Generate the voice first, take the per-word timings from the TTS engine, and key each animation to a word: circles on "wagyu" and "the salad", the counter landing on "eighteen oh four". Scene lengths then follow the narration plus a short hold.
+6. **Pick a conversational voice.** The standard Microsoft neural voice ("Brian") sounded flat; the newer "Andrew Multilingual" voice was clearly more natural. Both are free placeholders via `edge-tts`. For posted ads, ElevenLabs ($6/mo, commercial licence, in the tool stack above) is the upgrade.
+7. **Check the layout at render size.** Big type wraps unexpectedly at 1080 px wide ("You paid / $57.35"). Render stills of each scene before the full video, and keep key phrases on one line.
+
+**How to make the next one.** Copy `marketing/salad-tax/`, change the copy and bill numbers in `src/SaladTax.tsx`, edit the lines in `gen-voice.py` and run it (it writes one MP3 per scene and prints word timings), set each scene's cue frames from those timings, then `npm run render`. Still open before posting: add a Commercial Music Library track in TikTok, swap the placeholder voice for a licensed one, and add the official store badges to the end card.
+
 ## Open risks and unknowns
 
 The biggest unknown is whether any of this works for a **freemium, invite-driven** app. Every slideshow success story is self-reported, comes from hard-paywall apps, and has unknown survivorship bias. No bill-splitting or fintech slideshow case study exists. Whether Divit lands in Meta's financial ad category, and whether TikTok treats it as financial (licensing, 18+ targeting), is unconfirmed. So is whether showing Venmo screens counts as nominative fair use. Both need either a cautious default (category on, no Venmo visuals) or counsel. Apple's iOS 27 split could erode the single-dinner pitch faster than expected. The New York law's reach over out-of-state advertisers, the exact start date of TikTok's AI-ad disclosure rule, and Meta's June 2026 auto-labelling date all rest on law-firm and vendor blogs. Several tool facts are unverified: whether Blotato posts true photo-mode carousels, whether Photo Mode posts can run as Spark ads inside Smart+, the Sora 2 shutdown, CapCut's current terms, and the $30–60 micro-creator price. Measurement is unresearched. The research did not cover attribution, the iOS app-tracking limits or SKAN, and paid optimization is blind without app events. Store availability and in-app purchases must also be live before paid traffic arrives. Finally, Divit's real trial-to-paid rate for a 14-day annual trial, and its invitee-to-organizer conversion, are unknown. They set the true cost-per-trial ceiling. MiroFish-style simulated audiences remain unvalidated.
