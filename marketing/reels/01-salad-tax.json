@@ -1,0 +1,253 @@
+{
+  "title": "Divit: the salad tax",
+  "aspect": "9:16",
+  "safe": "tiktok",
+  "theme": "light",
+  "accent": "#a88124",
+  "fonts": [
+    {
+      "name": "Outfit",
+      "file": "media/Outfit-Variable.ttf",
+      "license": "OFL-1.1",
+      "weights": [
+        100,
+        900
+      ]
+    }
+  ],
+  "themeOverrides": {
+    "colors": {
+      "ground": "#faf7f1",
+      "text": "#2a2119",
+      "textMuted": "#5e5246",
+      "positive": "#2a8454",
+      "negative": "#d2423a"
+    },
+    "ground": {
+      "style": "solid"
+    },
+    "fonts": {
+      "display": "Outfit",
+      "body": "Outfit"
+    },
+    "type": {
+      "numeral": {
+        "9:16": {
+          "tracking": -0.015
+        }
+      }
+    },
+    "motion": {
+      "exit": {
+        "minMs": 20,
+        "maxMs": 20
+      },
+      "text.out": {
+        "ms": 20,
+        "staggerMs": 0
+      }
+    }
+  },
+  "captionStyle": "off",
+  "voice": "am_michael",
+  "voiceSpeed": 1.3,
+  "pronounce": {
+    "Divit": "Div it",
+    "wagyu": "wahg you"
+  },
+  "overlays": [
+    {
+      "text": "Example bill",
+      "corner": "top-left",
+      "scenes": [
+        "hook",
+        "receipt",
+        "reveal",
+        "split"
+      ]
+    }
+  ],
+  "scenes": [
+    {
+      "id": "hook",
+      "component": "Headline",
+      "props": {
+        "lines": [
+          {
+            "text": "A $14 salad.",
+            "at": 0
+          },
+          {
+            "text": "Split evenly.",
+            "at": {
+              "word": "Split",
+              "offsetMs": -150
+            }
+          },
+          {
+            "text": "You paid $57.35.",
+            "at": {
+              "word": "You",
+              "offsetMs": -300
+            }
+          }
+        ],
+        "motion": "words",
+        "emphasis": 2
+      },
+      "narration": "A fourteen dollar salad, split evenly. You paid fifty-seven thirty-five.",
+      "transition": {
+        "type": "whipPan",
+        "direction": "left",
+        "durationMs": 700
+      }
+    },
+    {
+      "id": "receipt",
+      "component": "Receipt",
+      "props": {
+        "items": [
+          {
+            "label": "Wagyu",
+            "amount": 68
+          },
+          {
+            "label": "Cocktails",
+            "amount": 48
+          },
+          {
+            "label": "Pasta",
+            "amount": 26
+          },
+          {
+            "label": "Burger",
+            "amount": 22
+          },
+          {
+            "label": "Salad",
+            "amount": 14,
+            "note": "yours"
+          }
+        ],
+        "summary": [
+          {
+            "label": "Tax",
+            "amount": 15.8
+          },
+          {
+            "label": "Tip",
+            "amount": 35.6
+          }
+        ],
+        "total": {
+          "amount": 229.4
+        },
+        "highlight": 4,
+        "tilt": -1
+      },
+      "narration": "Your friends got the wagyu and three cocktails. You had the salad. So what did you owe?",
+      "transition": {
+        "type": "zoomBlur",
+        "durationMs": 900
+      }
+    },
+    {
+      "id": "reveal",
+      "component": "BigNumber",
+      "props": {
+        "value": 18.04,
+        "from": 57.35,
+        "decimals": 2,
+        "prefix": "$",
+        "fromStyle": "strike",
+        "color": "positive",
+        "at": {
+          "word": "eighteen",
+          "offsetMs": -100
+        },
+        "label": "fair share"
+      },
+      "narration": "Just eighteen oh four.",
+      "transition": {
+        "type": "slide",
+        "direction": "left",
+        "durationMs": 1000
+      },
+      "durationMs": 2800
+    },
+    {
+      "id": "split",
+      "component": "SceneFrame",
+      "props": {
+        "headline": "What each person really owes",
+        "content": {
+          "component": "BarChart",
+          "props": {
+            "orientation": "horizontal",
+            "data": [
+              {
+                "label": "You",
+                "value": 18.04,
+                "emphasis": true
+              },
+              {
+                "label": "Sam",
+                "value": 48.97
+              },
+              {
+                "label": "Priya",
+                "value": 54.13
+              },
+              {
+                "label": "Marco",
+                "value": 108.26
+              }
+            ],
+            "prefix": "$",
+            "decimals": 2
+          }
+        }
+      },
+      "narration": "That's because Divit splits the tax and tip by what each person ordered.",
+      "transition": {
+        "type": "iris",
+        "durationMs": 600,
+        "origin": {
+          "x": 0.5,
+          "y": 0.6
+        }
+      },
+      "durationMs": 4800
+    },
+    {
+      "id": "end",
+      "component": "EndCard",
+      "props": {
+        "name": "Divit",
+        "logo": "media/divit-icon.png",
+        "line": "Stop paying the salad tax",
+        "cta": {
+          "label": "Download free · iOS & Android",
+          "note": "Link in bio"
+        }
+      },
+      "narration": "So stop paying the salad tax. Download Divit, free on iOS and Android.",
+      "durationMs": 5300,
+      "transition": {
+        "type": "wipe",
+        "direction": "up",
+        "durationMs": 400
+      }
+    },
+    {
+      "id": "hold",
+      "component": "Image",
+      "props": {
+        "src": "media/01-endcard-hold.png",
+        "fit": "cover",
+        "alt": "Divit end card: Stop paying the salad tax. Download free on iOS and Android. Link in bio."
+      },
+      "durationMs": 500
+    }
+  ]
+}

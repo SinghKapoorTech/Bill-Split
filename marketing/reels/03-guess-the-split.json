@@ -1,0 +1,252 @@
+{
+  "title": "Divit: guess the split",
+  "aspect": "9:16",
+  "safe": "tiktok",
+  "theme": "light",
+  "accent": "#a88124",
+  "fonts": [
+    {
+      "name": "Outfit",
+      "file": "media/Outfit-Variable.ttf",
+      "license": "OFL-1.1",
+      "weights": [
+        100,
+        900
+      ]
+    }
+  ],
+  "themeOverrides": {
+    "colors": {
+      "ground": "#faf7f1",
+      "text": "#2a2119",
+      "textMuted": "#5e5246",
+      "positive": "#2a8454",
+      "negative": "#d2423a"
+    },
+    "ground": {
+      "style": "solid"
+    },
+    "fonts": {
+      "display": "Outfit",
+      "body": "Outfit"
+    },
+    "type": {
+      "numeral": {
+        "9:16": {
+          "tracking": -0.015
+        }
+      }
+    },
+    "motion": {
+      "exit": {
+        "minMs": 20,
+        "maxMs": 20
+      },
+      "text.out": {
+        "ms": 20,
+        "staggerMs": 0
+      }
+    }
+  },
+  "captionStyle": "off",
+  "voice": "am_michael",
+  "voiceSpeed": 1.3,
+  "pronounce": {
+    "Divit": "Div it",
+    "wagyu": "wahg you"
+  },
+  "overlays": [
+    {
+      "text": "Example bill",
+      "corner": "top-left",
+      "scenes": [
+        "hook",
+        "receipt",
+        "even",
+        "reveal"
+      ]
+    }
+  ],
+  "scenes": [
+    {
+      "id": "hook",
+      "component": "Headline",
+      "props": {
+        "lines": [
+          {
+            "text": "4 friends.",
+            "at": 0
+          },
+          {
+            "text": "$229.40 bill.",
+            "at": {
+              "word": "a",
+              "offsetMs": -150
+            }
+          },
+          {
+            "text": "One had a salad.",
+            "at": {
+              "word": "one",
+              "offsetMs": -600
+            }
+          },
+          {
+            "text": "Salad's fair share?",
+            "at": {
+              "word": "what",
+              "offsetMs": -600
+            }
+          }
+        ],
+        "motion": "words",
+        "emphasis": 3
+      },
+      "narration": "Four friends, a two twenty-nine bill, and one salad, so what does the salad friend owe?",
+      "transition": {
+        "type": "whipPan",
+        "direction": "left",
+        "durationMs": 900
+      }
+    },
+    {
+      "id": "receipt",
+      "component": "Receipt",
+      "props": {
+        "items": [
+          {
+            "label": "Wagyu",
+            "amount": 68
+          },
+          {
+            "label": "Cocktails",
+            "amount": 48
+          },
+          {
+            "label": "Pasta",
+            "amount": 26
+          },
+          {
+            "label": "Burger",
+            "amount": 22
+          },
+          {
+            "label": "Salad",
+            "amount": 14
+          }
+        ],
+        "summary": [
+          {
+            "label": "Tax",
+            "amount": 15.8
+          },
+          {
+            "label": "Tip",
+            "amount": 35.6
+          }
+        ],
+        "total": {
+          "amount": 229.4
+        },
+        "highlight": 4,
+        "tilt": -1,
+        "title": "Your guess?"
+      },
+      "narration": "Here's the bill, so lock in your guess before the big reveal.",
+      "transition": {
+        "type": "slide",
+        "direction": "left",
+        "durationMs": 800
+      },
+      "durationMs": 6000
+    },
+    {
+      "id": "even",
+      "component": "BigNumber",
+      "props": {
+        "value": 57.35,
+        "decimals": 2,
+        "prefix": "$",
+        "color": "negative",
+        "label": "Even split? Wrong.",
+        "shareId": "even"
+      },
+      "narration": "Split evenly, it's fifty-seven thirty-five, but that's wrong.",
+      "effects": [
+        {
+          "target": "even",
+          "kind": "shake",
+          "at": {
+            "word": "wrong",
+            "offsetMs": -100
+          }
+        },
+        {
+          "target": "even",
+          "kind": "ring",
+          "color": "negative",
+          "at": {
+            "word": "wrong",
+            "offsetMs": -100
+          }
+        }
+      ],
+      "transition": {
+        "type": "slide",
+        "direction": "left",
+        "durationMs": 600
+      }
+    },
+    {
+      "id": "reveal",
+      "component": "BigNumber",
+      "props": {
+        "value": 18.04,
+        "from": 57.35,
+        "decimals": 2,
+        "prefix": "$",
+        "fromStyle": "strike",
+        "color": "positive",
+        "at": 150,
+        "label": "salad's fair share"
+      },
+      "narration": "The salad's share is just eighteen oh four.",
+      "transition": {
+        "type": "slide",
+        "direction": "left",
+        "durationMs": 800
+      },
+      "durationMs": 3050
+    },
+    {
+      "id": "end",
+      "component": "EndCard",
+      "props": {
+        "name": "Divit",
+        "logo": "media/divit-icon.png",
+        "line": "Split by what you ordered",
+        "cta": {
+          "label": "Download free · iOS & Android",
+          "note": "Link in bio"
+        }
+      },
+      "narration": "Divit splits tax and tip by what you ordered. Download it free on iOS and Android.",
+      "transition": {
+        "type": "wipe",
+        "direction": "up",
+        "durationMs": 400
+      },
+      "durationMs": 5300
+    },
+    {
+      "id": "hold",
+      "component": "Image",
+      "props": {
+        "src": "media/03-endcard-hold.png",
+        "fit": "cover",
+        "alt": "Divit end card: Split by what you ordered. Download free on iOS and Android. Link in bio."
+      },
+      "durationMs": 500
+    }
+  ]
+}

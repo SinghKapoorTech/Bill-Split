@@ -1,0 +1,234 @@
+{
+  "title": "Divit: even split vs. fair split",
+  "aspect": "9:16",
+  "safe": "tiktok",
+  "theme": "light",
+  "accent": "#a88124",
+  "fonts": [
+    {
+      "name": "Outfit",
+      "file": "media/Outfit-Variable.ttf",
+      "license": "OFL-1.1",
+      "weights": [
+        100,
+        900
+      ]
+    }
+  ],
+  "themeOverrides": {
+    "colors": {
+      "ground": "#faf7f1",
+      "text": "#2a2119",
+      "textMuted": "#5e5246",
+      "positive": "#2a8454",
+      "negative": "#d2423a"
+    },
+    "ground": {
+      "style": "solid"
+    },
+    "fonts": {
+      "display": "Outfit",
+      "body": "Outfit"
+    },
+    "type": {
+      "numeral": {
+        "9:16": {
+          "tracking": -0.015
+        }
+      }
+    },
+    "motion": {
+      "exit": {
+        "minMs": 20,
+        "maxMs": 20
+      },
+      "text.out": {
+        "ms": 20,
+        "staggerMs": 0
+      }
+    }
+  },
+  "captionStyle": "off",
+  "voice": "am_michael",
+  "voiceSpeed": 1.3,
+  "pronounce": {
+    "Divit": "Div it",
+    "wagyu": "wahg you"
+  },
+  "overlays": [
+    {
+      "text": "Example bill",
+      "corner": "top-left",
+      "scenes": [
+        "hook",
+        "compare",
+        "overpaid"
+      ]
+    }
+  ],
+  "scenes": [
+    {
+      "id": "hook",
+      "component": "Headline",
+      "props": {
+        "lines": [
+          {
+            "text": "Even split:",
+            "at": 0
+          },
+          {
+            "text": "$57.35 each.",
+            "at": {
+              "word": "everyone",
+              "offsetMs": -150
+            }
+          },
+          {
+            "text": "Not fair.",
+            "at": {
+              "word": "isn't",
+              "offsetMs": -150
+            }
+          }
+        ],
+        "motion": "words",
+        "emphasis": 2
+      },
+      "narration": "Split the bill evenly and everyone pays fifty-seven thirty-five, but that isn't fair.",
+      "transition": {
+        "type": "wipe",
+        "direction": "up",
+        "durationMs": 500
+      }
+    },
+    {
+      "id": "compare",
+      "component": "SceneFrame",
+      "props": {
+        "headline": "Who pays what",
+        "content": {
+          "component": "BeforeAfter",
+          "props": {
+            "before": {
+              "component": "BarChart",
+              "props": {
+                "orientation": "horizontal",
+                "data": [
+                  {
+                    "label": "You",
+                    "value": 57.35,
+                    "emphasis": true
+                  },
+                  {
+                    "label": "Sam",
+                    "value": 57.35
+                  },
+                  {
+                    "label": "Priya",
+                    "value": 57.35
+                  },
+                  {
+                    "label": "Marco",
+                    "value": 57.35
+                  }
+                ],
+                "prefix": "$",
+                "decimals": 2,
+                "max": 126.27,
+                "variant": "progress"
+              }
+            },
+            "after": {
+              "component": "BarChart",
+              "props": {
+                "orientation": "horizontal",
+                "data": [
+                  {
+                    "label": "You",
+                    "value": 18.04,
+                    "emphasis": true
+                  },
+                  {
+                    "label": "Sam",
+                    "value": 48.97
+                  },
+                  {
+                    "label": "Priya",
+                    "value": 54.13
+                  },
+                  {
+                    "label": "Marco",
+                    "value": 108.26
+                  }
+                ],
+                "prefix": "$",
+                "decimals": 2,
+                "max": 120,
+                "variant": "progress"
+              }
+            },
+            "beforeLabel": "Even split",
+            "afterLabel": "Fair split"
+          }
+        }
+      },
+      "narration": "Split it by what each person ordered, and you owe just eighteen oh four, while Marco owes a hundred and eight.",
+      "transition": {
+        "type": "slide",
+        "direction": "left",
+        "durationMs": 700
+      },
+      "durationMs": 7300
+    },
+    {
+      "id": "overpaid",
+      "component": "BigNumber",
+      "props": {
+        "value": 39.31,
+        "decimals": 2,
+        "prefix": "$",
+        "color": "negative",
+        "label": "you overpaid"
+      },
+      "narration": "So the even split cost you thirty-nine thirty-one.",
+      "transition": {
+        "type": "iris",
+        "durationMs": 600,
+        "origin": {
+          "x": 0.5,
+          "y": 0.5
+        }
+      }
+    },
+    {
+      "id": "end",
+      "component": "EndCard",
+      "props": {
+        "name": "Divit",
+        "logo": "media/divit-icon.png",
+        "line": "Split by what you ordered",
+        "cta": {
+          "label": "Download free · iOS & Android",
+          "note": "Link in bio"
+        }
+      },
+      "narration": "Divit does that math for you, tax and tip included, so download it free.",
+      "durationMs": 5300,
+      "transition": {
+        "type": "wipe",
+        "direction": "up",
+        "durationMs": 400
+      }
+    },
+    {
+      "id": "hold",
+      "component": "Image",
+      "props": {
+        "src": "media/04-endcard-hold.png",
+        "fit": "cover",
+        "alt": "Divit end card: Split by what you ordered. Download free on iOS and Android. Link in bio."
+      },
+      "durationMs": 500
+    }
+  ]
+}
