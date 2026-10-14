@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyRound, Loader2 } from 'lucide-react';
+import { ChevronDown, KeyRound, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,9 @@ import { describePasswordAuthError, isSilentAuthCancellation } from '@/utils/aut
  * gives them one WITHOUT creating a second account — which matters because the
  * ledger is keyed on uid, and a duplicate identity would strand their real
  * balances on the account they can no longer reach.
+ *
+ * COMPACT BY DEFAULT (owner, 2026-10-13: the Profile tab was too long). It is
+ * one row — how you sign in — and the add-password form opens only when asked.
  */
 export const SignInMethodsCard = () => {
   const { user } = useAuth();
@@ -39,6 +42,7 @@ export const SignInMethodsCard = () => {
   const [password, setPassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
 
   // Only asked for when reauthentication cannot be done through a provider
   // sheet — an Apple or Google user re-proves themselves that way instead.
@@ -55,6 +59,7 @@ export const SignInMethodsCard = () => {
       await linkPassword(email.trim(), password, currentPassword || undefined);
       setPassword('');
       setCurrentPassword('');
+      setFormOpen(false);
       toast({
         title: 'Password added',
         description: `You can now sign in at divit-bill.com with ${email.trim()}. Check your inbox to verify the address.`,
@@ -75,28 +80,39 @@ export const SignInMethodsCard = () => {
     }
   };
 
+  const methods =
+    providerIds.length > 0 ? providerIds.map(describeProvider).join(' and ') : 'None found';
+
   return (
     <Card className="p-4">
-      <div className="flex items-start gap-3">
-        <KeyRound className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
+      <div className="flex items-center gap-3">
+        <KeyRound className="w-5 h-5 text-muted-foreground shrink-0" />
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-foreground">Sign-in methods</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            {providerIds.length > 0
-              ? `You sign in with ${providerIds.map(describeProvider).join(' and ')}.`
-              : 'No sign-in methods found for this account.'}
-          </p>
+          <p className="text-sm text-muted-foreground truncate">{methods}</p>
         </div>
+        {!alreadyHasPassword && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => setFormOpen((open) => !open)}
+            aria-expanded={formOpen}
+            aria-controls="add-password-form"
+          >
+            Add password
+            <ChevronDown
+              className={`w-4 h-4 ml-1 transition-transform ${formOpen ? 'rotate-180' : ''}`}
+            />
+          </Button>
+        )}
       </div>
 
-      {alreadyHasPassword ? (
-        <p className="text-sm text-muted-foreground mt-3">
-          You can sign in with your email and password on any device.
-        </p>
-      ) : (
-        <form onSubmit={submit} className="mt-4 space-y-3">
+      {!alreadyHasPassword && formOpen && (
+        <form id="add-password-form" onSubmit={submit} className="mt-4 space-y-3">
           <p className="text-sm text-muted-foreground">
-            Add a password so you can sign in from a web browser, where Sign in with Apple is not
+            Add a password to sign in from a web browser, where Sign in with Apple isn't
             available.
           </p>
 

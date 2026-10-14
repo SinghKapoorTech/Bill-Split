@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Loader2, Trash2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -109,27 +109,27 @@ export const DeleteAccountCard = () => {
 
   return (
     <>
-      <Card className="p-4 border-destructive/40">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+      {/* A quiet row, not a red card (owner, 2026-10-13: it took too much
+          space). Guideline 5.1.1(v) needs deletion to be easy to FIND, which a
+          labelled control at the bottom of Profile is; the two confirmation
+          steps below are unchanged. */}
+      <Card className="p-4">
+        <div className="flex items-center gap-3">
+          <Trash2 className="w-5 h-5 text-destructive shrink-0" />
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-foreground">Delete account</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Permanently removes your Divit account and personal information. This cannot be
-              undone.
-            </p>
+            <p className="text-sm text-muted-foreground">This can't be undone</p>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setConfirmOpen(true)}
+            disabled={deleting}
+          >
+            Delete
+          </Button>
         </div>
-
-        <Button
-          variant="destructive"
-          className="w-full mt-4"
-          onClick={() => setConfirmOpen(true)}
-          disabled={deleting}
-        >
-          <Trash2 className="w-4 h-4 mr-2" />
-          Delete my account
-        </Button>
       </Card>
 
       {/* Step 1 — what actually happens, stated without euphemism. */}
