@@ -144,15 +144,18 @@ export function scanDisclosure(args: {
   // copy stated only as a negative.
   //
   // The noun agrees with REMAINING, not with the limit: at a limit of 2 a user
-  // spends a third of the month at exactly one left, and "1 free AI scans left"
+  // spends a third of the month at exactly one left, and "1 free scans left"
   // would be on screen for all of it. Zero takes the plural, as English does.
   // CLAMPED FOR DISPLAY, while the band test below stays `<= 0`. `remaining`
   // also arrives from a cap-error payload that has crossed a process boundary,
   // and now that every band interpolates it rather than the limit, an
-  // unclamped negative would render "-1 free AI scans left this month".
+  // unclamped negative would render "-1 free scans left".
   const shown = Math.max(0, safeRemaining);
   const noun = shown === 1 ? 'scan' : 'scans';
-  const text = withReset(`${shown} free AI ${noun} left this month`, reset);
+  // Owner, 2026-10-13: "just the amount of free scans and when it resets".
+  // "AI" and "this month" were dropped — the box sits on the AI Scan tab, and
+  // the reset date already says when the allowance renews.
+  const text = withReset(`${shown} free ${noun} left`, reset);
 
   // `<= 0`, not `=== 0`: `remaining` also arrives from a cap-error payload that
   // has crossed a process boundary, and a negative must read as the wall rather

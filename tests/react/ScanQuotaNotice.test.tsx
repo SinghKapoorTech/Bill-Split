@@ -5,24 +5,25 @@
  * and will leave, and the owner wanted a permanent answer to "how many do I
  * have left". The muting contract is unchanged and is what these tests pin.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ScanQuotaNotice } from '@/components/monetization/ScanQuotaNotice';
 
 describe('ScanQuotaNotice', () => {
   it('states the count while scans remain', () => {
-    render(<ScanQuotaNotice level="ambient" text="2 free AI scans left this month · resets Oct 1" />);
+    render(<ScanQuotaNotice level="ambient" text="2 free scans left · resets Oct 1" />);
     expect(
-      screen.getByText('2 free AI scans left this month · resets Oct 1'),
+      screen.getByText('2 free scans left · resets Oct 1'),
     ).toBeInTheDocument();
   });
 
   it('keeps stating it at zero, rather than disappearing behind the modal', () => {
     // The modal only fires on a tap. If this line vanished at zero the tab
     // would show no explanation at all until the user tried something.
-    render(<ScanQuotaNotice level="wall" text="0 free AI scans left this month · resets Oct 1" />);
+    render(<ScanQuotaNotice level="wall" text="0 free scans left · resets Oct 1" />);
     expect(
-      screen.getByText('0 free AI scans left this month · resets Oct 1'),
+      screen.getByText('0 free scans left · resets Oct 1'),
     ).toBeInTheDocument();
   });
 
@@ -42,12 +43,12 @@ describe('ScanQuotaNotice', () => {
     // earned alarm — colouring "1 left" as a warning turns an allowance the
     // user is spending normally into an error state.
     const { container: atZero } = render(
-      <ScanQuotaNotice level="wall" text="0 free AI scans left this month" />,
+      <ScanQuotaNotice level="wall" text="0 free scans left" />,
     );
     expect(atZero.firstElementChild).toHaveClass('text-destructive');
 
     const { container: lastOne } = render(
-      <ScanQuotaNotice level="last" text="1 free AI scan left this month" />,
+      <ScanQuotaNotice level="last" text="1 free scan left" />,
     );
     expect(lastOne.firstElementChild).toHaveClass('text-muted-foreground');
     expect(lastOne.firstElementChild).not.toHaveClass('text-destructive');
@@ -58,5 +59,26 @@ describe('ScanQuotaNotice', () => {
     // spec's vocabulary and this component switches on it.
     const { container } = render(<ScanQuotaNotice level="silent" text="anything" />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('ScanQuotaNotice — upgrade button at zero', () => {
+  it('offers the upgrade at zero and calls the handler', async () => {
+    const onSeePro = vi.fn();
+    render(<ScanQuotaNotice level="wall" text="0 free scans left · resets Nov 1" onSeePro={onSeePro} />);
+    await userEvent.click(screen.getByRole('button', { name: /pro/i }));
+    expect(onSeePro).toHaveBeenCalledTimes(1);
+  });
+
+  it('never offers it while scans remain — the line stays factual', () => {
+    render(<ScanQuotaNotice level="last" text="1 free scan left" onSeePro={() => {}} />);
+    expect(screen.getByText('1 free scan left')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('renders no button at zero when no upgrade path was wired', () => {
+    render(<ScanQuotaNotice level="wall" text="0 free scans left" />);
+    expect(screen.getByText('0 free scans left')).toBeInTheDocument();
+    expect(screen.queryByRole('button')).toBeNull();
   });
 });

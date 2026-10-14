@@ -109,28 +109,28 @@ describe('scanDisclosure — the reset date travels with the count', () => {
   // string, at a limit that is NOT the launch default.
   it('states the count at the wall, not a hardcoded one', () => {
     expect(scanDisclosure({ ...base, remaining: 0, limit: 5 }).text).toBe(
-      '0 free AI scans left this month · resets Oct 1',
+      '0 free scans left · resets Oct 1',
     );
   });
 
   it('states the count in the ambient band', () => {
     expect(scanDisclosure({ ...base, remaining: 4, limit: 5 }).text).toBe(
-      '4 free AI scans left this month · resets Oct 1',
+      '4 free scans left · resets Oct 1',
     );
   });
 
   // The noun now agrees with REMAINING, not with the limit: the line is read
-  // every time the user opens the AI scan tab, so "1 free AI scans left" would
+  // every time the user opens the AI scan tab, so "1 free scans left" would
   // be on screen for a third of every free user's month.
   it('says "scan", not "scans", at exactly one remaining', () => {
     expect(scanDisclosure({ ...base, remaining: 1 }).text).toBe(
-      '1 free AI scan left this month · resets Oct 1',
+      '1 free scan left · resets Oct 1',
     );
   });
 
   it('says "scans" at zero — zero is plural in English', () => {
     expect(scanDisclosure({ ...base, remaining: 0, limit: 1 }).text).toBe(
-      '0 free AI scans left this month · resets Oct 1',
+      '0 free scans left · resets Oct 1',
     );
   });
 });
@@ -146,9 +146,9 @@ describe('scanDisclosure — defensive inputs', () => {
     // The band test is `<= 0` because `remaining` also arrives from a cap-error
     // payload that has crossed a process boundary. Now that every band
     // interpolates `remaining` rather than the limit, that same input would
-    // render "-1 free AI scans left this month" straight at the user.
+    // render "-1 free scans left" straight at the user.
     expect(scanDisclosure({ ...base, remaining: -3 }).text).toBe(
-      '0 free AI scans left this month · resets Oct 1',
+      '0 free scans left · resets Oct 1',
     );
   });
 
@@ -157,7 +157,7 @@ describe('scanDisclosure — defensive inputs', () => {
     // through to some unhandled band.
     const d = scanDisclosure({ ...base, remaining: 5, limit: 5 });
     expect(d.level).toBe('ambient');
-    expect(d.text).toContain('5 free AI scans left');
+    expect(d.text).toContain('5 free scans left');
   });
 
   // Every one of these rendered literal "NaN"/"Invalid Date"/"Jan 1" (1970) to
@@ -190,7 +190,7 @@ describe('scanDisclosure — defensive inputs', () => {
     // it used to render "resets Jan 1" — 1970.
     for (const resetsAtMs of [0, NaN, -1, Infinity]) {
       const text = scanDisclosure({ ...base, remaining: 0, resetsAtMs }).text;
-      expect(text).toBe('0 free AI scans left this month');
+      expect(text).toBe('0 free scans left');
       expect(text).not.toContain('Invalid Date');
       expect(text).not.toContain('Jan 1');
     }

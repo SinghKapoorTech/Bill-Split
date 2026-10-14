@@ -205,13 +205,21 @@ export function ReceiptUploader({
           </div>
 
           <div className="text-center space-y-2">
-            <h3 className="responsive-text-lg font-semibold">Upload Your Receipt</h3>
+            <h3 className="responsive-text-lg font-semibold">
+              {atWall ? "You're out of free scans" : 'Upload Your Receipt'}
+            </h3>
             <p className="responsive-text-sm text-muted-foreground">
-              Drag and drop or click to upload your bill
+              {atWall
+                ? 'Upgrade to Pro for unlimited scans, or add items by hand.'
+                : 'Drag and drop or click to upload your bill'}
             </p>
           </div>
 
-          {!isNative && (
+          {/* OUT OF SCANS: no way to pick or upload an image at all (owner,
+              2026-10-13) — only the red count with its upgrade button, and the
+              manual route. Drag-and-drop on web is still caught by the card's
+              onDrop gate, which raises the modal without staging an upload. */}
+          {!atWall && !isNative && (
             <>
               <input
                 ref={fileInputRef}
@@ -233,32 +241,43 @@ export function ReceiptUploader({
             </>
           )}
 
-          <ScanQuotaNotice level={scan.level} text={scan.text} />
+          {!atWall && (
+            <>
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-primary to-primary-glow hover:opacity-90 shadow-lg hover:shadow-xl transition-all duration-300"
+                onClick={handleSelectImage}
+              >
+                <Upload className="mr-2 h-5 w-5" />
+                {isNative || isMobile ? 'Take Photo' : 'Choose Photo'}
+              </Button>
 
-          <Button
-            size="lg"
-            className="bg-gradient-to-r from-primary to-primary-glow hover:opacity-90 shadow-lg hover:shadow-xl transition-all duration-300"
-            onClick={handleSelectImage}
-          >
-            <Upload className="mr-2 h-5 w-5" />
-            {isNative || isMobile ? 'Take Photo' : 'Choose Photo'}
-          </Button>
+              {!isNative && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-primary/40 hover:bg-primary/10"
+                  onClick={handleUseDemoImage}
+                >
+                  <Receipt className="mr-2 h-4 w-4" />
+                  Use Demo Image
+                </Button>
+              )}
 
-          {!isNative && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-primary/40 hover:bg-primary/10"
-              onClick={handleUseDemoImage}
-            >
-              <Receipt className="mr-2 h-4 w-4" />
-              Use Demo Image
-            </Button>
+              <p className="text-sm text-muted-foreground">
+                Supports JPG, PNG, HEIC • Max 20MB
+              </p>
+            </>
           )}
 
-          <p className="text-sm text-muted-foreground">
-            Supports JPG, PNG, HEIC • Max 20MB
-          </p>
+          {/* Below the file-type line (owner, 2026-10-13). */}
+          <ScanQuotaNotice level={scan.level} text={scan.text} onSeePro={onSeePro} />
+
+          {atWall && onAddManually && (
+            <Button variant="outline" size="sm" onClick={onAddManually}>
+              Add items manually
+            </Button>
+          )}
         </div>
       ) : (
         <div className="stack-sm">
@@ -290,12 +309,17 @@ export function ReceiptUploader({
           </div>
 
 
-          <ScanQuotaNotice level={scan.level} text={scan.text} className="text-center" />
+          <ScanQuotaNotice level={scan.level} text={scan.text} onSeePro={onSeePro} />
 
           {/* THE control that actually spends the scan. An image reaches this
               state without ever touching the CTA above — a bill that already
               carries a `receiptImageUrl`, or a drop that happened before the
               quota ran out — so gating only the picker leaves this live. */}
+          {/* OUT OF SCANS: no Analyze button (owner, 2026-10-13). EXCEPT while
+              an upload or analysis is already running: the count is committed
+              on success, so the last scan flips the level to 'wall' mid-flight,
+              and hiding the button then would swallow its spinner. */}
+          {(!atWall || isUploading || isAnalyzing) && (
           <Button
             size="lg"
             className="w-full bg-gradient-to-r from-primary to-primary-glow hover:opacity-90 shadow-lg hover:shadow-xl transition-smooth disabled:opacity-50"
@@ -322,6 +346,7 @@ export function ReceiptUploader({
               </>
             )}
           </Button>
+          )}
           {isAnalyzing && (
             <p className="text-caption-responsive text-muted-foreground text-center mt-2">
               This may take a few moments. AI is extracting items from your receipt...

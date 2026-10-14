@@ -22,7 +22,7 @@
  * populated `.env`. That put a red gate on `main` once already.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef } from 'react';
 import type { DisclosureLevel } from '@/utils/quotaDisclosure';
@@ -84,7 +84,7 @@ function renderUploader(overrides: Partial<React.ComponentProps<typeof ReceiptUp
 
 const AT_ZERO = {
   level: 'wall' as DisclosureLevel,
-  text: '0 free AI scans left this month · resets Oct 1',
+  text: '0 free scans left · resets Oct 1',
   used: 2,
   remaining: 0,
 };
@@ -108,9 +108,9 @@ beforeEach(() => {
 
 describe('ReceiptUploader — the standing count', () => {
   it('states how many scans are left above the CTA', () => {
-    h.disclosure = { ...h.disclosure, level: 'ambient', text: '2 free AI scans left this month' };
+    h.disclosure = { ...h.disclosure, level: 'ambient', text: '2 free scans left' };
     renderUploader();
-    expect(screen.getByText('2 free AI scans left this month')).toBeInTheDocument();
+    expect(screen.getByText('2 free scans left')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Choose Photo/ })).toBeInTheDocument();
   });
 
@@ -121,19 +121,19 @@ describe('ReceiptUploader — the standing count', () => {
     h.disclosure = { ...h.disclosure, ...AT_ZERO };
     renderUploader();
     expect(
-      screen.getByText('0 free AI scans left this month · resets Oct 1'),
+      screen.getByText('0 free scans left · resets Oct 1'),
     ).toBeInTheDocument();
   });
 
   it('states it in the preview state too', () => {
-    h.disclosure = { ...h.disclosure, level: 'last', text: '1 free AI scan left this month' };
+    h.disclosure = { ...h.disclosure, level: 'last', text: '1 free scan left' };
     renderUploader(STAGED);
-    expect(screen.getByText('1 free AI scan left this month')).toBeInTheDocument();
+    expect(screen.getByText('1 free scan left')).toBeInTheDocument();
   });
 
   it('shows nothing at hidden — Pro, the kill switch, and mid-load', () => {
     renderUploader();
-    expect(screen.queryByText(/free AI scan/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/free scans? left/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Choose Photo/ })).toBeInTheDocument();
   });
 });
@@ -148,39 +148,27 @@ describe('ReceiptUploader — at zero, every scan route raises the modal', () =>
     expect(modal()).not.toBeInTheDocument();
   });
 
-  it('raises it from the photo CTA on web', async () => {
-    renderUploader();
-    await userEvent.click(screen.getByRole('button', { name: /Choose Photo/ }));
-    expect(modal()).toBeInTheDocument();
+  it('hides every way to pick an image at zero (owner, 2026-10-13)', () => {
+    renderUploader({ onImageSelected: vi.fn() });
+    expect(screen.queryByRole('button', { name: /Choose Photo|Take Photo/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Use Demo Image/ })).not.toBeInTheDocument();
+    expect(screen.getByText("You're out of free scans")).toBeInTheDocument();
   });
 
-  it('raises it on NATIVE, where the tap would open the real camera', async () => {
-    // The web assertion `expect(pickImage).not.toHaveBeenCalled()` could not
-    // fail: with isNative false, `handleSelectImage` never reaches `pickImage`
-    // whether or not the gate exists. Only the native branch actually proves
-    // the camera stays shut — and native is the build that ships.
+  it('hides Take Photo on NATIVE too, so the real camera can never open', () => {
     h.isNative = true;
     renderUploader({ onImageSelected: vi.fn() });
-    await userEvent.click(screen.getByRole('button', { name: /Take Photo/ }));
-    expect(modal()).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Take Photo/ })).not.toBeInTheDocument();
     expect(h.pickImage).not.toHaveBeenCalled();
   });
 
   it('opens the camera normally on native below the wall', async () => {
     // The other half of the pair: proves the native assertion above can fail.
     h.isNative = true;
-    h.disclosure = { ...h.disclosure, level: 'ambient', text: '2 free AI scans left this month' };
+    h.disclosure = { ...h.disclosure, level: 'ambient', text: '2 free scans left' };
     renderUploader({ onImageSelected: vi.fn() });
     await userEvent.click(screen.getByRole('button', { name: /Take Photo/ }));
     expect(h.pickImage).toHaveBeenCalledTimes(1);
-  });
-
-  it('raises it from the demo-image shortcut, which bypasses the picker', async () => {
-    const onImageSelected = vi.fn();
-    renderUploader({ onImageSelected });
-    await userEvent.click(screen.getByRole('button', { name: /Use Demo Image/ }));
-    expect(modal()).toBeInTheDocument();
-    expect(onImageSelected).not.toHaveBeenCalled();
   });
 
   it('raises it from a drop, without staging a billable upload', () => {
@@ -194,20 +182,30 @@ describe('ReceiptUploader — at zero, every scan route raises the modal', () =>
     expect(onDrop).not.toHaveBeenCalled();
   });
 
-  it('raises it from Analyze — THE control that actually spends the scan', async () => {
+  it('hides Analyze for an image staged before the quota ran out', () => {
     // An image reaches this state without touching the CTA: a bill that already
     // carries a `receiptImageUrl`, or a drop from before the quota ran out.
-    const onAnalyze = vi.fn();
-    renderUploader({ ...STAGED, onAnalyze });
-    await userEvent.click(screen.getByRole('button', { name: /Analyze Receipt/ }));
-    expect(modal()).toBeInTheDocument();
-    expect(onAnalyze).not.toHaveBeenCalled();
+    renderUploader({ ...STAGED, onAnalyze: vi.fn() });
+    expect(screen.queryByRole('button', { name: /Analyze Receipt/ })).not.toBeInTheDocument();
+    expect(screen.getByText('0 free scans left · resets Oct 1')).toBeInTheDocument();
+  });
+
+  it('keeps the in-flight spinner if the last scan flips the level mid-analysis', () => {
+    renderUploader({ ...STAGED, isAnalyzing: true });
+    expect(screen.getByRole('button', { name: /Analyzing Receipt/ })).toBeInTheDocument();
+  });
+
+  it('offers the manual route on the upload card itself', async () => {
+    const onAddManually = vi.fn();
+    renderUploader({ onAddManually });
+    await userEvent.click(screen.getByRole('button', { name: 'Add items manually' }));
+    expect(onAddManually).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('ReceiptUploader — below zero nothing is blocked', () => {
   beforeEach(() => {
-    h.disclosure = { ...h.disclosure, level: 'ambient', text: '2 free AI scans left this month' };
+    h.disclosure = { ...h.disclosure, level: 'ambient', text: '2 free scans left' };
   });
 
   it('lets Analyze through', async () => {
@@ -239,26 +237,29 @@ describe('ReceiptUploader — what the modal offers', () => {
 
   it('routes the user to Pro', async () => {
     const onSeePro = vi.fn();
-    renderUploader({ onSeePro });
-    await userEvent.click(screen.getByRole('button', { name: /Choose Photo/ }));
-    await userEvent.click(screen.getByRole('button', { name: 'Get Pro in the app' }));
+    const { container } = renderUploader({ onSeePro });
+    fireEvent.drop(container.querySelector('.border-dashed') as Element);
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Get Pro in the app' }));
     expect(onSeePro).toHaveBeenCalledTimes(1);
   });
 
   it('offers the manual escape hatch when the call site has one', async () => {
     const onAddManually = vi.fn();
-    renderUploader({ onAddManually });
-    await userEvent.click(screen.getByRole('button', { name: /Choose Photo/ }));
-    await userEvent.click(screen.getByRole('button', { name: 'Add items manually' }));
+    const { container } = renderUploader({ onAddManually });
+    fireEvent.drop(container.querySelector('.border-dashed') as Element);
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add items manually' }));
     expect(onAddManually).toHaveBeenCalledTimes(1);
   });
 
   it('omits the manual button where the call site has nowhere to send them', async () => {
     // Desktop keeps the items table on screen in the right column, so there is
     // nothing to switch to and the button would be a no-op.
-    renderUploader();
-    await userEvent.click(screen.getByRole('button', { name: /Choose Photo/ }));
-    expect(screen.queryByRole('button', { name: 'Add items manually' })).not.toBeInTheDocument();
+    const { container } = renderUploader();
+    fireEvent.drop(container.querySelector('.border-dashed') as Element);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByRole('button', { name: 'Add items manually' })).not.toBeInTheDocument();
   });
 });
 
@@ -292,8 +293,8 @@ describe('ReceiptUploader — the modal empties itself if the gate lifts', () =>
     // leave a paying subscriber reading "Upgrade to Pro". Passing the live
     // level through lets the component's own self-gating empty it.
     h.disclosure = { ...h.disclosure, ...AT_ZERO };
-    const { rerender } = renderUploader();
-    fireEvent.click(screen.getByRole('button', { name: /Choose Photo/ }));
+    const { rerender, container } = renderUploader();
+    fireEvent.drop(container.querySelector('.border-dashed') as Element);
     expect(modal()).toBeInTheDocument();
 
     h.disclosure = { ...h.disclosure, level: 'hidden', text: '', unlimited: true };
