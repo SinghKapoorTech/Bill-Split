@@ -8,6 +8,8 @@ import { SquadsSettingsCard } from '@/components/settings/SquadsSettingsCard';
 import { RecurringBillsSettingsCard } from '@/components/settings/RecurringBillsSettingsCard';
 import { SignInMethodsCard } from '@/components/settings/SignInMethodsCard';
 import { DeleteAccountCard } from '@/components/settings/DeleteAccountCard';
+import { SubscriptionCard } from '@/components/settings/SubscriptionCard';
+import { UpgradeCta } from '@/components/settings/UpgradeCta';
 import { layout } from '@/lib/styles';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -48,6 +50,9 @@ export default function SettingsView() {
 
         <TabsContent value="profile" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
           <div className="space-y-4">
+            {/* Owner's placement: the upgrade CTA leads the page. Renders
+                nothing for Pro users, while loading, or with the paywall off. */}
+            <UpgradeCta />
             <ProfileSettingsCard />
             {/*
               Adding a password is how an Apple user reaches their account from
@@ -56,6 +61,7 @@ export default function SettingsView() {
               part of the danger zone.
             */}
             <SignInMethodsCard />
+            <SubscriptionCard />
             {/*
               App Store Review Guideline 5.1.1(v) requires account deletion to be
               initiated from inside the app, without a support flow. Keep it here

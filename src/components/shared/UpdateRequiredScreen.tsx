@@ -1,16 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { ArrowUpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
-/**
- * Store links, verified against the repo rather than guessed:
- * bundle/application id `com.singhkapoortech.divit` (capacitor.config.ts,
- * android/app/build.gradle) and ASC app id `6760331853` (appstore/SUBMISSION.md).
- * A wrong id here turns the only escape hatch on this screen into a dead end.
- */
-const IOS_STORE_URL = 'https://apps.apple.com/app/id6760331853';
-const PLAY_STORE_URL =
-  'https://play.google.com/store/apps/details?id=com.singhkapoortech.divit';
+import { IOS_STORE_URL, PLAY_STORE_URL } from '@/utils/storeLinks';
 
 /**
  * The update wall. Replaces the entire app, so it is deliberately the smallest,
