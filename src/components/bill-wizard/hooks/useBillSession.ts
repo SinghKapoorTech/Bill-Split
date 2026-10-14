@@ -3,6 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Person, BillData, ItemAssignment } from '@/types';
 import { Bill } from '@/types/bill.types';
 
+/**
+ * Navigation state marking the URL swap /bill/new -> /bill/<newId> after a
+ * draft's first save. AIScanView keeps its instance ONLY for navigations that
+ * carry this (any other bill change remounts it). Don't infer it from
+ * `replace` — goBack() also replaces.
+ */
+export const DRAFT_CREATED_NAV_STATE = { draftCreated: true } as const;
+
 interface UseBillSessionProps {
     // Data to auto-save
     billData: BillData | null;
@@ -206,7 +214,7 @@ export function useBillSession({
                     // Skip the swap if we are actively leaving the page to prevent hijacking navigation
                     if (!actualTargetId && returnedId && !options?.isUnmounting) {
                         const basePath = props.baseUrl || '/bill';
-                        navigate(`${basePath}/${returnedId}`, { replace: true });
+                        navigate(`${basePath}/${returnedId}`, { replace: true, state: DRAFT_CREATED_NAV_STATE });
                     }
                 } finally {
                     if (!actualTargetId && pendingDraftCreation.current === saveOperation) {

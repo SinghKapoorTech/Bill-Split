@@ -16,7 +16,10 @@ import { AssignmentStep } from "./steps/AssignmentStep";
 import { ReviewStep } from "./steps/ReviewStep";
 import { WizardNavigation } from "./WizardNavigation";
 import { useBillWizard } from "./hooks/useBillWizard";
-import { useBillSession } from "./hooks/useBillSession";
+import {
+  useBillSession,
+  DRAFT_CREATED_NAV_STATE,
+} from "./hooks/useBillSession";
 import { usePeopleAdditionQueue } from "./hooks/usePeopleAdditionQueue";
 import {
   mergePeopleAdditions,
@@ -667,7 +670,10 @@ export function BillWizard({
 
       // Swap URL so billId is set for all future saves
       if (!billId && newId) {
-        navigate(`/bill/${newId}`, { replace: true });
+        navigate(`/bill/${newId}`, {
+          replace: true,
+          state: DRAFT_CREATED_NAV_STATE,
+        });
       }
 
       // Skip the auto-save that would fire from the step change,

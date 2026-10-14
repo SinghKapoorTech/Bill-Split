@@ -1,10 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 import { HeroSection } from "@/components/layout/HeroSection";
 import {
   BillWizard,
   BILL_WIZARD_REVIEW_STEP,
 } from "@/components/bill-wizard/BillWizard";
+import { DRAFT_CREATED_NAV_STATE } from "@/components/bill-wizard/hooks/useBillSession";
 import { ShareLinkDialog } from "@/components/share/ShareLinkDialog";
 import { Loader2 } from "lucide-react";
 import { useBillContext } from "@/contexts/BillSessionContext";
@@ -24,11 +29,45 @@ import { deleteField, doc, getDoc } from "firebase/firestore";
 import { db } from "@/config/firebase";
 
 /**
- * AIScanView - Simplified Bill Creation Page
- * Now uses the BillWizard component for step management
- * Reduced from 1046 lines to ~170 lines
+ * `bill/:billId` is a single route element, so moving between bills (e.g.
+ * /bill/X -> /bill/new) re-renders the SAME page and BillWizard instance — and
+ * BillWizard seeds its editor state (items, upload preview, step) only at
+ * mount. A "new" bill therefore kept the previous bill's items, and a second
+ * scan added to them. Keying the page by bill identity gives every bill a
+ * fresh instance, with no stale render in between.
+ *
+ * The one transition that must KEEP the instance is a draft being JIT-created:
+ * the wizard swaps /bill/new -> /bill/<newId> mid-scan (tagged with
+ * DRAFT_CREATED_NAV_STATE), and a remount there would discard the in-progress
+ * scan and upload preview.
  */
 export default function AIScanView() {
+  const { billId: routeBillId } = useParams<{ billId: string }>();
+  const location = useLocation();
+  const billId = routeBillId === "new" ? undefined : routeBillId;
+  const [prevBillId, setPrevBillId] = useState(billId);
+  const [instanceKey, setInstanceKey] = useState(0);
+
+  // Adjust-state-during-render: React re-renders before committing children,
+  // so the old instance never renders against the new route.
+  if (billId !== prevBillId) {
+    setPrevBillId(billId);
+    const isDraftBeingCreated =
+      prevBillId === undefined &&
+      billId !== undefined &&
+      (location.state as { draftCreated?: boolean } | null)?.draftCreated ===
+        true;
+    if (!isDraftBeingCreated) setInstanceKey((k) => k + 1);
+  }
+
+  return <AIScanViewContent key={instanceKey} />;
+}
+
+/**
+ * AIScanViewContent - Simplified Bill Creation Page
+ * Now uses the BillWizard component for step management
+ */
+function AIScanViewContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const { billId: routeBillId } = useParams<{ billId: string }>();
@@ -291,7 +330,10 @@ export default function AIScanView() {
       );
 
       if (!billId && newBillId) {
-        navigate(`/bill/${newBillId}`, { replace: true });
+        navigate(`/bill/${newBillId}`, {
+          replace: true,
+          state: DRAFT_CREATED_NAV_STATE,
+        });
       }
     } else {
       // If none is selected, convert back to private
@@ -304,7 +346,10 @@ export default function AIScanView() {
       );
 
       if (!billId && newBillId) {
-        navigate(`/bill/${newBillId}`, { replace: true });
+        navigate(`/bill/${newBillId}`, {
+          replace: true,
+          state: DRAFT_CREATED_NAV_STATE,
+        });
       }
     }
   };
