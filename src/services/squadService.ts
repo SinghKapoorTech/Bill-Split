@@ -154,18 +154,35 @@ export async function fetchUserSquads(userId: string): Promise<HydratedSquad[]> 
       return [];
     }
 
-    // Batch-fetch all squad docs using documentId() in queries
-    const squadsRef = collection(db, 'squads');
+    // ONE get() PER SQUAD, not a documentId() `in` batch.
+    //
+    // users/{uid}.squadIds is a mirror and can name a squad that was deleted or
+    // that this user has since left. A list query is all-or-nothing under the
+    // rules — one such id denied the WHOLE batch with permission-denied, so a
+    // single stale entry blanked the Squads screen and the "Add from Squad"
+    // picker ("Error loading squads"). Single-doc get()s are judged one by one
+    // (the get rule maps a missing doc to not-found), so a stale id costs only
+    // itself. Read cost is the same: an `in` query is billed per document too.
+    const results = await Promise.allSettled(
+      userProfile.squadIds.map((squadId) => getDoc(doc(db, 'squads', squadId))),
+    );
     const squads: Squad[] = [];
-
-    for (let i = 0; i < userProfile.squadIds.length; i += BATCH_SIZE) {
-      const batch = userProfile.squadIds.slice(i, i + BATCH_SIZE);
-      const q = query(squadsRef, where(documentId(), 'in', batch), limit(BATCH_SIZE));
-      const snap = await getDocs(q);
-      snap.docs.forEach(d => {
-        squads.push(convertFromFirestore({ id: d.id, ...d.data() } as FirestoreSquad));
-      });
-    }
+    results.forEach((result, i) => {
+      if (result.status === 'rejected') {
+        // ONLY a stale id is skipped: a squad the user has left (the rules deny
+        // it) or one that no longer exists. Anything else — offline,
+        // deadline-exceeded — is a real failure and must still surface as
+        // "Error loading squads", not as an empty list the user won't retry.
+        const code = (result.reason as { code?: string } | undefined)?.code;
+        if (code !== 'permission-denied' && code !== 'not-found') throw result.reason;
+        console.warn(`Skipping unreadable squad ${userProfile.squadIds![i]}:`, result.reason);
+        return;
+      }
+      if (!result.value.exists()) return; // deleted squad left in squadIds
+      squads.push(
+        convertFromFirestore({ id: result.value.id, ...result.value.data() } as FirestoreSquad),
+      );
+    });
 
     if (squads.length === 0) return [];
 

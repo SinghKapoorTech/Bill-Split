@@ -113,6 +113,45 @@ describe('squads — member-scoped reads, server-only writes', () => {
     await assertFails(getDoc(doc(asAttacker(), 'squads', 'squad_legit')));
   });
 
+  // fetchUserSquads (squadService.ts) reads each squad with get(), NOT a
+  // documentId() `in` list query. These pin WHY: a list query is judged as a
+  // whole, so one stale users/{uid}.squadIds entry (a deleted squad, or one the
+  // user has left) denies the entire batch. That blanked the Squads screen on
+  // beta ("Error loading squads", 2026-10-13). The per-squad get() rules above
+  // already handle both cases one id at a time.
+  it('ALLOWS a documentId() batch over squads the user belongs to', async () => {
+    await assertSucceeds(getDocs(query(
+      collection(asOwner(), 'squads'),
+      where(documentId(), 'in', ['squad_legit']),
+      limit(30),
+    )));
+  });
+
+  it('DENIES the whole batch when one id is a deleted squad (why the client uses get())', async () => {
+    await assertFails(getDocs(query(
+      collection(asOwner(), 'squads'),
+      where(documentId(), 'in', ['squad_legit', 'no_such_squad']),
+      limit(30),
+    )));
+  });
+
+  it('DENIES the whole batch when one id is a squad the user has left', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'squads', 'squad_left'), {
+        id: 'squad_left', name: 'Left', memberIds: [VICTIM],
+      });
+    });
+    await assertFails(getDocs(query(
+      collection(asOwner(), 'squads'),
+      where(documentId(), 'in', ['squad_legit', 'squad_left']),
+      limit(30),
+    )));
+    // ...while the per-squad reads fetchUserSquads now makes still work for
+    // the squad the user IS in, and still refuse the one they left.
+    await assertSucceeds(getDoc(doc(asOwner(), 'squads', 'squad_legit')));
+    await assertFails(getDoc(doc(asOwner(), 'squads', 'squad_left')));
+  });
+
   it('treats a missing squad as not-found, not permission-denied', async () => {
     // Regression: dereferencing resource.data on a missing document raises an
     // evaluation error, so a deleted squad or stale link surfaced as
