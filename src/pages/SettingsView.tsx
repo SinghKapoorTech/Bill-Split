@@ -1,14 +1,12 @@
 import { useState } from 'react';
-import { UserCircle, Users, History, Shield, Repeat } from 'lucide-react';
+import { UserCircle, Users, History, Shield } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettingsCard } from '@/components/profile/ProfileSettingsCard';
 import { ManageFriendsCard } from '@/components/profile/ManageFriendsCard';
 import { SettlementHistoryCard } from '@/components/settings/SettlementHistoryCard';
 import { SquadsSettingsCard } from '@/components/settings/SquadsSettingsCard';
-import { RecurringBillsSettingsCard } from '@/components/settings/RecurringBillsSettingsCard';
 import { SignInMethodsCard } from '@/components/settings/SignInMethodsCard';
 import { DeleteAccountCard } from '@/components/settings/DeleteAccountCard';
-import { SubscriptionCard } from '@/components/settings/SubscriptionCard';
 import { UpgradeCta } from '@/components/settings/UpgradeCta';
 import { layout } from '@/lib/styles';
 import { Link, useLocation } from 'react-router-dom';
@@ -21,11 +19,11 @@ export default function SettingsView() {
     <div className="h-full flex flex-col animate-fade-in max-w-7xl mx-auto">
       <div className="shrink-0 pt-5 mb-2 px-1">
         <h1 className={layout.screen.title}>Settings</h1>
-        <p className={layout.screen.subtitle}>Manage your profile, friends, and squads</p>
+        <p className={layout.screen.subtitle}>Your profile, friends, and squads</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 w-full">
-        <TabsList className="shrink-0 grid w-full grid-cols-5">
+        <TabsList className="shrink-0 grid w-full grid-cols-4">
           <TabsTrigger value="profile" className="gap-1 text-xs md:gap-2 md:text-sm">
             <UserCircle className="w-3 h-3 md:w-4 md:h-4" />
             <span>Profile</span>
@@ -42,13 +40,9 @@ export default function SettingsView() {
             <Shield className="w-3 h-3 md:w-4 md:h-4" />
             <span>Squads</span>
           </TabsTrigger>
-          <TabsTrigger value="recurring" className="gap-1 text-xs md:gap-2 md:text-sm">
-            <Repeat className="w-3 h-3 md:w-4 md:h-4" />
-            <span>Recurring</span>
-          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
+        <TabsContent value="profile" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-8">
           <div className="space-y-4">
             {/* Owner's placement: the upgrade CTA leads the page. Renders
                 nothing for Pro users, while loading, or with the paywall off. */}
@@ -61,7 +55,6 @@ export default function SettingsView() {
               part of the danger zone.
             */}
             <SignInMethodsCard />
-            <SubscriptionCard />
             {/*
               App Store Review Guideline 5.1.1(v) requires account deletion to be
               initiated from inside the app, without a support flow. Keep it here
@@ -71,20 +64,16 @@ export default function SettingsView() {
           </div>
         </TabsContent>
 
-        <TabsContent value="friends" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
+        <TabsContent value="friends" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-8">
           <ManageFriendsCard />
         </TabsContent>
 
-        <TabsContent value="history" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
+        <TabsContent value="history" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-8">
           <SettlementHistoryCard />
         </TabsContent>
 
-        <TabsContent value="squads" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
+        <TabsContent value="squads" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-8">
           <SquadsSettingsCard />
-        </TabsContent>
-
-        <TabsContent value="recurring" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-4">
-          <RecurringBillsSettingsCard />
         </TabsContent>
       </Tabs>
 

@@ -1,5 +1,5 @@
 /**
- * `SubscriptionCard` + `UpgradeCta` — wiring only. What the card SAYS is `planCardModel`'s job
+ * `UpgradeCta` — wiring only. What the card SAYS is `planCardModel`'s job
  * (tests/planCard.test.ts); this pins which controls exist per platform and
  * that the card stays dark with the kill switch off.
  *
@@ -66,25 +66,13 @@ vi.mock('@/hooks/useGroupCap', () => ({
   }),
 }));
 
-import { SubscriptionCard } from '@/components/settings/SubscriptionCard';
 import { UpgradeCta } from '@/components/settings/UpgradeCta';
-
-// Settings renders the CTA at the top of the page and the card lower down;
-// both read `usePlanCardModel`, so the wiring is tested with both mounted.
-function PlanBlocks() {
-  return (
-    <>
-      <UpgradeCta />
-      <SubscriptionCard />
-    </>
-  );
-}
 
 function renderCard() {
   return render(
     <MemoryRouter initialEntries={['/settings']}>
       <Routes>
-        <Route path="/settings" element={<PlanBlocks />} />
+        <Route path="/settings" element={<UpgradeCta />} />
         <Route path="/upgrade" element={<p>UPGRADE PAGE</p>} />
       </Routes>
     </MemoryRouter>,
@@ -98,30 +86,24 @@ beforeEach(() => {
   h.loading = { entitlement: false, quota: false, config: false, groups: false };
 });
 
-describe('SubscriptionCard + UpgradeCta', () => {
+describe('UpgradeCta', () => {
   it('renders nothing while the paywall kill switch is dark', () => {
     h.paywallEnabled = false;
     const { container } = renderCard();
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('free user on native: shows usage, Upgrade goes to /upgrade, Restore is disabled', async () => {
+  it('free user on native: the banner opens /upgrade', async () => {
     h.isNative = true;
     renderCard();
-    expect(screen.getByText('Free')).toBeInTheDocument();
-    expect(screen.getByText('1 of 2 free AI scans used · resets Nov 1')).toBeInTheDocument();
-    expect(screen.getByText('2 of 2 groups active')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Restore purchases' })).toBeDisabled();
-    expect(screen.queryByRole('button', { name: /manage subscription/i })).toBeNull();
-
+    expect(screen.getByText('Go unlimited with Pro')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Upgrade to Pro' }));
     expect(screen.getByText('UPGRADE PAGE')).toBeInTheDocument();
   });
 
-  it('free user on web: no purchase button, links to both store apps, no Restore', () => {
+  it('free user on web: no purchase button, links to both store apps', () => {
     renderCard();
     expect(screen.queryByRole('button', { name: 'Upgrade to Pro' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Restore purchases' })).toBeNull();
     expect(screen.getByRole('link', { name: 'iOS app' })).toHaveAttribute(
       'href',
       'https://apps.apple.com/app/id6760331853',
@@ -132,16 +114,16 @@ describe('SubscriptionCard + UpgradeCta', () => {
     );
   });
 
-  it('Pro user: unlimited, and is never offered the upgrade', () => {
+  it('Pro user: is never offered the upgrade', () => {
+    // Pinned against the free-user tests above, which render the banner from
+    // the same mocks — so an always-empty component cannot pass both.
     h.isNative = true;
     h.plan = 'pro';
-    renderCard();
-    expect(screen.getByText('Pro')).toBeInTheDocument();
-    expect(screen.getByText('Unlimited AI scans')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Upgrade to Pro' })).toBeNull();
+    const { container } = renderCard();
+    expect(container).toBeEmptyDOMElement();
   });
 
-  // One per source hook. The card composes FOUR loading flags; dropping any
+  // One per source hook. The banner's model composes FOUR loading flags; dropping any
   // one of them from `usePlanCardModel`'s `loading:` line must fail a test here,
   // or a subscriber can be shown "Free" + Upgrade while that hook settles.
   // The entitlement mock reports `free` while loading, as the real hook does.

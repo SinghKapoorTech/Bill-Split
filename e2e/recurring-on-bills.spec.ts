@@ -5,7 +5,8 @@ import { loginAsTestUser } from './helpers/auth';
  * Verifies the two requirements of feat/recurring-bills-on-bills-page:
  *   1. A recurring bill set up via the wizard shows up on the Bills page and
  *      tapping it routes to /recurring/:id.
- *   2. Settings -> Recurring no longer offers any way to CREATE a recurring bill.
+ *   2. Settings no longer has a Recurring tab — recurring bills are managed
+ *      (pause/resume/delete) on the Bills page.
  */
 test.describe('Recurring bills on the Bills page', () => {
   test('recurring bill appears on Bills page and opens its detail page', async ({ page }) => {
@@ -121,19 +122,22 @@ test.describe('Recurring bills on the Bills page', () => {
     await expect(page.getByText('Netflix Premium', { exact: true })).toHaveCount(0, { timeout: 15000 });
   });
 
-  test('Settings → Recurring has no create affordance', async ({ page }) => {
+  test('Settings has no Recurring tab', async ({ page }) => {
     await loginAsTestUser(page);
 
     await page.goto('/settings');
     await page.waitForURL(/\/settings/, { timeout: 15000 });
 
-    // Open the Recurring tab
-    await page.getByRole('tab', { name: /recurring/i }).click();
+    // The remaining tabs render (proves the page loaded, so the absence checks
+    // below cannot pass on a blank screen)...
+    await expect(page.getByRole('tab', { name: /profile/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('tab', { name: /history/i })).toBeVisible();
 
-    // The Recurring Bills section heading should be present...
-    await expect(page.getByRole('heading', { name: 'Recurring Bills', exact: true })).toBeVisible({ timeout: 10000 });
+    // Squads stays: on mobile it is the only way to reach /squads (the bottom
+    // bar has no Squads entry).
+    await expect(page.getByRole('tab', { name: /squads/i })).toBeVisible();
 
-    // ...but there must be NO "Create Recurring Bill" button anywhere in settings.
-    await expect(page.getByRole('button', { name: /create recurring bill/i })).toHaveCount(0);
+    // ...and the duplicated Recurring section is gone.
+    await expect(page.getByRole('tab', { name: /recurring/i })).toHaveCount(0);
   });
 });

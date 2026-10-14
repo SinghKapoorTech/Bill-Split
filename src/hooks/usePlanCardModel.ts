@@ -9,14 +9,13 @@ import { planCardModel, type PlanCardModel } from '@/utils/planCard';
  * The signed-in user's plan, as `planCardModel` describes it — or `null` while
  * anything is loading or the `paywall_enabled` kill switch is dark.
  *
- * Shared by `SubscriptionCard` and `UpgradeCta`, which sit apart on the
- * Settings page. Calling it twice is cheap: the Firestore SDK multiplexes
- * identical doc/query listeners onto one watch target, and the Remote Config
- * read is memoised per session.
+ * Read by `UpgradeCta`. Safe to call from more than one component: the
+ * Firestore SDK multiplexes identical doc/query listeners onto one watch
+ * target, and the Remote Config read is memoised per session.
  *
  * ALL FOUR loading flags gate the model. Dropping any one lets a subscriber see
  * "Free" + an upgrade offer while that source settles (each is pinned by a
- * test in tests/react/SubscriptionCard.test.tsx).
+ * test in tests/react/UpgradeCta.test.tsx).
  */
 export function usePlanCardModel(): PlanCardModel | null {
   const entitlement = useEntitlement();
