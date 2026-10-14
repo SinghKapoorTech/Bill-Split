@@ -52,3 +52,25 @@ export function formatShortDate(value: DateLike | null | undefined): string | nu
     year: 'numeric',
   });
 }
+
+/**
+ * Formats a date as "10/09/26" (MM/DD/YY), or returns null when there is
+ * nothing sensible to show — same null contract as `formatShortDate`.
+ *
+ * Used for compact list rows (the created date on a bill card), where the
+ * "Oct 9, 2026" form is too long next to the amount.
+ */
+export function formatNumericDate(value: DateLike | null | undefined): string | null {
+  const long = formatShortDate(value);
+  if (long === null) return null;
+  const date = isTimestampLike(value as DateLike)
+    ? (value as { toDate: () => Date }).toDate()
+    : value instanceof Date
+      ? value
+      : new Date(value as string | number);
+  return date.toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: '2-digit',
+  });
+}

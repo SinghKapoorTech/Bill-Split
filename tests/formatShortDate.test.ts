@@ -7,7 +7,7 @@
  * the string "Invalid Date" rendered next to a user's event.
  */
 import { describe, it, expect } from 'vitest';
-import { formatShortDate } from '@/utils/format';
+import { formatShortDate, formatNumericDate } from '@/utils/format';
 
 /** Stands in for a Firestore Timestamp without pulling in the SDK. */
 function fakeTimestamp(date: Date) {
@@ -48,5 +48,21 @@ describe('formatShortDate', () => {
   it('returns null when toDate() does not return a Date at all', () => {
     const bogus = { toDate: () => 'nope' } as unknown as { toDate: () => Date };
     expect(formatShortDate(bogus)).toBeNull();
+  });
+});
+
+describe('formatNumericDate (MM/DD/YY)', () => {
+  const march4 = new Date(2026, 2, 4);
+
+  it('formats a Timestamp, a Date and epoch millis the same way', () => {
+    expect(formatNumericDate(fakeTimestamp(march4))).toBe('03/04/26');
+    expect(formatNumericDate(march4)).toBe('03/04/26');
+    expect(formatNumericDate(march4.getTime())).toBe('03/04/26');
+  });
+
+  it('returns null for a missing or unparseable value', () => {
+    expect(formatNumericDate(undefined)).toBeNull();
+    expect(formatNumericDate(null)).toBeNull();
+    expect(formatNumericDate('not a date')).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { Bill } from '@/types/bill.types';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatNumericDate, formatShortDate } from '@/utils/format';
 import { getSettlementStatus, getSettlementStatusForUser } from '@/utils/billCalculations';
 import { Loader2, Trash2, Zap, Home, Receipt, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -51,6 +51,16 @@ export default function MobileBillCard({
   const peopleCount = bill.people?.length || 0;
   const total = formatCurrency(bill.billData?.total || 0);
 
+  // When the bill was created, on the line under the title ("$41.00 ·
+  // 10/09/26"). A missing or unreadable timestamp yields null, so the date is
+  // left off rather than showing "Unknown date". Untitled bills already USE
+  // the date as their title — getBillTitle falls back to the LONG form
+  // ("Oct 9, 2026") — so the check compares against that form, not the short
+  // label, or the date would show twice.
+  const title = getBillTitle(bill);
+  const createdLabel = formatNumericDate(bill.createdAt);
+  const showCreated = createdLabel !== null && title !== formatShortDate(bill.createdAt);
+
   // Build the item names preview (first few items, comma-separated)
   const itemNames = bill.billData?.items
     ?.slice(0, 3)
@@ -101,13 +111,8 @@ export default function MobileBillCard({
         <div className="flex flex-col min-w-0 pr-2">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground truncate">
-              {getBillTitle(bill)}
+              {title}
             </span>
-            {isLatest && (
-              <span className={`${statusStyles.pill} bg-primary text-primary-foreground`}>
-                Latest
-              </span>
-            )}
             {bill.recurringBillId && (
               <span className={`${statusStyles.pill} bg-emerald-500/10 text-emerald-600`}>
                 <Repeat className="w-3 h-3" />
@@ -119,6 +124,11 @@ export default function MobileBillCard({
           </div>
           <span className="text-xs text-muted-foreground truncate">
             {total}
+            {showCreated && <> · {createdLabel}</>}
+            {/* "Latest" lives on this line, not beside the title: as a pill
+                there it squeezed the title to "T…" on phones (owner,
+                2026-10-13). */}
+            {isLatest && <span className="font-semibold text-primary"> · Latest</span>}
           </span>
         </div>
       </div>
