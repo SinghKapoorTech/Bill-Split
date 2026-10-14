@@ -1,6 +1,6 @@
 import { RecurringBill, RecurringGeneratedType } from '@/types/recurring.types';
 import { formatCurrency } from '@/utils/format';
-import { Repeat, Zap, Receipt, Home, Trash2 } from 'lucide-react';
+import { Repeat, Zap, Receipt, Home, Trash2, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { status as statusStyles } from '@/lib/styles';
 
@@ -8,6 +8,8 @@ interface MobileRecurringBillCardProps {
   bill: RecurringBill;
   onView: (billId: string) => void;
   onDelete?: (bill: RecurringBill) => void;
+  /** Pause an active template / resume a paused one. Omit to hide the control. */
+  onTogglePause?: (bill: RecurringBill) => void;
 }
 
 const FREQUENCY_LABEL: Record<RecurringBill['schedule']['frequency'], string> = {
@@ -28,11 +30,17 @@ const STATUS_PILL: Record<'active' | 'paused', { label: string; color: string }>
 };
 
 /**
- * MobileRecurringBillCard - A view-only list item for a recurring-bill template,
- * styled to match MobileBillCard so it sits naturally inline with regular bills.
- * Tapping the row opens the recurring bill's detail/edit page.
+ * MobileRecurringBillCard - A list item for a recurring-bill template, styled
+ * to match MobileBillCard so it sits naturally inline with regular bills.
+ * Tapping the row opens the recurring bill's detail/edit page; the optional
+ * pause/resume and delete buttons act on the template without opening it.
  */
-export default function MobileRecurringBillCard({ bill, onView, onDelete }: MobileRecurringBillCardProps) {
+export default function MobileRecurringBillCard({
+  bill,
+  onView,
+  onDelete,
+  onTogglePause,
+}: MobileRecurringBillCardProps) {
   const pill = bill.status === 'paused' ? STATUS_PILL.paused : STATUS_PILL.active;
   const typeMeta = TYPE_META[bill.generatedType ?? 'quick'];
   const subtitle = `${formatCurrency(bill.amount)} • ${typeMeta.label} • ${FREQUENCY_LABEL[bill.schedule.frequency]}`;
@@ -44,6 +52,13 @@ export default function MobileRecurringBillCard({ bill, onView, onDelete }: Mobi
     e.stopPropagation();
     onDelete?.(bill);
   };
+
+  const handleTogglePauseClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onTogglePause?.(bill);
+  };
+
+  const isPaused = bill.status === 'paused';
 
   return (
     <div
@@ -77,17 +92,30 @@ export default function MobileRecurringBillCard({ bill, onView, onDelete }: Mobi
       </div>
 
       {/* Right section: Actions */}
-      {onDelete && (
+      {(onTogglePause || onDelete) && (
         <div className="flex items-center gap-1 shrink-0">
-          <Button
-            onClick={handleDeleteClick}
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            aria-label={`Delete recurring bill ${bill.title}`}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+          {onTogglePause && (
+            <Button
+              onClick={handleTogglePauseClick}
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              aria-label={`${isPaused ? 'Resume' : 'Pause'} recurring bill ${bill.title}`}
+            >
+              {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              onClick={handleDeleteClick}
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              aria-label={`Delete recurring bill ${bill.title}`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       )}
     </div>

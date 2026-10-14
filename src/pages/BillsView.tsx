@@ -40,6 +40,7 @@ import { Bill } from "@/types/bill.types";
 import { RecurringBill } from "@/types/recurring.types";
 import { motion } from "framer-motion";
 import { layout } from "@/lib/styles";
+import { useToast } from "@/hooks/use-toast";
 
 const FILTER_STORAGE_KEY = "billsFilter";
 
@@ -102,6 +103,10 @@ export default function BillsView() {
     id: string;
     title: string;
   } | null>(null);
+  // Pause/resume lives here (it used to be reachable only from Settings →
+  // Recurring, which is being removed). Confirmation copy matches that tab.
+  const [recurringToToggle, setRecurringToToggle] = useState<RecurringBill | null>(null);
+  const { toast } = useToast();
 
   const [filter, setFilter] = useState<BillFilter>(() => {
     try {
@@ -144,7 +149,9 @@ export default function BillsView() {
     return hasItems || hasReceipt || hasTitle;
   });
 
-  // Recurring-bill templates surface inline alongside regular bills (hide completed).
+  // Recurring-bill templates (completed ones hidden) are merged into the same
+  // list, but recurringMatchesFilter shows them ONLY under the Recurring tab —
+  // deliberately excluded from "All", which lists real bills (9e9cb7c).
   const visibleRecurring = recurringBills.filter(
     (b) => b.status !== "completed",
   );
@@ -240,6 +247,29 @@ export default function BillsView() {
     if (!recurringToDelete) return;
     await recurringBillService.deleteRecurringBill(recurringToDelete.id);
     setRecurringToDelete(null);
+  };
+
+  const confirmToggleRecurring = async () => {
+    if (!recurringToToggle) return;
+    const pausing = recurringToToggle.status === "active";
+    try {
+      if (pausing) {
+        await recurringBillService.pauseRecurringBill(recurringToToggle.id);
+      } else {
+        await recurringBillService.resumeRecurringBill(recurringToToggle.id);
+      }
+    } catch (error) {
+      // This is now the ONLY place to pause a template, so a failure must
+      // be said out loud rather than closing the dialog as if it worked.
+      console.error("Failed to toggle recurring bill:", error);
+      toast({
+        title: pausing ? "Couldn't pause this bill" : "Couldn't resume this bill",
+        description: "Check your connection and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRecurringToToggle(null);
+    }
   };
 
   if (isLoadingSessions) {
@@ -352,6 +382,7 @@ export default function BillsView() {
                     onDelete={(b) =>
                       setRecurringToDelete({ id: b.id, title: b.title })
                     }
+                    onTogglePause={(b) => setRecurringToToggle(b)}
                   />
                 ) : (
                   <MobileBillCard
@@ -407,6 +438,30 @@ export default function BillsView() {
               className="bg-destructive hover:bg-destructive/90"
             >
               Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!recurringToToggle}
+        onOpenChange={(open) => !open && setRecurringToToggle(null)}
+      >
+        <AlertDialogContent onCloseAutoFocus={(e) => e.preventDefault()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {recurringToToggle?.status === "active" ? "Pause" : "Resume"} Recurring Bill
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {recurringToToggle?.status === "active"
+                ? `Pause "${recurringToToggle?.title}"? No new bills will be generated until you resume it.`
+                : `Resume "${recurringToToggle?.title}"? Bills will start generating again on schedule.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmToggleRecurring}>
+              {recurringToToggle?.status === "active" ? "Pause" : "Resume"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
