@@ -21,38 +21,6 @@ export function calculateBillTotals(
 }
 
 /**
- * Merges new bill data with existing bill data
- * Combines items and updates totals appropriately
- * @param existing - Existing bill data
- * @param newData - New bill data to merge
- * @returns Merged bill data
- */
-export function mergeBillData(existing: BillData, newData: BillData): BillData {
-  const mergedItems = [...existing.items, ...newData.items];
-  const subtotal = existing.subtotal + newData.subtotal;
-
-  // Keep existing tax and tip if they exist, otherwise use new values
-  const tax = existing.tax || newData.tax;
-  const tip = existing.tip || newData.tip;
-  const otherFees = (existing.otherFees || 0) + (newData.otherFees || 0);
-
-  // Calculate final total
-  const total = subtotal + tax + tip + otherFees;
-
-  return {
-    ...existing,
-    items: mergedItems,
-    subtotal,
-    tax,
-    tip,
-    otherFees,
-    total,
-    // Keep existing restaurant name if available
-    restaurantName: existing.restaurantName || newData.restaurantName,
-  };
-}
-
-/**
  * Generates a unique ID for a bill item
  * @param index - Optional index for additional uniqueness
  * @returns Unique item ID string

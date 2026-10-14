@@ -4,7 +4,6 @@ import type { BillData } from '@/types/bill.types';
 import { MOCK_BILL_DATA, MOCK_PEOPLE } from '@/utils/constants';
 import { Person } from '@/types';
 import { useToast } from './use-toast';
-import { mergeBillData } from '@/utils/billCalculations';
 import { capDetailsFromError } from '@/utils/capError';
 import type { CapErrorDetails } from '@shared/capErrors';
 
@@ -12,13 +11,11 @@ import type { CapErrorDetails } from '@shared/capErrors';
  * Hook for analyzing receipts using AI and loading mock data
  * @param setBillData - Function to update bill data
  * @param setPeople - Function to update people list
- * @param currentBillData - Current bill data (for merging)
  * @returns Receipt analyzer state and handlers
  */
 export function useReceiptAnalyzer(
   setBillData: (data: BillData | null) => void,
   setPeople: (people: Person[]) => void,
-  currentBillData?: BillData | null,
 ) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   /**
@@ -85,15 +82,11 @@ export function useReceiptAnalyzer(
         throw new Error('No items found on the receipt');
       }
 
-      let finalData: BillData;
-      if (currentBillData) {
-        finalData = mergeBillData(currentBillData, filteredData);
-        setBillData(finalData);
-      } else {
-        finalData = filteredData;
-        setBillData(filteredData);
-      }
-      return finalData;
+      // A scan REPLACES whatever items the bill had ("scan again" = start over
+      // from this receipt). Merging summed the items but kept only the first
+      // receipt's tax/tip, producing a bill that matched neither receipt.
+      setBillData(filteredData);
+      return filteredData;
     } catch (error) {
       console.error('useReceiptAnalyzer error:', error);
 

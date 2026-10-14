@@ -149,7 +149,7 @@ export function BillWizard({
 
   // Hooks
   const upload = useFileUpload();
-  const analyzer = useReceiptAnalyzer(setBillData, setPeople, billData);
+  const analyzer = useReceiptAnalyzer(setBillData, setPeople);
   const peopleManager = usePeopleManager(people, setPeople);
 
   // `people` read from the render closure is NOT safe to persist. Adding a
@@ -635,13 +635,17 @@ export function BillWizard({
         onTitleChange(newTitle);
       }
 
+      // The scan replaced every item, so assignments to the old item ids are
+      // stale. Start unassigned (the splitEvenly sync re-assigns if needed).
+      setItemAssignments({});
+
       const savePayload: Partial<Bill> & {
         receiptImageUrl?: string;
         receiptFileName?: string;
       } = {
         billData: analyzedBillData,
         people,
-        itemAssignments,
+        itemAssignments: {},
         splitEvenly,
         paidById,
         currentStep: 0, // Save with target step so refetch loads correct step

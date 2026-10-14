@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   calculateBillTotals,
-  mergeBillData,
   getSettlementStatus,
   getSettlementStatusForUser,
   initialWizardStep,
@@ -60,38 +59,6 @@ describe("calculateBillTotals", () => {
       subtotal: 10,
       total: 13,
     });
-  });
-});
-
-describe("mergeBillData", () => {
-  it("combines items, sums subtotals and fees, keeps existing tax/tip", () => {
-    const existing: BillData = {
-      items: [{ id: "a", name: "Pizza", price: 10 }],
-      subtotal: 10,
-      tax: 2,
-      tip: 3,
-      otherFees: 1,
-      total: 16,
-      restaurantName: "First Place",
-    };
-    const incoming: BillData = {
-      items: [{ id: "b", name: "Wings", price: 5 }],
-      subtotal: 5,
-      tax: 4,
-      tip: 1,
-      otherFees: 2,
-      total: 12,
-      restaurantName: "Second Place",
-    };
-
-    const merged = mergeBillData(existing, incoming);
-    expect(merged.items.map((i) => i.id)).toEqual(["a", "b"]);
-    expect(merged.subtotal).toBe(15);
-    expect(merged.tax).toBe(2); // existing kept
-    expect(merged.tip).toBe(3); // existing kept
-    expect(merged.otherFees).toBe(3); // fees add up
-    expect(merged.total).toBe(15 + 2 + 3 + 3);
-    expect(merged.restaurantName).toBe("First Place");
   });
 });
 
