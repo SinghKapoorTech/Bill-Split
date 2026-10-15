@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useIsMounted } from '@/hooks/useIsMounted';
 import { Person, BillData, ItemAssignment } from '@/types';
 import { Bill } from '@/types/bill.types';
 
@@ -63,6 +64,7 @@ export function useBillSession({
     airbnbData
 }: UseBillSessionProps) {
     const navigate = useNavigate();
+    const isMounted = useIsMounted();
     const isInitializing = useRef(true);
     const lastSavedData = useRef<string | null>(null);
     const pendingSaveTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -212,7 +214,7 @@ export function useBillSession({
 
                     // Silently swap the URL if this was a draft that just became a real document
                     // Skip the swap if we are actively leaving the page to prevent hijacking navigation
-                    if (!actualTargetId && returnedId && !options?.isUnmounting) {
+                    if (!actualTargetId && returnedId && !options?.isUnmounting && isMounted.current) {
                         const basePath = props.baseUrl || '/bill';
                         navigate(`${basePath}/${returnedId}`, { replace: true, state: DRAFT_CREATED_NAV_STATE });
                     }

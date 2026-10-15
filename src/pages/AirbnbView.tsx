@@ -7,6 +7,9 @@ import { Loader2 } from 'lucide-react';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 import { useReturnTo } from '@/hooks/useReturnTo';
+import { useBillRouteInstanceKey } from '@/hooks/useBillRouteInstanceKey';
+import { useIsMounted } from '@/hooks/useIsMounted';
+import { DRAFT_CREATED_NAV_STATE } from '@/components/bill-wizard/hooks/useBillSession';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { ensureUserInPeople, generateUserId } from '@/utils/billCalculations';
@@ -16,9 +19,15 @@ import { Person, BillData, ItemAssignment, Bill } from '@/types';
 import { deleteField, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
+/** Fresh page + AirbnbWizard per bill — see useBillRouteInstanceKey. */
 export default function AirbnbView() {
+    return <AirbnbViewContent key={useBillRouteInstanceKey()} />;
+}
+
+function AirbnbViewContent() {
     const location = useLocation();
     const navigate = useNavigate();
+    const isMounted = useIsMounted();
     const { billId: routeBillId } = useParams<{ billId: string }>();
     const billId = routeBillId === 'new' ? undefined : routeBillId;
     const { user } = useAuth();
@@ -231,8 +240,8 @@ export default function AirbnbView() {
                 itemAssignments: {},
             }, billId || activeSession?.id, { allowPeopleRemoval: true });
 
-            if (!billId && newBillId) {
-                navigate(`/airbnb/${newBillId}`, { replace: true });
+            if (!billId && newBillId && isMounted.current) {
+                navigate(`/airbnb/${newBillId}`, { replace: true, state: DRAFT_CREATED_NAV_STATE });
             }
         } else {
             const newBillId = await saveSession({
@@ -240,8 +249,8 @@ export default function AirbnbView() {
                 billType: 'private',
             }, billId || activeSession?.id);
 
-            if (!billId && newBillId) {
-                navigate(`/airbnb/${newBillId}`, { replace: true });
+            if (!billId && newBillId && isMounted.current) {
+                navigate(`/airbnb/${newBillId}`, { replace: true, state: DRAFT_CREATED_NAV_STATE });
             }
         }
     };

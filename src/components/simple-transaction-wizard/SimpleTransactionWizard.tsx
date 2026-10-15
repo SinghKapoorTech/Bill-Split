@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useReturnTo } from '@/hooks/useReturnTo';
+import { useIsMounted } from '@/hooks/useIsMounted';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { App } from '@capacitor/app';
@@ -51,6 +52,7 @@ export function SimpleTransactionWizard({
   const isMobile = useIsMobile();
   const { state: routerState } = useLocation();
   const { billId } = useParams<{ billId: string }>();
+  const isMounted = useIsMounted();
   const { activeSession, resumeSession, saveSession } = useBillContext();
   const activeBillId = useRef<string | null>(billId !== 'new' ? billId : null);
 
@@ -530,7 +532,9 @@ export function SimpleTransactionWizard({
           const newId = await saveSession(payload);
           if (typeof newId === 'string') {
             activeBillId.current = newId;
-            window.history.replaceState({}, '', `/transaction/${newId}`);
+            if (isMounted.current) {
+              window.history.replaceState({}, '', `/transaction/${newId}`);
+            }
           }
         }
         // Snapshot the saved state so we can revert on back/leave

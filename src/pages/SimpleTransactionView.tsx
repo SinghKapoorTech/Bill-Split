@@ -1,8 +1,14 @@
 import { useState } from 'react';
+import { useBillRouteInstanceKey } from '@/hooks/useBillRouteInstanceKey';
 import { HeroSection } from '@/components/layout/HeroSection';
 import { SimpleTransactionWizard } from '@/components/simple-transaction-wizard/SimpleTransactionWizard';
 
+/** Fresh page + wizard per bill — see useBillRouteInstanceKey. */
 export default function SimpleTransactionView() {
+  return <SimpleTransactionViewContent key={useBillRouteInstanceKey()} />;
+}
+
+function SimpleTransactionViewContent() {
   const [title, setTitle] = useState('');
 
   return (

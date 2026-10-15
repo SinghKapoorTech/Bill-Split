@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useReturnTo } from "@/hooks/useReturnTo";
+import { useIsMounted } from "@/hooks/useIsMounted";
 import { billService } from "@/services/billService";
 import { useAuth } from "@/contexts/AuthContext";
 import { arrayUnion, arrayRemove } from "firebase/firestore";
@@ -126,6 +127,7 @@ export function BillWizard({
   onEventChange,
 }: BillWizardProps) {
   const navigate = useNavigate();
+  const isMounted = useIsMounted();
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const isOwner =
@@ -673,7 +675,7 @@ export function BillWizard({
       const newId = await savePromise;
 
       // Swap URL so billId is set for all future saves
-      if (!billId && newId) {
+      if (!billId && newId && isMounted.current) {
         navigate(`/bill/${newId}`, {
           replace: true,
           state: DRAFT_CREATED_NAV_STATE,

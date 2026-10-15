@@ -15,6 +15,8 @@ import { Loader2 } from "lucide-react";
 import { useBillContext } from "@/contexts/BillSessionContext";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import { useReturnTo } from "@/hooks/useReturnTo";
+import { useBillRouteInstanceKey } from "@/hooks/useBillRouteInstanceKey";
+import { useIsMounted } from "@/hooks/useIsMounted";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import {
@@ -28,39 +30,9 @@ import { Person, BillData, ItemAssignment, Bill } from "@/types";
 import { deleteField, doc, getDoc } from "firebase/firestore";
 import { db } from "@/config/firebase";
 
-/**
- * `bill/:billId` is a single route element, so moving between bills (e.g.
- * /bill/X -> /bill/new) re-renders the SAME page and BillWizard instance — and
- * BillWizard seeds its editor state (items, upload preview, step) only at
- * mount. A "new" bill therefore kept the previous bill's items, and a second
- * scan added to them. Keying the page by bill identity gives every bill a
- * fresh instance, with no stale render in between.
- *
- * The one transition that must KEEP the instance is a draft being JIT-created:
- * the wizard swaps /bill/new -> /bill/<newId> mid-scan (tagged with
- * DRAFT_CREATED_NAV_STATE), and a remount there would discard the in-progress
- * scan and upload preview.
- */
+/** Fresh page + BillWizard per bill — see useBillRouteInstanceKey. */
 export default function AIScanView() {
-  const { billId: routeBillId } = useParams<{ billId: string }>();
-  const location = useLocation();
-  const billId = routeBillId === "new" ? undefined : routeBillId;
-  const [prevBillId, setPrevBillId] = useState(billId);
-  const [instanceKey, setInstanceKey] = useState(0);
-
-  // Adjust-state-during-render: React re-renders before committing children,
-  // so the old instance never renders against the new route.
-  if (billId !== prevBillId) {
-    setPrevBillId(billId);
-    const isDraftBeingCreated =
-      prevBillId === undefined &&
-      billId !== undefined &&
-      (location.state as { draftCreated?: boolean } | null)?.draftCreated ===
-        true;
-    if (!isDraftBeingCreated) setInstanceKey((k) => k + 1);
-  }
-
-  return <AIScanViewContent key={instanceKey} />;
+  return <AIScanViewContent key={useBillRouteInstanceKey()} />;
 }
 
 /**
@@ -70,6 +42,7 @@ export default function AIScanView() {
 function AIScanViewContent() {
   const location = useLocation();
   const navigate = useNavigate();
+  const isMounted = useIsMounted();
   const { billId: routeBillId } = useParams<{ billId: string }>();
   const billId = routeBillId === "new" ? undefined : routeBillId;
   const { user } = useAuth();
@@ -329,7 +302,7 @@ function AIScanViewContent() {
         { allowPeopleRemoval: true },
       );
 
-      if (!billId && newBillId) {
+      if (!billId && newBillId && isMounted.current) {
         navigate(`/bill/${newBillId}`, {
           replace: true,
           state: DRAFT_CREATED_NAV_STATE,
@@ -345,7 +318,7 @@ function AIScanViewContent() {
         billId || activeSession?.id,
       );
 
-      if (!billId && newBillId) {
+      if (!billId && newBillId && isMounted.current) {
         navigate(`/bill/${newBillId}`, {
           replace: true,
           state: DRAFT_CREATED_NAV_STATE,
