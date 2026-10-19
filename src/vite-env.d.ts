@@ -14,6 +14,10 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_APP_ID: string;
   readonly VITE_FIREBASE_MEASUREMENT_ID?: string;
   readonly VITE_USE_EMULATORS?: string;
+  // RevenueCat PUBLIC SDK keys (appl_… / goog_…) — designed to ship in the
+  // client. Absent = purchasing disabled on that platform.
+  readonly VITE_REVENUECAT_IOS_KEY?: string;
+  readonly VITE_REVENUECAT_ANDROID_KEY?: string;
 }
 
 interface ImportMeta {

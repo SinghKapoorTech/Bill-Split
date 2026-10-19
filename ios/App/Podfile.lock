@@ -79,7 +79,13 @@ PODS:
     - AppAuth/Core (~> 1.7)
     - GTMSessionFetcher/Core (< 4.0, >= 3.3)
   - GTMSessionFetcher/Core (3.5.0)
+  - PurchasesHybridCommon (17.55.2):
+    - RevenueCat (= 5.67.1)
   - RecaptchaInterop (100.0.0)
+  - RevenueCat (5.67.1)
+  - RevenuecatPurchasesCapacitor (11.3.3):
+    - Capacitor
+    - PurchasesHybridCommon (= 17.55.2)
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
@@ -92,6 +98,7 @@ DEPENDENCIES:
   - "CapacitorHaptics (from `../../node_modules/@capacitor/haptics`)"
   - "CapacitorSplashScreen (from `../../node_modules/@capacitor/splash-screen`)"
   - "CapacitorStatusBar (from `../../node_modules/@capacitor/status-bar`)"
+  - "RevenuecatPurchasesCapacitor (from `../../node_modules/@revenuecat/purchases-capacitor`)"
 
 SPEC REPOS:
   trunk:
@@ -106,7 +113,9 @@ SPEC REPOS:
     - GoogleUtilities
     - GTMAppAuth
     - GTMSessionFetcher
+    - PurchasesHybridCommon
     - RecaptchaInterop
+    - RevenueCat
 
 EXTERNAL SOURCES:
   Capacitor:
@@ -127,6 +136,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/splash-screen"
   CapacitorStatusBar:
     :path: "../../node_modules/@capacitor/status-bar"
+  RevenuecatPurchasesCapacitor:
+    :path: "../../node_modules/@revenuecat/purchases-capacitor"
 
 SPEC CHECKSUMS:
   AppAuth: d4f13a8fe0baf391b2108511793e4b479691fb73
@@ -149,8 +160,11 @@ SPEC CHECKSUMS:
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   GTMAppAuth: f69bd07d68cd3b766125f7e072c45d7340dea0de
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
+  PurchasesHybridCommon: 83c0727d99136975a5bcb20854fb65eff9f45d7e
   RecaptchaInterop: 7d1a4a01a6b2cb1610a47ef3f85f0c411434cb21
+  RevenueCat: 9357239a9f0978285e68983637b8a602e65c94f0
+  RevenuecatPurchasesCapacitor: 92c2c3998e574eb3cbaf39ae0fb51588990edd16
 
-PODFILE CHECKSUM: a2aa22b17aacca68bd1e8b765495441ab4d27c6d
+PODFILE CHECKSUM: 1c64a36ecb6b65264493b380099c880aa9bb1045
 
 COCOAPODS: 1.16.2

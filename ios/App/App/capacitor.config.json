@@ -28,6 +28,7 @@
 		"FilesystemPlugin",
 		"HapticsPlugin",
 		"SplashScreenPlugin",
-		"StatusBarPlugin"
+		"StatusBarPlugin",
+		"PurchasesPlugin"
 	]
 }

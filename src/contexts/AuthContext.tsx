@@ -19,6 +19,7 @@ import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { userService } from '@/services/userService';
 import { acceptPendingInvitations } from '@/services/invitationService';
+import { syncPurchaser } from '@/services/purchaseService';
 import {
   SignInProvider,
   describeSignInError,
@@ -89,6 +90,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(currentUser ?? null);
         setLoading(false);
 
+        // RevenueCat's appUserID must be the Firebase uid, or the webhook
+        // cannot attach a purchase to anyone. Fire-and-forget AFTER setUser:
+        // billing must never gate auth, or a vendor outage becomes ours.
+        syncPurchaser(currentUser?.uid ?? null).catch((error) =>
+          console.warn('purchases: identify failed (non-fatal)', error),
+        );
+
         // Sync profile / accept pending invitations in the background — these
         // network calls must not gate rendering of the authenticated app.
         if (currentUser) {
@@ -114,6 +122,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         clearTimeout(timeout);
         setUser(null);
         setLoading(false);
+        // The app now treats this as signed out; RevenueCat must agree, or a
+        // later purchase check still wants the previous uid.
+        syncPurchaser(null).catch((e) => console.warn('purchases: logout failed (non-fatal)', e));
       }
     );
 
