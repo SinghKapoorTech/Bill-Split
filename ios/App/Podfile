@@ -29,6 +29,17 @@ end
 post_install do |installer|
   assertDeploymentTarget(installer)
 
+  # Xcode 27 (Xcode Cloud "Latest Release") rejects iOS deployment targets
+  # below 15.0. Several plugin podspecs still declare 14.0, which fails the
+  # archive; lift every pod to the app's own minimum.
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      if config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f < 15.0
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
+    end
+  end
+
   # Disable code signing for bundle targets (required for Google Sign-In)
   installer.pods_project.targets.each do |target|
     if target.respond_to?(:product_type) and target.product_type == "com.apple.product-type.bundle"
