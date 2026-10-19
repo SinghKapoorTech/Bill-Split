@@ -1,41 +1,177 @@
-import { ArrowLeft, Check, Sparkles } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { ArrowLeft, Check, Loader2, Sparkles } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { usePlatform } from '@/hooks/usePlatform';
+import { useEntitlement } from '@/hooks/useEntitlement';
+import { useToast } from '@/hooks/use-toast';
 import { layout } from '@/lib/styles';
+import { cn } from '@/lib/utils';
+import {
+  isPurchasingAvailable,
+  loadPaywallPackages,
+  purchasePlan,
+  restoreProAccess,
+} from '@/services/purchaseService';
+import { buildPaywallPlans, ctaLabel, type PaywallPlan } from '@/utils/paywallPlans';
+import { IOS_MANAGE_SUBSCRIPTIONS_URL } from '@/utils/storeLinks';
 
 /**
  * The Pro paywall.
  *
- * STATIC IN THIS PHASE. Nothing here can take money yet — the RevenueCat SDK
- * arrives in Phase 4, and the Apple Paid Applications agreement and Play
- * payments profile are still pending. The screen exists now because the
- * out-of-scans modal needs somewhere to send people, and a modal whose only
- * button 404s is worse than no button.
- *
  * Guideline 3.1.2 sets the required content and every item is a rejection if
  * missing: both plans with price AND duration, what the subscription unlocks,
  * a Restore purchases control, and links to Terms of Use and Privacy Policy.
- * They are all here and all inert, which is the honest state — a purchase
- * button that takes a tap and does nothing would leave a user believing they
- * had bought something.
+ *
+ * Three modes:
+ *  - SELLING (native + a RevenueCat key for this platform, i.e. iOS today):
+ *    live store prices via `priceString` (localised per storefront), Purchase
+ *    and Restore wired.
+ *  - CANNOT SELL on native (Android until its store products exist): the
+ *    reference prices with an inert "Coming soon" — a button that takes a tap
+ *    and does nothing would leave a user believing they had bought something.
+ *  - WEB: a web build may not sell the subscription at all (Guideline 3.1.1).
+ *
+ * Purchase never grants access here. The webhook writes `entitlements/{uid}`
+ * and `useEntitlement` picks it up; this screen only reports the store result.
  */
 
-// TODO(phase4): replace with real `Offerings` from the RevenueCat SDK. These
-// are placeholders — `product.priceString` is the only price that may ship,
-// because the store localises currency per storefront and a hardcoded "$" is
-// wrong in every non-US market.
-const PLANS = [
-  { id: 'monthly', price: '$4.99', period: 'per month', note: null },
-  { id: 'yearly', price: '$34.99', period: 'per year', note: 'Save 42%' },
-] as const;
+// Reference prices for builds that cannot sell (web/Android). Never rendered
+// next to a live price — a hardcoded "$" is wrong in every non-US storefront.
+const REFERENCE_PLANS: PaywallPlan[] = [
+  { id: 'monthly', priceString: '$4.99', period: 'per month', trialLabel: null, savingsNote: null },
+  { id: 'yearly', priceString: '$34.99', period: 'per year', trialLabel: null, savingsNote: 'Save 41%' },
+];
 
 const INCLUDED = ['Unlimited AI receipt scans', 'Unlimited active groups', 'Everything in Free'];
 
+type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; plans: PaywallPlan[] };
+
+function PlanCard({
+  plan,
+  selected,
+  onSelect,
+}: {
+  plan: PaywallPlan;
+  selected?: boolean;
+  onSelect?: () => void;
+}) {
+  const body = (
+    <>
+      <div className="flex items-baseline gap-2">
+        <span className="text-2xl font-bold">{plan.priceString}</span>
+        {plan.savingsNote && (
+          <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-primary/10 text-primary">
+            {plan.savingsNote}
+          </span>
+        )}
+      </div>
+      {/* Duration must be adjacent to the price, not inferred from the
+          plan's name — Guideline 3.1.2 is explicit about it. */}
+      <span className="text-caption-responsive text-muted-foreground">{plan.period}</span>
+      {plan.trialLabel && <span className="text-caption-responsive text-primary">{plan.trialLabel}</span>}
+    </>
+  );
+  if (!onSelect) return <Card className="p-4 flex flex-col gap-1">{body}</Card>;
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        'rounded-lg border bg-card p-4 flex flex-col gap-1 text-left transition-colors',
+        selected ? 'border-primary ring-2 ring-primary/30' : 'border-border',
+      )}
+    >
+      {body}
+    </button>
+  );
+}
+
 export default function UpgradeView() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { isNative } = usePlatform();
+  const { plan: currentPlan } = useEntitlement();
+  const selling = isNative && isPurchasingAvailable();
+  const alreadyPro = currentPlan === 'pro';
+
+  const [load, setLoad] = useState<LoadState>({ status: 'loading' });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'purchase' | 'restore' | null>(null);
+
+  const fetchPlans = useCallback(async () => {
+    setLoad({ status: 'loading' });
+    try {
+      const plans = buildPaywallPlans(await loadPaywallPackages());
+      if (plans.length === 0) throw new Error('no plans');
+      setLoad({ status: 'ready', plans });
+      setSelectedId((prev) => prev ?? plans[0].id);
+    } catch (error) {
+      console.warn('paywall: could not load offerings', error);
+      setLoad({ status: 'error' });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selling && !alreadyPro) void fetchPlans();
+  }, [selling, alreadyPro, fetchPlans]);
+
+  const selected = load.status === 'ready' ? load.plans.find((p) => p.id === selectedId) : undefined;
+
+  const onPurchase = async () => {
+    if (!selected) return;
+    setBusy('purchase');
+    try {
+      const outcome = await purchasePlan(selected.id);
+      if (outcome === 'purchased') {
+        toast({ title: 'Welcome to Divit Pro', description: 'Unlimited scans and groups are on.' });
+        navigate(-1);
+      } else if (outcome === 'pending') {
+        toast({
+          title: 'Purchase pending',
+          description: 'Pro turns on as soon as the App Store approves it.',
+        });
+      }
+      // 'cancelled': the user closed the sheet on purpose — say nothing.
+    } catch (error) {
+      console.warn('paywall: purchase failed', error);
+      toast({
+        title: 'Purchase didn\u2019t go through',
+        description: 'Please try again in a moment.',
+        variant: 'destructive',
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onRestore = async () => {
+    setBusy('restore');
+    try {
+      const restored = await restoreProAccess();
+      toast(
+        restored
+          ? // Not "active on this account": access is granted by the webhook, and a
+            // restore onto a second Divit account arrives as a TRANSFER event the
+            // server does not handle yet (chunk-4 Task 2b).
+            { title: 'Subscription found', description: 'Divit Pro will switch on shortly.' }
+          : {
+              // Restore never moves a subscription between Divit accounts
+              // (RevenueCat: "Keep with original App User ID").
+              title: 'No active subscription found',
+              description: 'If you subscribed while signed in to another Divit account, sign in to that one.',
+            },
+      );
+    } catch (error) {
+      console.warn('paywall: restore failed', error);
+      toast({ title: 'Restore failed', description: 'Please try again in a moment.', variant: 'destructive' });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col animate-fade-in max-w-2xl mx-auto overflow-y-auto scrollbar-hide">
@@ -63,36 +199,87 @@ export default function UpgradeView() {
           </ul>
         </Card>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          {PLANS.map((plan) => (
-            <Card key={plan.id} className="p-4 flex flex-col gap-1">
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold">{plan.price}</span>
-                {plan.note && (
-                  <span className="text-[11px] font-medium rounded-full px-2 py-0.5 bg-primary/10 text-primary">
-                    {plan.note}
-                  </span>
-                )}
-              </div>
-              {/* Duration must be adjacent to the price, not inferred from the
-                  plan's name — Guideline 3.1.2 is explicit about it. */}
-              <span className="text-caption-responsive text-muted-foreground">{plan.period}</span>
+        {selling && alreadyPro ? (
+          <Card className="p-4 space-y-2 text-center">
+            <p className="font-medium">You&rsquo;re on Divit Pro</p>
+            <a
+              href={IOS_MANAGE_SUBSCRIPTIONS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="responsive-text-sm underline underline-offset-2"
+            >
+              Manage subscription
+            </a>
+          </Card>
+        ) : selling ? (
+          load.status === 'loading' ? (
+            <div className="flex justify-center py-8 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" aria-label="Loading prices" />
+            </div>
+          ) : load.status === 'error' ? (
+            <Card className="p-4 space-y-3 text-center">
+              <p className="responsive-text-sm">Couldn&rsquo;t load prices from the App Store.</p>
+              <Button variant="outline" size="sm" onClick={() => void fetchPlans()}>
+                Try again
+              </Button>
             </Card>
-          ))}
-        </div>
-
-        {isNative ? (
-          <Button size="lg" className="w-full" disabled>
-            Coming soon
-          </Button>
+          ) : (
+            <>
+              <div role="radiogroup" aria-label="Choose a plan" className="grid gap-3 sm:grid-cols-2">
+                {load.plans.map((plan) => (
+                  <PlanCard
+                    key={plan.id}
+                    plan={plan}
+                    selected={plan.id === selectedId}
+                    onSelect={() => setSelectedId(plan.id)}
+                  />
+                ))}
+              </div>
+              {selected && (
+                <div className="space-y-2">
+                  <Button size="lg" className="w-full" disabled={busy !== null} onClick={() => void onPurchase()}>
+                    {busy === 'purchase' && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    {ctaLabel(selected)}
+                  </Button>
+                  {/* Auto-renewal disclosure (Guideline 3.1.2): the billed amount and
+                      period, stated next to the button. */}
+                  <p className="text-caption-responsive text-muted-foreground text-center">
+                    {selected.trialLabel
+                      ? `${selected.trialLabel}, then ${selected.priceString} ${selected.period}.`
+                      : `${selected.priceString} ${selected.period}.`}{' '}
+                    Renews automatically. Cancel anytime in Settings.
+                  </p>
+                </div>
+              )}
+            </>
+          )
         ) : (
-          <p className="text-caption-responsive text-muted-foreground text-center">
-            Divit Pro is purchased in the iOS or Android app.
-          </p>
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {REFERENCE_PLANS.map((plan) => (
+                <PlanCard key={plan.id} plan={plan} />
+              ))}
+            </div>
+            {isNative ? (
+              <Button size="lg" className="w-full" disabled>
+                Coming soon
+              </Button>
+            ) : (
+              <p className="text-caption-responsive text-muted-foreground text-center">
+                Divit Pro is purchased in the iOS or Android app.
+              </p>
+            )}
+          </>
         )}
 
         <div className="flex flex-col items-center gap-2 pt-2">
-          <Button variant="ghost" size="sm" disabled>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={!selling || busy !== null}
+            onClick={() => void onRestore()}
+          >
+            {busy === 'restore' && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Restore purchases
           </Button>
           {/*

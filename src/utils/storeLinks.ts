@@ -7,3 +7,6 @@
 export const IOS_STORE_URL = 'https://apps.apple.com/app/id6760331853';
 export const PLAY_STORE_URL =
   'https://play.google.com/store/apps/details?id=com.singhkapoortech.divit';
+
+/** Apple's own subscription-management page (opens the App Store sheet). */
+export const IOS_MANAGE_SUBSCRIPTIONS_URL = 'https://apps.apple.com/account/subscriptions';
