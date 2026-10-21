@@ -8,6 +8,7 @@ import { SquadsSettingsCard } from '@/components/settings/SquadsSettingsCard';
 import { SignInMethodsCard } from '@/components/settings/SignInMethodsCard';
 import { DeleteAccountCard } from '@/components/settings/DeleteAccountCard';
 import { UpgradeCta } from '@/components/settings/UpgradeCta';
+import { ProMembershipCard } from '@/components/settings/ProMembershipCard';
 import { layout } from '@/lib/styles';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -45,8 +46,10 @@ export default function SettingsView() {
         <TabsContent value="profile" className="data-[state=active]:flex-1 min-h-0 overflow-y-auto scrollbar-hide mt-4 pb-8">
           <div className="space-y-4">
             {/* Owner's placement: the upgrade CTA leads the page. Renders
-                nothing for Pro users, while loading, or with the paywall off. */}
+                nothing for Pro users, while loading, or with the paywall off.
+                Paying users get their membership card in the same slot. */}
             <UpgradeCta />
+            <ProMembershipCard />
             <ProfileSettingsCard />
             {/*
               Adding a password is how an Apple user reaches their account from

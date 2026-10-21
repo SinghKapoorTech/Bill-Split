@@ -13,12 +13,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useProStatus } from '@/hooks/useProStatus';
+import { ProBadge } from '@/components/monetization/ProBadge';
 
 export const AuthButton = () => {
   const { user, loading, signOut } = useAuth();
   const { profile } = useUserProfile();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const pro = useProStatus();
 
   if (loading) {
     return null;
@@ -59,7 +62,9 @@ export const AuthButton = () => {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="relative h-10 w-10 rounded-full ring-2 ring-primary/20 hover:ring-primary/40 transition-all"
+          className={`relative h-10 w-10 rounded-full ring-2 transition-all ${
+            pro ? 'ring-[#E8B04B] hover:ring-[#F2C94C]' : 'ring-primary/20 hover:ring-primary/40'
+          }`}
         >
           <Avatar className="h-9 w-9">
             <AvatarImage src={profile?.photoURL || user.photoURL || undefined} alt={user.displayName || 'User'} />
@@ -72,7 +77,10 @@ export const AuthButton = () => {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.displayName || 'User'}</p>
+            <p className="flex items-center gap-2 text-sm font-medium leading-none">
+              {user.displayName || 'User'}
+              {pro && <ProBadge label={pro.badge} />}
+            </p>
             <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
           </div>
         </DropdownMenuLabel>

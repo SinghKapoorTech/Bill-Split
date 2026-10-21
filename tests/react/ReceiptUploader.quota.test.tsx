@@ -106,6 +106,39 @@ beforeEach(() => {
   };
 });
 
+describe('ReceiptUploader — a paying user sees what they paid for', () => {
+  // The free count is hidden for Pro; this note takes its place, so a
+  // subscriber is never left wondering whether the purchase did anything.
+  const NOTE = 'Unlimited AI scans included';
+
+  it('shows the unlimited note for an unlimited plan, in both states', () => {
+    h.disclosure = { ...h.disclosure, unlimited: true, loading: false };
+    const { unmount } = renderUploader();
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+    expect(screen.queryByText(/free scans? left/)).not.toBeInTheDocument();
+    unmount();
+    renderUploader(STAGED);
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+  });
+
+  it('never shows it to a free user, even one with scans left', () => {
+    h.disclosure = { ...h.disclosure, level: 'ambient', text: '2 free scans left' };
+    renderUploader();
+    // Positive anchor: the free line rendered, so the absence below is real.
+    expect(screen.getByText('2 free scans left')).toBeInTheDocument();
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+  });
+
+  it('holds it back while the plan is still loading', () => {
+    // `unlimited` can read true from a stale snapshot mid-load; claiming a plan
+    // before it has settled is the same flash the disclosure mute prevents.
+    h.disclosure = { ...h.disclosure, unlimited: true, loading: true };
+    renderUploader();
+    expect(screen.getByRole('button', { name: /Choose Photo/ })).toBeInTheDocument();
+    expect(screen.queryByText(NOTE)).not.toBeInTheDocument();
+  });
+});
+
 describe('ReceiptUploader — the standing count', () => {
   it('states how many scans are left above the CTA', () => {
     h.disclosure = { ...h.disclosure, level: 'ambient', text: '2 free scans left' };

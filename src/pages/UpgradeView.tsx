@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Loader2, Sparkles } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { PRO_PERKS } from '@/utils/proPerks';
 import { ProCelebration } from '@/components/monetization/ProCelebration';
 import { usePlatform } from '@/hooks/usePlatform';
 import { useEntitlement } from '@/hooks/useEntitlement';
@@ -45,7 +46,7 @@ const REFERENCE_PLANS: PaywallPlan[] = [
   { id: 'yearly', priceString: '$34.99', period: 'per year', trialLabel: null, savingsNote: 'Save 41%' },
 ];
 
-const INCLUDED = ['Unlimited AI receipt scans', 'Unlimited active groups', 'Everything in Free'];
+const INCLUDED = PRO_PERKS;
 
 type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; plans: PaywallPlan[] };
 

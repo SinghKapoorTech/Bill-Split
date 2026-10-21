@@ -9,6 +9,7 @@ import { ReceiptPreviewModal } from './ReceiptPreviewModal';
 import { ScanningOverlay } from './ScanningOverlay';
 import { useScanDisclosure } from '@/hooks/useScanDisclosure';
 import { ScanQuotaNotice } from '@/components/monetization/ScanQuotaNotice';
+import { UnlimitedScansNote } from '@/components/monetization/UnlimitedScansNote';
 import { ScanQuotaWall } from '@/components/monetization/ScanQuotaWall';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
@@ -272,6 +273,7 @@ export function ReceiptUploader({
 
           {/* Below the file-type line (owner, 2026-10-13). */}
           <ScanQuotaNotice level={scan.level} text={scan.text} onSeePro={onSeePro} />
+          {scan.unlimited && !scan.loading && <UnlimitedScansNote />}
 
           {atWall && onAddManually && (
             <Button variant="outline" size="sm" onClick={onAddManually}>
@@ -310,6 +312,7 @@ export function ReceiptUploader({
 
 
           <ScanQuotaNotice level={scan.level} text={scan.text} onSeePro={onSeePro} />
+          {scan.unlimited && !scan.loading && <UnlimitedScansNote />}
 
           {/* THE control that actually spends the scan. An image reaches this
               state without ever touching the CTA above — a bill that already

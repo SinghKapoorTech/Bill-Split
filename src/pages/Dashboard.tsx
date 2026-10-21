@@ -10,6 +10,8 @@ import { userService } from '@/services/userService';
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog';
 import { VerifyEmailBanner } from '@/components/auth/VerifyEmailBanner';
 import { chip } from '@/lib/styles';
+import { useProStatus } from '@/hooks/useProStatus';
+import { ProBadge } from '@/components/monetization/ProBadge';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -18,6 +20,7 @@ export default function Dashboard() {
   const { balances, isLoading: isLoadingBalances, refreshBalances } = useActiveBalances();
   const { profile } = useUserProfile();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const pro = useProStatus();
 
   // Show onboarding for first-time users
   useEffect(() => {
@@ -59,7 +62,21 @@ export default function Dashboard() {
     <div className="h-full flex flex-col animate-fade-in max-w-7xl mx-auto">
       <div className="shrink-0 flex items-center justify-between pt-5 mb-3 px-1">
         <div className="min-w-0">
-          <h1 className="text-3xl font-bold">Balances</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-bold">Balances</h1>
+            {pro && (
+              <button
+                type="button"
+                onClick={() => navigate('/settings')}
+                // The pill is ~20px tall; pad the hit area toward 44px without
+                // moving the layout.
+                className="-m-3 rounded-full p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label={`${pro.title} — see your membership`}
+              >
+                <ProBadge label={pro.badge} />
+              </button>
+            )}
+          </div>
           <p className="text-muted-foreground">{balanceSubtitle}</p>
         </div>
         <Button
