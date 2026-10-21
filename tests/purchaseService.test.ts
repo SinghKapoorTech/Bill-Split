@@ -191,6 +191,44 @@ describe('syncPurchaser — when RevenueCat must stay off', () => {
   });
 });
 
+describe('RevenueCat Test Store key', () => {
+  it('uses the test key over the App Store key outside production builds', async () => {
+    vi.stubEnv('MODE', 'beta');
+    vi.stubEnv('VITE_REVENUECAT_TEST_KEY', 'test_key');
+    const { syncPurchaser } = await load();
+    await syncPurchaser('uid-alice');
+    expect(h.configure).toHaveBeenCalledWith({ apiKey: 'test_key', appUserID: 'uid-alice' });
+  });
+
+  // The native SDK crashes a release build (TestFlight / App Store) that is
+  // configured with a test key, so a production build must never pick it up.
+  it('NEVER uses the test key in a production build', async () => {
+    vi.stubEnv('MODE', 'production');
+    vi.stubEnv('VITE_REVENUECAT_TEST_KEY', 'test_key');
+    const { syncPurchaser } = await load();
+    await syncPurchaser('uid-alice');
+    expect(h.configure).toHaveBeenCalledWith({ apiKey: 'appl_test_ios', appUserID: 'uid-alice' });
+  });
+
+  it('enables Android (no store key yet) only through the test key', async () => {
+    h.platform = 'android';
+    vi.stubEnv('MODE', 'beta');
+    vi.stubEnv('VITE_REVENUECAT_TEST_KEY', 'test_key');
+    const { syncPurchaser } = await load();
+    await syncPurchaser('uid-alice');
+    expect(h.configure).toHaveBeenCalledWith({ apiKey: 'test_key', appUserID: 'uid-alice' });
+  });
+
+  it('stays off on the web even with a test key', async () => {
+    h.platform = 'web';
+    vi.stubEnv('MODE', 'beta');
+    vi.stubEnv('VITE_REVENUECAT_TEST_KEY', 'test_key');
+    const { syncPurchaser } = await load();
+    await syncPurchaser('uid-alice');
+    expect(h.configure).not.toHaveBeenCalled();
+  });
+});
+
 describe('loadPaywallPackages', () => {
   it('maps the current offering to paywall inputs, with per-product trial eligibility', async () => {
     const { syncPurchaser, loadPaywallPackages } = await load();
@@ -217,7 +255,9 @@ describe('loadPaywallPackages', () => {
   });
 
   it('marks a product INELIGIBLE when the store says so', async () => {
-    h.checkTrialOrIntroductoryPriceEligibility.mockResolvedValue({ divit_pro_annual: { status: 1 } });
+    h.checkTrialOrIntroductoryPriceEligibility.mockResolvedValue({
+      divit_pro_annual: { status: 1 },
+    });
     const { syncPurchaser, loadPaywallPackages } = await load();
     await syncPurchaser('uid-alice');
     const annual = (await loadPaywallPackages()).find((p) => p.id === '$rc_annual')!;
@@ -264,7 +304,9 @@ describe('purchasePlan — never buys for an unknown or stale identity', () => {
     release();
     await switching;
     await buying;
-    expect(h.logIn.mock.invocationCallOrder[0]).toBeLessThan(h.purchasePackage.mock.invocationCallOrder[0]);
+    expect(h.logIn.mock.invocationCallOrder[0]).toBeLessThan(
+      h.purchasePackage.mock.invocationCallOrder[0],
+    );
   });
 
   it('buys the exact package object the store returned', async () => {
@@ -284,7 +326,11 @@ describe('purchasePlan — never buys for an unknown or stale identity', () => {
   });
 
   it('rethrows a real store failure', async () => {
-    h.purchasePackage.mockRejectedValue({ code: '2', userCancelled: false, message: 'store problem' });
+    h.purchasePackage.mockRejectedValue({
+      code: '2',
+      userCancelled: false,
+      message: 'store problem',
+    });
     const { loadPaywallPackages, purchasePlan, syncPurchaser } = await load();
     await syncPurchaser('uid-alice');
     await loadPaywallPackages();
@@ -292,7 +338,10 @@ describe('purchasePlan — never buys for an unknown or stale identity', () => {
   });
 
   it('reports "pending" when the store succeeded but Pro is not active yet (Ask to Buy, etc.)', async () => {
-    h.purchasePackage.mockResolvedValue({ customerInfo: freeInfo(), productIdentifier: 'divit_pro_annual' });
+    h.purchasePackage.mockResolvedValue({
+      customerInfo: freeInfo(),
+      productIdentifier: 'divit_pro_annual',
+    });
     const { loadPaywallPackages, purchasePlan, syncPurchaser } = await load();
     await syncPurchaser('uid-alice');
     await loadPaywallPackages();

@@ -18,6 +18,9 @@ interface ImportMetaEnv {
   // client. Absent = purchasing disabled on that platform.
   readonly VITE_REVENUECAT_IOS_KEY?: string;
   readonly VITE_REVENUECAT_ANDROID_KEY?: string;
+  // RevenueCat Test Store key (test_…). Ignored in production-mode builds;
+  // set only in the gitignored .env.beta for simulator QA.
+  readonly VITE_REVENUECAT_TEST_KEY?: string;
 }
 
 interface ImportMeta {

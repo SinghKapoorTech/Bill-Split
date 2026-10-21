@@ -24,8 +24,25 @@ import type { PaywallPackageInput } from '@/utils/paywallPlans';
  * account switch, a purchase lands on the WRONG account.
  */
 
+/**
+ * RevenueCat Test Store key (`test_…`): fake purchases through RevenueCat's own
+ * modal, so a simulator build can be tested end to end without an Apple sandbox
+ * account. NEVER in a production-mode build: the native SDK deliberately
+ * crashes a release build (TestFlight/App Store) configured with a test key.
+ * Set it only in the gitignored `.env.beta` (`vite build --mode beta`).
+ */
+function testStoreKey(): string | undefined {
+  if (import.meta.env.MODE === 'production') return undefined;
+  const key = import.meta.env.VITE_REVENUECAT_TEST_KEY;
+  return typeof key === 'string' && key.length > 0 ? key : undefined;
+}
+
 function platformApiKey(): string | undefined {
   const platform = Capacitor.getPlatform();
+  if (platform === 'ios' || platform === 'android') {
+    const testKey = testStoreKey();
+    if (testKey) return testKey;
+  }
   const key =
     platform === 'ios'
       ? import.meta.env.VITE_REVENUECAT_IOS_KEY
