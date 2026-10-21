@@ -188,14 +188,64 @@ describe('UpgradeView — selling on iOS', () => {
     expect(screen.getByText(/14-day free trial, then \$34\.99 per year/)).toBeInTheDocument();
   });
 
-  it('buys the selected plan, then thanks the user and leaves', async () => {
+  it('buys the selected plan, celebrates, and leaves only on "Let\u2019s go"', async () => {
     goLive();
+    window.history.replaceState({ idx: 1 }, '');
     renderView();
     fireEvent.click(await screen.findByRole('radio', { name: /\$4\.99/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Subscribe' }));
     await waitFor(() => expect(h.purchasePlan).toHaveBeenCalledWith('$rc_monthly'));
-    await waitFor(() => expect(h.navigate).toHaveBeenCalledWith(-1));
-    expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringMatching(/Pro/) }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Welcome to Divit Pro' });
+    // Names what was bought, not just "all set".
+    expect(dialog).toHaveTextContent('$4.99 per month. Renews automatically.');
+    expect(dialog).toHaveTextContent('Unlimited AI receipt scans');
+    // It does not auto-dismiss: nothing navigates until the user taps.
+    expect(h.navigate).not.toHaveBeenCalled();
+
+    const letsGo = screen.getByRole('button', { name: 'Let\u2019s go' });
+    fireEvent.click(letsGo);
+    // A second tap during the exit fade must not navigate back twice.
+    fireEvent.click(letsGo);
+    expect(h.navigate).toHaveBeenCalledTimes(1);
+    expect(h.navigate).toHaveBeenCalledWith(-1);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('opened cold from a divit://upgrade link, "Let\u2019s go" lands on the dashboard', async () => {
+    goLive();
+    window.history.replaceState({ idx: 0 }, '');
+    renderView();
+    fireEvent.click(await screen.findByRole('button', { name: 'Start 14-day free trial' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Let\u2019s go' }));
+    expect(h.navigate).toHaveBeenCalledWith('/dashboard', { replace: true });
+    expect(h.navigate).not.toHaveBeenCalledWith(-1);
+  });
+
+  it('says the free trial has started when the plan bought had one', async () => {
+    goLive();
+    renderView();
+    fireEvent.click(await screen.findByRole('button', { name: 'Start 14-day free trial' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Welcome to Divit Pro' });
+    expect(dialog).toHaveTextContent('Your 14-day free trial has started, then $34.99 per year.');
+  });
+
+  it('keeps celebrating when the webhook flips the account to Pro mid-celebration', async () => {
+    goLive();
+    const { rerender } = renderView();
+    fireEvent.click(await screen.findByRole('button', { name: 'Start 14-day free trial' }));
+    await screen.findByRole('dialog', { name: 'Welcome to Divit Pro' });
+    h.plan = 'pro';
+    rerender(
+      <MemoryRouter>
+        <UpgradeView />
+      </MemoryRouter>,
+    );
+    // Wait past the overlay's exit fade (0.25s): AnimatePresence keeps an
+    // exiting dialog mounted, which would hide a regression from a sync check.
+    await new Promise((r) => setTimeout(r, 600));
+    expect(screen.getByRole('dialog', { name: 'Welcome to Divit Pro' })).toBeInTheDocument();
+    expect(h.navigate).not.toHaveBeenCalled();
   });
 
   it('stays put and says nothing when the user cancels the sheet', async () => {
@@ -211,6 +261,7 @@ describe('UpgradeView — selling on iOS', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Start 14-day free trial' })).toBeEnabled());
     expect(h.toast).not.toHaveBeenCalled();
     expect(h.navigate).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('explains a pending purchase instead of claiming success', async () => {
@@ -234,6 +285,7 @@ describe('UpgradeView — selling on iOS', () => {
       expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' })),
     );
     expect(screen.getByRole('button', { name: 'Start 14-day free trial' })).toBeEnabled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('never sells without a price: a failed load shows retry, not a buy button', async () => {
