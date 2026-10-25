@@ -16,7 +16,7 @@
  * here reaches `@/config/firebase` and needs a populated `.env`.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -24,6 +24,7 @@ const h = vi.hoisted(() => ({
   cap: { activeCount: 2, limit: 2, atCap: false, text: '', unlimited: false, loading: false },
   events: [] as Array<Record<string, unknown>>,
   createEvent: vi.fn(),
+  archiveEvent: vi.fn(),
   unarchiveEvent: vi.fn(),
   toast: vi.fn(),
   navigate: vi.fn(),
@@ -36,7 +37,7 @@ vi.mock('@/hooks/useEventManager', () => ({
     loading: false,
     createEvent: h.createEvent,
     deleteEvent: vi.fn(),
-    archiveEvent: vi.fn(),
+    archiveEvent: h.archiveEvent,
     unarchiveEvent: h.unarchiveEvent,
   }),
 }));
@@ -103,9 +104,11 @@ describe('EventsView — at the cap', () => {
     h.cap = { ...h.cap, atCap: true, text: '2 of 2 groups active' };
   });
 
-  it('states the cap on the page', () => {
+  it('states the cap on the page, and how to make room', () => {
     renderView();
-    expect(screen.getByText('2 of 2 groups active')).toBeInTheDocument();
+    expect(
+      screen.getByText(/2 of 2 groups active\. Archive one you're finished with to start a new group\./),
+    ).toBeInTheDocument();
   });
 
   it('raises the cap modal from the HEADER button', async () => {
@@ -214,5 +217,114 @@ describe('EventsView — the server still gets the last word', () => {
 
     expect(capModal()).not.toBeInTheDocument();
     expect(h.toast).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('EventsView — archiving from the cap modal', () => {
+  const MINE = [
+    { id: 'e1', name: 'Vegas Trip', ownerId: 'u1', memberIds: ['u1'] },
+    { id: 'e2', name: 'Ski Weekend', ownerId: 'u1', memberIds: ['u1'] },
+  ];
+  const THEIRS = { id: 'x1', name: 'Friend\'s Wedding', ownerId: 'someone-else', memberIds: ['u1'] };
+
+  beforeEach(() => {
+    h.cap = { ...h.cap, atCap: true, text: '2 of 2 groups active' };
+    h.events = [...MINE, THEIRS];
+  });
+
+  const openWall = async () => {
+    renderView();
+    await userEvent.click(screen.getByRole('button', { name: 'New event' }));
+    return screen.getByRole('list', { name: 'Your active groups' });
+  };
+
+  it('offers only the user\'s OWN groups — they cannot archive someone else\'s', async () => {
+    const list = await openWall();
+    expect(within(list).getByText('Vegas Trip')).toBeInTheDocument();
+    expect(within(list).queryByText("Friend's Wedding")).not.toBeInTheDocument();
+  });
+
+  it('archives the chosen group, then opens the create form', async () => {
+    h.archiveEvent.mockResolvedValue(undefined);
+    const list = await openWall();
+    await userEvent.click(within(list).getByRole('button', { name: 'Archive Ski Weekend' }));
+
+    expect(h.archiveEvent).toHaveBeenCalledWith('e2');
+    expect(await screen.findByRole('heading', { name: 'Create New Event' })).toBeInTheDocument();
+    expect(capModal()).not.toBeInTheDocument();
+  });
+
+  it('does not blank the modal while the archive is still saving', async () => {
+    // Firestore applies the archive locally first, so the live count drops
+    // (atCap → false) before the save resolves. The modal must hold steady.
+    let finish!: () => void;
+    h.archiveEvent.mockReturnValue(new Promise<void>((r) => (finish = r)));
+    const { rerender } = render(
+      <MemoryRouter>
+        <EventsView />
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'New event' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Archive Vegas Trip' }));
+
+    h.cap = { ...h.cap, atCap: false, activeCount: 1, text: '' };
+    rerender(
+      <MemoryRouter>
+        <EventsView />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('button', { name: 'Archive Vegas Trip' })).toHaveTextContent('Archiving…');
+
+    finish();
+    expect(await screen.findByRole('heading', { name: 'Create New Event' })).toBeInTheDocument();
+  });
+
+  it('cannot be dismissed while the archive is saving, so nothing pops up later', async () => {
+    let finish!: () => void;
+    h.archiveEvent.mockReturnValue(new Promise<void>((r) => (finish = r)));
+    renderView();
+    await userEvent.click(screen.getByRole('button', { name: 'New event' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Archive Vegas Trip' }));
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('list', { name: 'Your active groups' })).toBeInTheDocument();
+
+    finish();
+    expect(await screen.findByRole('heading', { name: 'Create New Event' })).toBeInTheDocument();
+  });
+
+  it('keeps the modal and opens nothing when the archive fails', async () => {
+    h.archiveEvent.mockRejectedValue(new Error('offline'));
+    const list = await openWall();
+    await userEvent.click(within(list).getByRole('button', { name: 'Archive Vegas Trip' }));
+
+    expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive' }));
+    expect(capModal()).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Create New Event' })).not.toBeInTheDocument();
+  });
+
+  it('after a refused RESTORE, archiving retries that restore instead of opening create', async () => {
+    h.cap = { ...h.cap, atCap: false };
+    h.events = [...MINE, { id: 'old', name: 'Old Trip', ownerId: 'u1', archived: true, memberIds: ['u1'] }];
+    h.unarchiveEvent
+      .mockRejectedValueOnce(
+        Object.assign(new Error('too many groups'), {
+          code: 'functions/resource-exhausted',
+          details: { reason: 'group-cap', activeCount: 2, limit: 2 },
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+    h.archiveEvent.mockResolvedValue(undefined);
+    renderView();
+
+    await userEvent.click(screen.getByRole('button', { name: /archived/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Unarchive Old Trip' }));
+    const list = screen.getByRole('list', { name: 'Your active groups' });
+    await userEvent.click(within(list).getByRole('button', { name: 'Archive Vegas Trip' }));
+
+    expect(h.archiveEvent).toHaveBeenCalledWith('e1');
+    expect(h.unarchiveEvent).toHaveBeenCalledTimes(2);
+    expect(h.unarchiveEvent).toHaveBeenLastCalledWith('old');
+    expect(screen.queryByRole('heading', { name: 'Create New Event' })).not.toBeInTheDocument();
   });
 });

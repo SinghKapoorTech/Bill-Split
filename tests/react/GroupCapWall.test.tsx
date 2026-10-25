@@ -103,3 +103,57 @@ describe('GroupCapWall — actions', () => {
     expect(screen.queryByRole('button', { name: /Pro/ })).not.toBeInTheDocument();
   });
 });
+
+describe('GroupCapWall — archive a group right here', () => {
+  const GROUPS = [
+    { id: 'g1', name: 'Vegas Trip' },
+    { id: 'g2', name: 'Ski Weekend' },
+  ];
+
+  it('lists the user\'s groups, each with its own Archive button', async () => {
+    const onArchiveGroup = vi.fn();
+    render(
+      <GroupCapWall atCap activeCount={2} limit={2} groups={GROUPS} onArchiveGroup={onArchiveGroup} />,
+    );
+    expect(screen.getByText('Vegas Trip')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Archive Ski Weekend' }));
+    expect(onArchiveGroup).toHaveBeenCalledWith('g2');
+    expect(onArchiveGroup).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops the generic "Archive a group" button when it can archive in place', () => {
+    render(
+      <GroupCapWall
+        atCap
+        activeCount={2}
+        limit={2}
+        groups={GROUPS}
+        onArchiveGroup={() => {}}
+        onArchive={() => {}}
+      />,
+    );
+    // Positive anchor first: the in-place list rendered.
+    expect(screen.getByRole('button', { name: 'Archive Vegas Trip' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archive a group' })).not.toBeInTheDocument();
+  });
+
+  it('falls back to the generic button when there is no list to offer', () => {
+    render(<GroupCapWall atCap activeCount={2} limit={2} groups={[]} onArchiveGroup={() => {}} onArchive={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Archive a group' })).toBeInTheDocument();
+  });
+
+  it('locks every row while one is archiving, and says which', () => {
+    render(
+      <GroupCapWall
+        atCap
+        activeCount={2}
+        limit={2}
+        groups={GROUPS}
+        onArchiveGroup={() => {}}
+        archivingId="g1"
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Archive Vegas Trip' })).toHaveTextContent('Archiving…');
+    expect(screen.getByRole('button', { name: 'Archive Ski Weekend' })).toBeDisabled();
+  });
+});

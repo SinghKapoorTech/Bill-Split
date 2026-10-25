@@ -27,7 +27,10 @@ import { UserProfile } from '@/types/person.types';
 import { User } from 'firebase/auth';
 import { isEventArchived } from '@shared/eventArchive';
 import { formatShortDate } from '@/utils/format';
-import { unarchiveEventDoc } from '@/services/eventArchiveService';
+import { archiveEventDoc, unarchiveEventDoc } from '@/services/eventArchiveService';
+import { archivePromptCopy, finishedBillCount, shouldOfferArchive } from '@/utils/archivePrompt';
+import { useEntitlement } from '@/hooks/useEntitlement';
+import { useMonetizationConfig } from '@/hooks/useMonetizationConfig';
 import { messageForCallableError } from '@/utils/callableError';
 import { capDetailsFromError } from '@/utils/capError';
 import type { CapErrorDetails } from '@shared/capErrors';
@@ -247,6 +250,9 @@ export default function EventDetailView() {
     { reason: 'group-cap' }
   > | null>(null);
   const [isUnarchiving, setIsUnarchiving] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const entitlement = useEntitlement();
+  const monetization = useMonetizationConfig();
   const [eventBills, setEventBills] = useState<Bill[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -462,6 +468,33 @@ export default function EventDetailView() {
     }
   };
 
+  /**
+   * Archive from inside the group — offered only once everyone is settled up
+   * (see `settledAndArchivable` below). Owner-only, like every archive write.
+   * No navigation: the listener flips the page into its archived state, which
+   * already explains itself and offers Unarchive.
+   */
+  const handleArchiveEvent = async () => {
+    if (!user || !eventId) return;
+    setIsArchiving(true);
+    try {
+      await archiveEventDoc(eventId);
+      toast({
+        title: 'Event archived',
+        description: `${event?.name ?? 'The event'} was archived. Balances are unchanged.`,
+      });
+    } catch (error) {
+      console.error('Failed to archive event', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to archive event. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
   const handleCreateEventBill = async () => {
     if (!user || !event) {
       toast({
@@ -513,6 +546,19 @@ export default function EventDetailView() {
   const archived = isEventArchived(event);
   const isEventOwner = user?.uid === event.ownerId;
   const archivedOn = archived ? formatShortDate(event.archivedAt) : null;
+  const archiveCopy = archivePromptCopy({
+    capped:
+      entitlement.loading || monetization.loading
+        ? null
+        : monetization.paywallEnabled && !entitlement.unlimited,
+  });
+  const settledAndArchivable = shouldOfferArchive({
+    isOwner: isEventOwner,
+    archived,
+    ledgerLoading,
+    billCount: finishedBillCount(eventBills),
+    debtCount: optimizedDebts.length,
+  });
 
   return (
     <div className="h-full flex flex-col max-w-7xl mx-auto">
@@ -571,6 +617,29 @@ export default function EventDetailView() {
         </div>
         {event.description && (
           <p className="text-sm text-muted-foreground mb-4 mt-2">{event.description}</p>
+        )}
+
+        {settledAndArchivable && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 mt-2 mb-2">
+            <div className="flex items-start gap-2 text-sm text-foreground min-w-0">
+              <Archive className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
+              <span className="min-w-0">
+                {archiveCopy === 'make-room'
+                  ? "Everyone's settled up. Archive this group to make room for a new one. You can restore it anytime."
+                  : "Everyone's settled up. Archive this group to tidy it away. You can restore it anytime."}
+              </span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-sm gap-2 rounded-full whitespace-nowrap shrink-0"
+              onClick={handleArchiveEvent}
+              disabled={isArchiving}
+            >
+              <Archive className="w-4 h-4 shrink-0" />
+              {isArchiving ? 'Archiving...' : 'Archive group'}
+            </Button>
+          </div>
         )}
 
         {archived && (

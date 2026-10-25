@@ -1,4 +1,4 @@
-import { Sparkles } from 'lucide-react';
+import { Archive, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePlatform } from '@/hooks/usePlatform';
 
@@ -18,6 +18,16 @@ interface Props {
    * rather than rendered as a no-op.
    */
   onArchive?: () => void;
+  /**
+   * The user's own active groups, offered for archiving right here. When given
+   * together with `onArchiveGroup`, each row gets its own Archive button and the
+   * generic `onArchive` button is not shown: the user should never have to
+   * close this and hunt for the control on the page behind it.
+   */
+  groups?: ReadonlyArray<{ id: string; name: string }>;
+  onArchiveGroup?: (groupId: string) => void;
+  /** The group being archived right now: its row shows progress, every row is disabled. */
+  archivingId?: string | null;
   /** Opens the upgrade path. Optional for the same reason. */
   onSeePro?: () => void;
   className?: string;
@@ -45,6 +55,9 @@ export function GroupCapWall({
   activeCount,
   limit,
   onArchive,
+  groups,
+  onArchiveGroup,
+  archivingId = null,
   onSeePro,
   className = '',
 }: Props) {
@@ -53,6 +66,7 @@ export function GroupCapWall({
   if (!atCap) return null;
 
   const noun = activeCount === 1 ? 'group' : 'groups';
+  const pickList = onArchiveGroup && groups && groups.length > 0 ? groups : null;
 
   return (
     <div className={`text-center space-y-3 ${className}`}>
@@ -73,8 +87,32 @@ export function GroupCapWall({
         </p>
       </div>
 
+      {pickList && (
+        <ul className="space-y-2 text-left" aria-label="Your active groups">
+          {pickList.map((g) => (
+            <li
+              key={g.id}
+              className="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{g.name}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                disabled={archivingId !== null}
+                onClick={() => onArchiveGroup!(g.id)}
+                aria-label={`Archive ${g.name}`}
+              >
+                <Archive className="h-3.5 w-3.5" aria-hidden />
+                {archivingId === g.id ? 'Archiving…' : 'Archive'}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-2 justify-center">
-        {onArchive && (
+        {onArchive && !pickList && (
           <Button variant="outline" size="sm" onClick={onArchive}>
             Archive a group
           </Button>

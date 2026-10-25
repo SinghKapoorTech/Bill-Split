@@ -57,7 +57,7 @@ export function EventCard({
     >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-semibold mb-2">{event.name}</h3>
+          <h3 className="text-lg font-semibold mb-2 break-words">{event.name}</h3>
           {event.description && (
             <p className="text-sm text-muted-foreground mb-3">{event.description}</p>
           )}
@@ -77,17 +77,25 @@ export function EventCard({
             )}
           </div>
         </div>
-        <div className="flex items-center shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {showArchiveButton && (
+            // LABELLED, not icon-only: archiving is how a free user makes room
+            // for a new group, so it has to be findable without guessing what a
+            // box icon means — and it must not read as a twin of Delete beside it.
             <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
               onClick={handleArchiveToggle}
               aria-label={archived ? `Unarchive ${event.name}` : `Archive ${event.name}`}
               title={archived ? 'Unarchive event' : 'Archive event'}
             >
-              {archived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+              {archived ? (
+                <ArchiveRestore className="w-3.5 h-3.5" aria-hidden />
+              ) : (
+                <Archive className="w-3.5 h-3.5" aria-hidden />
+              )}
+              {archived ? 'Restore' : 'Archive'}
             </Button>
           )}
           {isOwner && onDelete && (

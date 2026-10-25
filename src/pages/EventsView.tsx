@@ -27,6 +27,13 @@ import { useGroupCap } from '@/hooks/useGroupCap';
 import { GroupCapWall } from '@/components/monetization/GroupCapWall';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
+/**
+ * What the user was trying to do when the cap stopped them, so archiving a
+ * group from the modal can carry straight on instead of leaving them to start
+ * over: open the create form, or retry the restore that was refused.
+ */
+type CapFollowUp = { kind: 'create' } | { kind: 'unarchive'; eventId: string };
+
 export default function EventsView() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,10 +59,12 @@ export default function EventsView() {
    *     payload, which is the authoritative pair and may differ from ours.
    */
   const [capModal, setCapModal] = useState<
-    | { source: 'client' }
-    | { source: 'server'; activeCount: number; limit: number }
+    | { source: 'client'; then: CapFollowUp }
+    | { source: 'server'; activeCount: number; limit: number; then: CapFollowUp }
     | null
   >(null);
+  /** The group being archived from inside the cap modal, if any. */
+  const [archivingId, setArchivingId] = useState<string | null>(null);
   const { events, loading, createEvent, deleteEvent, archiveEvent, unarchiveEvent } =
     useEventManager();
 
@@ -82,7 +91,7 @@ export default function EventsView() {
    */
   const openCreate = () => {
     if (cap.atCap) {
-      setCapModal({ source: 'client' });
+      setCapModal({ source: 'client', then: { kind: 'create' } });
       return;
     }
     setDialogOpen(true);
@@ -97,13 +106,14 @@ export default function EventsView() {
    * resource-exhausted": that code is shared with the hourly scan limiter,
    * which applies to Pro subscribers and is not a paywall trigger.
    */
-  const handledAsGroupCap = (error: unknown) => {
+  const handledAsGroupCap = (error: unknown, then: CapFollowUp) => {
     const details = capDetailsFromError(error);
     if (details?.reason !== 'group-cap') return false;
     setCapModal({
       source: 'server',
       activeCount: details.activeCount,
       limit: details.limit,
+      then,
     });
     return true;
   };
@@ -167,7 +177,7 @@ export default function EventsView() {
       navigateWithOrigin(navigate, location, `/events/${newEventId}`);
     } catch (error) {
       console.error('Failed to create event', error);
-      if (handledAsGroupCap(error)) return;
+      if (handledAsGroupCap(error, { kind: 'create' })) return;
       toast({
         title: 'Error',
         // Same reason as unarchive: when the group cap blocks creation the
@@ -219,7 +229,7 @@ export default function EventsView() {
       });
     } catch (error) {
       console.error('Failed to unarchive event', error);
-      if (handledAsGroupCap(error)) return;
+      if (handledAsGroupCap(error, { kind: 'unarchive', eventId })) return;
       toast({
         title: 'Error',
         // The group cap writes its message server-side to be read verbatim, and
@@ -231,6 +241,44 @@ export default function EventsView() {
       });
     }
   };
+
+  /**
+   * Archive one of the user's groups from INSIDE the cap modal, then carry on
+   * with what they were doing. Not routed through `handleArchiveEvent`: that one
+   * swallows its own errors, and here a failure must keep the modal open.
+   */
+  const archiveFromCapModal = async (groupId: string) => {
+    if (!capModal) return;
+    const followUp = capModal.then;
+    const group = events.find((e) => e.id === groupId);
+    setArchivingId(groupId);
+    try {
+      await archiveEvent(groupId);
+    } catch (error) {
+      console.error('Failed to archive event', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to archive event. Please try again.',
+        variant: 'destructive',
+      });
+      return;
+    } finally {
+      setArchivingId(null);
+    }
+    setCapModal(null);
+    toast({
+      title: 'Event archived',
+      description: `${group?.name ?? 'The event'} was archived. Balances are unchanged.`,
+    });
+    if (followUp.kind === 'create') {
+      setDialogOpen(true);
+    } else {
+      await handleUnarchiveEvent(followUp.eventId);
+    }
+  };
+
+  /** The user's own active groups — the only ones they can archive. */
+  const ownedActiveEvents = activeEvents.filter((e) => e.ownerId === user?.uid);
 
   const confirmDeleteEvent = async () => {
     if (!eventToDelete) return;
@@ -263,7 +311,9 @@ export default function EventsView() {
               and there is no "one left" moment worth a different tone the way
               there is for scans. Plain status text, not a chip. */}
           {cap.text && (
-            <p className="text-caption-responsive text-destructive mt-1.5">{cap.text}</p>
+            <p className="text-caption-responsive text-primary mt-1.5">
+              {cap.text}. Archive one you&apos;re finished with to start a new group.
+            </p>
           )}
         </div>
         <Button
@@ -366,7 +416,13 @@ export default function EventsView() {
         )}
       </div>
 
-      <Dialog open={capModal !== null} onOpenChange={(open) => !open && setCapModal(null)}>
+      {/* Not dismissable while an archive started from inside it is saving:
+          the follow-up (open create / retry restore) runs when the save lands,
+          and must not pop up after the user has closed this. */}
+      <Dialog
+        open={capModal !== null}
+        onOpenChange={(open) => !open && archivingId === null && setCapModal(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogTitle className="sr-only">Active group limit reached</DialogTitle>
           {capModal && (
@@ -374,11 +430,17 @@ export default function EventsView() {
               // Live for the client gate so the modal can empty itself if the
               // user turns out to be Pro; pinned true for a server refusal,
               // which already happened and is not ours to second-guess.
-              atCap={capModal.source === 'server' ? true : cap.atCap}
+              // …and held open while a group is being archived from inside it:
+              // Firestore applies the write locally first, so `cap.atCap` drops
+              // before the save resolves and would blank the dialog mid-action.
+              atCap={capModal.source === 'server' || archivingId !== null ? true : cap.atCap}
               activeCount={
                 capModal.source === 'server' ? capModal.activeCount : cap.activeCount
               }
               limit={capModal.source === 'server' ? capModal.limit : cap.limit}
+              groups={ownedActiveEvents}
+              onArchiveGroup={archiveFromCapModal}
+              archivingId={archivingId}
               onArchive={() => {
                 // Collapses the archived section so the ACTIVE list — the one
                 // they need to archive from — is what is behind the modal. A
