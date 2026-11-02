@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { HeroSection } from '@/components/layout/HeroSection';
 import { AirbnbWizard } from '@/components/airbnb-wizard/AirbnbWizard';
 import { ShareLinkDialog } from '@/components/share/ShareLinkDialog';
+import { BillLoadErrorState } from '@/components/bill/BillLoadErrorState';
 import { Loader2 } from 'lucide-react';
 import { useBillContext } from '@/contexts/BillSessionContext';
 import { useSessionTimeout } from '@/hooks/useSessionTimeout';
@@ -16,6 +17,7 @@ import { ensureUserInPeople, generateUserId } from '@/utils/billCalculations';
 import { billService } from '@/services/billService';
 import { userService } from '@/services/userService';
 import { Person, BillData, ItemAssignment, Bill } from '@/types';
+import { BillLoadFailure, classifyBillLoadError } from '@/utils/billLoadResult';
 import { deleteField, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 
@@ -35,8 +37,10 @@ function AirbnbViewContent() {
 
     const {
         activeSession,
+        savedSessions,
         isLoadingSessions,
         resumeSession,
+        loadBill,
         saveSession,
         deleteSession,
     } = useBillContext();
@@ -54,6 +58,12 @@ function AirbnbViewContent() {
     const [isGeneratingShareCode, setIsGeneratingShareCode] = useState(false);
 
     const loadedSessionId = useRef<string | null>(null);
+    // State, not a ref, so it re-renders: once this page has shown its bill
+    // (fetch, snapshot or draft) a later failed fetch must never replace it.
+    const [isBillRendered, setIsBillRendered] = useState(false);
+    const [loadFailure, setLoadFailure] = useState<BillLoadFailure | null>(null);
+    const [loadAttempt, setLoadAttempt] = useState(0);
+    const [fetchedBill, setFetchedBill] = useState<Bill | null>(null);
 
     const fetchEventMembers = async (eventId: string): Promise<Person[]> => {
         try {
@@ -86,6 +96,7 @@ function AirbnbViewContent() {
                 setCurrentStep(0);
                 setAirbnbData(undefined);
                 loadedSessionId.current = 'draft';
+                setIsBillRendered(true);
 
                 const { targetEventId } = location.state || {};
                 if (targetEventId) {
@@ -114,16 +125,22 @@ function AirbnbViewContent() {
                 setAirbnbData(activeSession.airbnbData);
                 loadedSessionId.current = activeSession.id;
             }
+            setIsBillRendered(true);
+            setLoadFailure(null);
         }
     }, [activeSession, billId, user, profile]);
 
     const hasLoadedBillId = useRef<string | null>(null);
 
     useEffect(() => {
-        if (billId && billId !== hasLoadedBillId.current) {
-            hasLoadedBillId.current = billId;
-            resumeSession(billId, true).then((fetchedBill) => {
-                if (fetchedBill) {
+        // Keyed by attempt too, so Try again re-runs the load for the same bill.
+        const attemptKey = `${billId}#${loadAttempt}`;
+        if (billId && attemptKey !== hasLoadedBillId.current) {
+            hasLoadedBillId.current = attemptKey;
+            loadBill(billId).catch((err) => ({ status: classifyBillLoadError(err) })).then((result) => {
+                if (result.status === 'loaded') {
+                    const fetchedBill = result.bill;
+                    setFetchedBill(fetchedBill);
                     setBillData(fetchedBill.billData || null);
                     setItemAssignments(fetchedBill.itemAssignments || {});
                     setPeople(ensureUserInPeople(fetchedBill.people || [], user, profile));
@@ -132,10 +149,14 @@ function AirbnbViewContent() {
                     setCurrentStep(fetchedBill.currentStep || 0);
                     setEventId(fetchedBill.eventId || null);
                     setAirbnbData(fetchedBill.airbnbData);
+                    setIsBillRendered(true);
+                    setLoadFailure(null);
+                } else {
+                    setLoadFailure(result.status);
                 }
             });
         }
-    }, [billId, resumeSession, user, profile]);
+    }, [billId, loadAttempt, loadBill, user, profile]);
 
     const hasProcessedNavState = useRef(false);
 
@@ -151,19 +172,28 @@ function AirbnbViewContent() {
     }, []);
 
     // On timeout, return the user where they came from.
-    const { goBack } = useReturnTo({ eventId });
+    const { goBack, label: backLabel } = useReturnTo({ eventId });
 
     useSessionTimeout({
         onTimeout: () => goBack(),
         timeoutMinutes: 20,
     });
 
+    // The session for THIS page's bill. activeSession is only the user's latest
+    // bill; an older one comes from the live list, else the one-off fetch.
+    // Passing another bill here would make useBillSession drop every save.
+    const billSession = !billId
+        ? null
+        : activeSession?.id === billId
+            ? activeSession
+            : savedSessions.find((b) => b.id === billId) ?? fetchedBill;
+
     const handleGenerateShareLink = async () => {
-        if (!activeSession?.id || !user) return;
+        if (!billSession?.id || !user) return;
 
         setIsGeneratingShareCode(true);
         try {
-            await billService.generateShareCode(activeSession.id, user.uid);
+            await billService.generateShareCode(billSession.id, user.uid);
             setShowShareLinkDialog(true);
         } catch (error) {
             console.error('Error generating share code:', error);
@@ -173,17 +203,17 @@ function AirbnbViewContent() {
     };
 
     const handleRegenerateShareLink = async () => {
-        if (!activeSession?.id || !user) return;
+        if (!billSession?.id || !user) return;
 
         setIsGeneratingShareCode(true);
         try {
-            await billService.updateBill(activeSession.id, {
+            await billService.updateBill(billSession.id, {
                 shareCode: deleteField() as unknown as string,
                 shareCodeCreatedAt: deleteField() as unknown as import('firebase/firestore').Timestamp,
                 shareCodeExpiresAt: deleteField() as unknown as import('firebase/firestore').Timestamp,
                 shareCodeCreatedBy: deleteField() as unknown as string,
             });
-            await billService.generateShareCode(activeSession.id, user.uid);
+            await billService.generateShareCode(billSession.id, user.uid);
         } catch (error) {
             console.error('Error regenerating share code:', error);
         } finally {
@@ -209,9 +239,21 @@ function AirbnbViewContent() {
         );
     }
 
-    const isDataReady = !billId || loadedSessionId.current !== null;
+    if (loadFailure && !isBillRendered) {
+        return (
+            <BillLoadErrorState
+                failure={loadFailure}
+                onRetry={() => {
+                    setLoadFailure(null);
+                    setLoadAttempt((n) => n + 1);
+                }}
+                onBack={() => goBack()}
+                backLabel={backLabel}
+            />
+        );
+    }
 
-    if (!isDataReady) {
+    if (billId && !isBillRendered) {
         return (
             <div className="loading-container">
                 <Loader2 className="loading-spinner" />
@@ -219,8 +261,7 @@ function AirbnbViewContent() {
         );
     }
 
-    const isDraft = !billId;
-    const effectiveSession = isDraft ? null : activeSession;
+    const effectiveSession = billSession;
 
     const handleEventChange = async (newEventId: string | null) => {
         setEventId(newEventId);
