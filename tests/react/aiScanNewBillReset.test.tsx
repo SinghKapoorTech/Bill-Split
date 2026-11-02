@@ -75,6 +75,10 @@ const ctx = {
   resumeSession: vi.fn(async (id: string) =>
     id === oldBill.id ? oldBill : { ...oldBill, id, billData: null },
   ),
+  loadBill: vi.fn(async (id: string) => ({
+    status: 'loaded' as const,
+    bill: id === oldBill.id ? oldBill : ({ ...oldBill, id, billData: null } as unknown as Bill),
+  })),
   saveSession: vi.fn(),
   removeReceiptImage: vi.fn(),
   deleteSession: vi.fn(),

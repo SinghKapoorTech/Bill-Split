@@ -11,6 +11,7 @@ import {
 } from "@/components/bill-wizard/BillWizard";
 import { DRAFT_CREATED_NAV_STATE } from "@/components/bill-wizard/hooks/useBillSession";
 import { ShareLinkDialog } from "@/components/share/ShareLinkDialog";
+import { BillLoadErrorState } from "@/components/bill/BillLoadErrorState";
 import { Loader2 } from "lucide-react";
 import { useBillContext } from "@/contexts/BillSessionContext";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
@@ -27,6 +28,7 @@ import {
 import { billService } from "@/services/billService";
 import { userService } from "@/services/userService";
 import { Person, BillData, ItemAssignment, Bill } from "@/types";
+import type { BillLoadFailure } from "@/utils/billLoadResult";
 import { deleteField, doc, getDoc } from "firebase/firestore";
 import { db } from "@/config/firebase";
 
@@ -55,6 +57,7 @@ function AIScanViewContent() {
     isUploading,
     uploadReceiptImage,
     resumeSession,
+    loadBill,
     saveSession,
     removeReceiptImage,
     deleteSession,
@@ -71,6 +74,11 @@ function AIScanViewContent() {
   const [isSessionLoaded, setIsSessionLoaded] = useState(
     !routeBillId || routeBillId === "new",
   );
+  // URL load failure — shown only while nothing is rendered (!isSessionLoaded):
+  // offline, getDoc rejects while the snapshot may still serve the bill.
+  const [loadFailure, setLoadFailure] = useState<BillLoadFailure | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   // Share link state
   const [showShareLinkDialog, setShowShareLinkDialog] = useState(false);
@@ -154,33 +162,35 @@ function AIScanViewContent() {
     }
   }, [activeSession, billId, user, profile]);
 
-  // Load bill when billId URL parameter changes
+  // Load bill when billId URL parameter changes, or Retry bumps loadAttempt
   const hasLoadedBillId = useRef<string | null>(null);
 
   useEffect(() => {
-    // Only load if billId changed and we haven't already loaded it
-    if (billId && billId !== hasLoadedBillId.current) {
-      hasLoadedBillId.current = billId;
-      // Pass silentLoad=true to prevent toast when loading from URL
-      resumeSession(billId, true).then((fetchedBill) => {
-        if (fetchedBill) {
-          setBillData(fetchedBill.billData || null);
-          setItemAssignments(fetchedBill.itemAssignments || {});
-          setPeople(
-            ensureUserInPeople(fetchedBill.people || [], user, profile),
-          );
-          setSplitEvenly(fetchedBill.splitEvenly || false);
-          setTitle(fetchedBill.title || "");
-          setCurrentStep(
-            initialWizardStep(fetchedBill, BILL_WIZARD_REVIEW_STEP),
-          );
-          setEventId(fetchedBill.eventId || null);
-          loadedSessionId.current = fetchedBill.id;
-          setIsSessionLoaded(true);
+    const attemptKey = billId ? `${billId}#${loadAttempt}` : null;
+    // Only load if billId/attempt changed and we haven't already loaded it
+    if (billId && attemptKey !== hasLoadedBillId.current) {
+      hasLoadedBillId.current = attemptKey;
+      loadBill(billId).then((result) => {
+        if (!isMounted.current) return;
+        setIsRetrying(false);
+        if (result.status !== "loaded") {
+          setLoadFailure(result.status);
+          return;
         }
+        const fetchedBill = result.bill;
+        setLoadFailure(null);
+        setBillData(fetchedBill.billData || null);
+        setItemAssignments(fetchedBill.itemAssignments || {});
+        setPeople(ensureUserInPeople(fetchedBill.people || [], user, profile));
+        setSplitEvenly(fetchedBill.splitEvenly || false);
+        setTitle(fetchedBill.title || "");
+        setCurrentStep(initialWizardStep(fetchedBill, BILL_WIZARD_REVIEW_STEP));
+        setEventId(fetchedBill.eventId || null);
+        loadedSessionId.current = fetchedBill.id;
+        setIsSessionLoaded(true);
       });
     }
-  }, [billId, resumeSession, user, profile]);
+  }, [billId, loadAttempt, loadBill, isMounted, user, profile]);
 
   // Resume session from navigation state (runs once on mount)
   const hasProcessedNavState = useRef(false);
@@ -201,7 +211,7 @@ function AIScanViewContent() {
   // Session timeout
   // On session timeout, return the user where they came from rather than
   // always dumping them on the dashboard.
-  const { goBack } = useReturnTo({ eventId });
+  const { goBack, label: backLabel } = useReturnTo({ eventId });
 
   useSessionTimeout({
     onTimeout: () => goBack(),
@@ -260,6 +270,21 @@ function AIScanViewContent() {
       year: "numeric",
     });
   };
+
+  if (loadFailure && !isSessionLoaded) {
+    return (
+      <BillLoadErrorState
+        failure={loadFailure}
+        isRetrying={isRetrying}
+        onRetry={() => {
+          setIsRetrying(true);
+          setLoadAttempt((n) => n + 1);
+        }}
+        onBack={() => goBack()}
+        backLabel={backLabel}
+      />
+    );
+  }
 
   // Single loading gate: wait for sessions to load AND bill data to be ready
   // Uses state (not ref) so it's batched with currentStep in the same render
