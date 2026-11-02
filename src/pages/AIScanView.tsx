@@ -53,6 +53,7 @@ function AIScanViewContent() {
   // Centralized session management
   const {
     activeSession,
+    savedSessions,
     isLoadingSessions,
     isUploading,
     uploadReceiptImage,
@@ -79,6 +80,18 @@ function AIScanViewContent() {
   const [loadFailure, setLoadFailure] = useState<BillLoadFailure | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [fetchedBill, setFetchedBill] = useState<Bill | null>(null);
+
+  // The session for THIS page's bill. activeSession is only the user's latest
+  // bill; an older one comes from the live list, else the one-off fetch.
+  // Passing another bill to the wizard makes useBillSession drop every save.
+  // Drafts (/bill/new) get null so the last viewed bill can't bleed in.
+  const liveSession = !billId
+    ? null
+    : activeSession?.id === billId
+      ? activeSession
+      : (savedSessions.find((b) => b.id === billId) ?? null);
+  const billSession = liveSession ?? (billId ? fetchedBill : null);
 
   // Share link state
   const [showShareLinkDialog, setShowShareLinkDialog] = useState(false);
@@ -141,26 +154,27 @@ function AIScanViewContent() {
       return; // Exit early, ignore activeSession
     }
 
-    // 2. We have a target billId AND an activeSession that matches it
-    if (activeSession && activeSession.id === billId) {
+    // 2. The live listener has this bill — as activeSession (latest) or as an
+    // older savedSessions entry. Not the one-off fetch: it never updates.
+    if (liveSession) {
       // Always sync real-time fields (assignments, people)
-      setItemAssignments(activeSession.itemAssignments || {});
-      setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
+      setItemAssignments(liveSession.itemAssignments || {});
+      setPeople(ensureUserInPeople(liveSession.people || [], user, profile));
 
       // Only update static/editor fields if this is the initial load for this session
-      if (loadedSessionId.current !== activeSession.id) {
-        setBillData(activeSession.billData || null);
-        setSplitEvenly(activeSession.splitEvenly || false);
-        setTitle(activeSession.title || "");
+      if (loadedSessionId.current !== liveSession.id) {
+        setBillData(liveSession.billData || null);
+        setSplitEvenly(liveSession.splitEvenly || false);
+        setTitle(liveSession.title || "");
         setCurrentStep(
-          initialWizardStep(activeSession, BILL_WIZARD_REVIEW_STEP),
+          initialWizardStep(liveSession, BILL_WIZARD_REVIEW_STEP),
         );
-        setEventId(activeSession.eventId || null);
-        loadedSessionId.current = activeSession.id;
+        setEventId(liveSession.eventId || null);
+        loadedSessionId.current = liveSession.id;
         setIsSessionLoaded(true);
       }
     }
-  }, [activeSession, billId, user, profile]);
+  }, [liveSession, billId, user, profile]);
 
   // Load bill when billId URL parameter changes, or Retry bumps loadAttempt
   const hasLoadedBillId = useRef<string | null>(null);
@@ -178,6 +192,7 @@ function AIScanViewContent() {
           return;
         }
         const fetchedBill = result.bill;
+        setFetchedBill(fetchedBill);
         setLoadFailure(null);
         setBillData(fetchedBill.billData || null);
         setItemAssignments(fetchedBill.itemAssignments || {});
@@ -218,13 +233,40 @@ function AIScanViewContent() {
     timeoutMinutes: 20,
   });
 
+  // A bill known only from the fetch has no listener, so after a share-code
+  // write re-read it or the dialog never sees the code.
+  const refreshFetchedShareCode = async (id: string) => {
+    if (liveSession) return;
+    const fresh = await billService.getBill(id);
+    if (!fresh || !isMounted.current) return;
+    setFetchedBill((prev) =>
+      prev && prev.id === id
+        ? {
+            ...prev,
+            shareCode: fresh.shareCode,
+            shareCodeCreatedAt: fresh.shareCodeCreatedAt,
+            shareCodeExpiresAt: fresh.shareCodeExpiresAt,
+            shareCodeCreatedBy: fresh.shareCodeCreatedBy,
+          }
+        : prev,
+    );
+  };
+
+  // Remove THIS page's receipt. A draft has no bill to clear; falling back to
+  // activeSession would delete the latest bill's receipt.
+  const handleRemoveReceiptImage = async () => {
+    if (!billSession) return;
+    await removeReceiptImage(billSession);
+  };
+
   // Share link handlers
   const handleGenerateShareLink = async () => {
-    if (!activeSession?.id || !user) return;
+    if (!billSession?.id || !user) return;
 
     setIsGeneratingShareCode(true);
     try {
-      await billService.generateShareCode(activeSession.id, user.uid);
+      await billService.generateShareCode(billSession.id, user.uid);
+      await refreshFetchedShareCode(billSession.id);
       setShowShareLinkDialog(true);
     } catch (error) {
       console.error("Error generating share code:", error);
@@ -234,12 +276,12 @@ function AIScanViewContent() {
   };
 
   const handleRegenerateShareLink = async () => {
-    if (!activeSession?.id || !user) return;
+    if (!billSession?.id || !user) return;
 
     setIsGeneratingShareCode(true);
     try {
       // Clear existing code
-      await billService.updateBill(activeSession.id, {
+      await billService.updateBill(billSession.id, {
         shareCode: deleteField() as unknown as string,
         shareCodeCreatedAt:
           deleteField() as unknown as import("firebase/firestore").Timestamp,
@@ -248,7 +290,8 @@ function AIScanViewContent() {
         shareCodeCreatedBy: deleteField() as unknown as string,
       });
       // Generate new code
-      await billService.generateShareCode(activeSession.id, user.uid);
+      await billService.generateShareCode(billSession.id, user.uid);
+      await refreshFetchedShareCode(billSession.id);
     } catch (error) {
       console.error("Error regenerating share code:", error);
     } finally {
@@ -296,10 +339,7 @@ function AIScanViewContent() {
     );
   }
 
-  // Prevent data bleed: ensure new drafts pass `null` to the wizard
-  // instead of the real-time activeSession from useBills (which might be the last viewed bill)
-  const isDraft = !billId;
-  const effectiveSession = isDraft ? null : activeSession;
+  const effectiveSession = billSession;
 
   const handleEventChange = async (newEventId: string | null) => {
     setEventId(newEventId);
@@ -387,7 +427,7 @@ function AIScanViewContent() {
           isUploading={isUploading}
           uploadReceiptImage={uploadReceiptImage}
           saveSession={handleSaveSession}
-          removeReceiptImage={removeReceiptImage}
+          removeReceiptImage={handleRemoveReceiptImage}
           deleteSession={deleteSession}
           initialBillData={billData}
           initialPeople={people}

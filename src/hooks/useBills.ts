@@ -195,13 +195,16 @@ export function useBills() {
     }
   };
 
-  const removeReceiptImage = useCallback(async () => {
-    if (!activeSession) return;
+  // `target` = the bill the page shows; activeSession is only the latest bill,
+  // so a page on an older bill must pass its own or the wrong receipt goes.
+  const removeReceiptImage = useCallback(async (target?: Bill | null) => {
+    const bill = target ?? activeSession;
+    if (!bill) return;
 
     try {
       // First try to delete using receiptFileName if it exists
-      if (activeSession.receiptFileName) {
-        const storageRef = getStorageRef(activeSession.receiptFileName);
+      if (bill.receiptFileName) {
+        const storageRef = getStorageRef(bill.receiptFileName);
         if (storageRef) {
           try {
             await deleteObject(storageRef);
@@ -211,10 +214,10 @@ export function useBills() {
             }
           }
         }
-      } else if (activeSession.receiptImageUrl) {
+      } else if (bill.receiptImageUrl) {
         // Fallback: try to extract the likely path from the URL
         try {
-          const decodedUrl = decodeURIComponent(activeSession.receiptImageUrl);
+          const decodedUrl = decodeURIComponent(bill.receiptImageUrl);
           const urlParts = decodedUrl.split('/o/');
           if (urlParts.length > 1) {
             const fullPath = urlParts[1].split('?')[0]; // eg. "receipts/uid/receipt_123"
@@ -229,7 +232,7 @@ export function useBills() {
       }
 
       // Update the bill to remove image references
-      const billRef = doc(db, 'bills', activeSession.id);
+      const billRef = doc(db, 'bills', bill.id);
       await updateDoc(billRef, {
         receiptImageUrl: deleteField(),
         receiptFileName: deleteField(),

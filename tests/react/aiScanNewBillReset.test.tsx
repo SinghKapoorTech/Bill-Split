@@ -69,6 +69,7 @@ const oldBill = {
 
 const ctx = {
   activeSession: oldBill as Bill | null,
+  savedSessions: [] as Bill[],
   isLoadingSessions: false,
   isUploading: false,
   uploadReceiptImage: vi.fn(),
