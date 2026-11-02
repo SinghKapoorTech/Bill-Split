@@ -20,6 +20,7 @@ import { Bill, BillData } from '@/types/bill.types';
 import { useToast } from './use-toast';
 import { billService } from '@/services/billService';
 import { removeUndefinedFields } from '@/utils/firestoreHelpers';
+import { BillLoadResult, classifyBillLoadError } from '@/utils/billLoadResult';
 
 /**
  * Hook for managing user's private bills in the unified bills collection.
@@ -359,16 +360,31 @@ export function useBills() {
       return bill;
     } catch (error) {
       console.error('Error resuming session:', error);
-      toast({
-        title: 'Error',
-        description: 'Could not resume session.',
-        variant: 'destructive'
-      });
+      // Silent URL loads render their own error state; only explicit resumes toast.
+      if (!silentLoad) {
+        toast({
+          title: 'Error',
+          description: 'Could not resume session.',
+          variant: 'destructive'
+        });
+      }
       return null;
     } finally {
       if (!silentLoad) setIsResuming(false);
     }
   }, [toast]);
+
+  // URL load for the bill screens: fetch only — never throws, toasts or writes,
+  // so the screen can tell "missing/denied" from "offline" and render its own state.
+  const loadBill = useCallback(async (billId: string): Promise<BillLoadResult> => {
+    try {
+      const bill = await billService.getBill(billId);
+      return bill ? { status: 'loaded', bill } : { status: 'not-found' };
+    } catch (error) {
+      console.error('Error loading bill:', error);
+      return { status: classifyBillLoadError(error) };
+    }
+  }, []);
 
   return {
     activeSession,
@@ -382,6 +398,7 @@ export function useBills() {
     clearSession,
     deleteSession,
     resumeSession,
+    loadBill,
     uploadReceiptImage,
     removeReceiptImage,
   };
