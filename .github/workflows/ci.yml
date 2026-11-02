@@ -115,7 +115,9 @@ jobs:
   # the functions emulator, and keeping it separate means a browser flake never
   # hides a unit or rules failure.
   e2e:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, which Playwright 1.58 can't install
+    # browsers on. Unpin after upgrading Playwright.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
