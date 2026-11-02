@@ -32,6 +32,9 @@ import {
 import { userService } from '@/services/userService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/config/firebase';
+import { Loader2 } from 'lucide-react';
+import { BillLoadErrorState } from '@/components/bill/BillLoadErrorState';
+import type { BillLoadFailure } from '@/utils/billLoadResult';
 
 const STEPS = [
   { id: 1, label: 'Details', description: 'Amount & Info' },
@@ -53,8 +56,9 @@ export function SimpleTransactionWizard({
   const { state: routerState } = useLocation();
   const { billId } = useParams<{ billId: string }>();
   const isMounted = useIsMounted();
-  const { activeSession, resumeSession, saveSession } = useBillContext();
+  const { activeSession, loadBill, saveSession } = useBillContext();
   const activeBillId = useRef<string | null>(billId !== 'new' ? billId : null);
+  const isExistingBill = !!billId && billId !== 'new';
 
   const [currentStep, setCurrentStep] = useState(0);
   const prevStepRef = useRef(0);
@@ -152,7 +156,15 @@ export function SimpleTransactionWizard({
 
   const { profile } = useUserProfile();
   const peopleManager = usePeopleManager(people, setPeople);
+  // Set only once a bill's data is APPLIED (fetch or snapshot), never on a
+  // mere attempt — a failed load must neither unlock the autosave nor block a
+  // later snapshot from rendering the bill.
   const hasLoadedBillId = useRef<string | null>(null);
+  const [isBillRendered, setIsBillRendered] = useState(!isExistingBill);
+  const [loadFailure, setLoadFailure] = useState<BillLoadFailure | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const fetchedAttempt = useRef<number | null>(null);
   const hasInitializedNew = useRef(false);
 
   // Helper: fetch all event members and return them as Person[]
@@ -363,20 +375,42 @@ export function SimpleTransactionWizard({
       setCurrentStep(2);
     };
 
-    if (activeSession && activeSession.id === billId) {
-      if (hasLoadedBillId.current !== activeSession.id) {
-        hasLoadedBillId.current = activeSession.id;
-        activeBillId.current = activeSession.id;
-        applyBillData(activeSession);
-      }
-    } else if (billId && hasLoadedBillId.current !== billId) {
+    const hydrate = (bill: import('@/types/bill.types').Bill) => {
       hasLoadedBillId.current = billId;
       activeBillId.current = billId;
-      resumeSession(billId, true).then((fetchedBill) => {
-        if (fetchedBill) applyBillData(fetchedBill);
-      });
+      applyBillData(bill);
+      setIsBillRendered(true);
+    };
+
+    // Applied once per bill: a bill on screen is never re-applied (that would
+    // clobber the user's edits) nor replaced by a failed fetch.
+    if (hasLoadedBillId.current === billId) return;
+
+    if (activeSession && activeSession.id === billId) {
+      hydrate(activeSession);
+      return;
     }
-  }, [billId, activeSession, resumeSession]);
+
+    // One fetch per attempt; Retry bumps `loadAttempt`.
+    if (fetchedAttempt.current === loadAttempt) return;
+    fetchedAttempt.current = loadAttempt;
+    activeBillId.current = billId;
+    loadBill(billId).then((result) => {
+      if (!isMounted.current) return;
+      setIsRetrying(false);
+      // A failure only shows while nothing is rendered (see the render gate):
+      // getDoc rejects offline while onSnapshot keeps serving the bill.
+      if (result.status !== 'loaded') setLoadFailure(result.status);
+      // A snapshot may have rendered the bill while this was in flight —
+      // never re-apply over it (that would clobber the user's edits).
+      else if (hasLoadedBillId.current !== billId) hydrate(result.bill);
+    });
+  }, [billId, activeSession, loadBill, loadAttempt]);
+
+  const handleRetryLoad = () => {
+    setIsRetrying(true);
+    setLoadAttempt((n) => n + 1);
+  };
 
   // Sync split data when people change
   useEffect(() => {
@@ -487,8 +521,10 @@ export function SimpleTransactionWizard({
   // Automatically saves edits to Amount, Title, and People.
   useEffect(() => {
     if (!user || !isOwner) return;
-    // Don't auto-save if we are already viewing a loaded bill but haven't initialized it
-    if (billId !== 'new' && !hasLoadedBillId.current) return;
+    // Never auto-save onto an existing bill whose data hasn't been applied —
+    // loading, or failed (missing/denied/offline): that would write a blank
+    // form over the bill id.
+    if (billId !== 'new' && !isBillRendered) return;
 
     const timeoutId = setTimeout(async () => {
       const numAmount = Number(amount);
@@ -556,6 +592,7 @@ export function SimpleTransactionWizard({
     people,
     billId,
     user,
+    isBillRendered,
     existingEventId,
     existingSquadId,
     existingItemId,
@@ -660,6 +697,26 @@ export function SimpleTransactionWizard({
       setIsSaving(false);
     }
   };
+
+  // An existing bill shows nothing editable until its data is applied: a
+  // spinner while loading/retrying, the error only if nothing ever rendered.
+  if (!isBillRendered) {
+    if (loadFailure && !isRetrying) {
+      return (
+        <BillLoadErrorState
+          failure={loadFailure}
+          onRetry={handleRetryLoad}
+          onBack={goBack}
+          backLabel={exitLabel}
+        />
+      );
+    }
+    return (
+      <div className="loading-container" style={{ minHeight: '60vh' }} role="status" aria-label="Loading bill">
+        <Loader2 className="loading-spinner" aria-hidden="true" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">
