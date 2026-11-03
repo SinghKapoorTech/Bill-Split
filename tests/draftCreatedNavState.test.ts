@@ -9,8 +9,10 @@ import { readFileSync } from 'fs';
 import path from 'path';
 
 const SITES: Array<[string, number]> = [
-  ['src/pages/AIScanView.tsx', 2], // handleEventChange (event + private)
-  ['src/pages/AirbnbView.tsx', 2], // handleEventChange (event + private)
+  // handleEventChange: draft creation on an event pick. Clearing the event on
+  // a draft with no bill is local-only, so it no longer navigates.
+  ['src/pages/AIScanView.tsx', 1],
+  ['src/pages/AirbnbView.tsx', 1],
   ['src/components/bill-wizard/BillWizard.tsx', 1], // post-scan save
   ['src/components/bill-wizard/hooks/useBillSession.ts', 1], // auto-save
 ];

@@ -100,6 +100,16 @@ function AIScanViewContent() {
   // Initialize data from session - track which session we've loaded to prevent auto-save loops
   const loadedSessionId = useRef<string | null>(null);
 
+  // A draft (/bill/new) has no bill until its first save creates one — from
+  // the wizard (through handleSaveSession) or from an event pick. Track that
+  // creation so a second save joins it instead of creating another bill, and
+  // so no draft write ever falls back to activeSession (the LATEST bill).
+  const draftCreation = useRef<Promise<string | null | void> | null>(null);
+  const draftCreatedId = useRef<string | null>(null);
+  // Content of the draft's last creation attempt, so an event pick that has
+  // to create the bill carries what the wizard holds.
+  const lastDraftPayload = useRef<Partial<Bill> | null>(null);
+
   // Helper: fetch all event members and return them as Person[]
   const fetchEventMembers = async (eventId: string): Promise<Person[]> => {
     try {
@@ -341,6 +351,28 @@ function AIScanViewContent() {
 
   const effectiveSession = billSession;
 
+  // The draft's bill id once created, waiting for an in-flight creation.
+  // undefined = the draft has no bill yet.
+  const resolveDraftBillId = async (): Promise<string | undefined> => {
+    if (draftCreatedId.current) return draftCreatedId.current;
+    const pending = draftCreation.current;
+    if (!pending) return undefined;
+    const id = await pending.catch(() => null);
+    return typeof id === "string" ? id : undefined;
+  };
+
+  const trackDraftCreation = (creation: Promise<string | null | void>) => {
+    draftCreation.current = creation;
+    creation
+      .then((id) => {
+        if (typeof id === "string") draftCreatedId.current = id;
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (draftCreation.current === creation) draftCreation.current = null;
+      });
+  };
+
   const handleEventChange = async (newEventId: string | null) => {
     setEventId(newEventId);
 
@@ -353,42 +385,53 @@ function AIScanViewContent() {
       // Clear assignments as people have changed
       setItemAssignments({});
 
-      // Persist the change
       // Converting a private bill to an event bill REPLACES people with the
       // event members, which legitimately drops private-bill guests.
-      const newBillId = await saveSession(
-        {
-          eventId: newEventId,
-          billType: "event",
-          people: newPeople,
-          itemAssignments: {},
-        },
-        billId || activeSession?.id,
-        { allowPeopleRemoval: true },
-      );
+      const eventFields: Partial<Bill> = {
+        eventId: newEventId,
+        billType: "event",
+        people: newPeople,
+        itemAssignments: {},
+      };
 
-      if (!billId && newBillId && isMounted.current) {
+      // THIS page's bill only — never activeSession, which on a draft is the
+      // user's latest bill.
+      const targetId = billId ?? (await resolveDraftBillId());
+      if (targetId) {
+        await saveSession(eventFields, targetId, { allowPeopleRemoval: true });
+        return;
+      }
+
+      // A draft with no bill yet: create it with its content and the event.
+      const draft = lastDraftPayload.current;
+      const creation = saveSession({
+        ...draft,
+        billData: draft?.billData ?? billData ?? undefined,
+        ...(title ? { title } : {}),
+        status: "draft",
+        ...eventFields,
+      });
+      trackDraftCreation(creation);
+      const newBillId = await creation;
+
+      if (typeof newBillId === "string" && isMounted.current) {
         navigate(`/bill/${newBillId}`, {
           replace: true,
           state: DRAFT_CREATED_NAV_STATE,
         });
       }
     } else {
-      // If none is selected, convert back to private
-      const newBillId = await saveSession(
+      // If none is selected, convert back to private. A draft with no bill
+      // yet has nothing to convert: local state only.
+      const targetId = billId ?? (await resolveDraftBillId());
+      if (!targetId) return;
+      await saveSession(
         {
           eventId: deleteField() as unknown as string,
           billType: "private",
         },
-        billId || activeSession?.id,
+        targetId,
       );
-
-      if (!billId && newBillId && isMounted.current) {
-        navigate(`/bill/${newBillId}`, {
-          replace: true,
-          state: DRAFT_CREATED_NAV_STATE,
-        });
-      }
     }
   };
 
@@ -398,6 +441,14 @@ function AIScanViewContent() {
     id?: string,
     options?: { allowPeopleRemoval?: boolean },
   ) => {
+    // A draft save while this page created (or is creating) the draft's bill
+    // updates that bill — the wizard doesn't know about it and would create a
+    // second one.
+    let targetId = id;
+    if (!targetId && !billId && (draftCreatedId.current || draftCreation.current)) {
+      targetId = await resolveDraftBillId();
+    }
+
     // Inject the event metadata if it's set in state
     if (eventId && !sessionData.eventId) {
       sessionData.eventId = eventId;
@@ -405,7 +456,12 @@ function AIScanViewContent() {
     }
 
     // Forward `options` or the people guard would silently lose intent here.
-    return saveSession(sessionData, id, options);
+    const save = saveSession(sessionData, targetId, options);
+    if (!targetId) {
+      lastDraftPayload.current = sessionData;
+      trackDraftCreation(save);
+    }
+    return save;
   };
 
   return (
