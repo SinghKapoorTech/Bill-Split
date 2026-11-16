@@ -27,6 +27,8 @@ for (const vp of VIEWPORTS) {
     await expect(back).toBeVisible();
     // A missing doc is "unavailable", not the offline variant.
     await expect(page.getByRole('heading', { name: "You're offline" })).toHaveCount(0);
+    // No editable title over the error card (it used to sit there, empty).
+    await expect(page.locator('#hero-bill-title')).toHaveCount(0);
 
     await back.click();
     await expect(page).not.toHaveURL(new RegExp(`/transaction/${missingId}`), { timeout: 10000 });

@@ -99,6 +99,9 @@ function AIScanViewContent() {
 
   // Initialize data from session - track which session we've loaded to prevent auto-save loops
   const loadedSessionId = useRef<string | null>(null);
+  // Set on a JIT draft swap (/bill/new -> /bill/<id>, same instance): the form
+  // already holds this bill, so its first apply keeps the user's edits.
+  const draftSwapId = useRef<string | null>(null);
 
   // A draft (/bill/new) has no bill until its first save creates one — from
   // the wizard (through handleSaveSession) or from an event pick. Track that
@@ -164,6 +167,10 @@ function AIScanViewContent() {
       return; // Exit early, ignore activeSession
     }
 
+    if (loadedSessionId.current === "draft" && location.state?.draftCreated) {
+      draftSwapId.current = billId;
+    }
+
     // 2. The live listener has this bill — as activeSession (latest) or as an
     // older savedSessions entry. Not the one-off fetch: it never updates.
     if (liveSession) {
@@ -174,12 +181,14 @@ function AIScanViewContent() {
       // Only update static/editor fields if this is the initial load for this session
       if (loadedSessionId.current !== liveSession.id) {
         setBillData(liveSession.billData || null);
-        setSplitEvenly(liveSession.splitEvenly || false);
-        setTitle(liveSession.title || "");
-        setCurrentStep(
-          initialWizardStep(liveSession, BILL_WIZARD_REVIEW_STEP),
-        );
-        setEventId(liveSession.eventId || null);
+        if (draftSwapId.current !== liveSession.id) {
+          setSplitEvenly(liveSession.splitEvenly || false);
+          setTitle(liveSession.title || "");
+          setCurrentStep(
+            initialWizardStep(liveSession, BILL_WIZARD_REVIEW_STEP),
+          );
+          setEventId(liveSession.eventId || null);
+        }
         loadedSessionId.current = liveSession.id;
         setIsSessionLoaded(true);
       }
@@ -204,13 +213,18 @@ function AIScanViewContent() {
         const fetchedBill = result.bill;
         setFetchedBill(fetchedBill);
         setLoadFailure(null);
+        // loadedSessionId is the "applied" guard: the snapshot already put this
+        // bill on screen, so re-applying the server copy would clobber edits.
+        if (loadedSessionId.current === fetchedBill.id) return;
         setBillData(fetchedBill.billData || null);
         setItemAssignments(fetchedBill.itemAssignments || {});
         setPeople(ensureUserInPeople(fetchedBill.people || [], user, profile));
-        setSplitEvenly(fetchedBill.splitEvenly || false);
-        setTitle(fetchedBill.title || "");
-        setCurrentStep(initialWizardStep(fetchedBill, BILL_WIZARD_REVIEW_STEP));
-        setEventId(fetchedBill.eventId || null);
+        if (draftSwapId.current !== fetchedBill.id) {
+          setSplitEvenly(fetchedBill.splitEvenly || false);
+          setTitle(fetchedBill.title || "");
+          setCurrentStep(initialWizardStep(fetchedBill, BILL_WIZARD_REVIEW_STEP));
+          setEventId(fetchedBill.eventId || null);
+        }
         loadedSessionId.current = fetchedBill.id;
         setIsSessionLoaded(true);
       });

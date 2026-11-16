@@ -107,6 +107,7 @@ function deferred<T>() {
 
 const ctx = {
   activeSession: null as Bill | null,
+  savedSessions: [] as Bill[],
   loadBill: vi.fn<(id: string) => Promise<BillLoadResult>>(),
   resumeSession: vi.fn(async () => null),
   saveSession: vi.fn(async () => 'bill-draft'),
@@ -131,6 +132,7 @@ const errorHeading = (name: string) => screen.queryByRole('heading', { name });
 
 beforeEach(() => {
   ctx.activeSession = null;
+  ctx.savedSessions = [];
   ctx.loadBill.mockReset();
   ctx.resumeSession.mockClear();
   ctx.saveSession.mockClear();

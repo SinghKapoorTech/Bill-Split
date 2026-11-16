@@ -7,7 +7,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { App } from '@capacitor/app';
 import { usePlatform } from '@/hooks/usePlatform';
 import { usePeopleManager } from '@/hooks/usePeopleManager';
-import { Person, BillData, ItemAssignment } from '@/types';
+import { Bill, Person, BillData, ItemAssignment } from '@/types';
 import { billService } from '@/services/billService';
 import { personIdToFirebaseUid } from '@shared/ledgerCalculations';
 import { needsAssignmentResync } from '@/utils/assignmentSync';
@@ -45,18 +45,21 @@ const STEPS = [
 export interface SimpleTransactionWizardProps {
   externalTitle?: string;
   setExternalTitle?: (title: string) => void;
+  /** Whether the bill is on screen (false while an existing bill loads or failed to). */
+  onBillRenderedChange?: (rendered: boolean) => void;
 }
 
 export function SimpleTransactionWizard({
   externalTitle,
   setExternalTitle,
+  onBillRenderedChange,
 }: SimpleTransactionWizardProps = {}) {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const { state: routerState } = useLocation();
   const { billId } = useParams<{ billId: string }>();
   const isMounted = useIsMounted();
-  const { activeSession, loadBill, saveSession } = useBillContext();
+  const { activeSession, savedSessions, loadBill, saveSession } = useBillContext();
   const activeBillId = useRef<string | null>(billId !== 'new' ? billId : null);
   const isExistingBill = !!billId && billId !== 'new';
 
@@ -97,7 +100,16 @@ export function SimpleTransactionWizard({
   const [existingSquadId, setExistingSquadId] = useState<string | undefined>();
   const [existingItemId, setExistingItemId] = useState<string | undefined>();
 
-  const relevantSession = activeSession?.id === activeBillId.current ? activeSession : null;
+  // The bill on THIS page — activeSession is only the user's latest bill; an
+  // older one comes from the live list, else the one-off fetch.
+  const [fetchedBill, setFetchedBill] = useState<Bill | null>(null);
+  const urlBillId = activeBillId.current;
+  const relevantSession = !urlBillId
+    ? null
+    : activeSession?.id === urlBillId
+      ? activeSession
+      : (savedSessions.find((b) => b.id === urlBillId) ??
+        (fetchedBill?.id === urlBillId ? fetchedBill : null));
   const isOwner =
     !relevantSession || !relevantSession.ownerId || relevantSession.ownerId === user?.uid;
   const { isNative } = usePlatform();
@@ -386,8 +398,13 @@ export function SimpleTransactionWizard({
     // clobber the user's edits) nor replaced by a failed fetch.
     if (hasLoadedBillId.current === billId) return;
 
-    if (activeSession && activeSession.id === billId) {
-      hydrate(activeSession);
+    // The live listener has it (latest or older bill) — served from cache offline.
+    const liveSession =
+      activeSession?.id === billId
+        ? activeSession
+        : (savedSessions.find((b) => b.id === billId) ?? null);
+    if (liveSession) {
+      hydrate(liveSession);
       return;
     }
 
@@ -400,12 +417,20 @@ export function SimpleTransactionWizard({
       setIsRetrying(false);
       // A failure only shows while nothing is rendered (see the render gate):
       // getDoc rejects offline while onSnapshot keeps serving the bill.
-      if (result.status !== 'loaded') setLoadFailure(result.status);
+      if (result.status !== 'loaded') {
+        setLoadFailure(result.status);
+        return;
+      }
+      setFetchedBill(result.bill);
       // A snapshot may have rendered the bill while this was in flight —
       // never re-apply over it (that would clobber the user's edits).
-      else if (hasLoadedBillId.current !== billId) hydrate(result.bill);
+      if (hasLoadedBillId.current !== billId) hydrate(result.bill);
     });
-  }, [billId, activeSession, loadBill, loadAttempt]);
+  }, [billId, activeSession, savedSessions, loadBill, loadAttempt]);
+
+  useEffect(() => {
+    onBillRenderedChange?.(isBillRendered);
+  }, [isBillRendered, onBillRenderedChange]);
 
   const handleRetryLoad = () => {
     setIsRetrying(true);
@@ -808,7 +833,7 @@ export function SimpleTransactionWizard({
               currentStep={currentStep}
               totalSteps={STEPS.length}
               billId={billId !== 'new' ? billId : undefined}
-              settledPersonIds={activeSession?.settledPersonIds || []}
+              settledPersonIds={relevantSession?.settledPersonIds || []}
               ownerId={relevantSession?.ownerId || user?.uid}
               isOwner={isOwner}
               splitMethod={splitMethod}

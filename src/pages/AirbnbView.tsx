@@ -58,6 +58,9 @@ function AirbnbViewContent() {
     const [isGeneratingShareCode, setIsGeneratingShareCode] = useState(false);
 
     const loadedSessionId = useRef<string | null>(null);
+    // Set on a JIT draft swap (/airbnb/new -> /airbnb/<id>, same instance): the
+    // form already holds this bill, so its first apply keeps the user's edits.
+    const draftSwapId = useRef<string | null>(null);
 
     // A draft (/airbnb/new) has no bill until its first save creates one —
     // from the wizard (through handleSaveSession) or from an event pick. Track
@@ -75,6 +78,15 @@ function AirbnbViewContent() {
     const [loadFailure, setLoadFailure] = useState<BillLoadFailure | null>(null);
     const [loadAttempt, setLoadAttempt] = useState(0);
     const [fetchedBill, setFetchedBill] = useState<Bill | null>(null);
+
+    // The session for THIS page's bill. activeSession is only the user's latest
+    // bill; an older one comes from the live list (served from cache offline),
+    // else the one-off fetch, which never updates.
+    const liveSession = !billId
+        ? null
+        : activeSession?.id === billId
+            ? activeSession
+            : savedSessions.find((b) => b.id === billId) ?? null;
 
     const fetchEventMembers = async (eventId: string): Promise<Person[]> => {
         try {
@@ -123,23 +135,29 @@ function AirbnbViewContent() {
             return;
         }
 
-        if (activeSession && activeSession.id === billId) {
-            setItemAssignments(activeSession.itemAssignments || {});
-            setPeople(ensureUserInPeople(activeSession.people || [], user, profile));
+        if (loadedSessionId.current === 'draft' && location.state?.draftCreated) {
+            draftSwapId.current = billId;
+        }
 
-            if (loadedSessionId.current !== activeSession.id) {
-                setBillData(activeSession.billData || null);
-                setSplitEvenly(activeSession.splitEvenly || false);
-                setTitle(activeSession.title || '');
-                setCurrentStep(activeSession.currentStep || 0);
-                setEventId(activeSession.eventId || null);
-                setAirbnbData(activeSession.airbnbData);
-                loadedSessionId.current = activeSession.id;
+        if (liveSession) {
+            setItemAssignments(liveSession.itemAssignments || {});
+            setPeople(ensureUserInPeople(liveSession.people || [], user, profile));
+
+            if (loadedSessionId.current !== liveSession.id) {
+                setBillData(liveSession.billData || null);
+                if (draftSwapId.current !== liveSession.id) {
+                    setAirbnbData(liveSession.airbnbData);
+                    setSplitEvenly(liveSession.splitEvenly || false);
+                    setTitle(liveSession.title || '');
+                    setCurrentStep(liveSession.currentStep || 0);
+                    setEventId(liveSession.eventId || null);
+                }
+                loadedSessionId.current = liveSession.id;
             }
             setIsBillRendered(true);
             setLoadFailure(null);
         }
-    }, [activeSession, billId, user, profile]);
+    }, [liveSession, billId, user, profile]);
 
     const hasLoadedBillId = useRef<string | null>(null);
 
@@ -152,16 +170,22 @@ function AirbnbViewContent() {
                 if (result.status === 'loaded') {
                     const fetchedBill = result.bill;
                     setFetchedBill(fetchedBill);
+                    setLoadFailure(null);
+                    // loadedSessionId is the "applied" guard (snapshot or fetch):
+                    // re-applying a bill already on screen would clobber edits.
+                    if (loadedSessionId.current === fetchedBill.id) return;
                     setBillData(fetchedBill.billData || null);
                     setItemAssignments(fetchedBill.itemAssignments || {});
                     setPeople(ensureUserInPeople(fetchedBill.people || [], user, profile));
-                    setSplitEvenly(fetchedBill.splitEvenly || false);
-                    setTitle(fetchedBill.title || '');
-                    setCurrentStep(fetchedBill.currentStep || 0);
-                    setEventId(fetchedBill.eventId || null);
-                    setAirbnbData(fetchedBill.airbnbData);
+                    if (draftSwapId.current !== fetchedBill.id) {
+                        setAirbnbData(fetchedBill.airbnbData);
+                        setSplitEvenly(fetchedBill.splitEvenly || false);
+                        setTitle(fetchedBill.title || '');
+                        setCurrentStep(fetchedBill.currentStep || 0);
+                        setEventId(fetchedBill.eventId || null);
+                    }
+                    loadedSessionId.current = fetchedBill.id;
                     setIsBillRendered(true);
-                    setLoadFailure(null);
                 } else {
                     setLoadFailure(result.status);
                 }
@@ -190,14 +214,8 @@ function AirbnbViewContent() {
         timeoutMinutes: 20,
     });
 
-    // The session for THIS page's bill. activeSession is only the user's latest
-    // bill; an older one comes from the live list, else the one-off fetch.
     // Passing another bill here would make useBillSession drop every save.
-    const billSession = !billId
-        ? null
-        : activeSession?.id === billId
-            ? activeSession
-            : savedSessions.find((b) => b.id === billId) ?? fetchedBill;
+    const billSession = liveSession ?? (billId ? fetchedBill : null);
 
     const handleGenerateShareLink = async () => {
         if (!billSession?.id || !user) return;
