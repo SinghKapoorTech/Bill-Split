@@ -26,10 +26,27 @@ service cloud.firestore {
       // Shadow users are stand-ins for people who have not signed up yet; their
       // creator may manage them, and only their creator. createdById is pinned
       // on update so a shadow cannot be re-attributed to another user.
-      allow create: if request.auth != null && (
-        request.auth.uid == userId ||
-        (request.resource.data.isShadow == true &&
-         request.resource.data.createdById == request.auth.uid)
+      //
+      // A shadow is always someone ELSE's stand-in, so both shadow branches
+      // (create and update) require userId != the caller, and the owner branch
+      // never creates its own document as a shadow. Without these, a user could
+      // mark their OWN document isShadow (crediting a second account as its
+      // creator) and have the email checks below skipped on a later edit.
+      // `.get(..., default)` everywhere on the shadow fields: a document
+      // without them must DENY cleanly on that branch, not raise an
+      // evaluation error.
+      //
+      // The `uid` FIELD is pinned to the document id too:
+      // userService.getUserByContact returns `data().uid`, so a document whose
+      // uid field named someone else would route debts to that person.
+      allow create: if request.auth != null &&
+        request.resource.data.get('uid', null) == userId && (
+        (request.auth.uid == userId &&
+         request.resource.data.get('isShadow', false) != true &&
+         ownCreateEmailIsHonest()) ||
+        (request.auth.uid != userId &&
+         request.resource.data.get('isShadow', false) == true &&
+         request.resource.data.get('createdById', null) == request.auth.uid)
       );
       // NOTE: `.get('createdById', null)` is deliberate. Legacy shadow users
       // predate this field, and a bare `resource.data.createdById` on a document
@@ -47,14 +64,37 @@ service cloud.firestore {
         return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']) ||
                (verifiedEmail() && request.resource.data.email == request.auth.token.email);
       }
-      allow update: if request.auth != null && (
-        (request.auth.uid == userId && emailSelfClaimIsHonest()) ||
-        (resource.data.isShadow == true &&
+      // The same claim when a user creates their own profile: publish nothing
+      // ('' or no email field at all), or the verified address on the token. An email/password signup is unverified,
+      // so its profile is created with email '' (profileSync.publishableEmail).
+      function ownCreateEmailIsHonest() {
+        return request.resource.data.get('email', '') == '' ||
+               (verifiedEmail() && request.resource.data.email == request.auth.token.email);
+      }
+      // Owners may not turn their own document INTO a shadow (the two-account
+      // detour above, on a profile that already exists); a document that
+      // already is one stays editable.
+      function becomesShadow() {
+        return request.resource.data.get('isShadow', false) == true &&
+               resource.data.get('isShadow', false) != true;
+      }
+      // `uid` never changes — and a legacy document without the field stays
+      // editable as long as nobody adds one.
+      allow update: if request.auth != null &&
+        request.resource.data.get('uid', null) == resource.data.get('uid', null) && (
+        (request.auth.uid == userId && emailSelfClaimIsHonest() && !becomesShadow()) ||
+        (request.auth.uid != userId &&
+         resource.data.get('isShadow', false) == true &&
          resource.data.get('createdById', null) == request.auth.uid &&
-         request.resource.data.isShadow == true &&
+         request.resource.data.get('isShadow', false) == true &&
          request.resource.data.get('createdById', null) == resource.data.get('createdById', null))
       );
-      allow delete: if request.auth != null && request.auth.uid == userId;
+      // DELETE IS SERVER-ONLY. No client deletes a profile (account deletion
+      // tombstones it through the Admin SDK), and a client delete would reopen
+      // the detour the shadow rules above close: the owner deletes their doc,
+      // a second account re-creates that id as ITS shadow, and the live account
+      // then carries whatever email the second account writes.
+      allow delete: if false;
     }
 
 

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserProfile, Friend } from '@/types';
@@ -24,27 +23,15 @@ export function useUserProfile() {
 
     // Use a real-time listener so any write to the user doc (e.g., updated
     // friend balances after a bill is completed) is immediately reflected.
+    //
+    // Listen only — never create. userService.syncUserProfile (started by
+    // AuthContext on sign-in) is the single creator of this doc. On a first
+    // sign-in the doc is briefly missing: report null and stop loading, and
+    // this listener delivers the profile the moment the sync writes it.
     const unsubscribe = onSnapshot(
       docRef,
-      async (docSnap) => {
-        if (docSnap.exists()) {
-          setProfile(docSnap.data() as UserProfile);
-        } else {
-          // First login — create the profile
-          const now = Timestamp.now();
-          const newProfile: UserProfile = {
-            uid: user.uid,
-            email: user.email || '',
-            displayName: user.displayName || '',
-            friends: [],
-            squadIds: [],
-            createdAt: now,
-            lastLoginAt: now,
-            ...(user.photoURL && { photoURL: user.photoURL }),
-          };
-          await setDoc(docRef, newProfile);
-          // The onSnapshot will fire again after the setDoc, no need to setState here
-        }
+      (docSnap) => {
+        setProfile(docSnap.exists() ? (docSnap.data() as UserProfile) : null);
         setLoading(false);
       },
       (error: Error) => {

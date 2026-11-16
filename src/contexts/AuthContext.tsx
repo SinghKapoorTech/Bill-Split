@@ -214,11 +214,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    *
    * The ordering here is not incidental. `createUserWithEmailAndPassword`
    * produces a user whose `displayName` is null and fires `onAuthStateChanged`
-   * immediately, so the profile sync in that listener would create the Firestore
-   * document with the placeholder name 'User' and an email-derived username —
-   * exactly the clobbering the Apple path was written to avoid. Setting the name
-   * and re-syncing repairs that, and `buildProfileUpdates` never downgrades a
-   * stored value, so the second sync cannot undo the first.
+   * immediately, so the background profile sync in that listener starts at
+   * once — usually before `updateProfile` below has set the name. Both syncs
+   * run, and `syncUserProfile` is single-flight per uid: whichever starts
+   * first creates the document; the other waits for it, then takes the update
+   * path, so the typed name always lands. When the nameless background sync
+   * creates it, the doc starts as 'User' with NO username
+   * (profileSync.seedsUsernameAtCreate), and this handler's follow-up update
+   * generates the username from the typed name — never from the email. `buildProfileUpdates` never downgrades a stored
+   * value, so neither sync can undo the other. The email stays '' until the
+   * address is verified (profileSync.publishableEmail, enforced by the users
+   * create rule in firestore.rules).
    */
   const signUpWithPassword = async (name: string, email: string, password: string) => {
     try {

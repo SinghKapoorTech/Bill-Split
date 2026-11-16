@@ -3,6 +3,7 @@ import {
   buildProfileUpdates,
   buildNewProfileFields,
   buildNewProfileUsernameSeed,
+  seedsUsernameAtCreate,
 } from '@/utils/profileSync';
 import type { UserProfile } from '@/types/person.types';
 
@@ -171,11 +172,14 @@ describe('buildNewProfileFields', () => {
     expect(fields.displayName).toBe('User');
   });
 
-  // Belt and braces: an Apple session that arrives WITHOUT `emailVerified` must
-  // still publish, on the strength of the matching apple.com provider entry.
-  // This is the fallback that keeps existing Apple users working if Firebase
-  // ever omits the flag — see the open question in the design doc.
-  it('publishes an Apple address even when emailVerified is absent', () => {
+  // An Apple session that arrives WITHOUT `emailVerified` withholds the
+  // address. The users create rule (firestore.rules) only accepts a non-empty
+  // email when the token says email_verified, so publishing on the strength of
+  // the apple.com provider entry alone would get this profile's first write
+  // denied — and syncUserProfile is the only creator, so the user would have
+  // no profile at all. Withholding still creates it; a later verified login
+  // fills the email in.
+  it('withholds an Apple address when emailVerified is absent (the create rule would deny it)', () => {
     const fields = buildNewProfileFields(
       {
         uid: 'u4',
@@ -187,7 +191,8 @@ describe('buildNewProfileFields', () => {
       'sarah-chen'
     );
 
-    expect(fields.email).toBe('sarah@icloud.com');
+    expect(fields.email).toBe('');
+    expect(fields.username).toBe('sarah-chen');
   });
 
   it('omits optional fields rather than writing undefined, which Firestore rejects', () => {
@@ -329,7 +334,7 @@ describe('email is only published once it is trusted', () => {
     ).toBe('victim@example.com');
   });
 
-  it('still publishes an OAuth email, which is the existing behaviour', () => {
+  it('withholds an OAuth email whose session lacks emailVerified', () => {
     const fields = buildNewProfileFields(
       {
         uid: 'g',
@@ -340,7 +345,39 @@ describe('email is only published once it is trusted', () => {
       },
       'person'
     );
+    expect(fields.email).toBe('');
+  });
+
+  it('publishes an OAuth email once the session says emailVerified', () => {
+    const fields = buildNewProfileFields(
+      {
+        uid: 'g',
+        email: 'person@gmail.com',
+        emailVerified: true,
+        providerData: [{ providerId: 'google.com', email: 'person@gmail.com' }],
+        displayName: 'Person',
+        photoURL: null,
+      },
+      'person'
+    );
     expect(fields.email).toBe('person@gmail.com');
+  });
+
+  it('withholds a google/apple email when emailVerified is explicitly false', () => {
+    for (const providerId of ['google.com', 'apple.com']) {
+      const fields = buildNewProfileFields(
+        {
+          uid: 'p',
+          email: 'p@example.com',
+          emailVerified: false,
+          providerData: [{ providerId, email: 'p@example.com' }],
+          displayName: 'P',
+          photoURL: null,
+        },
+        'p'
+      );
+      expect(fields.email, providerId).toBe('');
+    }
   });
 
   // Withholding must never become erasing. Someone who links a password to
@@ -353,5 +390,49 @@ describe('email is only published once it is trusted', () => {
       existing({ uid: 'attacker-uid', email: 'previously@verified.com' })
     );
     expect(updates.email).toBe('previously@verified.com');
+  });
+});
+
+// The public, searchable username of an email/password signup must come from
+// the TYPED name. AuthContext's background sync runs before updateProfile sets
+// it, so that nameless password session creates the profile without a username
+// and the signup handler's own sync (or the next login) generates it from the
+// name. OAuth first sign-ins keep seeding at create: Apple sends the name only
+// then, and a nameless Hide-My-Email user still needs a handle.
+describe('seedsUsernameAtCreate', () => {
+  const base = { uid: 'u', email: 'jdoe.secret@corp.com', photoURL: null };
+
+  it('defers for a nameless email/password session', () => {
+    expect(
+      seedsUsernameAtCreate({ ...base, displayName: null, providerData: [{ providerId: 'password', email: base.email }] })
+    ).toBe(false);
+  });
+
+  it('seeds at create once the password session has a name', () => {
+    expect(
+      seedsUsernameAtCreate({ ...base, displayName: 'Jane Smith', providerData: [{ providerId: 'password', email: base.email }] })
+    ).toBe(true);
+  });
+
+  it('seeds at create for a nameless Apple (Hide My Email) first sign-in', () => {
+    expect(
+      seedsUsernameAtCreate({
+        ...base,
+        email: 'xyz@privaterelay.appleid.com',
+        displayName: null,
+        providerData: [{ providerId: 'apple.com', email: 'xyz@privaterelay.appleid.com' }],
+      })
+    ).toBe(true);
+  });
+
+  it('seeds at create when providerData is unknown (keeps the old behaviour)', () => {
+    expect(seedsUsernameAtCreate({ ...base, displayName: null })).toBe(true);
+  });
+
+  it('buildNewProfileFields omits username when none is given, and keeps the onboarding flag', () => {
+    const fields = buildNewProfileFields({ ...base, displayName: null }, null);
+    expect('username' in fields).toBe(false);
+    expect(fields.hasSeenOnboarding).toBe(false);
+    expect(fields.email).toBe('');
   });
 });

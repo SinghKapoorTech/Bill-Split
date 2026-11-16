@@ -20,6 +20,7 @@ import {
   buildProfileUpdates,
   buildNewProfileFields,
   buildNewProfileUsernameSeed,
+  seedsUsernameAtCreate,
   type AuthUserLike,
 } from '@/utils/profileSync';
 
@@ -58,6 +59,58 @@ async function generateUniqueUsername(name: string): Promise<string> {
   return username;
 }
 
+/**
+ * The latest syncUserProfile call per uid, so concurrent calls run one after
+ * another instead of racing to create the same document.
+ */
+const profileSyncsInFlight = new Map<string, Promise<void>>();
+
+/** One profile sync: create the doc on first sign-in, otherwise update it. */
+async function syncUserProfileNow(user: AuthUserLike): Promise<void> {
+  const userRef = doc(db, USERS_COLLECTION, user.uid);
+  const userSnap = await getDoc(userRef);
+
+  const now = Timestamp.now();
+
+  if (!userSnap.exists()) {
+    // Create new profile. For an Apple sign-in this is the ONLY moment a real
+    // name is available — Apple returns it on the first authorization only.
+    // A nameless email/password session (the background sync on signup) gets
+    // no username yet: the update path generates it from the typed name.
+    const username = seedsUsernameAtCreate(user)
+      ? await generateUniqueUsername(buildNewProfileUsernameSeed(user))
+      : null;
+    const newProfile = {
+      ...buildNewProfileFields(user, username),
+      createdAt: now,
+      lastLoginAt: now,
+    } as UserProfile;
+    await setDoc(userRef, newProfile);
+  } else {
+    // Update last login and basic info. The merge rules live in a pure helper
+    // so they can be unit tested without Firebase — see tests/profileSync.ts.
+    // Critically, a provider that returns null must never erase a stored
+    // value: Sign in with Apple supplies the user's name only on the first
+    // authorization, and blanking it would rename them in every friend's app.
+    const existingData = userSnap.data() as UserProfile;
+    const { updates, needsUsername, usernameSeed } = buildProfileUpdates(user, existingData);
+
+    // Deleted accounts are never resurrected — buildProfileUpdates returns an
+    // empty plan for a tombstone, and writing lastLoginAt alone would still
+    // leave a live-looking profile.
+    if (Object.keys(updates).length === 0) return;
+
+    updates.lastLoginAt = now;
+
+    // Ensure every user has a username (on-demand generation)
+    if (needsUsername) {
+      updates.username = await generateUniqueUsername(usernameSeed);
+    }
+
+    await updateDoc(userRef, updates);
+  }
+}
+
 export const userService = {
   /**
    * Gets a user profile by ID
@@ -79,45 +132,29 @@ export const userService = {
   // Takes the shared AuthUserLike rather than an inline shape so that
   // `emailVerified` and `providerData` reach the profile helpers — they decide
   // whether this session's email is trustworthy enough to publish.
+  //
+  // This is the ONLY creator of users/{uid} (useUserProfile just listens), and
+  // it is single-flight per uid. A signup calls it twice at once: AuthContext's
+  // background sync, and signUpWithPassword's own call with the typed name.
+  // Unsynchronised, both would read "missing" and both create, the second
+  // overwriting the first wholesale. Instead each call waits for the one in
+  // flight for that uid, then reads the created doc and takes the update path,
+  // which is where the typed name lands.
   async syncUserProfile(user: AuthUserLike): Promise<void> {
-    const userRef = doc(db, USERS_COLLECTION, user.uid);
-    const userSnap = await getDoc(userRef);
-
-    const now = Timestamp.now();
-
-    if (!userSnap.exists()) {
-      // Create new profile. For an Apple sign-in this is the ONLY moment a real
-      // name is available — Apple returns it on the first authorization only.
-      const username = await generateUniqueUsername(buildNewProfileUsernameSeed(user));
-      const newProfile = {
-        ...buildNewProfileFields(user, username),
-        createdAt: now,
-        lastLoginAt: now,
-      } as UserProfile;
-      await setDoc(userRef, newProfile);
-    } else {
-      // Update last login and basic info. The merge rules live in a pure helper
-      // so they can be unit tested without Firebase — see tests/profileSync.ts.
-      // Critically, a provider that returns null must never erase a stored
-      // value: Sign in with Apple supplies the user's name only on the first
-      // authorization, and blanking it would rename them in every friend's app.
-      const existingData = userSnap.data() as UserProfile;
-      const { updates, needsUsername, usernameSeed } = buildProfileUpdates(user, existingData);
-
-      // Deleted accounts are never resurrected — buildProfileUpdates returns an
-      // empty plan for a tombstone, and writing lastLoginAt alone would still
-      // leave a live-looking profile.
-      if (Object.keys(updates).length === 0) return;
-
-      updates.lastLoginAt = now;
-
-      // Ensure every user has a username (on-demand generation)
-      if (needsUsername) {
-        updates.username = await generateUniqueUsername(usernameSeed);
-      }
-
-      await updateDoc(userRef, updates);
-    }
+    const previous = profileSyncsInFlight.get(user.uid);
+    // The waiting call runs whatever the previous outcome was: if that create
+    // failed, this call is the retry.
+    const run = (previous ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(() => syncUserProfileNow(user));
+    profileSyncsInFlight.set(user.uid, run);
+    // Settled (either way) and still the latest for this uid: forget it, so a
+    // later login runs straight away instead of chaining on stale state.
+    const clear = () => {
+      if (profileSyncsInFlight.get(user.uid) === run) profileSyncsInFlight.delete(user.uid);
+    };
+    run.then(clear, clear);
+    return run;
   },
 
   /**

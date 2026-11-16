@@ -1,5 +1,4 @@
 import type { UserProfile } from '@/types/person.types';
-import { hasTrustedEmail } from '@/utils/authProviders';
 
 /**
  * The subset of a Firebase `User` that profile syncing actually reads.
@@ -30,7 +29,11 @@ export interface AuthUserLike {
  * write on the happy path.
  */
 function publishableEmail(user: AuthUserLike): string {
-  return hasTrustedEmail(user) ? user.email || '' : '';
+  // `emailVerified` alone, not hasTrustedEmail's provider-entry fallback: the
+  // users create rule accepts a non-empty email only when the token says
+  // email_verified, so publishing on a provider match would have that
+  // profile's very first write denied — and nothing else creates it.
+  return user.emailVerified === true ? user.email || '' : '';
 }
 
 /**
@@ -47,16 +50,44 @@ export function buildNewProfileUsernameSeed(user: AuthUserLike): string {
   return user.displayName || (user.email ? user.email.split('@')[0] : 'user');
 }
 
-/** Fields written when creating a profile for a user signing in for the first time. */
+/**
+ * Whether a brand-new profile should get its username at create time.
+ *
+ * No for a nameless email/password session. On signup AuthContext's background
+ * sync (onAuthStateChanged) usually runs before updateProfile has set the typed
+ * name, and seeding then would derive the public, searchable handle from the
+ * UNVERIFIED email's local part. Without a username the doc is left with
+ * `needsUsername`, so the signup handler's own sync — single-flighted right
+ * behind this one, carrying the typed name — or the next login generates it
+ * from the name.
+ *
+ * Yes otherwise: a session that has a name, and every OAuth first sign-in —
+ * Apple sends the name only on that first authorization, and a nameless
+ * Hide-My-Email user still needs a handle. Unknown providerData keeps the
+ * old behaviour.
+ */
+export function seedsUsernameAtCreate(user: AuthUserLike): boolean {
+  if (user.displayName) return true;
+  const providers = (user.providerData ?? [])
+    .map((entry) => entry?.providerId)
+    .filter((id): id is string => !!id);
+  return !(providers.length > 0 && providers.every((id) => id === 'password'));
+}
+
+/**
+ * Fields written when creating a profile for a user signing in for the first
+ * time. `username` is null when it is deliberately deferred (see
+ * seedsUsernameAtCreate); the field is then omitted, never written empty.
+ */
 export function buildNewProfileFields(
   user: AuthUserLike,
-  username: string
+  username: string | null
 ): Record<string, unknown> {
   return {
     uid: user.uid,
     email: publishableEmail(user),
     displayName: user.displayName || 'User',
-    username,
+    ...(username && { username }),
     friends: [],
     squadIds: [],
     hasSeenOnboarding: false,
