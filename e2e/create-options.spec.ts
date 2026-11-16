@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { loginAsTestUser } from './helpers/auth';
+import { dismissOnboarding } from './helpers/onboarding';
 
 /**
  * CreateOptionsDialog — All Bill Types
@@ -11,6 +12,8 @@ test.describe('CreateOptionsDialog', () => {
   test('shows all four bill creation options', async ({ page }) => {
     await loginAsTestUser(page);
     await page.waitForURL(/\/dashboard/, { timeout: 20000 });
+    // The first-run onboarding modal aria-hides the dashboard; see dismissOnboarding.
+    await dismissOnboarding(page);
     await expect(page.getByRole('heading', { name: 'Balances' })).toBeVisible({ timeout: 45000 });
 
     // Open the create dialog via the + button on the Bills section
